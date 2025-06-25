@@ -1,7 +1,7 @@
 {
   "name": "downtime-logger",
   "version": "1.0.0",
-  "homepage": "https://JTILLC.github.io/DTLA",
+  "homepage": "https://jtillc.github.io/DTLA",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
