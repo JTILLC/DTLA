@@ -36,7 +36,7 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [currentPage, setCurrentPage] = useState('start');
+  const [currentPage, setCurrentPage] = useState('main');
   const [currentLine, setCurrentLine] = useState(lines[0].name);
   const [currentDay, setCurrentDay] = useState(dates[0].date);
   const [selectedDashboardDay, setSelectedDashboardDay] = useState(dates[0].date);
