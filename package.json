@@ -1,4 +1,7 @@
-{
+import React from 'react';
+
+// Default head structure for each day if none exists
+const defaultHeads = Array.from({
   "name": "downtime-logger",
   "version": "1.0.0",
   "homepage": "https://jtillc.github.io/DTLA",
@@ -27,3 +30,11 @@
     "gh-pages": "^4.0.0"
   }
 }
+      <table className="min-w-full bg-white border mb-4">
+        <thead className="bg-gray-200 text-gray-800">
+          <tr>
+            <th className="px-4 py-2">Head</th>
+            <th className="px-4 py-2">Offline</th>
+            <th className="px-4 py-2">Issue</th>
+            <th className="px-4 py-2">Repaired</th>
+            <th className
