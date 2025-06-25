@@ -15,17 +15,50 @@ const issueTypes = [
   'Stepper Motor Error', 'Hopper Issues', 'Installed Wrong'
 ];
 
+// Determine section name based on line number
+const getSectionForLine = (num) => {
+  if (num >= 1 && num <= 7) return 'PC Line';
+  if (num >= 8 && num <= 10) return 'Pellet Line';
+  if (num >= 11 && num <= 16) return 'Extruded';
+  if (num >= 17 && num <= 23) return 'Hand Kettle';
+  if (num >= 24 && num <= 31) return 'Twin Screw';
+  if (num >= 32 && num <= 37) return 'Sheeted 1';
+  return 'Sheeted 2';
+};
+
+// Total number of lines
+const totalLines = 39;
+
 export default function MainLogger({
   data,
   setData,
   dates,
   setDates,
-  lines,
   currentLine,
   setCurrentLine,
   currentDay,
   setCurrentDay
 }) {
+  // Build static line list with proper section names
+  const lineList = Array.from({ length: totalLines }, (_, i) => {
+    const num = i + 1;
+    return { name: `Line ${num}`, section: getSectionForLine(num) };
+  });
+
+  // Reset all handler
+  const handleResetAll = () => {
+    if (
+      window.confirm(
+        '⚠️ This will clear all saved dates, data, and history. Are you sure you want to reset?'
+      )
+    ) {
+      localStorage.removeItem('downtimeLoggerDates');
+      localStorage.removeItem('downtimeLoggerData');
+      localStorage.removeItem('downtimeLoggerHistory');
+      window.location.reload();
+    }
+  };
+
   // Determine running status
   const running = data[currentLine]?.running?.[currentDay] === 'Yes';
 
@@ -49,14 +82,14 @@ export default function MainLogger({
 
   // Prev/Next line navigation
   const prevLine = () => {
-    const idx = lines.findIndex(l => l.name === currentLine);
-    const prev = idx > 0 ? lines[idx - 1].name : lines[lines.length - 1].name;
+    const idx = lineList.findIndex(l => l.name === currentLine);
+    const prev = idx > 0 ? lineList[idx - 1].name : lineList[lineList.length - 1].name;
     setCurrentLine(prev);
   };
   const nextLine = () => {
-    const idx = lines.findIndex(l => l.name === currentLine);
-    const next = idx < lines.length - 1 ? lines[idx + 1].name : lines[0].name;
-    setCurrentLine(next);
+    const idx = lineList.findIndex(l => l.name === currentLine);
+    const nxt = idx < lineList.length - 1 ? lineList[idx + 1].name : lineList[0].name;
+    setCurrentLine(nxt);
   };
 
   // Retrieve entry and heads
@@ -70,14 +103,14 @@ export default function MainLogger({
       const newData = { ...prev };
       const lineData = { ...(newData[currentLine] || {}) };
       const dayData = { heads: [...heads], machineNotes, ...(lineData[currentDay] || {}) };
-      let updated = { ...dayData.heads[idx], [field]: value };
+      let updatedHead = { ...dayData.heads[idx], [field]: value };
       if (field === 'offline' && value === 'Active') {
-        updated = { ...updated, issue: 'None', repaired: 'N/A', notes: '' };
+        updatedHead = { ...updatedHead, issue: 'None', repaired: 'N/A', notes: '' };
       }
       if (field === 'issue' && value === 'None') {
-        updated = { ...updated, repaired: 'N/A' };
+        updatedHead = { ...updatedHead, repaired: 'N/A' };
       }
-      dayData.heads[idx] = updated;
+      dayData.heads[idx] = updatedHead;
       lineData[currentDay] = dayData;
       newData[currentLine] = lineData;
       return newData;
@@ -103,6 +136,16 @@ export default function MainLogger({
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
+      {/* Reset Button */}
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={handleResetAll}
+          className="bg-red-500 text-white px-4 py-2 rounded"
+        >
+          Reset All
+        </button>
+      </div>
+
       {/* Running Toggle */}
       <div className="flex items-center mb-4">
         <label className="mr-2 font-medium text-gray-800">Machine Running?</label>
@@ -132,8 +175,8 @@ export default function MainLogger({
           onChange={e => setCurrentLine(e.target.value)}
           className="flex-grow border rounded p-2 text-gray-800"
         >
-          {lines.map(l => (
-            <option key={l.name} value={l.name}>{l.section}: {l.name}</option>
+          {lineList.map(l => (
+            <option key={l.name} value={l.name}>{l.name} ({l.section})</option>
           ))}
         </select>
         <button onClick={nextLine} className="bg-gray-200 px-3 py-1 rounded">Next Line</button>
@@ -180,9 +223,7 @@ export default function MainLogger({
                   disabled={h.offline !== 'Offline'}
                   className="w-full border rounded text-black"
                 >
-                  {issueTypes.map(it => (
-                    <option key={it} value={it}>{it}</option>
-                  ))}
+                  {issueTypes.map(it => (<option key={it} value={it}>{it}</option>))}
                 </select>
               </td>
               <td className="px-4 py-2">
