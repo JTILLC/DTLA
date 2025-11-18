@@ -1,0 +1,70 @@
+// src/components/HistoryDetail.jsx
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+
+export default function HistoryDetail() {
+  const { line, head } = useParams();
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('importedHistory');
+    if (saved) {
+      try {
+        const all = JSON.parse(saved);
+        const filtered = all
+          .filter(entry => entry.line === line && String(entry.head) === head)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        setHistory(filtered);
+      } catch (e) {
+        console.error('Failed to parse history', e);
+      }
+    }
+    setLoading(false);
+  }, [line, head]);
+
+  if (loading) return <div className="text-center p-8">Loading...</div>;
+
+  return (
+    <div className="max-w-5xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">
+          Failure History: {line} — Head {head}
+        </h2>
+        <Link
+          to="/summary"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          ← Back to Summary
+        </Link>
+      </div>
+
+      {history.length === 0 ? (
+        <p className="text-center text-gray-600">No historical failures found.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-2 border text-center">Date</th>
+                <th className="p-2 border text-center">Issue</th>
+                <th className="p-2 border text-center">Repaired</th>
+                <th className="p-2 border text-center">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((entry, i) => (
+                <tr key={i} className={entry.repaired === 'Fixed' ? 'bg-orange-100' : 'bg-red-100'}>
+                  <td className="p-2 border text-center">{entry.date}</td>
+                  <td className="p-2 border text-center">{entry.issue}</td>
+                  <td className="p-2 border text-center">{entry.repaired}</td>
+                  <td className="p-2 border max-w-xs whitespace-normal">{entry.notes || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

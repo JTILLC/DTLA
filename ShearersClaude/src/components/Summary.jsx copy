@@ -1,0 +1,440 @@
+// src/components/Summary.jsx
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { getDatabase, ref, set, get } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+import { app } from '../firebaseConfig';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+const database = getDatabase(app);
+const auth = getAuth(app);
+
+export default function Summary({ data, dates }) {
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [filters, setFilters] = useState({
+    date: '',
+    line: '',
+    head: '',
+    issue: '',
+    repaired: '',
+    running: ''
+  });
+
+  const [historyMap, setHistoryMap] = useState(() => new Map());
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
+
+  // ------------------------------------------------------------
+  // 1. Load history from Firebase + localStorage
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const loadHistory = async () => {
+      let all = [];
+
+      if (auth.currentUser) {
+        try {
+          const snap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+          if (snap.exists()) all = snap.val();
+        } catch (err) {
+          console.error('Failed to load cloud history', err);
+        }
+      }
+
+      const local = localStorage.getItem('importedHistory');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          all = all.length ? mergeWithoutDuplicates(all, parsed) : parsed;
+        } catch (e) {
+          console.error('Failed to parse local history', e);
+        }
+      }
+
+      const deduped = deduplicate(all);
+      buildHistoryMap(deduped);
+    };
+
+    loadHistory();
+  }, []);
+
+  const deduplicate = (arr) => {
+    const seen = new Set();
+    return arr.filter(entry => {
+      const key = entry.id || `${entry.date}-${entry.line}-${entry.head}-${entry.issue}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const mergeWithoutDuplicates = (existing, incoming) => {
+    const map = new Map();
+    [...existing, ...incoming].forEach(entry => {
+      const key = entry.id || `${entry.date}-${entry.line}-${entry.head}-${entry.issue}`;
+      if (!map.has(key)) map.set(key, entry);
+    });
+    return Array.from(map.values());
+  };
+
+  const buildHistoryMap = (json) => {
+    const map = new Map();
+    json.forEach(entry => {
+      if (entry.line && entry.head) {
+        const key = `${entry.line}-Head ${entry.head}`;
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    });
+    setHistoryMap(map);
+  };
+
+  // ------------------------------------------------------------
+  // 2. Import from file
+  // ------------------------------------------------------------
+  const handleHistoryImport = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = JSON.parse(ev.target?.result);
+        if (!Array.isArray(json)) throw new Error('Expected an array of log entries.');
+
+        localStorage.setItem('importedHistory', JSON.stringify(json));
+        buildHistoryMap(json);
+        alert(`Imported ${json.length} records.`);
+      } catch (err) {
+        alert('Import failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, []);
+
+  // ------------------------------------------------------------
+  // 3. Save History to Cloud (MERGE, not overwrite)
+  // ------------------------------------------------------------
+  const handleSaveHistoryToCloud = async () => {
+    if (!auth.currentUser) return alert('Please wait for authentication.');
+
+    const saved = localStorage.getItem('importedHistory');
+    if (!saved) return alert('No history to save. Import a file first.');
+
+    setIsSavingHistory(true);
+    try {
+      const newJson = JSON.parse(saved);
+      if (!Array.isArray(newJson)) throw new Error('Invalid history format.');
+
+      const snap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+      const existing = snap.exists() ? snap.val() : [];
+
+      const merged = mergeWithoutDuplicates(existing, newJson);
+      await set(ref(database, `user-history/${auth.currentUser.uid}`), merged);
+      localStorage.setItem('importedHistory', JSON.stringify(merged));
+      buildHistoryMap(merged);
+      alert(`History updated! Now ${merged.length} total records.`);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    } finally {
+      setIsSavingHistory(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 4. Build current summary data
+  // ------------------------------------------------------------
+  const rawSummary = useMemo(() => {
+    return dates
+      .map(date => {
+        const dayData = data[date] || {};
+        const entries = [];
+
+        Object.keys(dayData).forEach(line => {
+          const entry = dayData[line] || { heads: [], machineNotes: '', running: false };
+
+          entry.heads
+            .filter(h => h.offline !== 'Active')
+            .forEach(h => {
+              entries.push({
+                date,
+                line,
+                head: h.head,
+                issue: h.issue,
+                notes: h.notes || 'None',
+                repaired: h.repaired,
+                running: entry.running ? 'Yes' : 'No'
+              });
+            });
+
+          if (entry.machineNotes) {
+            entries.push({
+              date,
+              line,
+              head: '',
+              issue: '',
+              notes: entry.machineNotes,
+              repaired: '',
+              running: entry.running ? 'Yes' : 'No'
+            });
+          }
+        });
+        return entries;
+      })
+      .flat()
+      .sort((a, b) => {
+        const dateDiff = new Date(a.date) - new Date(b.date);
+        if (dateDiff !== 0) return dateDiff;
+        const lineA = parseInt(a.line.replace('Line ', ''), 10);
+        const lineB = parseInt(b.line.replace('Line ', ''), 10);
+        return lineA - lineB;
+      });
+  }, [data, dates]);
+
+  // ------------------------------------------------------------
+  // 5. Unique values for dropdown filters
+  // ------------------------------------------------------------
+  const unique = useMemo(() => {
+    const sets = {
+      date: new Set(),
+      line: new Set(),
+      head: new Set(),
+      issue: new Set(),
+      repaired: new Set(),
+      running: new Set()
+    };
+
+    rawSummary.forEach(row => {
+      sets.date.add(row.date);
+      sets.line.add(row.line);
+      if (row.head) sets.head.add(String(row.head));
+      if (row.issue && row.issue !== 'None') sets.issue.add(row.issue);
+      if (row.repaired) sets.repaired.add(row.repaired);
+      sets.running.add(row.running);
+    });
+
+    return {
+      date: ['', ...Array.from(sets.date).sort()],
+      line: ['', ...Array.from(sets.line).sort((a, b) => {
+        const na = parseInt(a.replace('Line ', ''), 10);
+        const nb = parseInt(b.replace('Line ', ''), 10);
+        return na - nb;
+      })],
+      head: ['', ...Array.from(sets.head).sort((a, b) => Number(a) - Number(b))],
+      issue: ['', 'None', ...Array.from(sets.issue).sort()],
+      repaired: ['', ...Array.from(sets.repaired).sort()],
+      running: ['', ...Array.from(sets.running).sort()]
+    };
+  }, [rawSummary]);
+
+  // ------------------------------------------------------------
+  // 6. Apply filters
+  // ------------------------------------------------------------
+  const filteredSummary = useMemo(() => {
+    let result = rawSummary;
+
+    if (globalSearch.trim()) {
+      const term = globalSearch.toLowerCase();
+      result = result.filter(row =>
+        Object.values(row).some(val => String(val).toLowerCase().includes(term))
+      );
+    }
+
+    if (filters.date) result = result.filter(r => r.date === filters.date);
+    if (filters.line) result = result.filter(r => r.line === filters.line);
+    if (filters.head) result = result.filter(r => String(r.head) === filters.head);
+    if (filters.issue) result = result.filter(r => r.issue === filters.issue);
+    if (filters.repaired) result = result.filter(r => r.repaired === filters.repaired);
+    if (filters.running) result = result.filter(r => r.running === filters.running);
+
+    return result;
+  }, [rawSummary, globalSearch, filters]);
+
+  // ------------------------------------------------------------
+  // 7. PDF Export
+  // ------------------------------------------------------------
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.text('Downtime Logger Summary', 14, 20);
+    doc.autoTable({
+      startY: 30,
+      head: [['Date', 'Line', 'Head', 'Issue', 'Notes', 'Repaired', 'Running', 'Past Failures']],
+      body: filteredSummary.map(entry => {
+        const key = `${entry.line}-Head ${entry.head}`;
+        const pastCount = entry.head ? (historyMap.get(key) || 0) : '-';
+        return [
+          entry.date,
+          entry.line,
+          entry.head,
+          entry.issue,
+          entry.notes,
+          entry.repaired,
+          entry.running,
+          pastCount
+        ];
+      }),
+      theme: 'striped',
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [66, 66, 66] }
+    });
+    doc.save('downtime-summary.pdf');
+  };
+
+  // ------------------------------------------------------------
+  // 8. Clear filters
+  // ------------------------------------------------------------
+  const clearFilters = () => {
+    setGlobalSearch('');
+    setFilters({
+      date: '',
+      line: '',
+      head: '',
+      issue: '',
+      repaired: '',
+      running: ''
+    });
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
+      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl">Summary</h2>
+
+      {/* Top Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/logger" className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1">
+            Back to Logger
+          </Link>
+          <label className="px-4 py-2 bg-indigo-600 text-white rounded cursor-pointer sm:px-2 sm:py-1 text-center">
+            Import History
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleHistoryImport}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={handleSaveHistoryToCloud}
+            disabled={isSavingHistory}
+            className="px-4 py-2 bg-teal-600 text-white rounded sm:px-2 sm:py-1 disabled:opacity-50"
+          >
+            {isSavingHistory ? 'Saving...' : 'Save History to Cloud'}
+          </button>
+          <Link to="/head-history" className="px-4 py-2 bg-teal-700 text-white rounded sm:px-2 sm:py-1">
+            View Full Head History
+          </Link>
+        </div>
+
+        <input
+          type="text"
+          placeholder="Global search..."
+          value={globalSearch}
+          onChange={e => setGlobalSearch(e.target.value)}
+          className="border rounded px-3 py-1 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+
+        <div className="flex gap-2">
+          <button
+            onClick={exportToPDF}
+            className="px-4 py-2 bg-green-500 text-white rounded sm:px-2 sm:py-1"
+          >
+            Export to PDF
+          </button>
+          <Link to="/running" className="px-4 py-2 bg-purple-500 text-white rounded sm:px-2 sm:py-1">
+            Running
+          </Link>
+        </div>
+      </div>
+
+      {/* Column Filters */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-4">
+        {Object.keys(unique).map(key => (
+          <select
+            key={key}
+            value={filters[key]}
+            onChange={e => setFilters(prev => ({ ...prev, [key]: e.target.value }))}
+            className="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="">{key.charAt(0).toUpperCase() + key.slice(1)}</option>
+            {unique[key].map(opt => (
+              <option key={opt} value={opt}>{opt || '(empty)'}</option>
+            ))}
+          </select>
+        ))}
+      </div>
+
+      {/* Clear Filters */}
+      {(globalSearch || Object.values(filters).some(v => v)) && (
+        <div className="mb-4 text-right">
+          <button onClick={clearFilters} className="text-sm text-red-600 hover:underline">
+            Clear All Filters
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      {filteredSummary.length === 0 ? (
+        <p className="text-center text-gray-600 sm:text-sm">
+          {globalSearch || Object.values(filters).some(v => v)
+            ? 'No rows match your filters.'
+            : 'No downtime data available.'}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto border-collapse min-w-max">
+            <thead>
+              <tr className="bg-gray-100">
+                {['Date', 'Line', 'Head', 'Issue', 'Notes', 'Repaired', 'Running', 'Past Failures'].map(c => (
+                  <th key={c} className="p-2 text-center border sm:p-1 sm:text-sm">{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSummary.map((entry, i) => {
+                const key = `${entry.line}-Head ${entry.head}`;
+                const pastCount = entry.head ? (historyMap.get(key) || 0) : 0;
+
+                return (
+                  <tr
+                    key={i}
+                    className={
+                      entry.repaired === 'Fixed'
+                        ? 'bg-orange-200'
+                        : entry.repaired === 'Not Fixed'
+                          ? 'bg-red-200'
+                          : 'bg-gray-50'
+                    }
+                  >
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.date}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.line}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.head}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.issue}</td>
+                    <td className="p-2 border sm:p-1 sm:text-sm max-w-xs whitespace-normal">{entry.notes}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.repaired}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{entry.running}</td>
+                    <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                      {pastCount > 0 ? (
+                        <Link
+                          to={`/history/${encodeURIComponent(entry.line)}/${entry.head}`}
+                          className="font-semibold text-red-600 hover:underline"
+                          onClick={() => {
+                            const saved = localStorage.getItem('importedHistory');
+                            if (saved) localStorage.setItem('currentHistoryView', saved);
+                          }}
+                        >
+                          {pastCount}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

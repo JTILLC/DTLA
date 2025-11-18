@@ -1,0 +1,627 @@
+// src/components/HeadHistory.jsx
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { getDatabase, ref, get, set } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+import { app } from '../firebaseConfig';
+
+const database = getDatabase(app);
+const auth = getAuth(app);
+
+const issueTypes = [
+  'None',
+  'Chute',
+  'Operator',
+  'Load Cell',
+  'Detached Head',
+  'Stepper Motor Error',
+  'Hopper Issues',
+  'Installed Wrong'
+];
+
+export default function HeadHistory() {
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [filters, setFilters] = useState({
+    date: '',
+    line: '',
+    head: '',
+    issue: '',
+    repaired: ''
+  });
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [addingDowntime, setAddingDowntime] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saveStatus, setSaveStatus] = useState(''); // Show save status
+
+  // RECONCILE MODAL STATE
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+
+  // ------------------------------------------------------------
+  // 1. LOAD HISTORY FROM FIREBASE + LOCAL
+  // ------------------------------------------------------------
+  const loadHistory = async () => {
+    setLoading(true);
+    let all = [];
+
+    // Firebase
+    if (auth.currentUser) {
+      try {
+        const snap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+        if (snap.exists()) all = snap.val();
+      } catch (err) {
+        console.error('Failed to load history from cloud', err);
+      }
+    }
+
+    // localStorage
+    const local = localStorage.getItem('importedHistory');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        all = all.length ? mergeWithoutDuplicates(all, parsed) : parsed;
+      } catch (e) {
+        console.error('Local parse failed', e);
+      }
+    }
+
+    const deduped = deduplicate(all);
+    const sorted = sortHistory(deduped);
+    setHistory(sorted);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  // ------------------------------------------------------------
+  // 2. SAVE TO CLOUD + LOCAL (REUSABLE)
+  // ------------------------------------------------------------
+  const saveToCloudAndLocal = async (data) => {
+    try {
+      await set(ref(database, `user-history/${auth.currentUser.uid}`), data);
+      localStorage.setItem('importedHistory', JSON.stringify(data));
+      setSaveStatus('Saved!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (err) {
+      console.error('Save failed', err);
+      setSaveStatus('Save failed');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 3. ADD CURRENT DOWNTIME TO HISTORY
+  // ------------------------------------------------------------
+  const addCurrentDowntimeToHistory = async () => {
+    if (!auth.currentUser) {
+      alert('Please wait for authentication.');
+      return;
+    }
+
+    setAddingDowntime(true);
+    try {
+      const snap = await get(ref(database, 'downtime-logger-data'));
+      if (!snap.exists()) {
+        alert('No downtime data found to add.');
+        return;
+      }
+
+      const { data: downtimeData } = snap.val();
+      if (!downtimeData) {
+        alert('No downtime data found.');
+        return;
+      }
+
+      const currentEntries = [];
+      Object.keys(downtimeData).forEach(date => {
+        const dayData = downtimeData[date] || {};
+        Object.keys(dayData).forEach(line => {
+          const entry = dayData[line];
+          if (entry && entry.running) {
+            entry.heads
+              .filter(h => h.offline !== 'Active')
+              .forEach(h => {
+                currentEntries.push({
+                  date,
+                  line,
+                  head: h.head,
+                  issue: h.issue,
+                  repaired: h.repaired,
+                  notes: h.notes || ''
+                });
+              });
+          }
+        });
+      });
+
+      if (currentEntries.length === 0) {
+        alert('No new downtime entries to add.');
+        return;
+      }
+
+      let existing = [];
+      try {
+        const historySnap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+        if (historySnap.exists()) existing = historySnap.val();
+      } catch (err) {
+        console.error('Failed to load existing history', err);
+      }
+
+      const seen = new Set();
+      const merged = [];
+      [...existing, ...currentEntries].forEach(entry => {
+        const key = `${entry.date}-${entry.line}-${entry.head}-${entry.issue}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(entry);
+        }
+      });
+
+      const sorted = sortHistory(merged);
+      setHistory(sorted);
+      await saveToCloudAndLocal(sorted);
+
+      alert(`Added ${currentEntries.length} new entries! Total: ${merged.length}`);
+    } catch (err) {
+      console.error('Failed to add downtime to history', err);
+      alert('Failed to add: ' + err.message);
+    } finally {
+      setAddingDowntime(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 4. EDIT & DELETE
+  // ------------------------------------------------------------
+  const startEdit = (index) => {
+    setEditingIndex(index);
+    setEditForm({ ...history[index] });
+  };
+
+  const saveEdit = async () => {
+    if (editingIndex === null) return;
+
+    const updated = [...history];
+    updated[editingIndex] = editForm;
+    const sorted = sortHistory(updated);
+    setHistory(sorted);
+    setEditingIndex(null);
+    await saveToCloudAndLocal(sorted);
+    alert('Entry updated and saved!');
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setEditForm({});
+  };
+
+  const deleteEntry = async (index) => {
+    if (!window.confirm('Delete this entry?')) return;
+
+    const updated = history.filter((_, i) => i !== index);
+    const sorted = sortHistory(updated);
+    setHistory(sorted);
+    await saveToCloudAndLocal(sorted);
+    alert('Entry deleted and saved.');
+  };
+
+  // ------------------------------------------------------------
+  // 5. SORT FUNCTION — NEWEST FIRST
+  // ------------------------------------------------------------
+  const sortHistory = (arr) => {
+    return arr.sort((a, b) => {
+      const dateDiff = new Date(b.date) - new Date(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      const lineA = parseInt(a.line.replace('Line ', ''), 10);
+      const lineB = parseInt(b.line.replace('Line ', ''), 10);
+      return lineA - lineB;
+    });
+  };
+
+  const deduplicate = (arr) => {
+    const seen = new Set();
+    return arr.filter(entry => {
+      const key = entry.id || `${entry.date}-${entry.line}-${entry.head}-${entry.issue}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const mergeWithoutDuplicates = (existing, incoming) => {
+    const map = new Map();
+    [...existing, ...incoming].forEach(entry => {
+      const key = entry.id || `${entry.date}-${entry.line}-${entry.head}-${entry.issue}`;
+      if (!map.has(key)) map.set(key, entry);
+    });
+    return Array.from(map.values());
+  };
+
+  // ------------------------------------------------------------
+  // 6. Filters & Search
+  // ------------------------------------------------------------
+  const filtered = useMemo(() => {
+    let result = history;
+
+    if (globalSearch.trim()) {
+      const term = globalSearch.toLowerCase();
+      result = result.filter(row =>
+        Object.values(row).some(val => String(val).toLowerCase().includes(term))
+      );
+    }
+
+    if (filters.date) result = result.filter(r => r.date === filters.date);
+    if (filters.line) result = result.filter(r => r.line === filters.line);
+    if (filters.head) result = result.filter(r => String(r.head) === filters.head);
+    if (filters.issue) result = result.filter(r => r.issue === filters.issue);
+    if (filters.repaired) result = result.filter(r => r.repaired === filters.repaired);
+
+    return result;
+  }, [history, globalSearch, filters]);
+
+  // ------------------------------------------------------------
+  // 7. Unique values for dropdowns
+  // ------------------------------------------------------------
+  const unique = useMemo(() => {
+    const sets = {
+      date: new Set(),
+      line: new Set(),
+      head: new Set(),
+      issue: new Set(),
+      repaired: new Set()
+    };
+
+    history.forEach(row => {
+      sets.date.add(row.date);
+      sets.line.add(row.line);
+      if (row.head) sets.head.add(String(row.head));
+      if (row.issue) sets.issue.add(row.issue);
+      if (row.repaired) sets.repaired.add(row.repaired);
+    });
+
+    return {
+      date: ['', ...Array.from(sets.date).sort()],
+      line: ['', ...Array.from(sets.line).sort((a, b) => {
+        const na = parseInt(a.replace('Line ', ''), 10);
+        const nb = parseInt(b.replace('Line ', ''), 10);
+        return na - nb;
+      })],
+      head: ['', ...Array.from(sets.head).sort((a, b) => Number(a) - Number(b))],
+      issue: ['', ...Array.from(sets.issue).sort()],
+      repaired: ['', ...Array.from(sets.repaired).sort()]
+    };
+  }, [history]);
+
+  // ------------------------------------------------------------
+  // 8. Export to JSON
+  // ------------------------------------------------------------
+  const exportToJSON = () => {
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `head-history-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearFilters = () => {
+    setGlobalSearch('');
+    setFilters({ date: '', line: '', head: '', issue: '', repaired: '' });
+  };
+
+  // ------------------------------------------------------------
+  // 9. RECONCILE DUPLICATES BY (date, line, head)
+  // ------------------------------------------------------------
+  const findAndReconcileDuplicates = async () => {
+    const keyMap = new Map();
+
+    history.forEach((entry, index) => {
+      const key = `${entry.date}-${entry.line}-${entry.head}`;
+      if (!keyMap.has(key)) {
+        keyMap.set(key, []);
+      }
+      keyMap.get(key).push({ ...entry, originalIndex: index });
+    });
+
+    const groupsWithDuplicates = Array.from(keyMap.values())
+      .filter(group => group.length > 1)
+      .map(group => ({
+        key: `${group[0].date}-${group[0].line}-${group[0].head}`,
+        entries: group.sort((a, b) => b.originalIndex - a.originalIndex)
+      }));
+
+    if (groupsWithDuplicates.length === 0) {
+      alert('No duplicates found (same date, line, head).');
+      return;
+    }
+
+    setDuplicateGroups(groupsWithDuplicates);
+    setShowReconcileModal(true);
+  };
+
+  const keepEntryAndRemoveOthers = async (groupKey, keepIndexInGroup) => {
+    const group = duplicateGroups.find(g => g.key === groupKey);
+    const keepEntry = group.entries[keepIndexInGroup];
+
+    const indicesToRemove = group.entries.map(e => e.originalIndex);
+    let updatedHistory = history.filter((_, i) => !indicesToRemove.includes(i));
+    updatedHistory.push(keepEntry);
+
+    const sorted = sortHistory(updatedHistory);
+    setHistory(sorted);
+    await saveToCloudAndLocal(sorted);
+
+    setDuplicateGroups(prev => prev.filter(g => g.key !== groupKey));
+    if (duplicateGroups.length === 1) {
+      setShowReconcileModal(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
+      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl">Head Failure History</h2>
+
+      {/* Save Status */}
+      {saveStatus && (
+        <div className={`text-center mb-2 font-medium ${saveStatus === 'Saved!' ? 'text-green-600' : 'text-red-600'}`}>
+          {saveStatus}
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/summary" className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1">
+            Back to Summary
+          </Link>
+          <button
+            onClick={loadHistory}
+            className="px-4 py-2 bg-orange-600 text-white rounded sm:px-2 sm:py-1"
+          >
+            Force Refresh
+          </button>
+          <button
+            onClick={addCurrentDowntimeToHistory}
+            disabled={addingDowntime}
+            className="px-4 py-2 bg-teal-600 text-white rounded sm:px-2 sm:py-1 disabled:opacity-50"
+          >
+            {addingDowntime ? 'Adding...' : 'Add Current Downtime'}
+          </button>
+          <button
+            onClick={findAndReconcileDuplicates}
+            className="px-4 py-2 bg-purple-600 text-white rounded sm:px-2 sm:py-1"
+          >
+            Reconcile Duplicates
+          </button>
+        </div>
+
+        <button
+          onClick={exportToJSON}
+          className="px-4 py-2 bg-green-600 text-white rounded sm:px-2 sm:py-1"
+        >
+          Export to JSON
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-4">
+        {Object.keys(unique).map(key => (
+          <select
+            key={key}
+            value={filters[key]}
+            onChange={e => setFilters(prev => ({ ...prev, [key]: e.target.value }))}
+            className="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="">{key.charAt(0).toUpperCase() + key.slice(1)}</option>
+            {unique[key].map((opt, index) => (
+              <option key={`${key}-option-${index}`} value={opt}>
+                {opt || '(empty)'}
+              </option>
+            ))}
+          </select>
+        ))}
+      </div>
+
+      {(globalSearch || Object.values(filters).some(v => v)) && (
+        <div className="mb-4 text-right">
+          <button onClick={clearFilters} className="text-sm text-red-600 hover:underline">
+            Clear All Filters
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-center text-gray-600">Loading...</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-gray-600">No history entries match your filters.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto border-collapse min-w-max">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-2 border text-center">Date</th>
+                <th className="p-2 border text-center">Line</th>
+                <th className="p-2 border text-center">Head</th>
+                <th className="p-2 border text-center">Issue</th>
+                <th className="p-2 border text-center">Repaired</th>
+                <th className="p-2 border text-center">Notes</th>
+                <th className="p-2 border text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((entry, i) => {
+                const globalIndex = history.indexOf(entry);
+                const isEditing = editingIndex === globalIndex;
+
+                return (
+                  <tr
+                    key={globalIndex}
+                    className={entry.repaired === 'Fixed' ? 'bg-orange-100' : 'bg-red-100'}
+                  >
+                    {isEditing ? (
+                      <>
+                        <td className="p-2 border">
+                          <input
+                            type="date"
+                            value={editForm.date || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="p-2 border">
+                          <input
+                            value={editForm.line || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, line: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="p-2 border">
+                          <input
+                            type="number"
+                            min="1"
+                            max="14"
+                            value={editForm.head || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, head: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="p-2 border">
+                          <select
+                            value={editForm.issue || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, issue: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          >
+                            {issueTypes.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-2 border">
+                          <select
+                            value={editForm.repaired || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, repaired: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          >
+                            <option value="Not Fixed">Not Fixed</option>
+                            <option value="Fixed">Fixed</option>
+                          </select>
+                        </td>
+                        <td className="p-2 border">
+                          <input
+                            value={editForm.notes || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                            className="w-full p-1 border rounded text-sm"
+                          />
+                        </td>
+                        <td className="p-2 border text-center">
+                          <button
+                            onClick={saveEdit}
+                            className="px-2 py-1 bg-green-500 text-white rounded text-xs mr-1"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="px-2 py-1 bg-gray-500 text-white rounded text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="p-2 border text-center">{entry.date}</td>
+                        <td className="p-2 border text-center">{entry.line}</td>
+                        <td className="p-2 border text-center">{entry.head}</td>
+                        <td className="p-2 border text-center">{entry.issue}</td>
+                        <td className="p-2 border text-center">{entry.repaired}</td>
+                        <td className="p-2 border max-w-xs whitespace-normal">{entry.notes || '—'}</td>
+                        <td className="p-2 border text-center">
+                          <button
+                            onClick={() => startEdit(globalIndex)}
+                            className="px-2 py-1 bg-blue-500 text-white rounded text-xs mr-1"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteEntry(globalIndex)}
+                            className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* RECONCILE DUPLICATES MODAL */}
+      {showReconcileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto p-6">
+            <h3 className="text-xl font-bold mb-4">Reconcile Duplicates (Date + Line + Head)</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Found {duplicateGroups.reduce((sum, g) => sum + g.entries.length, 0)} conflicting entries in {duplicateGroups.length} group(s).
+            </p>
+
+            {duplicateGroups.map(group => (
+              <div key={group.key} className="mb-6 p-4 border rounded bg-gray-50">
+                <h4 className="font-semibold text-lg mb-2">
+                  Conflict: {group.key.replace(/-/g, ' | ')}
+                </h4>
+                <table className="w-full text-xs border-collapse mb-3">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-1 border">Issue</th>
+                      <th className="p-1 border">Repaired</th>
+                      <th className="p-1 border">Notes</th>
+                      <th className="p-1 border">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.entries.map((entry, i) => (
+                      <tr key={i} className="hover:bg-gray-100">
+                        <td className="p-1 border">{entry.issue}</td>
+                        <td className="p-1 border">{entry.repaired}</td>
+                        <td className="p-1 border max-w-xs truncate">{entry.notes || '—'}</td>
+                        <td className="p-1 border text-center">
+                          <button
+                            onClick={() => keepEntryAndRemoveOthers(group.key, i)}
+                            className="px-2 py-1 bg-green-600 text-white text-xs rounded"
+                          >
+                            Keep This
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowReconcileModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

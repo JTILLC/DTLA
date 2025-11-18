@@ -1,0 +1,544 @@
+// src/components/MainLogger.jsx
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { getDatabase, ref, set, get } from 'firebase/database';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { app } from '../firebaseConfig';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+const database = getDatabase(app);
+const auth = getAuth(app);
+
+const AZ_TZ = 'America/Phoenix';
+
+// --- AZ Time Helpers -------------------------------------------------
+const azYmd = (dateObj) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: AZ_TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(dateObj); // YYYY-MM-DD
+
+const azLabelFromYmd = (ymd) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const atNoonUTC = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: AZ_TZ,
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(atNoonUTC);
+};
+
+const initialFiveAz = () => {
+  const now = new Date();
+  return Array.from({ length: 5 }, (_, i) => azYmd(new Date(now.getTime() - i * 24 * 60 * 60 * 1000)));
+};
+
+const azTodayYmd = () => azYmd(new Date());
+// ---------------------------------------------------------------------
+
+const defaultHeads = Array.from({ length: 14 }, (_, i) => ({
+  head: i + 1,
+  offline: 'Active',
+  issue: 'None',
+  repaired: 'Not Fixed',
+  notes: ''
+}));
+
+const issueTypes = [
+  'None',
+  'Chute',
+  'Operator',
+  'Load Cell',
+  'Detached Head',
+  'Stepper Motor Error',
+  'Hopper Issues',
+  'Installed Wrong'
+];
+
+export default function MainLogger({ data, setData }) {
+  const { state } = useLocation();
+  const selectedDate = state?.selectedDate;
+  const selectedLine = state?.selectedLine;
+
+  // --- 5 DATES (Editable) ---
+  const [localDates, setLocalDates] = useState(initialFiveAz);
+  const todayAz = azTodayYmd();
+
+  // --- Current Context ---
+  const [currentDay, setCurrentDay] = useState(() => {
+    const persisted = localStorage.getItem('currentDay');
+    if (persisted) return persisted;
+    if (selectedDate && localDates.includes(selectedDate)) return selectedDate;
+    return todayAz;
+  });
+
+  const [currentLine, setCurrentLine] = useState(selectedLine || 'Line 1');
+
+  // --- UI ---
+  const [expandedDays, setExpandedDays] = useState(new Set([todayAz]));
+  const [showMenu, setShowMenu] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [authError, setAuthError] = useState(null);
+
+  // --- Auth ---
+  useEffect(() => {
+    signInAnonymously(auth)
+      .then(() => setAuthError(null))
+      .catch((err) => setAuthError(err.message));
+  }, []);
+
+  // --- Auto-save ---
+  useEffect(() => {
+    const t = setTimeout(saveToCloud, 1000);
+    return () => clearTimeout(t);
+  }, [data]);
+
+  const saveToCloud = async () => {
+    setSaveStatus('Saving...');
+    try {
+      await set(ref(database, 'downtime-logger-data'), { data });
+      setSaveStatus('Saved!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch {
+      setSaveStatus('Failed');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  // --- Persist current day ---
+  useEffect(() => {
+    if (currentDay) localStorage.setItem('currentDay', currentDay);
+  }, [currentDay]);
+
+  // --- Rebuild dates from imported data ---
+  useEffect(() => {
+    const keys = Object.keys(data || {});
+    if (!keys.length) {
+      const five = initialFiveAz();
+      setLocalDates(five);
+      if (!five.includes(currentDay)) {
+        setCurrentDay(five[0]);
+        setExpandedDays(new Set([five[0]]));
+      }
+      return;
+    }
+    const newestFirst = [...keys].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+    const latest = newestFirst.slice(0, 5);
+    setLocalDates(latest);
+    if (!latest.includes(currentDay)) {
+      setCurrentDay(latest[0]);
+      setExpandedDays(new Set([latest[0]]));
+    }
+  }, [data]);
+
+  // --- Helpers ---
+  const getDayData = (date) => data?.[date] || {};
+  const updateDay = (date, updates) => {
+    setData((prev) => ({
+      ...prev,
+      [date]: { ...getDayData(date), ...updates }
+    }));
+  };
+
+  const toggleDay = (date) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      next.has(date) ? next.delete(date) : next.add(date);
+      return next;
+    });
+    setCurrentDay(date);
+  };
+
+  // --- EDIT DATE: Move data when date changes ---
+  const handleEditDate = (index, newDate) => {
+    const oldDate = localDates[index];
+    if (oldDate === newDate || !newDate) return;
+
+    const updatedDates = [...localDates];
+    updatedDates[index] = newDate;
+    setLocalDates(updatedDates);
+
+    // Move data
+    if (data[oldDate]) {
+      setData((prev) => {
+        const clone = { ...prev };
+        clone[newDate] = clone[oldDate];
+        delete clone[oldDate];
+        return clone;
+      });
+    }
+
+    // Update current day if needed
+    if (currentDay === oldDate) {
+      setCurrentDay(newDate);
+    }
+  };
+
+  // --- ACTIONS ---
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imp = JSON.parse(reader.result);
+        if (imp?.data) {
+          setData(imp.data);
+          alert('Imported!');
+        } else {
+          alert('Invalid file: missing "data" root key.');
+        }
+      } catch {
+        alert('Invalid file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify({ data }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `downtime-${todayAz}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!auth.currentUser) return alert('Not signed in');
+    try {
+      await set(ref(database, 'downtime-logger-data'), { data });
+      alert('Saved to cloud');
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    }
+  };
+
+  const handleLoadFromCloud = async () => {
+    try {
+      const snap = await get(ref(database, 'downtime-logger-data'));
+      if (snap.exists()) {
+        const { data: cloud } = snap.val();
+        setData(cloud || {});
+        alert('Loaded from cloud');
+      } else {
+        alert('No cloud data found.');
+      }
+    } catch (err) {
+      alert('Load failed: ' + err.message);
+    }
+  };
+
+  const handleResetLine = () => {
+    if (!window.confirm(`Reset ${currentLine} on ${currentDay}?`)) return;
+    updateDay(currentDay, { [currentLine]: { heads: defaultHeads, machineNotes: '', running: false } });
+  };
+
+  const handleResetAll = () => {
+    if (!window.confirm('Reset ALL data?')) return;
+    setData({});
+    set(ref(database, 'downtime-logger-data'), { data: {} });
+  };
+
+  // --- Line Navigation ---
+  const allLines = Array.from({ length: 38 }, (_, i) => `Line ${i + 1}`);
+  const prevLine = () =>
+    setCurrentLine(allLines[(allLines.indexOf(currentLine) - 1 + allLines.length) % allLines.length]);
+  const nextLine = () =>
+    setCurrentLine(allLines[(allLines.indexOf(currentLine) + 1) % allLines.length]);
+
+  // --- Row Colors ---
+  const getRowClass = (h) => {
+    if (h.offline === 'Active') return 'bg-green-200';
+    if (h.repaired === 'Fixed') return 'bg-orange-200';
+    return 'bg-red-200';
+  };
+
+  // --- Offline Heads Display ---
+  const offlineHeadsDisplayFor = (heads) => {
+    const items = heads
+      .filter((h) => h.offline !== 'Active')
+      .map((h) => (
+        <span key={h.head} className={h.repaired === 'Fixed' ? 'text-blue-500' : 'text-red-500'}>
+          {h.head}
+        </span>
+      ));
+    return items.length
+      ? items.reduce((prev, curr, i) => (i === 0 ? [curr] : [prev, ', ', curr]), [])
+      : 'None';
+  };
+
+  // --- Graph Data ---
+  const headsDownGraphData = {
+    labels: localDates,
+    datasets: [
+      {
+        label: 'Offline',
+        data: localDates.map((date) => (getDayData(date)[currentLine]?.heads || defaultHeads)
+          .filter((h) => h.offline !== 'Active').length),
+        backgroundColor: '#FF6384'
+      },
+      {
+        label: 'Fixed',
+        data: localDates.map((date) => (getDayData(date)[currentLine]?.heads || defaultHeads)
+          .filter((h) => h.offline !== 'Active' && h.repaired === 'Fixed').length),
+        backgroundColor: '#36A2EB'
+      }
+    ]
+  };
+
+  const ActionBtn = ({ onClick, children, className = '' }) => (
+    <button onClick={onClick} className={`flex-shrink-0 px-3 py-2 rounded text-white text-sm ${className}`}>
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
+      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl">Downtime Logger</h2>
+
+      {/* TOP NAV */}
+      <div className="flex justify-between mb-4 flex-wrap gap-2">
+        <Link to="/summary" className="px-4 py-2 bg-blue-500 text-white rounded text-sm">View Summary</Link>
+        <Link to="/dashboard" className="px-4 py-2 bg-indigo-500 text-white rounded text-sm">Dashboard</Link>
+        <Link to="/running" className="px-4 py-2 bg-purple-500 text-white rounded text-sm">Running</Link>
+      </div>
+
+      {authError && <p className="text-red-500 text-center mb-4">{authError}</p>}
+      {saveStatus && <p className="text-center text-sm mb-2">{saveStatus}</p>}
+
+      {/* MOBILE ACTIONS TOGGLE */}
+      <div className="md:hidden mb-3">
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded font-medium"
+          aria-expanded={showMenu}
+          aria-controls="mobile-actions"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          {showMenu ? 'Hide Actions' : 'Show Actions'}
+        </button>
+      </div>
+
+      {/* MOBILE ACTIONS STRIP */}
+      <div id="mobile-actions" className={`${showMenu ? 'block' : 'hidden'} md:hidden mb-6`}>
+        <div className="flex gap-2 overflow-x-auto px-1">
+          <label htmlFor="import-json" className="flex-shrink-0 px-3 py-2 bg-green-600 text-white rounded text-sm cursor-pointer text-center">
+            Import
+          </label>
+          <input id="import-json" type="file" accept=".json" hidden onChange={handleImport} />
+          <ActionBtn onClick={handleExport} className="bg-blue-600">Export</ActionBtn>
+          <ActionBtn onClick={handleSaveToCloud} className="bg-indigo-600">Save</ActionBtn>
+          <ActionBtn onClick={handleLoadFromCloud} className="bg-cyan-600">Load</ActionBtn>
+          <ActionBtn onClick={handleResetLine} className="bg-yellow-600">Reset Line</ActionBtn>
+          <ActionBtn onClick={handleResetAll} className="bg-red-600">Reset All</ActionBtn>
+        </div>
+        <p className="text-center text-xs text-gray-500 mt-2">Swipe sideways to see more actions</p>
+      </div>
+
+      {/* DESKTOP/TABLET ACTIONS GRID */}
+      <div className="hidden md:block mb-6">
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+          <label htmlFor="import-json" className="px-3 py-2 bg-green-600 text-white rounded text-sm cursor-pointer text-center">
+            Import
+          </label>
+          <input id="import-json" type="file" accept=".json" hidden onChange={handleImport} />
+          <button onClick={handleExport} className="px-3 py-2 bg-blue-600 text-white rounded text-sm">Export</button>
+          <button onClick={handleSaveToCloud} className="px-3 py-2 bg-indigo-600 text-white rounded text-sm">Save to Cloud</button>
+          <button onClick={handleLoadFromCloud} className="px-3 py-2 bg-cyan-600 text-white rounded text-sm">Load from Cloud</button>
+          <button onClick={handleResetLine} className="px-3 py-2 bg-yellow-600 text-white rounded text-sm">Reset Line</button>
+          <button onClick={handleResetAll} className="px-3 py-2 bg-red-600 text-white rounded text-sm col-span-3 lg:col-span-1">Reset All</button>
+        </div>
+      </div>
+
+      {/* DATES — COLLAPSIBLE + EDITABLE */}
+      <div className="space-y-2">
+        {localDates.map((date, index) => {
+          const isExpanded = expandedDays.has(date);
+          const dayData = getDayData(date);
+          const entryForDate = dayData[currentLine] || { heads: defaultHeads, machineNotes: '', running: false };
+          const { heads, machineNotes, running } = entryForDate;
+          const activeLines = Object.keys(dayData).filter((l) => dayData[l]?.running);
+
+          const updateEntryForDate = (updater) => {
+            const current = entryForDate;
+            updateDay(date, {
+              [currentLine]: typeof updater === 'function' ? updater(current) : { ...current, ...updater }
+            });
+          };
+
+          const updateHeadFieldForDate = (i, field, value) => {
+            const newHeads = heads.map((h, idx) => (idx === i ? { ...h, [field]: value } : h));
+            updateEntryForDate({ heads: newHeads });
+          };
+
+          const toggleHeadStatusForDate = (i) =>
+            updateHeadFieldForDate(i, 'offline', heads[i].offline === 'Active' ? 'Offline' : 'Active');
+          const toggleHeadRepairedForDate = (i) =>
+            updateHeadFieldForDate(i, 'repaired', heads[i].repaired === 'Fixed' ? 'Not Fixed' : 'Fixed');
+
+          return (
+            <div key={date} className="border rounded-lg overflow-hidden">
+              <button onClick={() => toggleDay(date)} className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200">
+                <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start sm:gap-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleEditDate(index, e.target.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm border rounded px-1"
+                    />
+                    <span className="font-medium text-left leading-tight sm:text-sm">
+                      {azLabelFromYmd(date)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{activeLines.length} active</span>
+                    <svg
+                      className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="p-4 bg-white space-y-4">
+                  {/* Line Selector */}
+                  <div className="flex justify-center items-center mb-4 gap-4 sm:flex-col sm:gap-2">
+                    <label className="font-medium sm:text-sm">Line:</label>
+                    <select
+                      value={currentLine}
+                      onChange={(e) => setCurrentLine(e.target.value)}
+                      className="border p-2 rounded sm:w-full"
+                    >
+                      {Array.from({ length: 38 }, (_, i) => `Line ${i + 1}`).map((line) => (
+                        <option key={line} value={line}>{line}</option>
+                      ))}
+                    </select>
+                    <span className="font-medium sm:text-sm whitespace-normal">
+                      Offline: {offlineHeadsDisplayFor(heads)}
+                    </span>
+                  </div>
+
+                  {/* Running Toggle / Prev / Next */}
+                  <div className="flex justify-center items-center mb-4 gap-4 sm:flex-col sm:gap-2">
+                    <button onClick={prevLine} className="px-3 py-1 bg-gray-200 rounded sm:px-2 sm:py-1">Prev</button>
+                    <div className="flex items-center gap-2">
+                      <span className="sm:text-sm">Running:</span>
+                      <button
+                        onClick={() => updateEntryForDate((ent) => ({ ...ent, running: !ent.running }))}
+                        className={'px-4 py-1 rounded text-white ' + (running ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
+                      >
+                        {running ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+                    <button onClick={nextLine} className="px-3 py-1 bg-gray-200 rounded sm:px-2 sm:py-1">Next</button>
+                  </div>
+
+                  {/* Heads Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto border-collapse min-w-max">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          {['Head', 'Status', 'Issue', 'Repaired', 'Notes'].map((c) => (
+                            <th key={c} className="p-2 text-center border sm:p-1 sm:text-sm">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {heads.map((h, i) => (
+                          <tr key={i} className={getRowClass(h)}>
+                            <td className="p-2 text-center sm:p-1 sm:text-sm">{h.head}</td>
+                            <td className="p-2 text-center sm:p-1 sm:text-sm">
+                              <button
+                                onClick={() => toggleHeadStatusForDate(i)}
+                                className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
+                              >
+                                {h.offline}
+                              </button>
+                            </td>
+                            <td className="p-2 text-center sm:p-1 sm:text-sm">
+                              <select
+                                value={h.issue}
+                                onChange={(e) => updateHeadFieldForDate(i, 'issue', e.target.value)}
+                                className="w-full sm:text-sm"
+                              >
+                                {issueTypes.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2 text-center sm:p-1 sm:text-sm">
+                              <button
+                                onClick={() => toggleHeadRepairedForDate(i)}
+                                className={'px-4 py-1 rounded text-white ' + (h.repaired === 'Fixed' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
+                              >
+                                {h.repaired}
+                              </button>
+                            </td>
+                            <td className="p-2 sm:p-1 sm:text-sm">
+                              <input
+                                value={h.notes}
+                                onChange={(e) => updateHeadFieldForDate(i, 'notes', e.target.value)}
+                                className="w-full p-1 border rounded sm:text-sm"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Machine Notes */}
+                  <div>
+                    <label className="block mb-1 font-medium sm:text-sm">Machine Notes:</label>
+                    <textarea
+                      rows={3}
+                      value={machineNotes}
+                      onChange={(e) => updateEntryForDate({ machineNotes: e.target.value })}
+                      className="w-full border p-2 rounded sm:text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Graph */}
+      <div className="mt-6">
+        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg">Heads Down Per Day</h3>
+        {headsDownGraphData.labels.length === 0 ? (
+          <p className="text-center text-gray-600 sm:text-sm">No data.</p>
+        ) : (
+          <Bar
+            data={headsDownGraphData}
+            options={{
+              responsive: true,
+              plugins: { legend: { position: 'top' }, title: { display: true, text: `Heads Status for ${currentLine}` } },
+              scales: { y: { beginAtZero: true, title: { display: true, text: 'Heads' }, ticks: { stepSize: 1 } } }
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
