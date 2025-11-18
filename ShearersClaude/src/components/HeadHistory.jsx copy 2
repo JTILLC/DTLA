@@ -1,0 +1,824 @@
+// src/components/HeadHistory.jsx
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { getDatabase, ref, get, set, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+import { app } from '../firebaseConfig';
+
+const database = getDatabase(app);
+const auth = getAuth(app);
+
+const issueTypes = [
+  'None',
+  'Chute',
+  'Operator',
+  'Load Cell',
+  'Detached Head',
+  'Stepper Motor Error',
+  'Hopper Issues',
+  'Installed Wrong'
+];
+
+// Stable key for entries
+const entryKeyStrong = (e) => {
+  if (!e) return '';
+  const date = e.date ?? '';
+  const line = e.line ?? '';
+  const head = e.head ?? '';
+  const issue = e.issue ?? '';
+  const repaired = e.repaired ?? '';
+  const notes = (e.notes ?? '').trim();
+  if (!head) return `MN|${date}|${line}|${notes}`;
+  return `H|${date}|${line}|${head}|${issue}|${repaired}|${notes}`;
+};
+
+export default function HeadHistory() {
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [filters, setFilters] = useState({ date: '', line: '', head: '', issue: '', repaired: '' });
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editForm, setEditForm] = useState({});
+  const [editingKey, setEditingKey] = useState(null);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [modalKey, setModalKey] = useState(0);
+  const [showMachineNotesOnly, setShowMachineNotesOnly] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isMachineNote, setIsMachineNote] = useState(false);
+  const [newEntry, setNewEntry] = useState({
+    date: new Date().toISOString().split('T')[0],
+    line: '',
+    head: '',
+    issue: '',
+    repaired: '',
+    notes: ''
+  });
+
+  // ------------------------------------------------------------
+  // 1) AUTO-SYNC: downtime-logger-data → user-history (ADD + REMOVE)
+  // ------------------------------------------------------------
+  const syncDowntimeToHistory = async () => {
+    if (!auth.currentUser) return;
+
+    const downtimeRef = ref(database, 'downtime-logger-data');
+    const historyRef = ref(database, `user-history/${auth.currentUser.uid}`);
+
+    try {
+      const snap = await get(downtimeRef);
+      if (!snap.exists()) return;
+
+      const { data: downtimeData } = snap.val();
+      if (!downtimeData) return;
+
+      const currentOffline = new Set();
+      const allEntries = [];
+
+      Object.keys(downtimeData).forEach(date => {
+        const dayData = downtimeData[date] || {};
+        Object.keys(dayData).forEach(line => {
+          const entry = dayData[line];
+          if (!entry || !entry.running) return;
+
+          if (Array.isArray(entry.heads)) {
+            entry.heads
+              .filter(h => h.offline !== 'Active')
+              .forEach(h => {
+                const key = `${date}|${line}|${h.head}`;
+                currentOffline.add(key);
+                allEntries.push({
+                  date,
+                  line,
+                  head: h.head,
+                  issue: h.issue || 'None',
+                  repaired: h.repaired || 'Not Fixed',
+                  notes: h.notes || ''
+                });
+              });
+          }
+
+          if (entry.machineNotes?.trim()) {
+            allEntries.push({
+              date,
+              line,
+              head: '',
+              issue: '',
+              repaired: '',
+              notes: `Machine note: ${entry.machineNotes.trim()}`
+            });
+          }
+        });
+      });
+
+      let existing = [];
+      try {
+        const existingSnap = await get(historyRef);
+        if (existingSnap.exists()) existing = existingSnap.val();
+      } catch (err) {
+        console.error('Failed to load history', err);
+        return;
+      }
+
+      const filteredExisting = existing.filter(e => {
+        if (!e.head) return true;
+        const key = `${e.date}|${e.line}|${e.head}`;
+        return currentOffline.has(key);
+      });
+
+      const seen = new Set(filteredExisting.map(e => entryKeyStrong(e)));
+      const newEntries = allEntries.filter(e => !seen.has(entryKeyStrong(e)));
+
+      const merged = [...filteredExisting, ...newEntries];
+      const sorted = sortHistory(deduplicate(merged));
+
+      await set(historyRef, sorted);
+      localStorage.setItem('importedHistory', JSON.stringify(sorted));
+      console.log(`Synced: ${newEntries.length} added, ${existing.length - filteredExisting.length} removed`);
+    } catch (err) {
+      console.error('Sync failed', err);
+    }
+  };
+
+  useEffect(() => {
+    syncDowntimeToHistory();
+  }, [auth.currentUser]);
+
+  // ------------------------------------------------------------
+  // 2) REAL-TIME AUTO-SYNC ON ANY CHANGE (NEW)
+  // ------------------------------------------------------------
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const downtimeRef = ref(database, 'downtime-logger-data');
+    let timeout;
+
+    const unsubscribe = onValue(downtimeRef, () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        syncDowntimeToHistory();
+      }, 2000); // Sync 2 seconds after last change
+    });
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [auth.currentUser]);
+
+  // ------------------------------------------------------------
+  // 3) LOAD HISTORY FROM user-history
+  // ------------------------------------------------------------
+  const loadHistory = async () => {
+    setLoading(true);
+    let all = [];
+    if (auth.currentUser) {
+      try {
+        const snap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+        if (snap.exists()) all = snap.val();
+      } catch (err) {
+        console.error('Load failed', err);
+      }
+    }
+    const local = localStorage.getItem('importedHistory');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        all = all.length ? mergeWithoutDuplicates(all, parsed) : parsed;
+      } catch (e) {
+        console.error('Local parse failed', e);
+      }
+    }
+    const deduped = deduplicate(all);
+    const sorted = sortHistory(deduped);
+    setHistory(sorted);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadHistory(); }, []);
+
+  // ------------------------------------------------------------
+  // 4) LOAD FULL CLOUD HISTORY — FIXED: NO IMPORT HINT
+  // ------------------------------------------------------------
+  const loadFullCloudData = async () => {
+    setLoading(true);
+    try {
+      const snap = await get(ref(database, `user-history/${auth.currentUser.uid}`));
+      
+      if (!snap.exists() || !snap.val()) {
+        alert('Cloud is empty — try "Sync 5 Days" first.');
+        setLoading(false);
+        return;
+      }
+
+      const cloudHistory = snap.val();
+      const deduped = deduplicate(cloudHistory);
+      const sorted = sortHistory(deduped);
+      setHistory(sorted);
+      localStorage.setItem('importedHistory', JSON.stringify(sorted));
+      alert(`Loaded ${sorted.length} entries from Firebase!`);
+    } catch (err) {
+      console.error('Failed to load', err);
+      alert('Load failed: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 5) SAVE TO CLOUD
+  // ------------------------------------------------------------
+  const saveToCloud = async () => {
+    if (!auth.currentUser) {
+      alert('Please log in first.');
+      return;
+    }
+
+    setSaveStatus('Saving...');
+    try {
+      const sorted = sortHistory(history);
+      await set(ref(database, `user-history/${auth.currentUser.uid}`), sorted);
+      localStorage.setItem('importedHistory', JSON.stringify(sorted));
+      setSaveStatus('Saved to cloud!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (err) {
+      console.error('Save failed', err);
+      setSaveStatus('Save failed');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 6) ADD 5 DAYS — MANUAL SYNC
+  // ------------------------------------------------------------
+  const addCurrentDowntimeToHistory = async () => {
+    setSaveStatus('Syncing...');
+    await syncDowntimeToHistory();
+    setSaveStatus('Synced!');
+    setTimeout(() => setSaveStatus(''), 2000);
+    await loadHistory();
+  };
+
+  // ------------------------------------------------------------
+  // 7) EDIT / DELETE
+  // ------------------------------------------------------------
+  const startEdit = (entry) => {
+    const key = entryKeyStrong(entry);
+    setEditingKey(key);
+    setEditForm({ ...entry });
+  };
+
+  const saveEdit = async () => {
+    if (!editingKey) return;
+    const idx = history.findIndex(e => entryKeyStrong(e) === editingKey);
+    if (idx === -1) { setEditingKey(null); setEditForm({}); return; }
+    const updated = [...history];
+    updated[idx] = { ...editForm };
+    const sorted = sortHistory(updated);
+    setHistory(sorted);
+    setEditingKey(null);
+    setEditForm({});
+    await saveToCloudAndLocal(sorted);
+    alert('Saved!');
+  };
+
+  const cancelEdit = () => { setEditingKey(null); setEditForm({}); };
+
+  const deleteEntry = async (entry) => {
+    if (!window.confirm('Delete?')) return;
+    const key = entryKeyStrong(entry);
+    const updated = history.filter(e => entryKeyStrong(e) !== key);
+    const sorted = sortHistory(updated);
+    setHistory(sorted);
+    await saveToCloudAndLocal(sorted);
+    alert('Deleted.');
+  };
+
+  // ------------------------------------------------------------
+  // 8) HELPERS
+  // ------------------------------------------------------------
+  const sortHistory = (arr) => arr.slice().sort((a, b) => {
+    const d = new Date(b.date) - new Date(a.date);
+    if (d !== 0) return d;
+    return parseInt(a.line.replace('Line ', '')) - parseInt(b.line.replace('Line ', ''));
+  });
+
+  const deduplicate = (arr) => {
+    const seen = new Set();
+    return (arr || []).filter(e => {
+      const key = entryKeyStrong(e);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const mergeWithoutDuplicates = (a, b) => {
+    const map = new Map();
+    [...a, ...b].forEach(e => {
+      const key = entryKeyStrong(e);
+      if (!map.has(key)) map.set(key, e);
+    });
+    return Array.from(map.values());
+  };
+
+  const saveToCloudAndLocal = async (data) => {
+    try {
+      await set(ref(database, `user-history/${auth.currentUser.uid}`), data);
+      localStorage.setItem('importedHistory', JSON.stringify(data));
+      setSaveStatus('Saved!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (err) {
+      console.error('Save failed', err);
+      setSaveStatus('Save failed');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 9) FILTERED
+  // ------------------------------------------------------------
+  const filtered = useMemo(() => {
+    let result = history;
+    if (showMachineNotesOnly) {
+      result = result.filter(e => !e.head && e.notes?.startsWith('Machine note:'));
+    }
+    if (globalSearch.trim()) {
+      const term = globalSearch.toLowerCase();
+      result = result.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(term)));
+    }
+    if (filters.date) result = result.filter(r => r.date === filters.date);
+    if (filters.line) result = result.filter(r => r.line === filters.line);
+    if (filters.head) result = result.filter(r => String(r.head) === filters.head);
+    if (filters.issue) result = result.filter(r => r.issue === filters.issue);
+    if (filters.repaired) result = result.filter(r => r.repaired === filters.repaired);
+    return result;
+  }, [history, globalSearch, filters, showMachineNotesOnly]);
+
+  // ------------------------------------------------------------
+  // 10) UNIQUE — NO KEY WARNINGS
+  // ------------------------------------------------------------
+  const unique = useMemo(() => {
+    const sets = { date: new Set(), line: new Set(), head: new Set(), issue: new Set(), repaired: new Set() };
+    history.forEach(r => {
+      sets.date.add(r.date);
+      sets.line.add(r.line);
+      if (r.head) sets.head.add(String(r.head));
+      if (r.issue) sets.issue.add(r.issue);
+      if (r.repaired) sets.repaired.add(r.repaired);
+    });
+    return {
+      date: ['', ...Array.from(sets.date).sort()],
+      line: ['', ...Array.from(sets.line).sort((a,b) => parseInt(a.replace('Line ','')) - parseInt(b.replace('Line ','')))],
+      head: ['', ...Array.from(sets.head).sort((a,b) => +a - +b)],
+      issue: ['', ...Array.from(sets.issue).sort()],
+      repaired: ['', ...Array.from(sets.repaired).sort()]
+    };
+  }, [history]);
+
+  // ------------------------------------------------------------
+  // 11) EXPORT
+  // ------------------------------------------------------------
+  const exportToJSON = () => {
+    const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `head-history-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ------------------------------------------------------------
+  // 12) CLEAR FILTERS
+  // ------------------------------------------------------------
+  const clearFilters = () => {
+    setGlobalSearch('');
+    setFilters({ date: '', line: '', head: '', issue: '', repaired: '' });
+    setShowMachineNotesOnly(false);
+  };
+
+  // ------------------------------------------------------------
+  // 13) RECONCILE
+  // ------------------------------------------------------------
+  const DELIM = '::';
+  const buildGroupsFromHistory = useCallback(() => {
+    const map = new Map();
+    history.forEach(e => {
+      if (!e.head) return;
+      const key = `${e.date}${DELIM}${e.line}${DELIM}${e.head}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    });
+    return Array.from(map.entries())
+      .map(([k, v]) => ({ key: k, entries: sortHistory(v.slice()) }))
+      .filter(g => g.entries.length > 1);
+  }, [history]);
+
+  const findAndReconcileDuplicates = () => {
+    const groups = buildGroupsFromHistory();
+    if (groups.length === 0) {
+      alert('No duplicates.');
+      return;
+    }
+    setDuplicateGroups(groups);
+    setShowReconcileModal(true);
+    setModalKey(Date.now());
+  };
+
+  const keepEntryAndRemoveOthers = async (groupKey, keepIdx) => {
+    if (isReconciling) return;
+    setIsReconciling(true);
+    try {
+      const [date, line, head] = groupKey.split(DELIM);
+      const group = duplicateGroups.find(g => g.key === groupKey);
+      if (!group) return;
+      const keepEntry = group.entries[keepIdx];
+      if (!keepEntry) return;
+      const currentHistory = [...history];
+      const filteredOut = currentHistory.filter(e => {
+        if (!e.head) return true;
+        return !(e.date === date && e.line === line && String(e.head) === String(head));
+      });
+      filteredOut.push(keepEntry);
+      const sorted = sortHistory(deduplicate(filteredOut));
+      setHistory(sorted);
+      await saveToCloudAndLocal(sorted);
+      const newMap = new Map();
+      sorted.forEach(e => {
+        if (!e.head) return;
+        const k = `${e.date}${DELIM}${e.line}${DELIM}${e.head}`;
+        if (!newMap.has(k)) newMap.set(k, []);
+        newMap.get(k).push(e);
+      });
+      const newGroups = Array.from(newMap.entries())
+        .map(([k, v]) => ({ key: k, entries: sortHistory(v.slice()) }))
+        .filter(g => g.entries.length > 1);
+      setDuplicateGroups(newGroups);
+      setModalKey(Date.now());
+      if (newGroups.length === 0) {
+        setShowReconcileModal(false);
+        setTimeout(() => alert('All duplicates resolved!'), 100);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // CLEAR FIREBASE
+  // ------------------------------------------------------------
+  const handleClearFirebase = async () => {
+    if (!window.confirm('This will DELETE ALL history in Firebase and cannot be undone.\n\nContinue?')) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setHistory([]);
+      await saveToCloudAndLocal([]);
+      localStorage.removeItem('importedHistory');
+      alert('All Firebase history has been cleared.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to clear Firebase: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // ADD ENTRY
+  // ------------------------------------------------------------
+  const openAddModal = (type) => {
+    setIsMachineNote(type === 'note');
+    setNewEntry({
+      date: new Date().toISOString().split('T')[0],
+      line: '',
+      head: '',
+      issue: '',
+      repaired: '',
+      notes: type === 'note' ? 'Machine note: ' : ''
+    });
+    setShowAddModal(true);
+  };
+
+  const saveNewEntry = async () => {
+    if (!newEntry.date || !newEntry.line) {
+      alert('Date and Line are required.');
+      return;
+    }
+    if (!isMachineNote && !newEntry.head) {
+      alert('Head number is required for head entries.');
+      return;
+    }
+    if (isMachineNote && !newEntry.notes.trim().startsWith('Machine note:')) {
+      alert('Machine notes must start with "Machine note:"');
+      return;
+    }
+    const entry = {
+      date: newEntry.date,
+      line: newEntry.line,
+      head: isMachineNote ? '' : newEntry.head,
+      issue: isMachineNote ? '' : newEntry.issue,
+      repaired: isMachineNote ? '' : newEntry.repaired,
+      notes: newEntry.notes.trim()
+    };
+    const updated = [...history, entry];
+    const sorted = sortHistory(deduplicate(updated));
+    setHistory(sorted);
+    await saveToCloudAndLocal(sorted);
+    setShowAddModal(false);
+    alert('Entry added!');
+  };
+
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold text-center mb-4">Head Failure History</h2>
+      {saveStatus && <div className={`text-center font-medium ${saveStatus.includes('Synced') || saveStatus.includes('Saved') ? 'text-green-600' : 'text-red-600'}`}>{saveStatus}</div>}
+
+      {/* BUTTON BAR */}
+      <div className="flex flex-wrap gap-2 mb-4 justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/summary" className="px-4 py-2 bg-blue-500 text-white rounded">Back</Link>
+          <button onClick={loadHistory} className="px-4 py-2 bg-orange-600 text-white rounded">Refresh</button>
+          <button onClick={loadFullCloudData} className="px-4 py-2 bg-cyan-600 text-white rounded font-medium">
+            Load Full Cloud History
+          </button>
+          <button onClick={addCurrentDowntimeToHistory} className="px-4 py-2 bg-teal-600 text-white rounded font-medium">
+            Sync 5 Days
+          </button>
+          <button onClick={saveToCloud} className="px-4 py-2 bg-indigo-600 text-white rounded font-medium">
+            Save to Cloud
+          </button>
+          <button onClick={exportToJSON} className="px-4 py-2 bg-green-600 text-white rounded">
+            Export
+          </button>
+          <button onClick={findAndReconcileDuplicates} className="px-4 py-2 bg-purple-600 text-white rounded">Reconcile</button>
+          <button onClick={handleClearFirebase} className="px-4 py-2 bg-red-700 text-white rounded font-medium">
+            Clear Firebase
+          </button>
+          <button
+            onClick={() => setShowMachineNotesOnly(prev => !prev)}
+            className={`px-4 py-2 rounded font-medium transition-colors ${
+              showMachineNotesOnly ? 'bg-indigo-700 text-white' : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+            }`}
+          >
+            {showMachineNotesOnly ? 'All Entries' : 'Machine Notes Only'}
+          </button>
+          <button onClick={() => openAddModal('head')} className="px-4 py-2 bg-cyan-600 text-white rounded font-medium">
+            + Head Entry
+          </button>
+          <button onClick={() => openAddModal('note')} className="px-4 py-2 bg-amber-600 text-white rounded font-medium">
+            + Machine Note
+          </button>
+          <button onClick={clearFilters} className="px-4 py-2 bg-red-600 text-white rounded font-medium">
+            Clear All Filters
+          </button>
+        </div>
+      </div>
+
+      {/* SEARCH */}
+      <div className="mb-4">
+        <input
+          value={globalSearch}
+          onChange={e => setGlobalSearch(e.target.value)}
+          placeholder="Search all fields..."
+          className="w-full p-2 border rounded"
+        />
+      </div>
+
+      {/* FILTERS */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+        {Object.keys(filters).map(k => (
+          <select
+            key={k}
+            value={filters[k]}
+            onChange={e => setFilters(p => ({ ...p, [k]: e.target.value }))}
+            className="p-2 border rounded text-sm"
+          >
+            <option value="">{k.charAt(0).toUpperCase() + k.slice(1)}</option>
+            {unique[k].map((opt, idx) => (
+              <option key={`${k}-${opt || 'empty'}-${idx}`} value={opt}>
+                {opt || '(empty)'}
+              </option>
+            ))}
+          </select>
+        ))}
+      </div>
+
+      {/* TABLE */}
+      {loading ? <p className="text-center">Loading...</p> :
+       filtered.length === 0 ? <p className="text-center text-gray-600">No entries match your filters. Try clearing them.</p> :
+       <div className="overflow-x-auto">
+         <table className="w-full table-auto border">
+           <thead className="bg-gray-100">
+             <tr>
+               <th className="p-2 border">Date</th>
+               <th className="p-2 border">Line</th>
+               <th className="p-2 border">Head</th>
+               <th className="p-2 border">Issue</th>
+               <th className="p-2 border">Repaired</th>
+               <th className="p-2 border">Notes</th>
+               <th className="p-2 border">Actions</th>
+             </tr>
+           </thead>
+           <tbody>
+             {filtered.map(e => {
+               const key = entryKeyStrong(e);
+               const isEdit = editingKey === key;
+               const isNote = !e.head && e.notes?.startsWith('Machine note:');
+               const rowClass = isNote ? 'bg-yellow-50' : e.repaired === 'Fixed' ? 'bg-green-100' : 'bg-red-100';
+               return (
+                 <tr key={key} className={rowClass}>
+                   {isEdit ? (
+                     <>
+                       <td className="p-1 border"><input type="date" value={editForm.date||''} onChange={ev=>setEditForm(p=>({...p,date:ev.target.value}))} className="w-full"/></td>
+                       <td className="p-1 border"><input value={editForm.line||''} onChange={ev=>setEditForm(p=>({...p,line:ev.target.value}))} className="w-full"/></td>
+                       <td className="p-1 border"><input type="number" min="1" max="14" value={editForm.head||''} onChange={ev=>setEditForm(p=>({...p,head:ev.target.value}))} className="w-full"/></td>
+                       <td className="p-1 border">
+                         <select value={editForm.issue||''} onChange={ev=>setEditForm(p=>({...p,issue:ev.target.value}))} className="w-full">
+                           {issueTypes.map(o=><option key={o}>{o}</option>)}
+                         </select>
+                       </td>
+                       <td className="p-1 border">
+                         <select value={editForm.repaired||''} onChange={ev=>setEditForm(p=>({...p,repaired:ev.target.value}))} className="w-full">
+                           <option>Not Fixed</option><option>Fixed</option>
+                         </select>
+                       </td>
+                       <td className="p-1 border"><input value={editForm.notes||''} onChange={ev=>setEditForm(p=>({...p,notes:ev.target.value}))} className="w-full"/></td>
+                       <td className="p-1 border text-center">
+                         <button onClick={saveEdit} className="px-1 py-0.5 bg-green-500 text-white text-xs rounded mr-1">Save</button>
+                         <button onClick={cancelEdit} className="px-1 py-0.5 bg-gray-500 text-white text-xs rounded">Cancel</button>
+                       </td>
+                     </>
+                   ) : (
+                     <>
+                       <td className="p-2 border text-center">{e.date}</td>
+                       <td className="p-2 border text-center">{e.line}</td>
+                       <td className="p-2 border text-center">{e.head || '—'}</td>
+                       <td className="p-2 border text-center">{e.issue || '—'}</td>
+                       <td className="p-2 border text-center">{e.repaired || '—'}</td>
+                       <td className="p-2 border">{e.notes || '—'}</td>
+                       <td className="p-2 border text-center">
+                         <button onClick={()=>startEdit(e)} className="px-1 py-0.5 bg-blue-500 text-white text-xs rounded mr-1">Edit</button>
+                         <button onClick={()=>deleteEntry(e)} className="px-1 py-0.5 bg-red-500 text-white text-xs rounded">Del</button>
+                       </td>
+                     </>
+                   )}
+                 </tr>
+               );
+             })}
+           </tbody>
+         </table>
+       </div>
+      }
+
+      {/* RECONCILE Modal */}
+      {showReconcileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div key={modalKey} className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto p-6">
+            <h3 className="text-xl font-bold mb-2">Reconcile Duplicates</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Found {duplicateGroups.reduce((s,g)=>s+g.entries.length,0)} duplicates in {duplicateGroups.length} group{duplicateGroups.length>1?'s':''}.
+            </p>
+            {duplicateGroups.map(g => (
+              <div key={g.key} className="mb-4 p-3 border rounded bg-gray-50">
+                <h4 className="font-semibold mb-2">Conflict: {g.key.split('::').join(' | ')}</h4>
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-gray-200">
+                    <tr>
+                      <th className="p-1 border">Issue</th>
+                      <th className="p-1 border">Repaired</th>
+                      <th className="p-1 border">Notes</th>
+                      <th className="p-1 border">Keep</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.entries.map((e,i) => (
+                      <tr key={entryKeyStrong(e)} className="hover:bg-gray-100">
+                        <td className="p-1 border">{e.issue}</td>
+                        <td className="p-1 border">{e.repaired}</td>
+                        <td className="p-1 border truncate max-w-xs">{e.notes||'—'}</td>
+                        <td className="p-1 border text-center">
+                          <button
+                            onClick={() => keepEntryAndRemoveOthers(g.key, i)}
+                            disabled={isReconciling}
+                            className={`px-2 py-1 text-white text-xs rounded transition-all ${isReconciling ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                          >
+                            {isReconciling ? 'Saving...' : 'Keep This'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            <button onClick={() => setShowReconcileModal(false)} className="mt-4 px-4 py-2 bg-gray-500 text-white rounded">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ADD ENTRY MODAL */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">
+              {isMachineNote ? 'Add Machine Note' : 'Add Head Failure'}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Date *</label>
+                <input
+                  type="date"
+                  value={newEntry.date}
+                  onChange={e => setNewEntry(p => ({...p, date: e.target.value}))}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Line *</label>
+                <input
+                  value={newEntry.line}
+                  onChange={e => setNewEntry(p => ({...p, line: e.target.value}))}
+                  placeholder="Line 1"
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              {!isMachineNote && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Head # *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="14"
+                      value={newEntry.head}
+                      onChange={e => setNewEntry(p => ({...p, head: e.target.value}))}
+                      className="w-full border rounded p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Issue</label>
+                    <select
+                      value={newEntry.issue}
+                      onChange={e => setNewEntry(p => ({...p, issue: e.target.value}))}
+                      className="w-full border rounded p-2"
+                    >
+                      {issueTypes.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Repaired</label>
+                    <select
+                      value={newEntry.repaired}
+                      onChange={e => setNewEntry(p => ({...p, repaired: e.target.value}))}
+                      className="w-full border rounded p-2"
+                    >
+                      <option>Not Fixed</option>
+                      <option>Fixed</option>
+                    </select>
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {isMachineNote ? 'Note (starts with "Machine note:") *' : 'Notes'}
+                </label>
+                <textarea
+                  value={newEntry.notes}
+                  onChange={e => setNewEntry(p => ({...p, notes: e.target.value}))}
+                  rows={3}
+                  placeholder={isMachineNote ? 'Machine note: ...' : ''}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={saveNewEntry}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-medium"
+              >
+                Save Entry
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
