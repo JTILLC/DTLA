@@ -1,0 +1,30 @@
+const GlobalForm = ({ globalData, setGlobalData, addLine }) => {
+  const handleChange = (e) => {
+    setGlobalData({ ...globalData, [e.target.name]: e.target.value });
+  };
+
+  return (
+    <div className="global-fields">
+      <label htmlFor="customer">Customer:</label>
+      <input type="text" id="customer" name="customer" value={globalData.customer} onChange={handleChange} />
+      <label htmlFor="address">Address:</label>
+      <input type="text" id="address" name="address" value={globalData.address} onChange={handleChange} />
+      <label htmlFor="cityState">City/State:</label>
+      <input type="text" id="cityState" name="cityState" value={globalData.cityState} onChange={handleChange} />
+      <label htmlFor="headCount">Number of Heads:</label>
+      <select id="headCount" name="headCount" value={globalData.headCount} onChange={handleChange}>
+        <option value="10">10</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+        <option value="18">18</option>
+        <option value="20">20</option>
+        <option value="24">24</option>
+        <option value="28">28</option>
+        <option value="32">32</option>
+      </select>
+      <button onClick={addLine}>Add Line</button>
+    </div>
+  );
+};
+
+export default GlobalForm;

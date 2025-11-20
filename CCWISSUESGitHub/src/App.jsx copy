@@ -1,0 +1,1466 @@
+console.log('Starting App module load 1');
+
+import { useState, useEffect, useRef } from 'react';
+console.log('Starting App module load 2');
+
+import GlobalForm from './components/GlobalForm.jsx';
+import Line from './components/Line.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { Tabs, Tab } from 'react-bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye } from 'lucide-react';
+
+console.log('Starting App module load 3');
+
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+
+const firebaseConfig = {
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+};
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  console.log('Firebase initialized successfully');
+  firebase.firestore().settings({ cache: 'bounded' });
+  console.log('Firestore cache set to bounded');
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+} catch (err) {
+  console.error('Firebase init error:', err);
+}
+
+const addLine = (setLines, setActiveLineId, globalData, lines) => {
+  const newLine = {
+    id: Date.now(),
+    title: `Line ${lines.length + 1}`,
+    model: '',
+    jobNumber: '',
+    serialNumber: '',
+    running: false,
+    notes: '',
+    heads: Array.from({ length: parseInt(globalData.headCount) || 14 }, (_, i) => ({
+      id: i + 1,
+      status: 'active',
+      error: 'None',
+      notes: '',
+      fixed: 'na',
+      currentWeight: 0,
+      spanWeight: 0,
+      weightDifference: 0,
+    })),
+    showSpanAdjust: false,
+  };
+  setLines([...lines, newLine]);
+  setActiveLineId(newLine.id);
+};
+
+const removeLine = (id, setLines, activeLineId, lines) => {
+  if (!window.confirm('Remove this line?')) return;
+  setLines(lines.filter(l => l.id !== id));
+  if (activeLineId === id) {
+    setActiveLineId(lines.length > 1 ? lines[lines.length - 2].id : null);
+  }
+};
+
+const updateLine = (id, updatedLine, setLines, lines) => {
+  setLines(lines.map(l => (l.id === id ? { ...updatedLine } : l)));
+};
+
+const resetLine = (line, globalData, setLines, lines) => {
+  if (!window.confirm(`Reset ${line.title} to default? All data for this line will be cleared.`)) return;
+  const resetLine = {
+    ...line,
+    notes: '',
+    heads: Array.from({ length: parseInt(globalData.headCount) || 14 }, (_, i) => ({
+      id: i + 1,
+      status: 'active',
+      error: 'None',
+      notes: '',
+      fixed: 'na',
+      currentWeight: 0,
+      spanWeight: 0,
+      weightDifference: 0,
+    })),
+  };
+  setLines(lines.map(l => (l.id === line.id ? resetLine : l)));
+};
+
+const showLine = (id, setShowDashboardView, setActiveLineId) => {
+  setShowDashboardView(false);
+  setActiveLineId(id);
+};
+
+const promptForSignIn = async (setSession) => {
+  const email = prompt('Enter your email:');
+  const password = prompt('Enter your password:');
+  if (!email || !password) return false;
+  try {
+    const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+    setSession(cred.user);
+    alert('Signed in successfully!');
+    return true;
+  } catch (e) {
+    alert(`Sign-in failed: ${e.message}`);
+    return false;
+  }
+};
+
+const exportDashboardToPDF = (lines, globalData) => {
+  if (lines.length === 0) return alert('No data to export');
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageHeight = doc.internal.pageSize.height;
+  
+  // Add JTI logo top-left
+  const logoUrl = 'https://i.imgur.com/GQRZTtW.png';
+  doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+
+  // Title
+  doc.setFontSize(16);
+  doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
+  let y = 35;
+
+  // Separate lines with issues and without
+  const linesWithIssues = lines.filter(line => 
+    line.heads.some(head => head.status !== 'active' || head.error !== 'None' || head.notes.trim() !== '' || head.fixed !== 'na')
+  );
+  const linesWithoutIssues = lines.filter(line => 
+    !line.heads.some(head => head.status !== 'active' || head.error !== 'None' || head.notes.trim() !== '' || head.fixed !== 'na')
+  );
+
+  const allLines = [...linesWithIssues, ...linesWithoutIssues];
+
+  allLines.forEach((line, lineIndex) => {
+    const isLastLine = lineIndex === allLines.length - 1;
+    const hasNotes = line.notes && line.notes.trim();
+    const issueHeads = line.heads.filter(head => head.status !== 'active' || head.error !== 'None' || head.notes.trim() !== '' || head.fixed !== 'na');
+    const hasIssues = issueHeads.length > 0;
+
+    // Estimate height
+    let estimatedHeight = 6; // line name
+    if (hasNotes) {
+      const text = `Line Notes: ${line.notes}`;
+      const lines = doc.splitTextToSize(text, 190);
+      estimatedHeight += lines.length * 4 + 5;
+    }
+    if (hasIssues) {
+      estimatedHeight += 15 + (issueHeads.length * 5); // table header + rows
+    } else {
+      estimatedHeight += 10; // "No issues"
+    }
+
+    // Check if we need a new page
+    if (y + estimatedHeight > pageHeight - 20 && !isLastLine) {
+      doc.addPage();
+      doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+      doc.setFontSize(16);
+      doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
+      y = 35;
+    }
+
+    // Line name
+    doc.setFontSize(12);
+    doc.text(line.title, 14, y);
+    y += 6;
+
+    // Line notes
+    if (hasNotes) {
+      doc.setFontSize(10);
+      const text = `Line Notes: ${line.notes}`;
+      const lines = doc.splitTextToSize(text, 182);
+      doc.text(lines, 14, y);
+      y += lines.length * 4 + 5;
+    }
+
+    if (hasIssues) {
+      const headData = issueHeads.map(head => [head.id, head.status, head.error, head.fixed, head.notes || '']);
+      doc.autoTable({
+        startY: y,
+        head: [['Head #', 'Status', 'Error', 'Fixed', 'Notes']],
+        body: headData,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [0, 102, 204], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 
+          0: { halign: 'center', cellWidth: 18 },
+          1: { halign: 'center', cellWidth: 25 },
+          2: { halign: 'left', cellWidth: 40 },
+          3: { halign: 'center', cellWidth: 20 },
+          4: { halign: 'left', cellWidth: 70 }
+        },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    } else {
+      doc.setFontSize(10);
+      doc.text('No issues were found', 14, y);
+      y += 10;
+    }
+
+    // Add spacing between lines
+    if (!isLastLine) {
+      y += 5;
+    }
+  });
+
+  doc.save(`${globalData.customer || 'ishida'}-dashboard.pdf`);
+};
+
+const exportLineHistoryToPDF = (lineHistory, customerName, lineTitle) => {
+  if (lineHistory.length === 0) return alert('No history to export');
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageHeight = doc.internal.pageSize.height;
+  
+  // Add JTI logo top-left
+  const logoUrl = 'https://i.imgur.com/GQRZTtW.png';
+  doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+
+  // Title
+  doc.setFontSize(16);
+  doc.text(`Issue History Report - ${lineTitle}`, 105, 20, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`Customer: ${customerName}`, 105, 28, { align: 'center' });
+  let y = 35;
+
+  lineHistory.forEach((head, headIndex) => {
+    const isLastHead = headIndex === lineHistory.length - 1;
+    const estimatedHeight = 15 + (head.issues.length * 5); // table header + rows
+
+    // Check if we need a new page
+    if (y + estimatedHeight > pageHeight - 20 && !isLastHead) {
+      doc.addPage();
+      doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+      doc.setFontSize(16);
+      doc.text(`Issue History Report - ${lineTitle}`, 105, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(`Customer: ${customerName}`, 105, 28, { align: 'center' });
+      y = 35;
+    }
+
+    // Head title
+    doc.setFontSize(12);
+    doc.text(`Head #${head.headId}`, 14, y);
+    y += 6;
+
+    const headData = head.issues.map(issue => [issue.visitName, issue.status, issue.error, issue.fixed, issue.notes || '']);
+    doc.autoTable({
+      startY: y,
+      head: [['Visit Name', 'Status', 'Error', 'Fixed', 'Notes']],
+      body: headData,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [0, 102, 204], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 
+        0: { halign: 'left', cellWidth: 40 },
+        1: { halign: 'center', cellWidth: 25 },
+        2: { halign: 'left', cellWidth: 40 },
+        3: { halign: 'center', cellWidth: 20 },
+        4: { halign: 'left', cellWidth: 60 }
+      },
+      margin: { left: 14, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Add spacing between heads
+    if (!isLastHead) {
+      y += 5;
+    }
+  });
+
+  doc.save(`${customerName}-${lineTitle}-history.pdf`);
+};
+
+const IssueHistory = ({ customers, visits, onExportPDF }) => {
+  const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [selectedLine, setSelectedLine] = useState('');
+  const [history, setHistory] = useState([]);
+
+  const analyzeHistory = () => {
+    if (!selectedCustomer || !selectedLine) return;
+
+    const customer = customers.find(c => c.id === selectedCustomer);
+    if (!customer) return;
+
+    const customerVisits = visits.filter(v => v.customerId === selectedCustomer);
+    const headHistory = {};
+
+    customerVisits.forEach(visit => {
+      const line = visit.lines.find(l => l.title === selectedLine);
+      if (line) {
+        line.heads.forEach(head => {
+          if (head.status !== 'active' || head.error !== 'None' || head.notes.trim() !== '' || head.fixed !== 'na') {
+            if (!headHistory[head.id]) {
+              headHistory[head.id] = [];
+            }
+            headHistory[head.id].push({
+              visitName: visit.name || `Visit ${new Date(visit.date).toLocaleDateString()}`,
+              status: head.status,
+              error: head.error,
+              fixed: head.fixed,
+              notes: head.notes
+            });
+          }
+        });
+      }
+    });
+
+    const result = Object.entries(headHistory).map(([headId, issues]) => ({
+      headId: parseInt(headId),
+      issues: issues.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+    }));
+
+    setHistory(result);
+  };
+
+  useEffect(() => {
+    if (selectedCustomer && selectedLine) {
+      analyzeHistory();
+    }
+  }, [selectedCustomer, selectedLine]);
+
+  return (
+    <div className="p-4 bg-light rounded">
+      <h5 className="mb-3">Issue History</h5>
+      
+      <div className="d-flex gap-3 mb-3 flex-wrap">
+        <select 
+          value={selectedCustomer} 
+          onChange={(e) => { setSelectedCustomer(e.target.value); setSelectedLine(''); }}
+          className="form-select form-select-sm"
+          style={{ minWidth: '180px' }}
+        >
+          <option value="">-- Select Customer --</option>
+          {customers.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+
+        {selectedCustomer && (
+          <select 
+            value={selectedLine} 
+            onChange={(e) => setSelectedLine(e.target.value)}
+            className="form-select form-select-sm"
+            style={{ minWidth: '180px' }}
+          >
+            <option value="">-- Select Line --</option>
+            {(() => {
+              const lines = new Set();
+              visits.filter(v => v.customerId === selectedCustomer).forEach(v => {
+                v.lines.forEach(l => lines.add(l.title));
+              });
+              return Array.from(lines).sort().map(line => (
+                <option key={line} value={line}>{line}</option>
+              ));
+            })()}
+          </select>
+        )}
+
+        {selectedLine && history.length > 0 && (
+          <button 
+            onClick={() => onExportPDF(history, customers.find(c => c.id === selectedCustomer)?.name || 'Unknown', selectedLine)}
+            className="btn btn-success btn-sm"
+          >
+            Export History PDF
+          </button>
+        )}
+      </div>
+
+      {history.length > 0 ? (
+        <div>
+          <h6>Issue History for {selectedLine}</h6>
+          {history.map(head => (
+            <div key={head.headId} className="mb-4 bg-white p-3 rounded shadow-sm">
+              <h6 className="text-primary">Head #{head.headId}</h6>
+              <table className="table table-sm table-bordered">
+                <thead className="table-primary">
+                  <tr>
+                    <th>Visit Name</th>
+                    <th>Status</th>
+                    <th>Error</th>
+                    <th>Fixed</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {head.issues.map((issue, i) => (
+                    <tr key={i}>
+                      <td>{issue.visitName}</td>
+                      <td>{issue.status}</td>
+                      <td>{issue.error}</td>
+                      <td>{issue.fixed}</td>
+                      <td>{issue.notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      ) : selectedLine ? (
+        <p className="text-muted">No issues found for {selectedLine}</p>
+      ) : null}
+    </div>
+  );
+};
+
+const App = () => {
+  console.log('App component defined');
+
+  const [globalData, setGlobalData] = useState({ customer: '', address: '', cityState: '', headCount: '14' });
+  const [lines, setLines] = useState([]);
+  const [showDashboardView, setShowDashboardView] = useState(false);
+  const [activeLineId, setActiveLineId] = useState(null);
+  const [session, setSession] = useState(null);
+  const [renderKey, setRenderKey] = useState(Date.now());
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [customers, setCustomers] = useState([]);
+  const [currentCustomer, setCurrentCustomer] = useState(null);
+  const [visits, setVisits] = useState([]);
+  const [showVisitList, setShowVisitList] = useState(false);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', address: '', cityState: '', headCount: '14' });
+  const [currentVisitName, setCurrentVisitName] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [showDeletePanel, setShowDeletePanel] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState('');
+  const [visitToDelete, setVisitToDelete] = useState('');
+  const [visitToEdit, setVisitToEdit] = useState(null);
+  const [editTimestamp, setEditTimestamp] = useState('');
+  const [currentVisitId, setCurrentVisitId] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const user = firebase.auth().currentUser;
+
+  const loadVisit = async (visitId) => {
+    if (!user || !currentCustomer) return alert('Select a customer first');
+    const doc = await firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .doc(currentCustomer.id)
+      .collection('visits')
+      .doc(visitId)
+      .get();
+    if (doc.exists) {
+      const data = doc.data();
+      const loadedLines = data.lines.map(line => ({
+        ...line,
+        heads: line.heads.map((head, i) => ({ ...head, id: head.id || i + 1 }))
+      }));
+      setGlobalData(data.globalData);
+      setLines(loadedLines);
+      setActiveLineId(loadedLines.length > 0 ? loadedLines[0].id : null);
+      setCurrentVisitName(data.name || '');
+      setCurrentVisitId(visitId);
+      setRenderKey(Date.now());
+      alert('Visit loaded!');
+    } else {
+      alert('Visit not found');
+    }
+  };
+
+  const clearStorage = async () => {
+    if (!window.confirm('Are you sure you want to clear all local data? This will reset everything.')) return;
+    
+    localStorage.clear();
+    
+    setLines([]);
+    setGlobalData({ customer: '', address: '', cityState: '', headCount: '14' });
+    setCurrentVisitName('');
+    setActiveLineId(null);
+    setCurrentCustomer(null);
+    setCustomers([]);
+    setVisits([]);
+    setCurrentVisitId(null);
+    
+    alert('Local storage cleared! All data reset.');
+  };
+
+  const deleteCustomerFromCloud = async (custId) => {
+    if (!window.confirm(`Delete customer "${customers.find(c => c.id === custId)?.name}" and all its visits?`)) return;
+    try {
+      const visitSnap = await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(custId)
+        .collection('visits')
+        .get();
+      
+      const batch = firebase.firestore().batch();
+      visitSnap.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(custId)
+        .delete();
+
+      localStorage.removeItem(`ishida_${custId}`);
+      alert('Customer and all visits deleted from cloud');
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete customer');
+    }
+  };
+
+  const deleteVisitFromCloud = async (custId, visitId) => {
+    if (!window.confirm(`Delete this visit?`)) return;
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(custId)
+        .collection('visits')
+        .doc(visitId)
+        .delete();
+      alert('Visit deleted from cloud');
+      if (currentCustomer?.id === custId) {
+        await loadVisits(custId);
+        if (currentVisitId === visitId) {
+          setCurrentVisitId(null);
+        }
+      }
+    } catch (err) {
+      console.error('Delete visit error:', err);
+      alert('Failed to delete visit');
+    }
+  };
+
+  const updateVisitTimestamp = async () => {
+    if (!visitToEdit) return;
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(currentCustomer.id)
+        .collection('visits')
+        .doc(visitToEdit.id)
+        .update({ date: new Date(editTimestamp).toISOString() });
+      alert('Timestamp updated');
+      setVisitToEdit(null);
+      setEditTimestamp('');
+      await loadVisits(currentCustomer.id);
+    } catch (err) {
+      alert('Failed to update timestamp');
+    }
+  };
+
+  const saveToCloud = async (override = false) => {
+    if (!user || !currentCustomer) return alert('Select a customer first');
+    if (!window.confirm(override ? 'Override current visit?' : 'Save current visit to cloud?')) return;
+
+    const payload = {
+      date: new Date().toISOString(),
+      name: currentVisitName,
+      globalData,
+      lines: lines.map(line => ({
+        ...line,
+        heads: line.heads.map(head => ({ ...head, id: head.id }))
+      })),
+    };
+
+    try {
+      if (override && currentVisitId) {
+        await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(currentCustomer.id)
+          .collection('visits')
+          .doc(currentVisitId)
+          .set(payload);
+        alert('Visit overridden!');
+      } else {
+        const visitId = `visit_${Date.now()}`;
+        await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(currentCustomer.id)
+          .collection('visits')
+          .doc(visitId)
+          .set(payload);
+        setCurrentVisitId(visitId);
+        alert('Saved to cloud!');
+      }
+      await loadVisits(currentCustomer.id);
+    } catch (err) {
+      alert('Failed to save to cloud. Data saved locally.');
+      localStorage.setItem(`offline_${currentCustomer.id}_${Date.now()}`, JSON.stringify(payload));
+    }
+  };
+
+  const duplicateVisit = async () => {
+    if (!currentVisitId) return alert('No visit to duplicate');
+    if (!window.confirm('Duplicate current visit?')) return;
+
+    const visitId = `visit_${Date.now()}`;
+    const payload = {
+      date: new Date().toISOString(),
+      name: `${currentVisitName} (Copy)`,
+      globalData,
+      lines: lines.map(line => ({
+        ...line,
+        heads: line.heads.map(head => ({ ...head, id: head.id }))
+      })),
+    };
+
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(currentCustomer.id)
+        .collection('visits')
+        .doc(visitId)
+        .set(payload);
+      setCurrentVisitId(visitId);
+      setCurrentVisitName(payload.name);
+      alert('Visit duplicated!');
+      await loadVisits(currentCustomer.id);
+    } catch (err) {
+      alert('Failed to duplicate visit');
+    }
+  };
+
+  const saveAllToCloud = async () => {
+    if (!user) return alert('Sign in first');
+    if (!window.confirm('Save ALL customers and visits to cloud?')) return;
+
+    try {
+      const customerSnap = await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .get();
+
+      for (const custDoc of customerSnap.docs) {
+        const custId = custDoc.id;
+        const visitSnap = await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(custId)
+          .collection('visits')
+          .get();
+
+        const batch = firebase.firestore().batch();
+        visitSnap.docs.forEach(doc => {
+          batch.set(doc.ref, doc.data());
+        });
+        await batch.commit();
+      }
+      alert('All data saved to cloud!');
+    } catch (err) {
+      alert('Failed to save all to cloud');
+    }
+  };
+
+  const loadAllFromCloud = async () => {
+    if (!user) return alert('Sign in first');
+    if (!window.confirm('Load ALL customers and visits from cloud? This will overwrite local data.')) return;
+
+    try {
+      const customerSnap = await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .get();
+
+      const allData = { customers: [], visits: [] };
+      allData.customers = customerSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      for (const doc of customerSnap.docs) {
+        const custId = doc.id;
+        const visitSnap = await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(custId)
+          .collection('visits')
+          .get();
+        allData.visits = allData.visits.concat(visitSnap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() })));
+      }
+
+      localStorage.clear();
+
+      setCustomers([]);
+      setCurrentCustomer(null);
+      setLines([]);
+      setCurrentVisitName('');
+      setCurrentVisitId(null);
+
+      await refreshCustomers();
+      alert('All data loaded from cloud!');
+    } catch (err) {
+      alert('Failed to load all from cloud');
+    }
+  };
+
+  useEffect(() => {
+    const unsub = firebase.auth().onAuthStateChanged(async (u) => {
+      if (!u) {
+        const ok = await promptForSignIn(setSession);
+        if (!ok) alert('Sign-in required');
+      }
+      setSession(u);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    console.log('Setting up live customer listener for UID:', user.uid);
+    const unsub = firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .onSnapshot((snap) => {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data().profile }));
+        console.log('CUSTOMERS UPDATED:', list);
+        setCustomers(list);
+      });
+    return () => unsub();
+  }, [user]);
+
+  const refreshCustomers = async () => {
+    if (!user) return;
+    const snap = await firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .get();
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data().profile }));
+    console.log('REFRESHED CUSTOMERS:', list);
+    setCustomers(list);
+  };
+
+  const upsertCustomer = async (profile) => {
+    const name = profile.name.trim();
+    const key = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const custRef = firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .doc(key);
+
+    const snap = await custRef.get();
+    if (snap.exists) {
+      const existing = snap.data().profile;
+      await custRef.update({
+        profile: {
+          ...existing,
+          address: profile.address || existing.address || '',
+          cityState: profile.cityState || existing.cityState || '',
+          headCount: profile.headCount || existing.headCount,
+        },
+      });
+    } else {
+      await custRef.set({ profile });
+    }
+    console.log('Customer upserted:', key);
+    return key;
+  };
+
+  const handleAddCustomer = async (e) => {
+    e.preventDefault();
+    if (!user || !newCustomer.name.trim()) return;
+
+    try {
+      await upsertCustomer(newCustomer);
+      await refreshCustomers();
+      setNewCustomer({ name: '', address: '', cityState: '', headCount: '14' });
+      setShowAddCustomer(false);
+    } catch (err) {
+      alert('Failed to add customer');
+    }
+  };
+
+  const handleImportLegacy = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !file.name.endsWith('.json')) {
+      alert('Please select a valid .json file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        const { globalData: gd, lines: importedLines } = data;
+
+        if (!gd?.customer) throw new Error('No customer name in file');
+
+        const profile = {
+          name: gd.customer.trim(),
+          address: gd.address?.trim() || '',
+          cityState: gd.cityState?.trim() || '',
+          headCount: parseInt(gd.headCount) || 14,
+        };
+
+        console.log('Importing:', profile);
+
+        const customerId = await upsertCustomer(profile);
+        console.log('Customer ID:', customerId);
+
+        const visitId = `visit_${Date.now()}`;
+        await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(customerId)
+          .collection('visits')
+          .doc(visitId)
+          .set({
+            date: new Date().toISOString(),
+            name: '',
+            globalData: gd,
+            lines: importedLines.map(line => ({
+              ...line,
+              heads: line.heads.map((head, i) => ({ ...head, id: head.id || i + 1 }))
+            })),
+          });
+
+        setTimeout(() => {
+          setRenderKey(Date.now());
+        }, 100);
+
+        const custSnap = await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(customerId)
+          .get();
+        if (custSnap.exists) {
+          const cust = { id: customerId, ...custSnap.data().profile };
+          console.log('Customer fetched:', cust);
+          setCurrentCustomer(cust);
+          setGlobalData({
+            customer: cust.name,
+            address: cust.address,
+            cityState: cust.cityState,
+            headCount: cust.headCount.toString(),
+          });
+          const loadedLines = importedLines.map(line => ({
+            ...line,
+            heads: line.heads.map((head, i) => ({ ...head, id: head.id || i + 1 }))
+          }));
+          setLines(loadedLines);
+          setActiveLineId(loadedLines.length > 0 ? loadedLines[0].id : null);
+          setCurrentVisitName('');
+          setCurrentVisitId(visitId);
+        }
+
+        alert(`Imported "${profile.name}" – new visit saved!`);
+      } catch (err) {
+        console.error('Import error:', err);
+        alert(`Import failed: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    fileInputRef.current.value = '';
+  };
+
+  const handleSelectCustomer = (custId) => {
+    const cust = customers.find(c => c.id === custId);
+    if (!cust) return;
+    console.log('Selected:', cust);
+    setCurrentCustomer(cust);
+    setGlobalData({
+      customer: cust.name,
+      address: cust.address,
+      cityState: cust.cityState,
+      headCount: cust.headCount.toString(),
+    });
+    setLines([]);
+    setShowVisitList(false);
+    setCurrentVisitName('');
+    setCurrentVisitId(null);
+  };
+
+  const loadVisits = async (custId) => {
+    if (!user) return;
+    const snap = await firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .doc(custId)
+      .collection('visits')
+      .orderBy('date', 'desc')
+      .get();
+    const list = snap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() }));
+    setVisits(list);
+  };
+
+  const deleteVisit = async (visitId) => {
+    if (!window.confirm('Delete this visit?')) return;
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(currentCustomer.id)
+        .collection('visits')
+        .doc(visitId)
+        .delete();
+      alert('Visit deleted');
+      await loadVisits(currentCustomer.id);
+      if (currentVisitId === visitId) {
+        setCurrentVisitId(null);
+      }
+    } catch (err) {
+      alert('Failed to delete visit');
+    }
+  };
+
+  const loadFromCloud = async () => {
+    if (!user || !currentCustomer) return alert('Select a customer first');
+    if (!window.confirm('Load latest visit from cloud?')) return;
+
+    const snap = await firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .doc(currentCustomer.id)
+      .collection('visits')
+      .orderBy('date', 'desc')
+      .limit(1)
+      .get();
+
+    if (snap.empty) return alert('No cloud data');
+
+    const doc = snap.docs[0];
+    const data = doc.data();
+    const loadedLines = data.lines.map(line => ({
+      ...line,
+      heads: line.heads.map((head, i) => ({ ...head, id: head.id || i + 1 }))
+    }));
+    setGlobalData(data.globalData);
+    setLines(loadedLines);
+    setActiveLineId(loadedLines.length > 0 ? loadedLines[0].id : null);
+    setCurrentVisitName(data.name || '');
+    setCurrentVisitId(doc.id);
+    setRenderKey(Date.now());
+
+    localStorage.setItem(`ishida_${currentCustomer.id}`, JSON.stringify({ 
+      lines: loadedLines, 
+      visits: [data],
+      currentVisitName: data.name || '',
+      currentVisitId: doc.id
+    }));
+
+    alert('Loaded from cloud!');
+  };
+
+  const saveAllData = async () => {
+    if (!user) return alert('Sign in first');
+    if (!window.confirm('Export all data?')) return;
+    const allData = { customers: [], visits: [] };
+    const customerSnap = await firebase
+      .firestore()
+      .collection('user_files')
+      .doc(user.uid)
+      .collection('customers')
+      .get();
+    allData.customers = customerSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    for (const doc of customerSnap.docs) {
+      const custId = doc.id;
+      const visitSnap = await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(custId)
+        .collection('visits')
+        .get();
+      allData.visits = allData.visits.concat(visitSnap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() })));
+    }
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+    saveAs(blob, 'all-ishida-data.json');
+    alert('All data exported!');
+  };
+
+  const loadAllData = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('Import all data? This will overwrite existing data.')) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const allData = JSON.parse(ev.target.result);
+        if (!user) return alert('Sign in first');
+        for (const custData of allData.customers) {
+          const key = custData.profile.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          await firebase
+            .firestore()
+            .collection('user_files')
+            .doc(user.uid)
+            .collection('customers')
+            .doc(key)
+            .set(custData);
+          for (const visitData of allData.visits.filter(v => v.customerId === custData.id)) {
+            await firebase
+              .firestore()
+              .collection('user_files')
+              .doc(user.uid)
+              .collection('customers')
+              .doc(key)
+              .collection('visits')
+              .doc(visitData.id)
+              .set(visitData);
+          }
+        }
+        alert('All data imported!');
+        await refreshCustomers();
+      } catch (err) {
+        alert(`Import failed: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Auto-save to localStorage
+  useEffect(() => {
+    if (!currentCustomer || lines.length === 0) return;
+    const timer = setTimeout(() => {
+      setIsSaving(true);
+      const data = {
+        lines,
+        globalData,
+        currentVisitName,
+        currentVisitId
+      };
+      localStorage.setItem(`ishida_${currentCustomer.id}`, JSON.stringify(data));
+      setIsSaving(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [lines, globalData, currentVisitName, currentCustomer, currentVisitId]);
+
+  // Load from localStorage on customer change
+  useEffect(() => {
+    if (!currentCustomer) return;
+    const saved = localStorage.getItem(`ishida_${currentCustomer.id}`);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setLines(data.lines || []);
+        setGlobalData(data.globalData || globalData);
+        setCurrentVisitName(data.currentVisitName || '');
+        setCurrentVisitId(data.currentVisitId || null);
+        setActiveLineId(data.lines?.length > 0 ? data.lines[0].id : null);
+      } catch (e) {
+        console.error('Failed to load from localStorage', e);
+      }
+    }
+  }, [currentCustomer]);
+
+  // Load all visits for history
+  useEffect(() => {
+    if (user) {
+      const loadAllVisits = async () => {
+        const allVisits = [];
+        const customerSnap = await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .get();
+        for (const custDoc of customerSnap.docs) {
+          const visitSnap = await firebase
+            .firestore()
+            .collection('user_files')
+            .doc(user.uid)
+            .collection('customers')
+            .doc(custDoc.id)
+            .collection('visits')
+            .get();
+          allVisits.push(...visitSnap.docs.map(d => ({ id: d.id, customerId: custDoc.id, ...d.data() })));
+        }
+        setVisits(allVisits);
+      };
+      loadAllVisits();
+    }
+  }, [user]);
+
+  if (loading) return <div className="text-center p-5">Loading...</div>;
+
+  return (
+    <div className="container-fluid p-0">
+      <style>{`
+        .control-bar {
+          background: #f8f9fa;
+          border-bottom: 1px solid #dee2e6;
+          padding: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          position: sticky;
+          top: 0;
+          z-index: 1000;
+        }
+        .saving {
+          margin-left: 12px;
+          color: #28a745;
+          font-weight: 500;
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+          0% { opacity: 0.6; }
+          50% { opacity: 1; }
+          100% { opacity: 0.6; }
+        }
+        .nav-button {
+          font-size: 0.85rem;
+          padding: 0.25rem 0.5rem;
+        }
+        .tab-content {
+          padding: 20px;
+        }
+        .dashboard-btn {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          z-index: 1050;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 60px;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          cursor: pointer;
+        }
+        .dashboard-btn:hover {
+          background: #0056b3;
+        }
+        .dropdown-menu {
+          min-width: 180px;
+        }
+      `}</style>
+
+      <div className="control-bar">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <label className="mb-0"><strong>Customer:</strong></label>
+          <select
+            value={currentCustomer?.id || ''}
+            onChange={(e) => handleSelectCustomer(e.target.value)}
+            className="form-select form-select-sm"
+            style={{ minWidth: '180px' }}
+          >
+            <option value="">-- Select Customer --</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.headCount} heads)
+              </option>
+            ))}
+          </select>
+
+          <button onClick={() => setShowAddCustomer(true)} className="btn btn-outline-primary btn-sm">
+            <Plus className="w-4 h-4" /> Add
+          </button>
+
+          <button onClick={() => saveToCloud(false)} className="btn btn-outline-success btn-sm">
+            <Save className="w-4 h-4" /> New
+          </button>
+
+          {currentVisitId && (
+            <button onClick={() => saveToCloud(true)} className="btn btn-outline-warning btn-sm">
+              <RefreshCw className="w-4 h-4" /> Override
+            </button>
+          )}
+
+          {currentVisitId && (
+            <button onClick={duplicateVisit} className="btn btn-outline-info btn-sm">
+              <Copy className="w-4 h-4" /> Duplicate
+            </button>
+          )}
+
+          <button onClick={saveAllToCloud} className="btn btn-outline-success btn-sm">
+            <CloudUpload className="w-4 h-4" /> All to Cloud
+          </button>
+
+          <button onClick={loadAllFromCloud} className="btn btn-outline-primary btn-sm">
+            <CloudDownload className="w-4 h-4" /> All from Cloud
+          </button>
+
+          <div className="btn-group">
+            <button className="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <Download className="w-4 h-4" /> Export
+            </button>
+            <ul className="dropdown-menu">
+              <li>
+                <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => exportDashboardToPDF(lines, globalData)}>
+                  <FileText className="w-4 h-4" /> Dashboard PDF
+                </button>
+              </li>
+              <li>
+                <button className="dropdown-item d-flex align-items-center gap-2" onClick={saveAllData}>
+                  <FileText className="w-4 h-4" /> All Data JSON
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <button onClick={() => setShowDeletePanel(!showDeletePanel)} className="btn btn-outline-danger btn-sm">
+            <Trash2 className="w-4 h-4" /> Delete
+          </button>
+
+          {isSaving && <span className="saving">Saving locally...</span>}
+        </div>
+      </div>
+
+      {showAddCustomer && (
+        <div className="p-3 bg-light border-bottom">
+          <form onSubmit={handleAddCustomer} className="row g-2">
+            <div className="col-md-3">
+              <input placeholder="Name *" value={newCustomer.name} onChange={e => setNewCustomer({ ...newCustomer, name: e.target.value })} required className="form-control form-control-sm" />
+            </div>
+            <div className="col-md-3">
+              <input placeholder="Address" value={newCustomer.address} onChange={e => setNewCustomer({ ...newCustomer, address: e.target.value })} className="form-control form-control-sm" />
+            </div>
+            <div className="col-md-3">
+              <input placeholder="City, State" value={newCustomer.cityState} onChange={e => setNewCustomer({ ...newCustomer, cityState: e.target.value })} className="form-control form-control-sm" />
+            </div>
+            <div className="col-md-1">
+              <input type="number" placeholder="Heads" value={newCustomer.headCount} onChange={e => setNewCustomer({ ...newCustomer, headCount: e.target.value })} min="1" className="form-control form-control-sm" />
+            </div>
+            <div className="col-md-2 d-flex gap-1">
+              <button type="submit" className="btn btn-primary btn-sm">Save</button>
+              <button type="button" onClick={() => setShowAddCustomer(false)} className="btn btn-secondary btn-sm">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showDeletePanel && (
+        <div className="p-3 bg-warning bg-opacity-10 border-bottom">
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label className="form-label"><strong>Delete Customer:</strong></label>
+              <div className="d-flex gap-2">
+                <select value={customerToDelete} onChange={(e) => setCustomerToDelete(e.target.value)} className="form-select form-select-sm">
+                  <option value="">-- Select --</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {customerToDelete && (
+                  <button onClick={() => { deleteCustomerFromCloud(customerToDelete); setCustomerToDelete(''); }} className="btn btn-danger btn-sm">Delete</button>
+                )}
+              </div>
+            </div>
+            {currentCustomer && (
+              <div className="col-md-6">
+                <label className="form-label"><strong>Delete Visit:</strong></label>
+                <div className="d-flex gap-2">
+                  <select value={visitToDelete} onChange={(e) => setVisitToDelete(e.target.value)} className="form-select form-select-sm">
+                    <option value="">-- Select --</option>
+                    {visits.filter(v => v.customerId === currentCustomer.id).slice(0, 5).map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.name ? `${v.name} - ` : ''}{new Date(v.date).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+                  {visitToDelete && (
+                    <button onClick={() => { deleteVisitFromCloud(currentCustomer.id, visitToDelete); setVisitToDelete(''); }} className="btn btn-danger btn-sm">Delete</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Tabs defaultActiveKey="current" className="mb-3 border-bottom">
+        <Tab eventKey="current" title="Current Visit">
+          <div className="tab-content p-3">
+            {currentCustomer && (
+              <div className="mb-3">
+                <label className="form-label"><strong>Visit Name:</strong></label>
+                <input 
+                  type="text" 
+                  value={currentVisitName} 
+                  onChange={(e) => setCurrentVisitName(e.target.value)}
+                  placeholder="Enter visit name (optional)"
+                  className="form-control"
+                />
+              </div>
+            )}
+
+            <GlobalForm
+              key={`gf-${lines.length}-${JSON.stringify(globalData)}`}
+              globalData={globalData}
+              setGlobalData={setGlobalData}
+              addLine={() => addLine(setLines, setActiveLineId, globalData, lines)}
+            />
+
+            <div className="d-flex flex-wrap gap-2 my-3">
+              {lines.map(line => (
+                <button
+                  key={line.id}
+                  onClick={() => showLine(line.id, setShowDashboardView, setActiveLineId)}
+                  className={`btn btn-sm ${line.id === activeLineId ? 'btn-primary' : 'btn-outline-secondary'} nav-button`}
+                >
+                  {line.title}
+                </button>
+              ))}
+            </div>
+
+            {showDashboardView ? (
+              <Dashboard key={`dash-${lines.length}`} lines={lines} setShowDashboardView={setShowDashboardView} />
+            ) : (
+              <div>
+                {lines.map(line => (
+                  <Line
+                    key={line.id}
+                    line={line}
+                    updateLine={updated => updateLine(line.id, updated, setLines, lines)}
+                    removeLine={() => removeLine(line.id, setLines, activeLineId, lines)}
+                    isVisible={line.id === activeLineId}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </Tab>
+
+        <Tab eventKey="visits" title="Past Visits">
+          <div className="tab-content p-3">
+            {currentCustomer && (
+              <>
+                <button onClick={async () => { setShowVisitList(true); await loadVisits(currentCustomer.id); }} className="btn btn-outline-primary btn-sm mb-3">
+                  <History className="w-4 h-4" /> Load Past Visits
+                </button>
+                {showVisitList && visits.length > 0 && (
+                  <div className="row row-cols-1 row-cols-md-2 g-3">
+                    {visits.slice(0, 10).map(v => (
+                      <div key={v.id} className="col">
+                        <div className="card h-100">
+                          <div className="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                              <h6 className="card-title mb-1">
+                                {v.name ? `${v.name}` : 'Unnamed Visit'}
+                              </h6>
+                              <small className="text-muted">
+                                {new Date(v.date).toLocaleString()}
+                              </small>
+                            </div>
+                            <div className="btn-group">
+                              <button onClick={() => loadVisit(v.id)} className="btn btn-sm btn-outline-primary">
+                                Load
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setVisitToEdit(v);
+                                  setEditTimestamp(new Date(v.date).toISOString().slice(0, 16));
+                                }} 
+                                className="btn btn-sm btn-outline-secondary"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => deleteVisit(v.id)} className="btn btn-sm btn-outline-danger">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </Tab>
+
+        <Tab eventKey="history" title="Issue History">
+          <div className="tab-content p-3">
+            <IssueHistory customers={customers} visits={visits} onExportPDF={exportLineHistoryToPDF} />
+          </div>
+        </Tab>
+      </Tabs>
+
+      {visitToEdit && (
+        <div className="position-fixed bottom-0 end-0 p-3" style={{ zIndex: 1050 }}>
+          <div className="card shadow">
+            <div className="card-body">
+              <h6 className="card-title">Edit Visit Timestamp</h6>
+              <div className="d-flex gap-2 align-items-center">
+                <input 
+                  type="datetime-local" 
+                  value={editTimestamp} 
+                  onChange={(e) => setEditTimestamp(e.target.value)}
+                  className="form-control form-control-sm"
+                />
+                <button onClick={updateVisitTimestamp} className="btn btn-primary btn-sm">Update</button>
+                <button onClick={() => { setVisitToEdit(null); setEditTimestamp(''); }} className="btn btn-secondary btn-sm">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="position-fixed bottom-0 start-0 p-3">
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportLegacy} className="d-none" />
+        <button onClick={() => fileInputRef.current.click()} className="btn btn-outline-secondary btn-sm">
+          <Upload className="w-4 h-4" /> Import Legacy JSON
+        </button>
+      </div>
+
+      {lines.length > 0 && (
+        <button 
+          onClick={() => setShowDashboardView(true)} 
+          className="dashboard-btn"
+          title="View Dashboard"
+        >
+          <Eye className="w-6 h-6" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default App;
