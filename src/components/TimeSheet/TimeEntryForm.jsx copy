@@ -1,0 +1,313 @@
+import { useState, useEffect } from 'react';
+
+function TimeEntryForm({ entry, onSave, onCancel }) {
+  const [formData, setFormData] = useState({
+    date: entry?.date || '',
+    travel: {
+      to: {
+        active: entry?.travel?.to?.active || false,
+        start: entry?.travel?.to?.start || '',
+        end: entry?.travel?.to?.end || '',
+      },
+      home: {
+        active: entry?.travel?.home?.active || false,
+        start: entry?.travel?.home?.start || '',
+        end: entry?.travel?.home?.end || '',
+      },
+    },
+    onsite: {
+      active: entry?.onsite?.active || false,
+      start: entry?.onsite?.start || '',
+      end: entry?.onsite?.end || '',
+    },
+    lunch: entry?.lunch || false,
+    lunchDuration: entry?.lunchDuration || '0',
+    holiday: entry?.holiday || false,
+    travelOnly: entry?.travelOnly || false,
+    travelHours: entry?.travelHours || 0,
+    workHours: entry?.workHours || 0,
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    if (name.startsWith('travel.to.')) {
+      const field = name.split('.')[2];
+      setFormData((prev) => ({
+        ...prev,
+        travel: {
+          ...prev.travel,
+          to: { ...prev.travel.to, [field]: type === 'checkbox' ? checked : value },
+        },
+      }));
+    } else if (name.startsWith('travel.home.')) {
+      const field = name.split('.')[2];
+      setFormData((prev) => ({
+        ...prev,
+        travel: {
+          ...prev.travel,
+          home: { ...prev.travel.home, [field]: type === 'checkbox' ? checked : value },
+        },
+      }));
+    } else if (name.startsWith('onsite.')) {
+      const field = name.split('.')[1];
+      setFormData((prev) => ({
+        ...prev,
+        onsite: { ...prev.onsite, [field]: type === 'checkbox' ? checked : value },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value,
+      }));
+    }
+  };
+
+  const calculateHours = () => {
+    let travelHours = 0;
+    let workHours = 0;
+
+    if (formData.travel.to.active && formData.travel.to.start && formData.travel.to.end) {
+      const start = new Date(`1970-01-01T${formData.travel.to.start}:00Z`);
+      const end = new Date(`1970-01-01T${formData.travel.to.end}:00Z`);
+      travelHours += (end - start) / 1000 / 60 / 60;
+    }
+    if (formData.travel.home.active && formData.travel.home.start && formData.travel.home.end) {
+      const start = new Date(`1970-01-01T${formData.travel.home.start}:00Z`);
+      const end = new Date(`1970-01-01T${formData.travel.home.end}:00Z`);
+      travelHours += (end - start) / 1000 / 60 / 60;
+    }
+    if (formData.onsite.active && formData.onsite.start && formData.onsite.end) {
+      const start = new Date(`1970-01-01T${formData.onsite.start}:00Z`);
+      const end = new Date(`1970-01-01T${formData.onsite.end}:00Z`);
+      workHours = (end - start) / 1000 / 60 / 60 - (formData.lunch ? Number(formData.lunchDuration) || 0 : 0);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      travelHours: travelHours.toFixed(2),
+      workHours: workHours.toFixed(2),
+    }));
+  };
+
+  useEffect(() => {
+    calculateHours();
+  }, [
+    formData.travel.to.active,
+    formData.travel.to.start,
+    formData.travel.to.end,
+    formData.travel.home.active,
+    formData.travel.home.start,
+    formData.travel.home.end,
+    formData.onsite.active,
+    formData.onsite.start,
+    formData.onsite.end,
+    formData.lunch,
+    formData.lunchDuration,
+  ]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    console.log('Saving entry:', JSON.stringify(formData, null, 2));
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+      <div className="bg-white p-4 rounded shadow-lg w-full max-w-lg">
+        <h3 className="text-lg font-semibold mb-4">{entry ? 'Edit Entry' : 'Add Entry'}</h3>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Date</label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleInputChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="travel.to.active"
+                checked={formData.travel.to.active}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              Travel To
+            </label>
+            {formData.travel.to.active && (
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start</label>
+                  <input
+                    type="time"
+                    name="travel.to.start"
+                    value={formData.travel.to.start}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End</label>
+                  <input
+                    type="time"
+                    name="travel.to.end"
+                    value={formData.travel.to.end}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="travel.home.active"
+                checked={formData.travel.home.active}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              Travel Home
+            </label>
+            {formData.travel.home.active && (
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start</label>
+                  <input
+                    type="time"
+                    name="travel.home.start"
+                    value={formData.travel.home.start}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End</label>
+                  <input
+                    type="time"
+                    name="travel.home.end"
+                    value={formData.travel.home.end}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="onsite.active"
+                checked={formData.onsite.active}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              On-site
+            </label>
+            {formData.onsite.active && (
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start</label>
+                  <input
+                    type="time"
+                    name="onsite.start"
+                    value={formData.onsite.start}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End</label>
+                  <input
+                    type="time"
+                    name="onsite.end"
+                    value={formData.onsite.end}
+                    onChange={handleInputChange}
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="lunch"
+                checked={formData.lunch}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              Lunch
+            </label>
+            {formData.lunch && (
+              <div className="mt-2">
+                <label className="block text-sm font-medium mb-1">Lunch Duration (hours)</label>
+                <input
+                  type="number"
+                  name="lunchDuration"
+                  value={formData.lunchDuration}
+                  onChange={handleInputChange}
+                  className="w-full border p-2 rounded"
+                  min="0"
+                  step="0.5"
+                />
+              </div>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="holiday"
+                checked={formData.holiday}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              Holiday
+            </label>
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="travelOnly"
+                checked={formData.travelOnly}
+                onChange={handleInputChange}
+                className="mr-2"
+              />
+              Travel Only
+            </label>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Travel Hours: {formData.travelHours}</label>
+            <label className="block text-sm font-medium mb-1">Work Hours: {formData.workHours}</label>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default TimeEntryForm;
