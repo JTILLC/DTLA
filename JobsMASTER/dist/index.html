@@ -1,0 +1,421 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en" data-version="1">
+<head>
+    <meta charset="UTF-8">
+    <title>JTI Jobs Tracker</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+    <style>
+        :root { --bg:#f8f9fa; --text:#212529; --card:#fff; --border:#dee2e6; --hover:#e9ecef; }
+        [data-theme="dark"] { --bg:#121212; --text:#e0e0e0; --card:#1e1e1e; --border:#333; --hover:#2d2d2d; }
+        body { background:var(--bg); color:var(--text); transition:background .3s,color .3s; margin:20px; font-family:Arial,sans-serif; }
+        .card,.modal-content,.table { background:var(--card); border-color:var(--border); color:var(--text); }
+        .table tbody tr:hover { background:var(--hover); }
+        .dataTables_wrapper .dataTables_paginate .paginate_button { color:var(--text)!important; }
+        #cloudDiffBanner { margin-bottom:15px; }
+        .dark-mode-toggle { position:fixed; top:15px; right:15px; z-index:1050; }
+        .summary { font-weight:bold; }
+        .dataTables_wrapper .dataTables_filter input,
+        .dataTables_wrapper .dataTables_length select,
+        .dataTables_wrapper .dataTables_info,
+        .dataTables_wrapper .dataTables_paginate { color:var(--text)!important; }
+        .dataTables_wrapper .dataTables_filter input:focus,
+        .dataTables_wrapper .dataTables_length select:focus { background:var(--card); }
+    </style>
+</head>
+<body>
+    <button class="btn btn-outline-secondary dark-mode-toggle" id="darkModeToggle">Dark Mode Off</button>
+
+    <h1>JTI Jobs Tracker</h1>
+
+    <div id="cloudDiffBanner" class="alert d-flex justify-content-between align-items-center" style="display:none;">
+        <span id="bannerMessage"></span>
+        <div>
+            <button id="bannerSaveBtn" class="btn btn-sm btn-outline-success me-2" style="display:none;" onclick="window.saveToCloud()">Save to Cloud</button>
+            <button id="bannerLoadBtn" class="btn btn-sm btn-outline-primary" style="display:none;" onclick="window.loadFromCloud()">Update from Cloud</button>
+        </div>
+    </div>
+
+    <div class="year-nav mb-3">
+        <label for="yearSelect">Select Year: </label>
+        <select id="yearSelect" class="form-select d-inline-block w-auto"></select>
+        <button class="btn btn-success ms-2" onclick="window.addNewYear()">Add New Year</button>
+        <button class="btn btn-info ms-2" onclick="window.checkData()">Check Data</button>
+    </div>
+
+    <div id="yearPage">
+        <div id="summary" class="card p-3 mb-3">
+            <div>Quotes This Year: $0.00</div>
+            <div>Gross Total Income: $0.00</div>
+            <div>Paid Total Income: $0.00</div>
+            <div>Unpaid Total Income: $0.00</div>
+        </div>
+
+        <div class="actions mb-3">
+            <button class="btn btn-primary" onclick="window.addNew()">Add New</button>
+            <button class="btn btn-secondary" onclick="window.editSelected()">Edit Selected</button>
+            <button class="btn btn-danger" onclick="window.deleteSelected()">Delete Selected</button>
+            <button class="btn btn-info" onclick="window.exportJson()">Export JSON</button>
+            <button class="btn btn-info ms-1" onclick="window.exportAllYearsJson()">Export All</button>
+            <button class="btn btn-info ms-1" onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="window.importJson(event)">
+            <button class="btn btn-info ms-1" onclick="window.saveToCloud()">Save to Cloud</button>
+            <button class="btn btn-info ms-1" onclick="window.loadFromCloud()">Load from Cloud</button>
+            <button class="btn btn-info ms-1" onclick="window.exportPdf()">Export PDF</button>
+            <button class="btn btn-warning ms-1" onclick="window.confirmClearStorage()">Clear Local</button>
+            <button class="btn btn-warning ms-1" onclick="window.confirmClearCurrentYear()">Clear Year</button>
+        </div>
+
+        <h2>Jobs Table</h2>
+        <table id="jobsTable" class="display table table-bordered" style="width:100%">
+            <thead class="table-light">
+                <tr>
+                    <th>Date Range</th>
+                    <th>Customer</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Quote</th>
+                    <th>Actual</th>
+                    <th>SR#</th>
+                    <th>Terms</th>
+                    <th>Exp Paid</th>
+                    <th>Paid?</th>
+                    <th>Invoice Date</th>
+                </tr>
+            </thead>
+        </table>
+
+        <h2 class="mt-4">Monthly Income</h2>
+        <canvas id="monthlyChart" height="120"></canvas>
+    </div>
+
+    <div id="comparisonPage" style="display:none;">
+        <h2>Yearly Comparison</h2>
+        <table id="comparisonTable" class="table table-bordered">
+            <thead class="table-light">
+                <tr><th>Year</th><th>Quotes</th><th>Gross</th><th>Paid</th><th>Unpaid</th></tr>
+            </thead>
+            <tbody id="comparisonTableBody"></tbody>
+        </table>
+        <canvas id="comparisonChart" height="120" class="mt-3"></canvas>
+        <h2 class="mt-4">Monthly Across Years</h2>
+        <canvas id="monthlyComparisonChart" height="120"></canvas>
+    </div>
+
+    <!-- Modals (same as before) -->
+    <!-- ... -->
+
+    <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) { return cell !== '' && cell != null; }
+        function loadFileData(filename) { return gk_fileData[filename] || ""; }
+    </script>
+
+    <script type="module">
+        // === Firebase ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnBuhq5hT62J3_O5kQRsTQucNDyYxMnsM",
+            authDomain: "jobs-data-17ee4.firebaseapp.com",
+            projectId: "jobs-data-17ee4",
+            storageBucket: "jobs-data-17ee4.firebasestorage.app",
+            messagingSenderId: "243005500287",
+            appId: "1:243005500287:web:439852c7875e42cc14484a",
+            measurementId: "G-3JJSP5QEFM"
+        };
+
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
+        import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-storage.js';
+
+        let app, storage;
+        try {
+            app = initializeApp(firebaseConfig);
+            storage = getStorage(app);
+            console.log('Firebase initialized');
+        } catch (e) { console.error(e); }
+
+        // === Globals ===
+        let data = {}, table = null, chart = null, monthlyComparisonChart = null,
+            selectedRow = null, currentYear = '2025', importFileData = null;
+
+        // === Dark Mode ===
+        const toggle = document.getElementById('darkModeToggle');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const saved = localStorage.getItem('theme');
+        const isDark = saved === 'dark' || (!saved && prefersDark);
+        function setTheme(dark) {
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            toggle.textContent = dark ? 'Light Mode' : 'Dark Mode';
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
+            // Re-apply DataTables theme
+            if (table) table.destroy();
+            updateYearPage();
+        }
+        setTheme(isDark);
+        toggle.addEventListener('click', () => setTheme(!document.documentElement.hasAttribute('data-theme') || document.documentElement.getAttribute('data-theme') !== 'dark'));
+
+        // === Helper Functions ===
+        function computeMonthlyData(jobs) {
+            const m = {January:0,February:0,March:0,April:0,May:0,June:0,July:0,August:0,September:0,October:0,November:0,December:0};
+            jobs.forEach(j => {
+                if (!j.dateRange) return;
+                const match = j.dateRange.match(/^(\d{1,2})/);
+                if (match) {
+                    const month = parseInt(match[1]);
+                    const name = ['January','February','March','April','May','June','July','August','September','October','November','December'][month-1];
+                    m[name] += parseFloat(j.actual) || 0;
+                }
+            });
+            return m;
+        }
+
+        // === LocalStorage ===
+        function loadFromStorage() {
+            const years = JSON.parse(localStorage.getItem('years') || '["2025"]');
+            years.forEach(y => { const r = localStorage.getItem(`data-${y}`); data[y] = r ? JSON.parse(r) : []; });
+            return years;
+        }
+        function saveToStorage() {
+            localStorage.setItem('years', JSON.stringify(Object.keys(data)));
+            Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
+            localStorage.setItem('localEditTime', Date.now());
+        }
+
+        // === Cloud Diff Banner ===
+        async function getCloudData(year) {
+            try {
+                const url = await getDownloadURL(ref(storage, `jobs-${year}.json`));
+                const r = await fetch(url);
+                return r.ok ? await r.json() : null;
+            } catch { return null; }
+        }
+
+        window.checkData = async () => {
+            const banner = document.getElementById('cloudDiffBanner');
+            const msg = document.getElementById('bannerMessage');
+            const saveBtn = document.getElementById('bannerSaveBtn');
+            const loadBtn = document.getElementById('bannerLoadBtn');
+            let localNewer = false, cloudNewer = false;
+
+            for (const y of Object.keys(data)) {
+                const local = data[y];
+                const cloud = await getCloudData(y);
+                if (!cloud) continue;
+                const lHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(local)));
+                const cHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(cloud)));
+                const lStr = Array.from(new Uint8Array(lHash)).map(b => b.toString(16).padStart(2,'0')).join('');
+                const cStr = Array.from(new Uint8Array(cHash)).map(b => b.toString(16).padStart(2,'0')).join('');
+                if (lStr !== cStr) {
+                    const lTot = local.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
+                    const cTot = cloud.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
+                    if (lTot > cTot || local.length > cloud.length) localNewer = true;
+                    else cloudNewer = true;
+                }
+            }
+
+            if (localNewer || cloudNewer) {
+                banner.className = localNewer ? 'alert alert-warning' : 'alert alert-info';
+                msg.innerHTML = localNewer
+                    ? '<strong>Data differs!</strong> Local has newer data. Save to Cloud?'
+                    : '<strong>Update available!</strong> Cloud has newer data. Update from Cloud?';
+                saveBtn.style.display = localNewer ? 'inline-block' : 'none';
+                loadBtn.style.display = cloudNewer ? 'inline-block' : 'none';
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+                alert('Data is in sync!');
+            }
+        };
+
+        // === Cloud Sync ===
+        window.saveToCloud = async () => {
+            try {
+                for (const y of Object.keys(data)) {
+                    await uploadString(ref(storage, `jobs-${y}.json`), JSON.stringify(data[y], null, 2), 'raw', { contentType: 'application/json' });
+                }
+                localStorage.removeItem('localEditTime');
+                alert('Saved to cloud');
+                document.getElementById('cloudDiffBanner').style.display = 'none';
+            } catch (e) { alert('Save failed: ' + e.message); }
+        };
+
+        window.loadFromCloud = async () => {
+            try {
+                const years = Object.keys(data).length ? Object.keys(data) : ['2022','2023','2024','2025'];
+                const newData = {};
+                for (const y of years) {
+                    try {
+                        const url = await getDownloadURL(ref(storage, `jobs-${y}.json`));
+                        const r = await fetch(url);
+                        if (r.ok) {
+                            const jobs = await r.json();
+                            newData[y] = Array.isArray(jobs) ? jobs : [];
+                            localStorage.setItem(`data-${y}`, JSON.stringify(jobs));
+                        } else { newData[y] = data[y] || []; }
+                    } catch { newData[y] = data[y] || []; }
+                }
+                data = newData;
+                saveToStorage();
+                localStorage.removeItem('localEditTime');
+
+                const loaded = Object.keys(data).sort();
+                if (loaded.length && !loaded.includes(currentYear)) {
+                    currentYear = loaded[0];
+                }
+
+                updateYearSelect();
+                document.getElementById('yearSelect').value = currentYear;
+                updateYearPage();
+                document.getElementById('cloudDiffBanner').style.display = 'none';
+                alert(`Loaded ${loaded.length} year(s) from cloud!`);
+            } catch (e) { alert('Load failed: ' + e.message); }
+        };
+
+        // === UI Functions ===
+        function updateYearSelect() {
+            const sel = document.getElementById('yearSelect');
+            const years = Object.keys(data).sort();
+            sel.innerHTML = years.map(y => `<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('');
+            sel.innerHTML += `<option value="comparison">Comparison</option>`;
+        }
+
+        function updateSummary() {
+            const jobs = data[currentYear] || [];
+            const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0).toFixed(2);
+            const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0).toFixed(2);
+            const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0).toFixed(2);
+            const u = (g - p).toFixed(2);
+            document.getElementById('summary').innerHTML = `
+                <div>Quotes This Year: $${q}</div>
+                <div>Gross Total Income: $${g}</div>
+                <div>Paid Total Income: $${p}</div>
+                <div>Unpaid Total Income: $${u}</div>`;
+        }
+
+        function updateYearPage() {
+            try {
+                const scrollY = window.scrollY;
+
+                if (table && $.fn.DataTable.isDataTable('#jobsTable')) {
+                    table.destroy();
+                    $('#jobsTable').empty();
+                }
+                if (chart) chart.destroy();
+                if (monthlyComparisonChart) monthlyComparisonChart.destroy();
+
+                document.getElementById('yearPage').style.display = 'block';
+                document.getElementById('comparisonPage').style.display = 'none';
+
+                const jobs = data[currentYear] || [];
+
+                table = $('#jobsTable').DataTable({
+                    data: jobs,
+                    columns: [
+                        { data: 'dateRange' },
+                        { data: 'customer' },
+                        { data: 'city' },
+                        { data: 'state' },
+                        { data: 'quote', render: d => d ? `$${parseFloat(d).toFixed(2)}` : '' },
+                        { data: 'actual', render: d => d ? `$${parseFloat(d).toFixed(2)}` : '' },
+                        { data: 'sr' },
+                        { data: 'terms' },
+                        { data: 'expPaid' },
+                        { data: 'paid', render: (d, _, row) => `<input type="checkbox" class="paid-checkbox" ${d?'checked':''} data-row-index="${jobs.indexOf(row)}">` },
+                        { data: 'invoiceDate' }
+                    ],
+                    pageLength: 50,
+                    order: [[6, 'asc']],
+                    // Dark mode for DataTables
+                    initComplete: function () {
+                        this.api().tables().header().to$().css('background-color', getComputedStyle(document.documentElement).getPropertyValue('--card'));
+                        this.api().tables().header().to$().css('color', getComputedStyle(document.documentElement).getPropertyValue('--text'));
+                    }
+                });
+
+                $('#jobsTable tbody').off('click').on('click', 'tr', function (e) {
+                    if ($(e.target).is('.paid-checkbox')) return;
+                    $(this).toggleClass('selected');
+                    selectedRow = $(this).hasClass('selected') ? this : null;
+                });
+
+                $('#jobsTable').off('click', '.paid-checkbox').on('click', '.paid-checkbox', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const idx = $(this).data('row-index');
+                    data[currentYear][idx].paid = this.checked;
+                    saveToStorage();
+                    updateYearPage();
+                });
+
+                const monthly = computeMonthlyData(jobs);
+                chart = new Chart(document.getElementById('monthlyChart').getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: Object.keys(monthly), datasets: [{ label: `Income (${currentYear})`, data: Object.values(monthly), backgroundColor: 'rgba(75,192,192,0.2)', borderColor: 'rgba(75,192,192,1)' }] },
+                    options: { scales: { y: { beginAtZero: true } } }
+                });
+
+                updateSummary();
+                saveToStorage();
+
+                requestAnimationFrame(() => window.scrollTo(0, scrollY));
+            } catch (e) { console.error(e); alert('Update error: ' + e.message); }
+        }
+
+        // === Init ===
+        try {
+            loadFromStorage();
+            updateYearSelect();
+            updateYearPage();
+            console.log('App initialized');
+        } catch (e) { console.error(e); alert('Init error'); }
+    </script>
+</body>
+</html>
