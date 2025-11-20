@@ -1,0 +1,1261 @@
+
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Service and Invoice Data for Joshua Todd Industries</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" onerror="console.error('Failed to load DataTables CSS')">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="console.error('Failed to load Bootstrap CSS')">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css" onerror="console.error('Failed to load Datepicker CSS')">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>window.jQuery || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"><\/script>');</script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script>window.jQuery.fn.DataTable || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.min.js"><\/script>');</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>window.bootstrap || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"><\/script>');</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>window.Chart || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.min.js"><\/script>');</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>window.jspdf || document.write('<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>');</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+    <script>window.jspdf && !window.jspdf.autoTable || document.write('<script src="https://unpkg.com/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"><\/script>');</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+    <script>window.jQuery.fn.datepicker || document.write('<script src="https://unpkg.com/bootstrap-datepicker@1.9.0/dist/js/bootstrap-datepicker.min.js"><\/script>');</script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .summary { margin-bottom: 20px; }
+        .summary div { font-weight: bold; }
+        #monthlyChart, #comparisonChart, #monthlyComparisonChart { max-width: 800px; margin: 20px 0; }
+        table.dataTable tbody tr.selected { background-color: #b0bed9; }
+        .actions { margin-bottom: 20px; }
+        .paid-checkbox { cursor: pointer; }
+        .year-nav { margin-bottom: 20px; }
+        #comparisonPage, #yearPage { display: none; }
+        #comparisonPage.active, #yearPage.active { display: block; }
+        .dataTables_scrollBody { max-height: 400px; overflow-y: auto; }
+        .datepicker { z-index: 1050 !important; }
+    </style>
+</head>
+<body>
+    <h1>Service and Invoice Data for Joshua Todd Industries</h1>
+    
+    <div class="year-nav">
+        <label for="yearSelect">Select Year: </label>
+        <select id="yearSelect" class="form-select d-inline-block w-auto"></select>
+        <button class="btn btn-success ms-2" onclick="window.addNewYear()">Add New Year</button>
+    </div>
+    
+    <div id="yearPage">
+        <div id="summary" class="summary">
+            <div>Quotes This Year: $0.00</div>
+            <div>Gross Total Income: $0.00</div>
+            <div>Paid Total Income: $0.00</div>
+            <div>Unpaid Total Income: $0.00</div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-primary" onclick="window.addNew()">Add New</button>
+            <button class="btn btn-secondary" id="editSelectedBtn" onclick="window.editSelected()">Edit Selected</button>
+            <button class="btn btn-danger" onclick="window.deleteSelected()">Delete Selected</button>
+            <button class="btn btn-info" onclick="window.exportJson()">Export JSON (Current Year)</button>
+            <button class="btn btn-info ms-1" onclick="window.exportAllYearsJson()">Export All Years JSON</button>
+            <button class="btn btn-info ms-1" onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="window.importJson(event)">
+            <button class="btn btn-info ms-1" onclick="window.saveToCloud()">Save to Cloud</button>
+            <button class="btn btn-info ms-1" onclick="window.loadFromCloud()">Load from Cloud</button>
+            <button class="btn btn-info ms-1" onclick="window.exportPdf()">Export PDF</button>
+            <button class="btn btn-warning ms-1" onclick="window.confirmClearStorage()">Clear Local Storage</button>
+            <button class="btn btn-warning ms-1" onclick="window.confirmClearCurrentYear()">Clear Current Year</button>
+        </div>
+        
+        <h2>Jobs Table</h2>
+        <table id="jobsTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Date Range</th>
+                    <th>Customer</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Quote</th>
+                    <th>Actual</th>
+                    <th>SR#</th>
+                    <th>Terms</th>
+                    <th>Exp Paid</th>
+                    <th>Paid?</th>
+                    <th>Invoice Date</th>
+                </tr>
+            </thead>
+        </table>
+        
+        <h2>Monthly Income Chart</h2>
+        <canvas id="monthlyChart" width="800" height="400"></canvas>
+    </div>
+    
+    <div id="comparisonPage">
+        <h2>Yearly Comparison</h2>
+        <table id="comparisonTable" class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Year</th>
+                    <th>Quotes</th>
+                    <th>Gross Total Income</th>
+                    <th>Paid Total Income</th>
+                    <th>Unpaid Total Income</th>
+                </tr>
+            </thead>
+            <tbody id="comparisonTableBody"></tbody>
+        </table>
+        <h2>Yearly Comparison Chart</h2>
+        <canvas id="comparisonChart" width="800" height="400"></canvas>
+        <h2>Monthly Comparison Across Years</h2>
+        <canvas id="monthlyComparisonChart" width="800" height="400"></canvas>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="window.resetEditState()"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="jobForm">
+                        <div class="mb-3"><label>Date Range</label><input type="text" class="form-control" id="dateRange"></div>
+                        <div class="mb-3"><label>Customer</label><input type="text" class="form-control" id="customer"></div>
+                        <div class="mb-3"><label>City</label><input type="text" class="form-control" id="city"></div>
+                        <div class="mb-3"><label>State</label><input type="text" class="form-control" id="state"></div>
+                        <div class="mb-3"><label>Quote</label><input type="number" step="0.01" class="form-control" id="quote"></div>
+                        <div class="mb-3"><label>Actual</label><input type="number" step="0.01" class="form-control" id="actual"></div>
+                        <div class="mb-3"><label>SR#</label><input type="text" class="form-control" id="sr"></div>
+                        <div class="mb-3"><label>Terms</label><input type="text" class="form-control" id="terms"></div>
+                        <div class="mb-3"><label>Exp Paid</label><input type="text" class="form-control" id="expPaid"></div>
+                        <div class="mb-3"><label>Invoice Date</label><input type="text" class="form-control" id="invoiceDate" placeholder="YYYY-MM-DD"></div>
+                        <div class="mb-3"><label>Paid?</label><input type="checkbox" id="paid"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="window.resetEditState()">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveJobBtn" onclick="window.saveJob()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Year Modal -->
+    <div class="modal fade" id="addYearModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Year</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newYear">Year</label>
+                        <input type="number" class="form-control" id="newYear" min="1900" max="2100">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="window.saveNewYear()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Clear Storage Confirmation Modal -->
+    <div class="modal fade" id="clearStorageModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Clear Local Storage</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear all data? This cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="window.clearStorage()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Clear Current Year Confirmation Modal -->
+    <div class="modal fade" id="clearCurrentYearModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Clear Current Year</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear all data for <span id="clearYearText"></span>? This cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="window.clearCurrentYear()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Year Modal -->
+    <div class="modal fade" id="importYearModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Year for Import</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="importYear">Year</label>
+                        <input type="number" class="form-control" id="importYear" min="1900" max="2100" placeholder="e.g., 2024">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmImportYear" onclick="window.confirmImportJson()">Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+
+        // Enable debug logging
+        setLogLevel("debug");
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnBuhq5hT62J3_O5kQRsTQucNDyYxMnsM",
+            authDomain: "jobs-data-17ee4.firebaseapp.com",
+            projectId: "jobs-data-17ee4",
+            storageBucket: "jobs-data-17ee4.firebasestorage.app",
+            messagingSenderId: "243005500287",
+            appId: "1:243005500287:web:439852c7875e42cc14484a",
+            measurementId: "G-3JJSP5QEFM"
+        };
+
+        // Initialize Firebase
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app, '(default)');
+            signInAnonymously(auth)
+                .then(() => console.log("Signed in anonymously"))
+                .catch((error) => {
+                    console.error("Anonymous auth failed:", error);
+                    alert("Anonymous auth failed: " + error.message + " (Code: " + error.code + ")");
+                });
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+            alert("Failed to initialize Firebase. Check console for details.");
+        }
+
+        // Initialize data
+        let data = loadFromStorage() || { '2025': [] };
+        let years = [];
+        let currentYear = '2025';
+        let table;
+        let chart;
+        let monthlyComparisonChart;
+        let selectedRow = null;
+        let pendingImportFile = null;
+
+        // Check dependencies
+        window.addEventListener('load', () => {
+            try {
+                if (!window.jQuery) console.error('jQuery failed to load');
+                if (!window.jQuery.fn.DataTable) console.error('DataTables failed to load');
+                if (!window.bootstrap) console.error('Bootstrap failed to load');
+                if (!window.Chart) console.error('Chart.js failed to load');
+                if (!window.jspdf) console.error('jsPDF failed to load');
+                if (!window.jQuery.fn.datepicker) console.error('Bootstrap Datepicker failed to load');
+            } catch (e) {
+                console.error('Error checking dependencies:', e);
+                alert('Failed to check dependencies. Check console for details.');
+            }
+        });
+
+        function loadFromStorage() {
+            try {
+                const saved = localStorage.getItem('jobsData');
+                if (!saved) return null;
+                const parsed = JSON.parse(saved);
+                const cleanedData = {};
+                Object.keys(parsed).forEach(year => {
+                    if (/^\d{4}$/.test(year) && Array.isArray(parsed[year])) {
+                        cleanedData[year] = parsed[year].map(job => ({
+                            ...job,
+                            id: job.id || job.sr || Date.now().toString(),
+                            quote: parseFloat(job.quote) || 0,
+                            actual: parseFloat(job.actual) || 0
+                        }));
+                    } else {
+                        console.warn(`Removed invalid year from data: ${year}`);
+                    }
+                });
+                if (Object.keys(cleanedData).length === 0) {
+                    cleanedData['2025'] = [];
+                }
+                return cleanedData;
+            } catch (e) {
+                console.error('Error loading from localStorage:', e);
+                alert('Failed to load from localStorage. Check console for details.');
+                return null;
+            }
+        }
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem('jobsData', JSON.stringify(data));
+            } catch (e) {
+                console.error('Error saving to localStorage:', e);
+                alert('Failed to save to localStorage. Check console for details.');
+            }
+        }
+
+        function cleanData() {
+            try {
+                for (const year in data) {
+                    if (!year || !/^\d{4}$/.test(year) || year < 1900 || year > 2100) {
+                        console.warn(`Removing invalid year: ${year}`);
+                        delete data[year];
+                    } else if (!Array.isArray(data[year])) {
+                        console.warn(`Fixing invalid data for year: ${year}`);
+                        data[year] = [];
+                    }
+                }
+                if (!data[currentYear]) {
+                    data[currentYear] = [];
+                }
+                saveToStorage();
+            } catch (e) {
+                console.error('Error cleaning data:', e);
+                alert('Failed to clean data. Check console for details.');
+            }
+        }
+
+        function updateYearSelect() {
+            try {
+                years = Object.keys(data)
+                    .filter(year => /^\d{4}$/.test(year) && Array.isArray(data[year]))
+                    .sort();
+                if (!years.includes(currentYear) && years.length > 0) {
+                    currentYear = years[0];
+                } else if (years.length === 0) {
+                    years = ['2025'];
+                    data['2025'] = data['2025'] || [];
+                }
+                const select = document.getElementById('yearSelect');
+                select.innerHTML = '';
+                years.forEach(year => {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.text = year;
+                    select.appendChild(option);
+                });
+                const comparisonOption = document.createElement('option');
+                comparisonOption.value = 'comparison';
+                comparisonOption.text = 'Comparison';
+                select.appendChild(comparisonOption);
+                select.value = currentYear;
+                console.log('Years in dropdown:', years);
+            } catch (e) {
+                console.error('Error updating year select:', e);
+                alert('Failed to update year dropdown. Check console for details.');
+            }
+        }
+
+        function updateSummary() {
+            try {
+                const jobs = data[currentYear] || [];
+                const quotesTotal = jobs.reduce((sum, j) => sum + (parseFloat(j.quote) || 0), 0).toFixed(2);
+                const gross = jobs.reduce((sum, j) => sum + (parseFloat(j.actual) || 0), 0).toFixed(2);
+                const paidTotal = jobs.reduce((sum, j) => j.paid ? sum + (parseFloat(j.actual) || 0) : sum, 0).toFixed(2);
+                const unpaid = (parseFloat(gross) - parseFloat(paidTotal)).toFixed(2);
+                document.getElementById('summary').innerHTML = `
+                    <div>Quotes This Year: $${quotesTotal}</div>
+                    <div>Gross Total Income: $${gross}</div>
+                    <div>Paid Total Income: $${paidTotal}</div>
+                    <div>Unpaid Total Income: $${unpaid}</div>
+                `;
+                console.log(`Summary for ${currentYear}: Quotes=$${quotesTotal}, Gross=$${gross}, Paid=$${paidTotal}, Unpaid=$${unpaid}`);
+            } catch (e) {
+                console.error('Error updating summary:', e);
+                alert('Failed to update summary. Check console for details.');
+            }
+        }
+
+        function getMonthFromDateRange(dateRange) {
+            try {
+                if (!dateRange) {
+                    console.warn('Empty dateRange encountered');
+                    return '';
+                }
+                const match = dateRange.match(/^(\d{1,2})|\d{4}-(\d{1,2})/);
+                if (match) {
+                    const m = parseInt(match[1] || match[2]);
+                    if (m >= 1 && m <= 12) {
+                        return ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1];
+                    } else {
+                        console.warn(`Invalid month extracted from dateRange: ${dateRange}, month: ${m}`);
+                    }
+                } else {
+                    console.warn(`No month match in dateRange: ${dateRange}`);
+                }
+                return '';
+            } catch (e) {
+                console.error('Error parsing date range:', e, 'dateRange:', dateRange);
+                return '';
+            }
+        }
+
+        function computeMonthlyData(jobs) {
+            try {
+                const monthly = { January: 0, February: 0, March: 0, April: 0, May: 0, June: 0, July: 0, August: 0, September: 0, October: 0, November: 0, December: 0 };
+                jobs.forEach(job => {
+                    const month = getMonthFromDateRange(job.dateRange);
+                    const actual = parseFloat(job.actual) || 0;
+                    if (month) {
+                        monthly[month] += actual;
+                    } else {
+                        console.warn(`Skipping job with invalid month, dateRange: ${job.dateRange}, actual: ${job.actual}`);
+                    }
+                });
+                console.log(`Monthly data for ${currentYear}:`, monthly);
+                return monthly;
+            } catch (e) {
+                console.error('Error computing monthly data:', e);
+                return { January: 0, February: 0, March: 0, April: 0, May: 0, June: 0, July: 0, August: 0, September: 0, October: 0, November: 0, December: 0 };
+            }
+        }
+
+        function computeAllMonthlyData() {
+            try {
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                const monthlyTotals = months.reduce((acc, m) => { acc[m] = {}; return acc; }, {});
+                years.forEach(year => {
+                    if (data[year] && data[year].length > 0) {
+                        const monthly = computeMonthlyData(data[year]);
+                        months.forEach(m => {
+                            monthlyTotals[m][year] = monthly[m];
+                        });
+                    }
+                });
+                console.log('All monthly data:', monthlyTotals);
+                return { monthlyTotals, months };
+            } catch (e) {
+                console.error('Error computing all monthly data:', e);
+                return { monthlyTotals: {}, months: [] };
+            }
+        }
+
+        function computeComparisonData() {
+            try {
+                const comparison = years
+                    .filter(year => data[year] && data[year].length > 0)
+                    .map(year => {
+                        const jobs = data[year];
+                        const quotesTotal = jobs.reduce((sum, j) => sum + (parseFloat(j.quote) || 0), 0).toFixed(2);
+                        const gross = jobs.reduce((sum, j) => sum + (parseFloat(j.actual) || 0), 0).toFixed(2);
+                        const paidTotal = jobs.reduce((sum, j) => j.paid ? sum + (parseFloat(j.actual) || 0) : sum, 0).toFixed(2);
+                        const unpaid = (parseFloat(gross) - parseFloat(paidTotal)).toFixed(2);
+                        return { year, quotesTotal, gross, paidTotal, unpaid };
+                    });
+                console.log('Comparison data:', comparison);
+                return comparison;
+            } catch (e) {
+                console.error('Error computing comparison data:', e);
+                return [];
+            }
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function calculateExpPaid(invoiceDate, terms) {
+            try {
+                if (!invoiceDate || !terms) return '';
+                const date = new Date(invoiceDate);
+                if (isNaN(date.getTime())) return '';
+                const days = parseInt(terms) || 0;
+                date.setDate(date.getDate() + days);
+                return date.toISOString().split('T')[0];
+            } catch (e) {
+                console.error('Error calculating expPaid:', e);
+                return '';
+            }
+        }
+
+        function resetEditState() {
+            try {
+                window.currentEdit = null;
+                selectedRow = null;
+                document.getElementById('jobForm').reset();
+                $('#invoiceDate').datepicker('setDate', null);
+            } catch (e) {
+                console.error('Error resetting edit state:', e);
+                alert('Failed to reset edit state. Check console for details.');
+            }
+        }
+
+        function importJson(event) {
+            try {
+                const file = event.target.files[0];
+                if (!file) return;
+                pendingImportFile = file;
+                const match = file.name.match(/jobs-(\d{4})\.json/i);
+                const inferredYear = match ? match[1] : '';
+                document.getElementById('importYear').value = inferredYear || '';
+                $('#importYearModal').modal('show');
+            } catch (e) {
+                console.error('Error initiating JSON import:', e);
+                alert('Failed to initiate JSON import. Check console for details.');
+            }
+        }
+
+        function confirmImportJson() {
+            try {
+                const targetYear = document.getElementById('importYear').value;
+                if (!targetYear || !/^\d{4}$/.test(targetYear) || targetYear < 1900 || targetYear > 2100) {
+                    alert('Please enter a valid year between 1900 and 2100.');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (!Array.isArray(importedData)) {
+                            alert('Invalid JSON format. Expected an array of jobs.');
+                            return;
+                        }
+                        data[targetYear] = importedData.map(job => ({
+                            ...job,
+                            id: job.id || job.sr || Date.now().toString(),
+                            quote: parseFloat(job.quote) || 0,
+                            actual: parseFloat(job.actual) || 0
+                        }));
+                        updateYearPage();
+                        updateYearSelect();
+                        $('#importYearModal').modal('hide');
+                        currentYear = targetYear;
+                        document.getElementById('yearSelect').value = targetYear;
+                        saveToStorage();
+                        console.log(`Imported JSON to year ${targetYear}:`, data[targetYear]);
+                        alert('JSON imported successfully!');
+                    } catch (err) {
+                        console.error('Error parsing JSON file:', err);
+                        alert('Invalid JSON file');
+                    }
+                };
+                reader.readAsText(pendingImportFile);
+                pendingImportFile = null;
+            } catch (e) {
+                console.error('Error confirming JSON import:', e);
+                alert('Failed to import JSON. Check console for details.');
+            }
+        }
+
+        function saveToCloud() {
+            try {
+                if (!db) throw new Error('Firestore database not initialized');
+                cleanData();
+                const validYears = Object.keys(data).filter(year => /^\d{4}$/.test(year) && Array.isArray(data[year]));
+                if (!validYears.length) {
+                    alert('No valid data to save to cloud.');
+                    return;
+                }
+                const promises = validYears.map(async year => {
+                    const docRef = doc(db, 'jobsData', year);
+                    await setDoc(docRef, {
+                        jobs: data[year].map(job => ({
+                            ...job,
+                            quote: parseFloat(job.quote) || 0,
+                            actual: parseFloat(job.actual) || 0
+                        })),
+                        totals: {
+                            quotes: data[year].reduce((sum, j) => sum + (parseFloat(j.quote) || 0), 0),
+                            gross: data[year].reduce((sum, j) => sum + (parseFloat(j.actual) || 0), 0),
+                            paid: data[year].reduce((sum, j) => j.paid ? sum + (parseFloat(j.actual) || 0) : sum, 0),
+                            unpaid: data[year].reduce((sum, j) => !j.paid ? sum + (parseFloat(j.actual) || 0) : sum, 0)
+                        }
+                    });
+                    console.log(`Data for year ${year} saved to cloud.`);
+                });
+                Promise.all(promises)
+                    .then(() => {
+                        console.log("Data successfully saved to cloud!");
+                        alert("Data successfully saved to cloud!");
+                    })
+                    .catch(error => {
+                        console.error("Error saving to cloud:", error);
+                        alert("Error saving to cloud: " + error.message + " (Code: " + error.code + ")");
+                    });
+            } catch (e) {
+                console.error('Error saving to cloud:', e);
+                alert('Failed to save to cloud. Check console for details.');
+            }
+        }
+
+        function loadFromCloud() {
+            try {
+                if (!db) throw new Error('Firestore database not initialized');
+                const validYears = Object.keys(data).filter(year => /^\d{4}$/.test(year));
+                if (!validYears.length) {
+                    alert('No valid years to load from cloud.');
+                    return;
+                }
+                const promises = validYears.map(async year => {
+                    const docRef = doc(db, 'jobsData', year);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        data[year] = docSnap.data().jobs.map(job => ({
+                            ...job,
+                            id: job.id || job.sr || Date.now().toString(),
+                            quote: parseFloat(job.quote) || 0,
+                            actual: parseFloat(job.actual) || 0
+                        }));
+                        console.log(`Data for year ${year} loaded from cloud.`);
+                    }
+                });
+                Promise.all(promises)
+                    .then(() => {
+                        if (Object.keys(data).length) {
+                            cleanData();
+                            saveToStorage();
+                            updateYearSelect();
+                            updateYearPage();
+                            console.log("Data successfully loaded from cloud!");
+                            alert("Data successfully loaded from cloud!");
+                        } else {
+                            alert("No data found in cloud for the selected years.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error loading from cloud:", error);
+                        alert("Error loading from cloud: " + error.message + " (Code: " + error.code + ")");
+                    });
+            } catch (e) {
+                console.error('Error loading from cloud:', e);
+                alert('Failed to load from cloud. Check console for details.');
+            }
+        }
+
+        function addNewYear() {
+            try {
+                document.getElementById('newYear').value = '';
+                $('#addYearModal').modal('show');
+            } catch (e) {
+                console.error('Error opening add year modal:', e);
+                alert('Failed to open add year modal. Check console for details.');
+            }
+        }
+
+        function saveNewYear() {
+            try {
+                const newYear = document.getElementById('newYear').value;
+                if (!newYear || isNaN(newYear) || newYear < 1900 || newYear > 2100 || !/^\d{4}$/.test(newYear)) {
+                    alert('Please enter a valid 4-digit year between 1900 and 2100');
+                    return;
+                }
+                if (years.includes(newYear)) {
+                    alert('Year already exists');
+                    return;
+                }
+                data[newYear] = [];
+                years = Object.keys(data)
+                    .filter(year => /^\d{4}$/.test(year) && Array.isArray(data[year]))
+                    .sort();
+                currentYear = newYear;
+                updateYearSelect();
+                $('#addYearModal').modal('hide');
+                updateYearPage();
+            } catch (e) {
+                console.error('Error saving new year:', e);
+                alert('Failed to save new year. Check console for details.');
+            }
+        }
+
+        function confirmClearStorage() {
+            try {
+                $('#clearStorageModal').modal('show');
+            } catch (e) {
+                console.error('Error opening clear storage modal:', e);
+                alert('Failed to open clear storage modal. Check console for details.');
+            }
+        }
+
+        function clearStorage() {
+            try {
+                localStorage.removeItem('jobsData');
+                data = { '2025': [] };
+                years = ['2025'];
+                currentYear = '2025';
+                updateYearSelect();
+                $('#clearStorageModal').modal('hide');
+                if (currentYear === 'comparison') {
+                    updateComparisonPage();
+                } else {
+                    updateYearPage();
+                }
+                console.log('Local storage cleared successfully');
+            } catch (e) {
+                console.error('Error clearing local storage:', e);
+                alert('Failed to clear local storage. Check console for details.');
+            }
+        }
+
+        function confirmClearCurrentYear() {
+            try {
+                document.getElementById('clearYearText').textContent = currentYear;
+                $('#clearCurrentYearModal').modal('show');
+            } catch (e) {
+                console.error('Error opening clear current year modal:', e);
+                alert('Failed to open clear current year modal. Check console for details.');
+            }
+        }
+
+        function clearCurrentYear() {
+            try {
+                data[currentYear] = [];
+                updateYearSelect();
+                $('#clearCurrentYearModal').modal('hide');
+                if (currentYear === 'comparison') {
+                    updateComparisonPage();
+                } else {
+                    updateYearPage();
+                }
+                console.log(`Cleared data for year ${currentYear}`);
+            } catch (e) {
+                console.error('Error clearing current year:', e);
+                alert('Failed to clear current year data. Check console for details.');
+            }
+        }
+
+        function exportPdf() {
+            try {
+                const { jsPDF } = window.jspdf || {};
+                if (!jsPDF) throw new Error('jsPDF not loaded');
+                const doc = new jsPDF();
+                doc.autoTable({
+                    head: [['Date Range', 'Customer', 'City', 'State', 'Quote', 'Actual', 'SR#', 'Terms', 'Exp Paid', 'Paid?', 'Invoice Date']],
+                    body: (data[currentYear] || []).map(j => [
+                        j.dateRange, j.customer, j.city, j.state, 
+                        j.quote ? `$${parseFloat(j.quote).toFixed(2)}` : '', 
+                        j.actual ? `$${parseFloat(j.actual).toFixed(2)}` : '', 
+                        j.sr, j.terms, j.expPaid, j.paid ? 'true' : 'false', j.invoiceDate
+                    ])
+                });
+                doc.save(`jobs-${currentYear}.pdf`);
+            } catch (e) {
+                console.error('Error exporting PDF:', e);
+                alert('Failed to export PDF. Check if jsPDF loaded correctly.');
+            }
+        }
+
+        function addNew() {
+            try {
+                document.getElementById('jobForm').reset();
+                $('#invoiceDate').datepicker('setDate', null);
+                window.currentEdit = null;
+                selectedRow = null;
+                $('#editModal').modal('show');
+                console.log('Opened add new modal');
+            } catch (e) {
+                console.error('Error opening add modal:', e);
+                alert('Failed to open add modal. Check console for details.');
+            }
+        }
+
+        function editSelected() {
+            try {
+                if (!table || !table.row('.selected').data()) {
+                    alert('Select a row first');
+                    return;
+                }
+                const currentEdit = table.row('.selected').data();
+                document.getElementById('dateRange').value = currentEdit.dateRange || '';
+                document.getElementById('customer').value = currentEdit.customer || '';
+                document.getElementById('city').value = currentEdit.city || '';
+                document.getElementById('state').value = currentEdit.state || '';
+                document.getElementById('quote').value = currentEdit.quote || '';
+                document.getElementById('actual').value = currentEdit.actual || '';
+                document.getElementById('sr').value = currentEdit.sr || '';
+                document.getElementById('terms').value = currentEdit.terms || '';
+                document.getElementById('expPaid').value = currentEdit.expPaid || '';
+                document.getElementById('invoiceDate').value = currentEdit.invoiceDate || '';
+                $('#invoiceDate').datepicker('setDate', currentEdit.invoiceDate || null);
+                document.getElementById('paid').checked = currentEdit.paid;
+                window.currentEdit = currentEdit;
+                $('#editModal').modal('show');
+                console.log('Editing job:', currentEdit);
+            } catch (e) {
+                console.error('Error opening edit modal:', e);
+                alert('Failed to open edit modal. Check console for details.');
+            }
+        }
+
+        function saveJob() {
+            try {
+                const invoiceDate = document.getElementById('invoiceDate').value;
+                const terms = document.getElementById('terms').value;
+                let expPaid = document.getElementById('expPaid').value;
+                if (invoiceDate && terms && !expPaid) {
+                    expPaid = calculateExpPaid(invoiceDate, terms);
+                }
+                const newJob = {
+                    id: window.currentEdit ? window.currentEdit.id : Date.now().toString(),
+                    dateRange: document.getElementById('dateRange').value || '',
+                    customer: document.getElementById('customer').value || '',
+                    city: document.getElementById('city').value || '',
+                    state: document.getElementById('state').value || '',
+                    quote: parseFloat(document.getElementById('quote').value) || 0,
+                    actual: parseFloat(document.getElementById('actual').value) || 0,
+                    sr: document.getElementById('sr').value || '',
+                    terms: terms || '',
+                    expPaid: expPaid || '',
+                    paid: document.getElementById('paid').checked,
+                    invoiceDate: invoiceDate || ''
+                };
+                if (!data[currentYear]) data[currentYear] = [];
+                if (window.currentEdit) {
+                    const index = data[currentYear].indexOf(window.currentEdit);
+                    if (index !== -1) {
+                        data[currentYear][index] = newJob;
+                    } else {
+                        console.warn('Current edit job not found in data, adding as new');
+                        data[currentYear].push(newJob);
+                    }
+                } else {
+                    data[currentYear].push(newJob);
+                }
+                window.currentEdit = null;
+                selectedRow = null;
+                $('#editModal').modal('hide');
+                updateYearPage();
+                updateYearSelect();
+                document.getElementById('editSelectedBtn').focus();
+                console.log('Saved job:', newJob);
+            } catch (e) {
+                console.error('Error saving job:', e);
+                alert('Failed to save job. Check console for details.');
+            }
+        }
+
+        function deleteSelected() {
+            try {
+                if (!table || !table.row('.selected').data()) {
+                    alert('Select a row first');
+                    return;
+                }
+                const dataRow = table.row('.selected').data();
+                const index = data[currentYear].indexOf(dataRow);
+                data[currentYear].splice(index, 1);
+                updateYearPage();
+                updateYearSelect();
+            } catch (e) {
+                console.error('Error deleting job:', e);
+                alert('Failed to delete job. Check console for details.');
+            }
+        }
+
+        function exportJson() {
+            try {
+                const blob = new Blob([JSON.stringify(data[currentYear], null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `jobs-${currentYear}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Error exporting JSON:', e);
+                alert('Failed to export JSON. Check console for details.');
+            }
+        }
+
+        function exportAllYearsJson() {
+            try {
+                const exportData = {};
+                years.forEach(year => {
+                    if (data[year] && data[year].length > 0) {
+                        exportData[year] = data[year];
+                    }
+                });
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'jobs-all-years.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Error exporting all years JSON:', e);
+                alert('Failed to export all years JSON. Check console for details.');
+            }
+        }
+
+        function updateYearPage() {
+            try {
+                if (table) {
+                    table.destroy();
+                    console.log(`Destroyed previous table for ${currentYear}`);
+                }
+                if (chart) {
+                    chart.destroy();
+                    console.log(`Destroyed previous chart for ${currentYear}`);
+                }
+                if (monthlyComparisonChart) {
+                    monthlyComparisonChart.destroy();
+                    console.log('Destroyed previous monthly comparison chart');
+                }
+
+                document.getElementById('yearPage').classList.add('active');
+                document.getElementById('comparisonPage').classList.remove('active');
+
+                const jobs = data[currentYear] || [];
+                console.log(`Rendering year page for ${currentYear}, jobs:`, jobs);
+
+                table = $('#jobsTable').DataTable({
+                    data: jobs,
+                    columns: [
+                        { data: 'dateRange' },
+                        { data: 'customer' },
+                        { data: 'city' },
+                        { data: 'state' },
+                        { data: 'quote', render: (data) => data ? `$${parseFloat(data).toFixed(2)}` : '' },
+                        { data: 'actual', render: (data) => data ? `$${parseFloat(data).toFixed(2)}` : '' },
+                        { data: 'sr' },
+                        { data: 'terms' },
+                        { data: 'expPaid' },
+                        { data: 'paid', render: (data, type, row) => `<input type="checkbox" class="paid-checkbox" ${data ? 'checked' : ''} data-row-index="${jobs.indexOf(row)}">` },
+                        { data: 'invoiceDate' }
+                    ],
+                    paging: true,
+                    searching: true,
+                    ordering: true,
+                    info: true,
+                    order: [[6, 'asc']] // Sort by SR# (index 6) ascending
+                });
+
+                selectedRow = null;
+                $('#jobsTable tbody').off('click').on('click', 'tr', function (e) {
+                    try {
+                        if ($(e.target).is('.paid-checkbox')) return;
+                        if ($(this).hasClass('selected')) {
+                            $(this).removeClass('selected');
+                            selectedRow = null;
+                        } else {
+                            table.$('tr.selected').removeClass('selected');
+                            $(this).addClass('selected');
+                            selectedRow = this;
+                        }
+                        console.log('Selected row:', selectedRow ? table.row(selectedRow).data() : null);
+                    } catch (e) {
+                        console.error('Error handling row selection:', e);
+                        alert('Failed to handle row selection. Check console for details.');
+                    }
+                });
+
+                $('#jobsTable').off('click', '.paid-checkbox').on('click', '.paid-checkbox', debounce(function () {
+                    try {
+                        const rowIndex = $(this).data('row-index');
+                        data[currentYear][rowIndex].paid = this.checked;
+                        console.log(`Toggled paid status for job ${rowIndex} in ${currentYear}: ${this.checked}`);
+                        updateYearPage();
+                    } catch (e) {
+                        console.error('Error toggling paid status:', e);
+                        alert('Failed to toggle paid status. Check console for details.');
+                    }
+                }, 200));
+
+                const monthlyData = computeMonthlyData(jobs);
+                const ctx = document.getElementById('monthlyChart').getContext('2d');
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(monthlyData),
+                        datasets: [{
+                            label: `Monthly Income (${currentYear})`,
+                            data: Object.values(monthlyData),
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Income ($)' } }
+                        }
+                    }
+                });
+                console.log(`Monthly chart rendered for ${currentYear}`);
+
+                updateSummary();
+                saveToStorage();
+            } catch (e) {
+                console.error('Error updating year page:', e);
+                alert('An error occurred while updating the page. Check console for details.');
+            }
+        }
+
+        function updateComparisonPage() {
+            try {
+                if (chart) {
+                    chart.destroy();
+                    console.log('Destroyed previous chart');
+                }
+                if (monthlyComparisonChart) {
+                    monthlyComparisonChart.destroy();
+                    console.log('Destroyed previous monthly comparison chart');
+                }
+
+                document.getElementById('yearPage').classList.remove('active');
+                document.getElementById('comparisonPage').classList.add('active');
+
+                const comparisonData = computeComparisonData();
+                const tbody = document.getElementById('comparisonTableBody');
+                tbody.innerHTML = '';
+                if (comparisonData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No data available for any year</td></tr>';
+                } else {
+                    comparisonData.forEach(row => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${row.year}</td>
+                                <td>$${row.quotesTotal}</td>
+                                <td>$${row.gross}</td>
+                                <td>$${row.paidTotal}</td>
+                                <td>$${row.unpaid}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                const ctx = document.getElementById('comparisonChart').getContext('2d');
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: comparisonData.map(d => d.year),
+                        datasets: [
+                            {
+                                label: 'Quotes',
+                                data: comparisonData.map(d => d.quotesTotal),
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Gross Total Income',
+                                data: comparisonData.map(d => d.gross),
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Paid Total Income',
+                                data: comparisonData.map(d => d.paidTotal),
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Unpaid Total Income',
+                                data: comparisonData.map(d => d.unpaid),
+                                backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                                borderColor: 'rgba(255, 206, 86, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Amount ($)' } }
+                        }
+                    }
+                });
+
+                const { monthlyTotals, months } = computeAllMonthlyData();
+                const monthlyCtx = document.getElementById('monthlyComparisonChart').getContext('2d');
+                monthlyCtx.clearRect(0, 0, monthlyCtx.canvas.width, monthlyCtx.canvas.height);
+                monthlyComparisonChart = new Chart(monthlyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: months,
+                        datasets: years
+                            .filter(year => data[year] && data[year].length > 0)
+                            .map(year => ({
+                                label: year,
+                                data: months.map(m => monthlyTotals[m][year] || 0),
+                                backgroundColor: `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.2)`,
+                                borderColor: `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 1)`,
+                                borderWidth: 1
+                            }))
+                    },
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Income ($)' } }
+                        }
+                    }
+                });
+                console.log('Comparison page charts rendered');
+            } catch (e) {
+                console.error('Error updating comparison page:', e);
+                alert('An error occurred while updating the comparison page. Check console for details.');
+            }
+        }
+
+        // Make functions globally accessible
+        window.importJson = importJson;
+        window.confirmImportJson = confirmImportJson;
+        window.saveToCloud = saveToCloud;
+        window.loadFromCloud = loadFromCloud;
+        window.addNew = addNew;
+        window.editSelected = editSelected;
+        window.saveJob = saveJob;
+        window.deleteSelected = deleteSelected;
+        window.exportJson = exportJson;
+        window.exportAllYearsJson = exportAllYearsJson;
+        window.exportPdf = exportPdf;
+        window.addNewYear = addNewYear;
+        window.saveNewYear = saveNewYear;
+        window.confirmClearStorage = confirmClearStorage;
+        window.clearStorage = clearStorage;
+        window.confirmClearCurrentYear = confirmClearCurrentYear;
+        window.clearCurrentYear = clearCurrentYear;
+        window.resetEditState = resetEditState;
+
+        // Initialize
+        try {
+            window.addEventListener('error', (event) => {
+                console.error('Global script error:', {
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno,
+                    error: event.error ? event.error.stack : 'No stack trace'
+                });
+                alert(`Script error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`);
+            });
+
+            window.addEventListener('unhandledrejection', (event) => {
+                console.error('Unhandled promise rejection:', {
+                    reason: event.reason,
+                    stack: event.reason ? event.reason.stack : 'No stack trace'
+                });
+                alert(`Unhandled promise rejection: ${event.reason}`);
+            });
+
+            document.getElementById('yearSelect').addEventListener('change', (e) => {
+                try {
+                    currentYear = e.target.value;
+                    if (currentYear === 'comparison') {
+                        updateComparisonPage();
+                    } else {
+                        updateYearPage();
+                    }
+                } catch (e) {
+                    console.error('Error handling year select change:', e);
+                    alert('Failed to handle year selection. Check console for details.');
+                }
+            });
+
+            $('#invoiceDate').datepicker({
+                format: 'yyyy-mm-dd',
+                autoclose: true,
+                todayHighlight: true
+            }).on('changeDate', () => {
+                try {
+                    const invoiceDate = document.getElementById('invoiceDate').value;
+                    const terms = document.getElementById('terms').value;
+                    document.getElementById('expPaid').value = calculateExpPaid(invoiceDate, terms);
+                } catch (e) {
+                    console.error('Error handling datepicker change:', e);
+                    alert('Failed to handle datepicker change. Check console for details.');
+                }
+            });
+
+            document.getElementById('terms').addEventListener('input', () => {
+                try {
+                    const invoiceDate = document.getElementById('invoiceDate').value;
+                    const terms = document.getElementById('terms').value;
+                    document.getElementById('expPaid').value = calculateExpPaid(invoiceDate, terms);
+                } catch (e) {
+                    console.error('Error handling terms input:', e);
+                    alert('Failed to handle terms input. Check console for details.');
+                }
+            });
+
+            $('#editModal').on('hidden.bs.modal', resetEditState);
+            document.getElementById('confirmImportYear').addEventListener('click', confirmImportJson);
+
+            cleanData();
+            updateYearSelect();
+            if (currentYear === 'comparison') {
+                updateComparisonPage();
+            } else {
+                updateYearPage();
+            }
+            console.log('Application initialized successfully');
+        } catch (e) {
+            console.error('Initialization error:', e);
+            alert('Failed to initialize application. Check console for details.');
+        }
+    </script>
+</body>
+</html>
