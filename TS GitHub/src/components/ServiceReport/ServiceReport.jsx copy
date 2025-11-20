@@ -1,0 +1,189 @@
+import React from 'react';
+import { useTimeSheet } from '../../context/TimeSheetContext';
+  import { useNavigate } from 'react-router-dom';
+  import { jsPDF } from 'jspdf';
+  import autoTable from 'jspdf-autotable';
+
+  function ServiceReport() {
+    const { customerInfo, entries, travelData, machineInfo, serviceReportData } = useTimeSheet();
+    const navigate = useNavigate();
+
+    const formatDate = (dateString) => {
+      try {
+        if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+          throw new Error('Invalid date format');
+        }
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        if (isNaN(date.getTime())) throw new Error('Invalid date');
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dayName = days[date.getDay()];
+        const formattedMonth = String(date.getMonth() + 1).padStart(2, '0');
+        const formattedDay = String(date.getDate()).padStart(2, '0');
+        const yearShort = String(date.getFullYear()).slice(-2);
+        return `${dayName} ${formattedMonth}/${formattedDay}/${yearShort}`;
+      } catch (error) {
+        console.error('Error formatting date:', dateString, error);
+        return 'N/A';
+      }
+    };
+
+    const getReportDate = () => {
+      if (entries && entries.length > 0 && entries[0]?.date) {
+        return formatDate(entries[0].date);
+      }
+      return 'N/A';
+    };
+
+    const generatePDF = () => {
+      try {
+        const doc = new jsPDF();
+        let yOffset = 10;
+
+        doc.setFontSize(8);
+        doc.text('Joshua Todd Industries, LLC Service Report', 10, yOffset);
+        yOffset += 3;
+        doc.text('Gilbert, AZ', 10, yOffset);
+        yOffset += 3;
+        doc.setFontSize(7);
+        doc.text(`Email: josh@jtiaz.com`, 10, yOffset);
+        yOffset += 3;
+        doc.text(`Phone: (623) 300-6445`, 10, yOffset);
+        yOffset += 3;
+        doc.text(`Date: ${getReportDate()}`, 10, yOffset);
+        yOffset += 3;
+
+        // Customer Information
+        doc.text('Customer Information', 10, yOffset);
+        yOffset += 3;
+        const customerFields = [
+          ['Company', customerInfo?.company || 'N/A', 'Contact', customerInfo?.contact || 'N/A'],
+          ['Address', customerInfo?.address || 'N/A', 'Phone', customerInfo?.phone || 'N/A'],
+          ['City', customerInfo?.city || 'N/A', 'Email', customerInfo?.email || 'N/A'],
+          ['State', customerInfo?.state || 'N/A', 'Purpose', customerInfo?.purpose || 'N/A'],
+        ];
+        doc.autoTable({
+          startY: yOffset,
+          head: [['Field', 'Value', 'Field', 'Value']],
+          body: customerFields,
+          theme: 'grid',
+          styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak' },
+          headStyles: { fillColor: [200, 200, 200], fontSize: 6 },
+          margin: { left: 10, right: 10 },
+          columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 60 }, 2: { cellWidth: 30 }, 3: { cellWidth: 60 } },
+        });
+        yOffset = doc.lastAutoTable.finalY + 3;
+
+        // Machine Information
+        doc.text('Machine Information', 10, yOffset);
+        yOffset += 3;
+        const machineRows = machineInfo.map((machine) => [
+          'Model', machine.model || 'N/A',
+          'Serial No.', machine.serialNumber || 'N/A',
+          'Job No.', machine.jobNumber || 'N/A',
+        ]);
+        if (machineRows.length > 0) {
+          doc.autoTable({
+            startY: yOffset,
+            head: [['Field', 'Value', 'Field', 'Value', 'Field', 'Value']],
+            body: machineRows,
+            theme: 'grid',
+            styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak' },
+            headStyles: { fillColor: [200, 200, 200], fontSize: 6 },
+            margin: { left: 10, right: 10 },
+            columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 40 }, 2: { cellWidth: 20 }, 3: { cellWidth: 40 }, 4: { cellWidth: 20 }, 5: { cellWidth: 40 } },
+          });
+        } else {
+          doc.setFontSize(6);
+          doc.text('No machine information available.', 10, yOffset);
+          yOffset += 3;
+        }
+        yOffset = doc.lastAutoTable ? doc.lastAutoTable.finalY + 3 : yOffset;
+
+        // Service Work Details
+        doc.text('Service Work Details', 10, yOffset);
+        yOffset += 3;
+        const serviceWorkRows = entries.map((entry) => [
+          formatDate(entry.date),
+          serviceReportData[entry.date] || 'No work description...',
+        ]);
+        if (serviceWorkRows.length > 0) {
+          doc.autoTable({
+            startY: yOffset,
+            head: [['Date', 'Work Performed']],
+            body: serviceWorkRows,
+            theme: 'grid',
+            styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak' },
+            headStyles: { fillColor: [200, 200, 200], fontSize: 6 },
+            margin: { left: 10, right: 10 },
+            columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 150 } },
+            tableWidth: 170,
+          });
+        } else {
+          doc.setFontSize(6);
+          doc.text('No service work details available.', 10, yOffset);
+          yOffset += 3;
+        }
+        yOffset = doc.lastAutoTable ? doc.lastAutoTable.finalY + 3 : yOffset;
+
+        // Customer Acknowledgement
+        doc.text('Customer Acknowledgement', 10, yOffset);
+        yOffset += 3;
+        doc.setFontSize(6);
+        doc.text('By signing you agree to the charges above and are satisfied with the service.', 10, yOffset, { maxWidth: 170 });
+        yOffset += 5;
+        doc.text('Charges are APPROXIMATE unless stamped in lower right.', 10, yOffset);
+        yOffset += 3;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Thank you for your business.', 10, yOffset);
+        doc.setFont('helvetica', 'normal');
+
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const pdfPreview = document.getElementById('pdfPreview');
+        if (pdfPreview) {
+          pdfPreview.src = pdfUrl;
+        }
+        doc.save('JoshuaToddIndustriesServiceReport.pdf');
+      } catch (error) {
+        console.error('Error generating Service Report PDF:', error);
+        alert('Failed to generate Service Report PDF. Check console for details.');
+      }
+    };
+
+    const handleExportPDF = () => {
+      generatePDF();
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold mb-4 text-center">Service Report</h2>
+          <div className="flex gap-2 mb-4 flex-wrap justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Back to Time Sheet
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              Export to PDF
+            </button>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-2">PDF Preview</h3>
+            <iframe
+              id="pdfPreview"
+              className="w-full h-[600px] border rounded"
+              title="Service Report PDF Preview"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  export default ServiceReport;
