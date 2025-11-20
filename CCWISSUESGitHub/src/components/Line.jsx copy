@@ -1,0 +1,177 @@
+import { useState } from 'react';
+import SpanAdjust from './SpanAdjust.jsx';
+
+const Line = ({ line, updateLine, removeLine, isVisible }) => {
+  const [localLine, setLocalLine] = useState(line);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+
+  const handleChange = (e) => {
+    console.debug(`Line field changed: ${e.target.name}=${e.target.value}`);
+    const updated = { ...localLine, [e.target.name]: e.target.value };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const handleCheckbox = (e) => {
+    console.debug(`Checkbox changed: ${e.target.name}=${e.target.checked}`);
+    const updated = { ...localLine, [e.target.name]: e.target.checked };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const handleHeadChange = (index, field, value) => {
+    console.debug(`Head ${index + 1} changed: ${field}=${value}`);
+    const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, [field]: value } : h);
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const toggleSpanAdjust = (e) => {
+    const checked = e.target.checked;
+    console.debug(`Toggling span adjust for line ${line.id}: ${checked}`);
+    if (!checked) {
+      if (window.confirm("Are you sure you want to hide and clear Span Adjust data?")) {
+        const updatedHeads = localLine.heads.map(head => ({
+          ...head,
+          currentWeight: 0,
+          spanWeight: 0,
+          weightDifference: 0,
+        }));
+        const updated = { ...localLine, showSpanAdjust: false, heads: updatedHeads };
+        setLocalLine(updated);
+        updateLine(updated);
+      } else {
+        e.target.checked = true;
+      }
+    } else {
+      const updated = { ...localLine, showSpanAdjust: true };
+      setLocalLine(updated);
+      updateLine(updated);
+    }
+  };
+
+  const updateHeadWeight = (index, field, value) => {
+    console.debug(`Updating weight for head ${index + 1}: ${field}=${value}`);
+    const updatedHeads = localLine.heads.map((h, j) => j === index ? {
+      ...h,
+      [field]: parseFloat(value) || 0,
+      weightDifference: (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight) - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
+    } : h);
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const handleTitleChange = (e) => {
+    const updated = { ...localLine, title: e.target.value };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const toggleEditTitle = () => {
+    setIsEditingTitle(!isEditingTitle);
+  };
+
+  return (
+    <div className="machine-section" style={{ display: isVisible ? 'block' : 'none' }}>
+      {isEditingTitle ? (
+        <div>
+          <input
+            type="text"
+            value={localLine.title}
+            onChange={handleTitleChange}
+            onBlur={toggleEditTitle}
+            autoFocus
+            className="text-2xl font-bold mb-2"
+          />
+          <button onClick={toggleEditTitle}>Save Title</button>
+        </div>
+      ) : (
+        <h2 onClick={toggleEditTitle} className="text-2xl font-bold mb-2 cursor-pointer">
+          {localLine.title}
+        </h2>
+      )}
+      <div className="line-fields">
+        <label>Model:</label>
+        <input type="text" name="model" value={localLine.model} onChange={handleChange} />
+        <label>Job Number:</label>
+        <input type="text" name="jobNumber" value={localLine.jobNumber} onChange={handleChange} />
+        <label>Serial Number:</label>
+        <input type="text" name="serialNumber" value={localLine.serialNumber} onChange={handleChange} />
+      </div>
+      <div className="machine-running">
+        <label>
+          <input type="checkbox" name="running" checked={localLine.running} onChange={handleCheckbox} /> Line Running?
+        </label>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Head #</th>
+            <th>Status</th>
+            <th>Error</th>
+            <th>Notes</th>
+            <th>Fixed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {localLine.heads.map((head, i) => (
+            <tr
+              key={i}
+              style={{
+                backgroundColor: head.fixed === 'fixed' ? 'orange' : head.status === 'active' ? 'lightgreen' : head.status === 'offline' ? 'lightcoral' : '',
+              }}
+            >
+              <td data-label="Head #">{i + 1}</td>
+              <td data-label="Status">
+                <select value={head.status} onChange={(e) => handleHeadChange(i, 'status', e.target.value)}>
+                  <option value="active">Active</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </td>
+              <td data-label="Error">
+                <select value={head.error} onChange={(e) => handleHeadChange(i, 'error', e.target.value)}>
+                  <option value="None">None</option>
+                  <option value="Chute">Chute</option>
+                  <option value="Operator">Operator</option>
+                  <option value="Load Cell">Load Cell</option>
+                  <option value="Detached Head">Detached Head</option>
+                  <option value="Stepper Motor Error">Stepper Motor Error</option>
+                  <option value="Hopper Issues">Hopper Issues</option>
+                  <option value="Installed Wrong">Installed Wrong</option>
+                  <option value="Radial Feeder">Radial Feeder</option>
+		  <option value="Booster Hopper Issues">Booster Hopper Issues</option>
+		  <option value="Other">Other</option>
+                </select>
+              </td>
+              <td data-label="Notes">
+                <input type="text" value={head.notes} onChange={(e) => handleHeadChange(i, 'notes', e.target.value)} />
+              </td>
+              <td data-label="Fixed">
+                <select value={head.fixed} onChange={(e) => handleHeadChange(i, 'fixed', e.target.value)}>
+                  <option value="na">N/A</option>
+                  <option value="not_fixed">Not Fixed</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <label>
+        <input type="checkbox" checked={localLine.showSpanAdjust} onChange={toggleSpanAdjust} /> Span Adjust
+      </label>
+      {localLine.showSpanAdjust && (
+        <SpanAdjust heads={localLine.heads} updateHeadWeight={(i, field, value) => updateHeadWeight(i, field, value)} />
+      )}
+      <div className="notes-container">
+        <label><strong>Notes:</strong></label>
+        <textarea name="notes" rows="4" value={localLine.notes} onChange={handleChange} />
+      </div>
+      <button onClick={removeLine}>Remove Line</button>
+    </div>
+  );
+};
+
+export default Line;
