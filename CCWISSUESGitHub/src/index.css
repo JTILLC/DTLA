@@ -39,29 +39,6 @@ body {
   transition: background-color 0.3s, color 0.3s;
 }
 
-/* Dark mode toggle button */
-.dark-mode-toggle {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  z-index: 1100;
-  padding: 8px 12px;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-  min-height: auto !important;
-  width: auto !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.dark-mode-toggle:hover {
-  background: var(--bg-secondary);
-}
-
 /* Bootstrap overrides for dark mode */
 [data-theme="dark"] .bg-light {
   background-color: var(--bg-secondary) !important;
