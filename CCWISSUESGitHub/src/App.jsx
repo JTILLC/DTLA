@@ -563,11 +563,11 @@ const AppContent = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Dark mode state
+  // Dark mode state - defaults to dark
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('ccwissues-theme');
     if (saved) return saved === 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return true; // Default to dark mode
   });
 
   // Apply theme on mount and when isDark changes
@@ -1896,7 +1896,7 @@ const AppContent = () => {
                         <div className="card h-100">
                           <div className="card-body d-flex justify-content-between align-items-center">
                             <div>
-                              <h6 className="card-title mb-1">
+                              <h6 className="card-title mb-1" style={{ color: 'var(--text-primary)' }}>
                                 {v.name ? `${v.name}` : 'Unnamed Visit'}
                               </h6>
                               <small className="text-muted">
