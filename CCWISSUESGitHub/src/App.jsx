@@ -1,6 +1,7 @@
 console.log('Starting App module load 1');
 
 import { useState, useEffect, useRef } from 'react';
+import { BrowserRouter as Router, useSearchParams } from 'react-router-dom';
 console.log('Starting App module load 2');
 
 import GlobalForm from './components/GlobalForm.jsx';
@@ -19,6 +20,11 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
+// Offline support
+import OfflineIndicator from './components/OfflineIndicator.jsx';
+import offlineQueue from './utils/offlineQueue';
+import syncManager from './utils/syncManager';
+
 const firebaseConfig = {
   apiKey:            "AIzaSyDnhtjMPh5bkKgRyZEfqIJmVISrJ_UkrB4",
   authDomain:        "downtimelogger-a96fb.firebaseapp.com",
@@ -32,8 +38,20 @@ const firebaseConfig = {
 try {
   firebase.initializeApp(firebaseConfig);
   console.log('Firebase initialized successfully');
-  firebase.firestore().settings({ cache: 'bounded' });
-  console.log('Firestore cache set to bounded');
+
+  // Enable Firestore offline persistence
+  firebase.firestore().enablePersistence({ synchronizeTabs: true })
+    .then(() => {
+      console.log('Firestore offline persistence enabled');
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('Persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Persistence not supported in this browser');
+      }
+    });
+
   firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 } catch (err) {
   console.error('Firebase init error:', err);
@@ -340,9 +358,12 @@ const exportLineHistoryToPDF = (lineHistory, customerName, lineTitle) => {
       y = 35;
     }
 
-    // Head title
+    // Head title - include line title when viewing all lines
     doc.setFontSize(12);
-    doc.text(`Head #${head.headId}`, 14, y);
+    const headTitle = lineTitle === 'All-Lines' && head.lineTitle
+      ? `${head.lineTitle} - Head #${head.headId}`
+      : `Head #${head.headId}`;
+    doc.text(headTitle, 14, y);
     y += 6;
 
     const headData = head.issues.map(issue => [issue.visitName, issue.status, issue.error, issue.fixed, issue.notes || '']);
@@ -388,14 +409,27 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
     const headHistory = {};
 
     customerVisits.forEach(visit => {
-      const line = visit.lines.find(l => l.title === selectedLine);
-      if (line) {
+      // If "All Lines" selected, process all lines; otherwise just the selected line
+      const linesToProcess = selectedLine === '__ALL__'
+        ? visit.lines
+        : visit.lines.filter(l => l.title === selectedLine);
+
+      linesToProcess.forEach(line => {
         line.heads.forEach(head => {
           if (head.status !== 'active' || head.error !== 'None' || head.notes.trim() !== '' || head.fixed !== 'na') {
-            if (!headHistory[head.id]) {
-              headHistory[head.id] = [];
+            // Create a unique key combining line and head for "All Lines" view
+            const historyKey = selectedLine === '__ALL__'
+              ? `${line.title}__${head.id}`
+              : head.id.toString();
+
+            if (!headHistory[historyKey]) {
+              headHistory[historyKey] = {
+                lineTitle: line.title,
+                headId: head.id,
+                issues: []
+              };
             }
-            headHistory[head.id].push({
+            headHistory[historyKey].issues.push({
               visitName: visit.name || `Visit ${new Date(visit.date).toLocaleDateString()}`,
               status: head.status,
               error: head.error,
@@ -404,13 +438,20 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
             });
           }
         });
-      }
+      });
     });
 
-    const result = Object.entries(headHistory).map(([headId, issues]) => ({
-      headId: parseInt(headId),
-      issues: issues.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+    const result = Object.values(headHistory).map(entry => ({
+      lineTitle: entry.lineTitle,
+      headId: entry.headId,
+      issues: entry.issues.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
     }));
+
+    // Sort by line title then head ID
+    result.sort((a, b) => {
+      if (a.lineTitle !== b.lineTitle) return a.lineTitle.localeCompare(b.lineTitle);
+      return a.headId - b.headId;
+    });
 
     setHistory(result);
   };
@@ -446,6 +487,7 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
             style={{ minWidth: '180px' }}
           >
             <option value="">-- Select Line --</option>
+            <option value="__ALL__">All Lines</option>
             {(() => {
               const lines = new Set();
               visits.filter(v => v.customerId === selectedCustomer).forEach(v => {
@@ -459,8 +501,8 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
         )}
 
         {selectedLine && history.length > 0 && (
-          <button 
-            onClick={() => onExportPDF(history, customers.find(c => c.id === selectedCustomer)?.name || 'Unknown', selectedLine)}
+          <button
+            onClick={() => onExportPDF(history, customers.find(c => c.id === selectedCustomer)?.name || 'Unknown', selectedLine === '__ALL__' ? 'All-Lines' : selectedLine)}
             className="btn btn-success btn-sm"
           >
             Export History PDF
@@ -470,10 +512,12 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
 
       {history.length > 0 ? (
         <div>
-          <h6>Issue History for {selectedLine}</h6>
-          {history.map(head => (
-            <div key={head.headId} className="mb-4 bg-white p-3 rounded shadow-sm">
-              <h6 className="text-primary">Head #{head.headId}</h6>
+          <h6>Issue History for {selectedLine === '__ALL__' ? 'All Lines' : selectedLine}</h6>
+          {history.map((head, idx) => (
+            <div key={`${head.lineTitle}-${head.headId}-${idx}`} className="mb-4 bg-white p-3 rounded shadow-sm">
+              <h6 className="text-primary">
+                {selectedLine === '__ALL__' ? `${head.lineTitle} - ` : ''}Head #{head.headId}
+              </h6>
               <table className="table table-sm table-bordered">
                 <thead className="table-primary">
                   <tr>
@@ -500,14 +544,15 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
           ))}
         </div>
       ) : selectedLine ? (
-        <p className="text-muted">No issues found for {selectedLine}</p>
+        <p className="text-muted">No issues found for {selectedLine === '__ALL__' ? 'All Lines' : selectedLine}</p>
       ) : null}
     </div>
   );
 };
 
-const App = () => {
+const AppContent = () => {
   console.log('App component defined');
+  const [searchParams] = useSearchParams();
 
   const [globalData, setGlobalData] = useState({ customer: '', address: '', cityState: '', headCount: '14' });
   const [lines, setLines] = useState([]);
@@ -517,6 +562,23 @@ const App = () => {
   const [renderKey, setRenderKey] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Dark mode state
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('ccwissues-theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  // Apply theme on mount and when isDark changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('ccwissues-theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
+  const toggleDarkMode = () => {
+    setIsDark(!isDark);
+  };
 
   const [customers, setCustomers] = useState([]);
   const [currentCustomer, setCurrentCustomer] = useState(null);
@@ -534,9 +596,145 @@ const App = () => {
   const [currentVisitId, setCurrentVisitId] = useState(null);
   const [showActionButtons, setShowActionButtons] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
   const fileInputRef = useRef(null);
 
   const user = firebase.auth().currentUser;
+
+  // Deep link handler - load visit by ID from URL parameter
+  const loadVisitByDeepLink = async (visitId, customerId, lineName, headName) => {
+    if (!user) return;
+
+    try {
+      // Helper function to load data and navigate to line
+      const loadAndNavigate = (data, custProfile, custId) => {
+        setCurrentCustomer({ id: custId, ...custProfile });
+        setGlobalData({
+          customer: custProfile.name,
+          address: custProfile.address || '',
+          cityState: custProfile.cityState || '',
+          headCount: (custProfile.headCount || '14').toString(),
+        });
+
+        const loadedLines = data.lines.map(line => ({
+          ...line,
+          heads: line.heads.map((head, i) => ({ ...head, id: head.id || i + 1 }))
+        }));
+        setLines(loadedLines);
+
+        // Find and select the matching line if lineName provided
+        let targetLineId = loadedLines.length > 0 ? loadedLines[0].id : null;
+        if (lineName && loadedLines.length > 0) {
+          const matchingLine = loadedLines.find(line =>
+            line.title === lineName ||
+            line.title?.toLowerCase() === lineName.toLowerCase()
+          );
+          if (matchingLine) {
+            targetLineId = matchingLine.id;
+            console.log(`Navigating to line: ${matchingLine.title}`);
+          }
+        }
+
+        setActiveLineId(targetLineId);
+        setShowDashboardView(false); // Make sure we're viewing the line, not dashboard
+        setCurrentVisitName(data.name || '');
+        setCurrentVisitId(visitId);
+        setRenderKey(Date.now());
+
+        // If head is specified, scroll to it after a short delay
+        if (headName) {
+          setTimeout(() => {
+            const headElement = document.querySelector(`[data-head-id="${headName}"]`);
+            if (headElement) {
+              headElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              headElement.style.animation = 'pulse 1s ease-in-out 3';
+            }
+          }, 500);
+        }
+
+        console.log(`Deep linked to visit: ${data.name || visitId}${lineName ? `, line: ${lineName}` : ''}${headName ? `, head: ${headName}` : ''}`);
+      };
+
+      // If we have a customerId, load directly
+      if (customerId) {
+        const docRef = firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(customerId)
+          .collection('visits')
+          .doc(visitId);
+
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+
+          // Get customer profile
+          const custDoc = await firebase
+            .firestore()
+            .collection('user_files')
+            .doc(user.uid)
+            .collection('customers')
+            .doc(customerId)
+            .get();
+
+          if (custDoc.exists) {
+            const custProfile = custDoc.data().profile;
+            loadAndNavigate(data, custProfile, customerId);
+            return;
+          }
+        }
+      }
+
+      // Otherwise search all customers for the visit
+      const customerSnap = await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .get();
+
+      for (const custDoc of customerSnap.docs) {
+        const visitDoc = await firebase
+          .firestore()
+          .collection('user_files')
+          .doc(user.uid)
+          .collection('customers')
+          .doc(custDoc.id)
+          .collection('visits')
+          .doc(visitId)
+          .get();
+
+        if (visitDoc.exists) {
+          const data = visitDoc.data();
+          const custProfile = custDoc.data().profile;
+          loadAndNavigate(data, custProfile, custDoc.id);
+          return;
+        }
+      }
+
+      console.error('Visit not found:', visitId);
+    } catch (error) {
+      console.error('Deep link load failed:', error);
+    }
+  };
+
+  // Handle deep link on mount
+  useEffect(() => {
+    if (!user || deepLinkProcessed) return;
+
+    const visitId = searchParams.get('id') || searchParams.get('visitId');
+    const customerId = searchParams.get('customer') || searchParams.get('customerId');
+    const lineName = searchParams.get('line');
+    const headName = searchParams.get('head');
+
+    if (visitId) {
+      console.log('Deep linking to visit:', visitId, lineName ? `line: ${lineName}` : '', headName ? `head: ${headName}` : '');
+      loadVisitByDeepLink(visitId, customerId, lineName, headName);
+      setDeepLinkProcessed(true);
+    }
+  }, [user, searchParams, deepLinkProcessed]);
 
   const loadVisit = async (visitId) => {
     if (!user || !currentCustomer) return alert('Select a customer first');
@@ -833,6 +1031,28 @@ const App = () => {
       setLoading(false);
     });
     return () => unsub();
+  }, []);
+
+  // Register service worker for offline support
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/service-worker.js')
+        .then((registration) => {
+          console.log('[SW] Service Worker registered:', registration);
+        })
+        .catch((error) => {
+          console.error('[SW] Service Worker registration failed:', error);
+        });
+
+      // Listen for messages from service worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SYNC_QUEUE') {
+          console.log('[SW] Received sync request from service worker');
+          syncManager.syncAll();
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -1171,9 +1391,17 @@ const App = () => {
     return () => clearTimeout(timer);
   }, [lines, globalData, currentVisitName, currentCustomer, currentVisitId]);
 
-  // Load from localStorage on customer change
+  // Load from localStorage on customer change (but not during deep link)
   useEffect(() => {
     if (!currentCustomer) return;
+
+    // Skip localStorage loading if we just did a deep link
+    // (deep link already set the correct data)
+    if (deepLinkProcessed) {
+      console.log('Skipping localStorage load - deep link already loaded data');
+      return;
+    }
+
     const saved = localStorage.getItem(`ishida_${currentCustomer.id}`);
     if (saved) {
       try {
@@ -1187,7 +1415,7 @@ const App = () => {
         console.error('Failed to load from localStorage', e);
       }
     }
-  }, [currentCustomer]);
+  }, [currentCustomer, deepLinkProcessed]);
 
   // Load all visits for history
   useEffect(() => {
@@ -1221,10 +1449,20 @@ const App = () => {
 
   return (
     <div className="container-fluid p-0">
+      {/* Offline status indicator */}
+      <OfflineIndicator />
+
+      <button
+        onClick={toggleDarkMode}
+        className="dark-mode-toggle"
+      >
+        {isDark ? '☀️ Light' : '🌙 Dark'}
+      </button>
+
       <style>{`
         .control-bar {
-          background: #f8f9fa;
-          border-bottom: 1px solid #dee2e6;
+          background: var(--bg-secondary);
+          border-bottom: 1px solid var(--border-color);
           padding: 12px;
           max-height: 400px;
           overflow-y: auto;
@@ -1252,6 +1490,9 @@ const App = () => {
           color: #28a745;
           font-weight: 500;
           animation: pulse 1.5s infinite;
+        }
+        [data-theme="dark"] .saving {
+          color: #5cb85c;
         }
         @keyframes pulse {
           0% { opacity: 0.6; }
@@ -1721,5 +1962,12 @@ const App = () => {
     </div>
   );
 };
+
+// Wrap in Router for deep linking support
+const App = () => (
+  <Router>
+    <AppContent />
+  </Router>
+);
 
 export default App;
