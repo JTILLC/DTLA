@@ -1,3 +1,30 @@
+/* CSS Variables for theming */
+:root {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --input-bg: #ffffff;
+  --table-header-bg: #007bff;
+  --table-stripe: #f8f9fa;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-card: #2d2d2d;
+  --text-primary: #f8f9fa;
+  --text-secondary: #adb5bd;
+  --border-color: #495057;
+  --input-bg: #3d3d3d;
+  --table-header-bg: #0d6efd;
+  --table-stripe: #343a40;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 html {
   margin: 0;
   padding: 0;
@@ -7,7 +34,116 @@ body {
   margin: 0;
   padding: 20px;
   font-family: Arial, sans-serif;
-  background-color: #f5f5f5;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1100;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+  min-height: auto !important;
+  width: auto !important;
+}
+
+.dark-mode-toggle:hover {
+  background: var(--bg-secondary);
+}
+
+/* Bootstrap overrides for dark mode */
+[data-theme="dark"] .bg-light {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: var(--bg-card) !important;
+}
+
+[data-theme="dark"] .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .form-control::placeholder {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .card {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .border-bottom {
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .dropdown-menu {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .dropdown-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .table {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .table-bordered td,
+[data-theme="dark"] .table-bordered th {
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .table-primary {
+  background-color: var(--table-header-bg) !important;
+}
+
+[data-theme="dark"] .nav-tabs {
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) var(--border-color) var(--bg-card) !important;
+}
+
+[data-theme="dark"] .bg-info {
+  background-color: #0dcaf0 !important;
+}
+
+[data-theme="dark"] .bg-warning {
+  background-color: #ffc107 !important;
+}
+
+[data-theme="dark"] .shadow-sm {
+  box-shadow: var(--shadow) !important;
 }
 
 /* Ensure minimum font size for mobile to prevent auto-zoom */
@@ -21,19 +157,19 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
-  background: white;
+  background: var(--bg-card);
   border-radius: 8px;
   overflow: hidden;
 }
 
 th, td {
   padding: 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   text-align: center;
 }
 
 th {
-  background-color: #007bff;
+  background-color: var(--table-header-bg);
   color: white;
   font-weight: 600;
 }
@@ -41,9 +177,11 @@ th {
 select, input[type="text"], input[type="number"], textarea {
   width: 90%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 /* Larger touch targets for mobile */
@@ -59,12 +197,12 @@ h1, h3 {
 
 .machine-section, .dashboard {
   display: none;
-  border: 2px solid #aaa;
+  border: 2px solid var(--border-color);
   padding: 15px;
   margin-top: 20px;
-  background-color: #fff;
+  background-color: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow);
 }
 
 .nav-buttons {
@@ -83,7 +221,7 @@ h1, h3 {
   margin-bottom: 15px;
   font-weight: bold;
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   border-radius: 6px;
 }
 
@@ -104,11 +242,13 @@ h1, h3 {
 .notes-container textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   min-height: 100px;
   resize: vertical;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .save-indicator {
@@ -143,7 +283,7 @@ h1, h3 {
   gap: 12px;
   align-items: center;
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   border-radius: 6px;
 }
 

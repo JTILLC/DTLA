@@ -1,0 +1,16 @@
+{
+  "name": "Ishida Weigher Issue Logger",
+  "short_name": "CCW Issues",
+  "icons": [
+    {
+      "src": "/mdtl.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#007bff",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}
