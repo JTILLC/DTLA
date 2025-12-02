@@ -1452,13 +1452,6 @@ const AppContent = () => {
       {/* Offline status indicator */}
       <OfflineIndicator />
 
-      <button
-        onClick={toggleDarkMode}
-        className="dark-mode-toggle"
-      >
-        {isDark ? '☀️ Light' : '🌙 Dark'}
-      </button>
-
       <style>{`
         .control-bar {
           background: var(--bg-secondary);
@@ -1537,6 +1530,14 @@ const AppContent = () => {
 
           {showActionButtons && (
             <>
+              <button
+                onClick={toggleDarkMode}
+                className="btn btn-outline-secondary btn-sm"
+                title="Toggle Dark/Light Mode"
+              >
+                {isDark ? '☀️' : '🌙'} {isDark ? 'Light' : 'Dark'}
+              </button>
+
               <button
                 onClick={() => setShowHelp(!showHelp)}
                 className="btn btn-outline-secondary btn-sm"
