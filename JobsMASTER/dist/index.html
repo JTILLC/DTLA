@@ -41,12 +41,20 @@
 <html lang="en" data-version="1">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>JTI Jobs Tracker</title>
+    <link rel="icon" type="image/png" href="/jtijobs.png" sizes="1024x1024" />
+    <link rel="shortcut icon" href="/jtijobs.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/jtijobs.png" />
+    <meta name="apple-mobile-web-app-title" content="JTI Jobs" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -55,12 +63,12 @@
     <style>
         :root { --bg:#f8f9fa; --text:#212529; --card:#fff; --border:#dee2e6; --hover:#e9ecef; }
         [data-theme="dark"] { --bg:#121212; --text:#e0e0e0; --card:#1e1e1e; --border:#333; --hover:#2d2d2d; }
-        body { background:var(--bg); color:var(--text); transition:background .3s,color .3s; margin:20px; font-family:Arial,sans-serif; }
+        body { background:var(--bg); color:var(--text); transition:background .3s,color .3s; padding:15px; margin:0; font-family:Arial,sans-serif; }
         .card,.modal-content,.table { background:var(--card); border-color:var(--border); color:var(--text); }
         .table tbody tr:hover { background:var(--hover); }
         .dataTables_wrapper .dataTables_paginate .paginate_button { color:var(--text)!important; }
         #cloudDiffBanner { margin-bottom:15px; }
-        .dark-mode-toggle { position:fixed; top:15px; right:15px; z-index:1050; }
+        .dark-mode-toggle { position:fixed; top:10px; right:10px; z-index:1050; font-size:12px; padding:6px 10px; }
         .summary { font-weight:bold; }
         .dataTables_wrapper .dataTables_filter input,
         .dataTables_wrapper .dataTables_length select,
@@ -68,6 +76,184 @@
         .dataTables_wrapper .dataTables_paginate { color:var(--text)!important; }
         .dataTables_wrapper .dataTables_filter input:focus,
         .dataTables_wrapper .dataTables_length select:focus { background:var(--card); }
+
+        /* Mobile Responsive Styles */
+        h1 { font-size: 1.5rem; margin-bottom: 15px; }
+        h2 { font-size: 1.2rem; }
+
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .actions .btn { font-size: 12px; padding: 6px 10px; flex: 0 0 auto; }
+
+        .year-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .year-nav label { font-size: 14px; }
+        .year-nav .btn { font-size: 12px; padding: 6px 10px; }
+
+        #summary { font-size: 14px; }
+        #summary div { margin-bottom: 4px; }
+
+        /* DataTables mobile fixes */
+        .dataTables_wrapper .dataTables_length,
+        .dataTables_wrapper .dataTables_filter {
+            float: none;
+            text-align: left;
+            margin-bottom: 10px;
+        }
+        .dataTables_wrapper .dataTables_filter input {
+            width: 100%;
+            max-width: 200px;
+            margin-left: 0;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            h1 { font-size: 1.3rem; padding-right: 80px; }
+            .dark-mode-toggle { font-size: 10px; padding: 4px 8px; }
+
+            .actions .btn {
+                font-size: 11px;
+                padding: 5px 8px;
+            }
+
+            #summary { padding: 12px !important; }
+            #summary div { font-size: 13px; }
+
+            .year-nav label { display: none; }
+            .year-nav select { font-size: 14px; }
+
+            #cloudDiffBanner { flex-direction: column; gap: 10px; }
+            #cloudDiffBanner > div { width: 100%; display: flex; gap: 8px; }
+            #cloudDiffBanner .btn { flex: 1; }
+
+            table.dataTable { font-size: 12px; }
+            .dataTables_wrapper .dataTables_info,
+            .dataTables_wrapper .dataTables_paginate { font-size: 12px; }
+
+            canvas { max-height: 200px !important; }
+        }
+
+        @media (max-width: 480px) {
+            .actions .btn {
+                flex: 1 1 calc(50% - 4px);
+                text-align: center;
+            }
+            .year-nav .btn { font-size: 11px; }
+        }
+
+        /* Card Layout Styles */
+        .jobs-cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .job-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .job-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .job-card.selected {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 2px rgba(13,110,253,0.25);
+        }
+
+        .job-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .job-card-customer {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--text);
+        }
+
+        .job-card-sr {
+            font-size: 12px;
+            color: #6c757d;
+            background: var(--hover);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .job-card-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .job-card-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .job-card-label {
+            font-size: 11px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .job-card-value {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .job-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .job-card-paid {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .job-card-paid.is-paid {
+            color: #198754;
+        }
+
+        .job-card-paid.not-paid {
+            color: #dc3545;
+        }
+
+        .job-card-amounts {
+            text-align: right;
+        }
+
+        .job-card-actual {
+            font-size: 16px;
+            font-weight: bold;
+            color: #198754;
+        }
+
+        .job-card-quote {
+            font-size: 11px;
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .jobs-cards-container {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -113,24 +299,11 @@
             <button class="btn btn-warning ms-1" onclick="window.confirmClearCurrentYear()">Clear Year</button>
         </div>
 
-        <h2>Jobs Table</h2>
-        <table id="jobsTable" class="display table table-bordered" style="width:100%">
-            <thead class="table-light">
-                <tr>
-                    <th>Date Range</th>
-                    <th>Customer</th>
-                    <th>City</th>
-                    <th>State</th>
-                    <th>Quote</th>
-                    <th>Actual</th>
-                    <th>SR#</th>
-                    <th>Terms</th>
-                    <th>Exp Paid</th>
-                    <th>Paid?</th>
-                    <th>Invoice Date</th>
-                </tr>
-            </thead>
-        </table>
+        <h2>Jobs</h2>
+        <div class="mb-3">
+            <input type="text" id="jobSearch" class="form-control" placeholder="Search jobs...">
+        </div>
+        <div id="jobsCards" class="jobs-cards-container"></div>
 
         <h2 class="mt-4">Monthly Income</h2>
         <canvas id="monthlyChart" height="120"></canvas>
@@ -149,8 +322,87 @@
         <canvas id="monthlyComparisonChart" height="120"></canvas>
     </div>
 
-    <!-- Modals (same as before) -->
-    <!-- ... -->
+    <!-- Add/Edit Modal -->
+    <div class="modal fade" id="jobModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jobModalTitle">Add Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editIndex">
+                    <div class="mb-2">
+                        <label>Date Range</label>
+                        <input type="text" id="dateRange" class="form-control" placeholder="MM/DD - MM/DD">
+                    </div>
+                    <div class="mb-2">
+                        <label>Customer</label>
+                        <input type="text" id="customer" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>City</label>
+                        <input type="text" id="city" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>State</label>
+                        <input type="text" id="state" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>Quote</label>
+                        <input type="number" id="quote" class="form-control" step="0.01">
+                    </div>
+                    <div class="mb-2">
+                        <label>Actual</label>
+                        <input type="number" id="actual" class="form-control" step="0.01">
+                    </div>
+                    <div class="mb-2">
+                        <label>SR#</label>
+                        <input type="text" id="sr" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>Terms</label>
+                        <input type="text" id="terms" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>Expected Paid Date</label>
+                        <input type="text" id="expPaid" class="form-control" placeholder="MM/DD/YYYY">
+                    </div>
+                    <div class="mb-2">
+                        <label>Invoice Date</label>
+                        <input type="text" id="invoiceDate" class="form-control" placeholder="MM/DD/YYYY">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" id="paid" class="form-check-input">
+                        <label class="form-check-label">Paid</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveJobBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Clear Modal -->
+    <div class="modal fade" id="clearModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Clear</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="clearModalBody">
+                    Are you sure?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmClearBtn">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="text/javascript">
         var gk_isXlsx = false;
@@ -219,7 +471,13 @@
 
         // === LocalStorage ===
         function loadFromStorage() {
-            const years = JSON.parse(localStorage.getItem('years') || '["2025"]');
+            // Generate default years from 2022 to current + 3
+            const currentYr = new Date().getFullYear();
+            const defaultYears = [];
+            for (let y = 2022; y <= currentYr + 3; y++) {
+                defaultYears.push(y.toString());
+            }
+            const years = JSON.parse(localStorage.getItem('years') || JSON.stringify(defaultYears));
             years.forEach(y => { const r = localStorage.getItem(`data-${y}`); data[y] = r ? JSON.parse(r) : []; });
             return years;
         }
@@ -289,7 +547,13 @@
 
         window.loadFromCloud = async () => {
             try {
-                const years = Object.keys(data).length ? Object.keys(data) : ['2022','2023','2024','2025'];
+                // Generate years dynamically from 2022 to current year + 3
+                const defaultYears = [];
+                const currentYr = new Date().getFullYear();
+                for (let y = 2022; y <= currentYr + 3; y++) {
+                    defaultYears.push(y.toString());
+                }
+                const years = Object.keys(data).length ? Object.keys(data) : defaultYears;
                 const newData = {};
                 for (const y of years) {
                     try {
@@ -344,10 +608,6 @@
             try {
                 const scrollY = window.scrollY;
 
-                if (table && $.fn.DataTable.isDataTable('#jobsTable')) {
-                    table.destroy();
-                    $('#jobsTable').empty();
-                }
                 if (chart) chart.destroy();
                 if (monthlyComparisonChart) monthlyComparisonChart.destroy();
 
@@ -355,45 +615,7 @@
                 document.getElementById('comparisonPage').style.display = 'none';
 
                 const jobs = data[currentYear] || [];
-
-                table = $('#jobsTable').DataTable({
-                    data: jobs,
-                    columns: [
-                        { data: 'dateRange' },
-                        { data: 'customer' },
-                        { data: 'city' },
-                        { data: 'state' },
-                        { data: 'quote', render: d => d ? `$${parseFloat(d).toFixed(2)}` : '' },
-                        { data: 'actual', render: d => d ? `$${parseFloat(d).toFixed(2)}` : '' },
-                        { data: 'sr' },
-                        { data: 'terms' },
-                        { data: 'expPaid' },
-                        { data: 'paid', render: (d, _, row) => `<input type="checkbox" class="paid-checkbox" ${d?'checked':''} data-row-index="${jobs.indexOf(row)}">` },
-                        { data: 'invoiceDate' }
-                    ],
-                    pageLength: 50,
-                    order: [[6, 'asc']],
-                    // Dark mode for DataTables
-                    initComplete: function () {
-                        this.api().tables().header().to$().css('background-color', getComputedStyle(document.documentElement).getPropertyValue('--card'));
-                        this.api().tables().header().to$().css('color', getComputedStyle(document.documentElement).getPropertyValue('--text'));
-                    }
-                });
-
-                $('#jobsTable tbody').off('click').on('click', 'tr', function (e) {
-                    if ($(e.target).is('.paid-checkbox')) return;
-                    $(this).toggleClass('selected');
-                    selectedRow = $(this).hasClass('selected') ? this : null;
-                });
-
-                $('#jobsTable').off('click', '.paid-checkbox').on('click', '.paid-checkbox', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const idx = $(this).data('row-index');
-                    data[currentYear][idx].paid = this.checked;
-                    saveToStorage();
-                    updateYearPage();
-                });
+                renderJobCards(jobs);
 
                 const monthly = computeMonthlyData(jobs);
                 chart = new Chart(document.getElementById('monthlyChart').getContext('2d'), {
@@ -408,6 +630,446 @@
                 requestAnimationFrame(() => window.scrollTo(0, scrollY));
             } catch (e) { console.error(e); alert('Update error: ' + e.message); }
         }
+
+        function renderJobCards(jobs, searchTerm = '') {
+            const container = document.getElementById('jobsCards');
+
+            // Filter jobs if search term provided
+            let filteredJobs = jobs;
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                filteredJobs = jobs.filter(j =>
+                    (j.customer || '').toLowerCase().includes(term) ||
+                    (j.city || '').toLowerCase().includes(term) ||
+                    (j.state || '').toLowerCase().includes(term) ||
+                    (j.sr || '').toLowerCase().includes(term) ||
+                    (j.dateRange || '').toLowerCase().includes(term)
+                );
+            }
+
+            container.innerHTML = filteredJobs.map((job, idx) => {
+                const originalIdx = jobs.indexOf(job);
+                return `
+                <div class="job-card" data-index="${originalIdx}">
+                    <div class="job-card-header">
+                        <div class="job-card-customer">${job.customer || 'No Customer'}</div>
+                        ${job.sr ? `<div class="job-card-sr">SR# ${job.sr}</div>` : ''}
+                    </div>
+                    <div class="job-card-body">
+                        <div class="job-card-field">
+                            <span class="job-card-label">Date Range</span>
+                            <span class="job-card-value">${job.dateRange || '-'}</span>
+                        </div>
+                        <div class="job-card-field">
+                            <span class="job-card-label">Location</span>
+                            <span class="job-card-value">${job.city || '-'}${job.state ? ', ' + job.state : ''}</span>
+                        </div>
+                        <div class="job-card-field">
+                            <span class="job-card-label">Terms</span>
+                            <span class="job-card-value">${job.terms || '-'}</span>
+                        </div>
+                        <div class="job-card-field">
+                            <span class="job-card-label">Exp. Paid</span>
+                            <span class="job-card-value">${job.expPaid || '-'}</span>
+                        </div>
+                        <div class="job-card-field">
+                            <span class="job-card-label">Invoice Date</span>
+                            <span class="job-card-value">${job.invoiceDate || '-'}</span>
+                        </div>
+                    </div>
+                    <div class="job-card-footer">
+                        <div class="job-card-paid ${job.paid ? 'is-paid' : 'not-paid'}">
+                            <input type="checkbox" class="form-check-input paid-checkbox" ${job.paid ? 'checked' : ''} data-index="${originalIdx}">
+                            <span>${job.paid ? 'Paid' : 'Not Paid'}</span>
+                        </div>
+                        <div class="job-card-amounts">
+                            <div class="job-card-actual">${job.actual ? '$' + parseFloat(job.actual).toFixed(2) : '-'}</div>
+                            ${job.quote ? `<div class="job-card-quote">Quote: $${parseFloat(job.quote).toFixed(2)}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+
+            // Add click handlers for selection
+            container.querySelectorAll('.job-card').forEach(card => {
+                card.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('paid-checkbox')) return;
+
+                    // Deselect all others
+                    container.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedRow = parseInt(this.dataset.index);
+                });
+            });
+
+            // Add click handlers for paid checkboxes
+            container.querySelectorAll('.paid-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const idx = parseInt(this.dataset.index);
+                    data[currentYear][idx].paid = this.checked;
+                    saveToStorage();
+                    updateYearPage();
+                });
+            });
+        }
+
+        // Search functionality
+        document.getElementById('jobSearch').addEventListener('input', function() {
+            const jobs = data[currentYear] || [];
+            renderJobCards(jobs, this.value);
+        });
+
+        // === Year Navigation ===
+        document.getElementById('yearSelect').addEventListener('change', function() {
+            const val = this.value;
+            if (val === 'comparison') {
+                document.getElementById('yearPage').style.display = 'none';
+                document.getElementById('comparisonPage').style.display = 'block';
+                updateComparison();
+            } else {
+                currentYear = val;
+                updateYearPage();
+            }
+        });
+
+        function updateComparison() {
+            const years = Object.keys(data).sort();
+            const tbody = document.getElementById('comparisonTableBody');
+            tbody.innerHTML = '';
+            const chartData = { labels: [], quotes: [], gross: [], paid: [], unpaid: [] };
+
+            years.forEach(y => {
+                const jobs = data[y] || [];
+                const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0);
+                const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
+                const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0);
+                const u = g - p;
+                tbody.innerHTML += `<tr><td>${y}</td><td>$${q.toFixed(2)}</td><td>$${g.toFixed(2)}</td><td>$${p.toFixed(2)}</td><td>$${u.toFixed(2)}</td></tr>`;
+                chartData.labels.push(y);
+                chartData.quotes.push(q);
+                chartData.gross.push(g);
+                chartData.paid.push(p);
+                chartData.unpaid.push(u);
+            });
+
+            if (chart) chart.destroy();
+            chart = new Chart(document.getElementById('comparisonChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        { label: 'Gross', data: chartData.gross, backgroundColor: 'rgba(75,192,192,0.6)' },
+                        { label: 'Paid', data: chartData.paid, backgroundColor: 'rgba(54,162,235,0.6)' }
+                    ]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+            // Monthly Across Years Chart
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const monthlyData = {};
+
+            years.forEach(y => {
+                const jobs = data[y] || [];
+                const monthlyIncome = computeMonthlyData(jobs);
+                monthlyData[y] = months.map(m => monthlyIncome[m] || 0);
+            });
+
+            if (monthlyComparisonChart) monthlyComparisonChart.destroy();
+
+            const colors = [
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(255, 206, 86, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(153, 102, 255, 0.6)',
+                'rgba(255, 159, 64, 0.6)',
+                'rgba(199, 199, 199, 0.6)',
+                'rgba(83, 102, 255, 0.6)'
+            ];
+
+            const datasets = years.map((y, idx) => ({
+                label: y,
+                data: monthlyData[y],
+                backgroundColor: colors[idx % colors.length],
+                borderColor: colors[idx % colors.length].replace('0.6', '1'),
+                borderWidth: 1
+            }));
+
+            monthlyComparisonChart = new Chart(document.getElementById('monthlyComparisonChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // === Add New Year ===
+        window.addNewYear = () => {
+            const year = prompt('Enter new year (e.g., 2026):');
+            if (year && /^\d{4}$/.test(year)) {
+                if (data[year]) {
+                    alert('Year already exists!');
+                    return;
+                }
+                data[year] = [];
+                saveToStorage();
+                updateYearSelect();
+                currentYear = year;
+                document.getElementById('yearSelect').value = year;
+                updateYearPage();
+            } else if (year) {
+                alert('Invalid year format');
+            }
+        };
+
+        // === Add New Job ===
+        window.addNew = () => {
+            document.getElementById('jobModalTitle').textContent = 'Add Job';
+            document.getElementById('editIndex').value = '';
+            document.getElementById('dateRange').value = '';
+            document.getElementById('customer').value = '';
+            document.getElementById('city').value = '';
+            document.getElementById('state').value = '';
+            document.getElementById('quote').value = '';
+            document.getElementById('actual').value = '';
+            document.getElementById('sr').value = '';
+            document.getElementById('terms').value = '';
+            document.getElementById('expPaid').value = '';
+            document.getElementById('invoiceDate').value = '';
+            document.getElementById('paid').checked = false;
+            new bootstrap.Modal(document.getElementById('jobModal')).show();
+        };
+
+        // === Edit Selected Job ===
+        window.editSelected = () => {
+            if (selectedRow === null || selectedRow === undefined) {
+                alert('Please select a card to edit');
+                return;
+            }
+            const job = data[currentYear][selectedRow];
+            if (!job) {
+                alert('Job not found');
+                return;
+            }
+
+            document.getElementById('jobModalTitle').textContent = 'Edit Job';
+            document.getElementById('editIndex').value = selectedRow;
+            document.getElementById('dateRange').value = job.dateRange || '';
+            document.getElementById('customer').value = job.customer || '';
+            document.getElementById('city').value = job.city || '';
+            document.getElementById('state').value = job.state || '';
+            document.getElementById('quote').value = job.quote || '';
+            document.getElementById('actual').value = job.actual || '';
+            document.getElementById('sr').value = job.sr || '';
+            document.getElementById('terms').value = job.terms || '';
+            document.getElementById('expPaid').value = job.expPaid || '';
+            document.getElementById('invoiceDate').value = job.invoiceDate || '';
+            document.getElementById('paid').checked = job.paid || false;
+            new bootstrap.Modal(document.getElementById('jobModal')).show();
+        };
+
+        // === Save Job (from modal) ===
+        document.getElementById('saveJobBtn').addEventListener('click', () => {
+            const job = {
+                dateRange: document.getElementById('dateRange').value,
+                customer: document.getElementById('customer').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                quote: document.getElementById('quote').value,
+                actual: document.getElementById('actual').value,
+                sr: document.getElementById('sr').value,
+                terms: document.getElementById('terms').value,
+                expPaid: document.getElementById('expPaid').value,
+                invoiceDate: document.getElementById('invoiceDate').value,
+                paid: document.getElementById('paid').checked
+            };
+
+            const editIdx = document.getElementById('editIndex').value;
+            if (editIdx !== '') {
+                data[currentYear][parseInt(editIdx)] = job;
+            } else {
+                if (!data[currentYear]) data[currentYear] = [];
+                data[currentYear].push(job);
+            }
+
+            saveToStorage();
+            bootstrap.Modal.getInstance(document.getElementById('jobModal')).hide();
+            selectedRow = null;
+            updateYearPage();
+        });
+
+        // === Delete Selected Job ===
+        window.deleteSelected = () => {
+            if (selectedRow === null || selectedRow === undefined) {
+                alert('Please select a card to delete');
+                return;
+            }
+            if (!confirm('Are you sure you want to delete this job?')) return;
+
+            data[currentYear].splice(selectedRow, 1);
+            saveToStorage();
+            selectedRow = null;
+            updateYearPage();
+        };
+
+        // === Export JSON (current year) ===
+        window.exportJson = () => {
+            const json = JSON.stringify(data[currentYear], null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `jobs-${currentYear}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        // === Export All Years JSON ===
+        window.exportAllYearsJson = () => {
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'jobs-all-years.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        // === Import JSON ===
+        window.importJson = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+
+                    // Check if it's all years or single year
+                    if (Array.isArray(imported)) {
+                        // Single year array
+                        if (confirm(`Import ${imported.length} jobs into ${currentYear}? This will replace existing data.`)) {
+                            data[currentYear] = imported;
+                            saveToStorage();
+                            updateYearPage();
+                            alert('Import successful!');
+                        }
+                    } else if (typeof imported === 'object') {
+                        // All years object
+                        const years = Object.keys(imported);
+                        if (confirm(`Import ${years.length} year(s)? This will replace existing data for those years.`)) {
+                            years.forEach(y => {
+                                data[y] = imported[y];
+                            });
+                            saveToStorage();
+                            updateYearSelect();
+                            updateYearPage();
+                            alert('Import successful!');
+                        }
+                    }
+                } catch (err) {
+                    alert('Invalid JSON file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset file input
+        };
+
+        // === Export PDF ===
+        window.exportPdf = () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+
+            doc.setFontSize(16);
+            doc.text(`JTI Jobs - ${currentYear}`, 14, 15);
+
+            const jobs = data[currentYear] || [];
+            const tableData = jobs.map(j => [
+                j.dateRange || '',
+                j.customer || '',
+                j.city || '',
+                j.state || '',
+                j.quote ? `$${parseFloat(j.quote).toFixed(2)}` : '',
+                j.actual ? `$${parseFloat(j.actual).toFixed(2)}` : '',
+                j.sr || '',
+                j.paid ? 'Yes' : 'No'
+            ]);
+
+            doc.autoTable({
+                head: [['Date Range', 'Customer', 'City', 'State', 'Quote', 'Actual', 'SR#', 'Paid']],
+                body: tableData,
+                startY: 22,
+                theme: 'grid',
+                styles: { fontSize: 8 }
+            });
+
+            // Add summary
+            const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0);
+            const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
+            const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0);
+
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            doc.text(`Quotes: $${q.toFixed(2)} | Gross: $${g.toFixed(2)} | Paid: $${p.toFixed(2)} | Unpaid: $${(g-p).toFixed(2)}`, 14, finalY);
+
+            doc.save(`jobs-${currentYear}.pdf`);
+        };
+
+        // === Clear Storage ===
+        let clearAction = null;
+
+        window.confirmClearStorage = () => {
+            clearAction = 'all';
+            document.getElementById('clearModalBody').textContent = 'Are you sure you want to clear ALL local storage? This cannot be undone.';
+            new bootstrap.Modal(document.getElementById('clearModal')).show();
+        };
+
+        window.confirmClearCurrentYear = () => {
+            clearAction = 'year';
+            document.getElementById('clearModalBody').textContent = `Are you sure you want to clear all data for ${currentYear}? This cannot be undone.`;
+            new bootstrap.Modal(document.getElementById('clearModal')).show();
+        };
+
+        document.getElementById('confirmClearBtn').addEventListener('click', () => {
+            if (clearAction === 'all') {
+                localStorage.clear();
+                data = { '2025': [] };
+                currentYear = '2025';
+            } else if (clearAction === 'year') {
+                data[currentYear] = [];
+            }
+            saveToStorage();
+            updateYearSelect();
+            updateYearPage();
+            bootstrap.Modal.getInstance(document.getElementById('clearModal')).hide();
+            alert(clearAction === 'all' ? 'All local storage cleared!' : `${currentYear} data cleared!`);
+        });
 
         // === Init ===
         try {
