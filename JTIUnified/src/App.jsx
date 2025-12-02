@@ -2537,28 +2537,38 @@ function App() {
                     customers.map((customer, index) => (
                       <button
                         key={index}
-                        onClick={() => handleCustomerSelect(customer)}
+                        onClick={() => handleCustomerSelect(customer.name)}
                         style={{
                           width: '100%',
                           padding: '10px 16px',
                           border: 'none',
                           borderTop: index > 0 || selectedCustomer ? '1px solid #f3f4f6' : 'none',
-                          background: selectedCustomer === customer ? '#eff6ff' : 'white',
+                          background: selectedCustomer === customer.name ? '#eff6ff' : 'white',
                           cursor: 'pointer',
                           textAlign: 'left',
                           fontSize: '14px',
-                          color: '#111827'
+                          color: '#111827',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
                         }}
                         onMouseEnter={(e) => {
-                          if (selectedCustomer !== customer) {
-                            e.target.style.background = '#f9fafb';
+                          if (selectedCustomer !== customer.name) {
+                            e.currentTarget.style.background = '#f9fafb';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          e.target.style.background = selectedCustomer === customer ? '#eff6ff' : 'white';
+                          e.currentTarget.style.background = selectedCustomer === customer.name ? '#eff6ff' : 'white';
                         }}
                       >
-                        {customer}
+                        <span>{customer.name}</span>
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          fontStyle: 'italic'
+                        }}>
+                          ({customer.sources.join(', ')})
+                        </span>
                       </button>
                     ))
                   )}

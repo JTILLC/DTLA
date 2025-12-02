@@ -1,0 +1,20 @@
+[
+  {
+    "origin": [
+      "http://localhost:*",
+      "https://localhost:*",
+      "https://jtidt.netlify.app",
+      "https://jti-jobs.surge.sh",
+      "https://jtiapp.netlify.app"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "X-Requested-With"
+    ]
+  }
+]
