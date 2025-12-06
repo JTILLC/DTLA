@@ -1072,12 +1072,23 @@
         });
 
         // === Init ===
-        try {
-            loadFromStorage();
-            updateYearSelect();
-            updateYearPage();
-            console.log('App initialized');
-        } catch (e) { console.error(e); alert('Init error'); }
+        async function init() {
+            try {
+                loadFromStorage();
+
+                // Auto-load from cloud if localStorage is empty
+                const hasData = Object.values(data).some(jobs => jobs && jobs.length > 0);
+                if (!hasData) {
+                    console.log('No local data found, loading from cloud...');
+                    await window.loadFromCloud();
+                }
+
+                updateYearSelect();
+                updateYearPage();
+                console.log('App initialized');
+            } catch (e) { console.error(e); alert('Init error'); }
+        }
+        init();
     </script>
 </body>
 </html>
