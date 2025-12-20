@@ -343,10 +343,21 @@ const DiagramManager = () => {
     } else {
       // Create new diagram
       const newDiagramId = Date.now().toString();
+
+      // Auto-extract diagram number from name if not provided
+      let finalDiagramNumber = diagramNumber || '';
+      if (!finalDiagramNumber || finalDiagramNumber.trim() === '') {
+        const match = diagramName.match(/[A-Z0-9]+-[A-Z0-9]+$/i);
+        if (match) {
+          finalDiagramNumber = match[0];
+          console.log(`Auto-extracted diagram number "${finalDiagramNumber}" from "${diagramName}"`);
+        }
+      }
+
       const newDiagram = {
         id: newDiagramId,
         name: diagramName,
-        number: diagramNumber || '',
+        number: finalDiagramNumber,
         pdfData: pdfData,
         partsData: partsData,
         hotspots: {},
@@ -1695,6 +1706,48 @@ const DiagramManager = () => {
     }));
   };
 
+  // Extract diagram numbers from diagram names for diagrams missing the number field
+  const autoPopulateDiagramNumbers = () => {
+    let updatedCount = 0;
+    const updates = {};
+
+    Object.values(savedDiagrams).forEach(diagram => {
+      // Skip if diagram already has a number
+      if (diagram.number && diagram.number.trim() !== '') {
+        return;
+      }
+
+      // Try to extract diagram number from the name
+      // Pattern: "88-1-CONTROL-UNIT-SIG-4D-30690" -> extract "4D-30690"
+      // Look for the last segment that matches a pattern like "XD-XXXXX" or similar
+      const name = diagram.name;
+
+      // Try to match patterns like "4D-30690" at the end
+      // This pattern looks for: letter(s)-digit(s) or digit(s)-letter(s) at the end
+      const match = name.match(/[A-Z0-9]+-[A-Z0-9]+$/i);
+
+      if (match) {
+        const extractedNumber = match[0];
+        updates[diagram.id] = {
+          ...diagram,
+          number: extractedNumber
+        };
+        updatedCount++;
+        console.log(`Extracted "${extractedNumber}" from "${name}"`);
+      }
+    });
+
+    if (updatedCount > 0) {
+      setSavedDiagrams(prev => ({
+        ...prev,
+        ...updates
+      }));
+      alert(`Successfully populated ${updatedCount} diagram number${updatedCount !== 1 ? 's' : ''} from diagram names!`);
+    } else {
+      alert('No diagram numbers could be extracted. All diagrams either have numbers or their names don\'t match the expected pattern.');
+    }
+  };
+
   const currentDiagram = currentDiagramId ? savedDiagrams[currentDiagramId] : null;
 
   return (
@@ -1863,6 +1916,23 @@ const DiagramManager = () => {
               title="Quick rename diagrams using table of contents"
             >
               {showTocRenamer ? 'Cancel TOC' : '📋 TOC Quick Rename'}
+            </button>
+
+            <button
+              onClick={autoPopulateDiagramNumbers}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#1976d2',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Auto-extract diagram numbers from diagram names"
+            >
+              # Auto-Populate Numbers
             </button>
 
             <button

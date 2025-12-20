@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test PDF Extraction</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+  <h1>Testing PDF Extraction</h1>
+  <div id="results"></div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    async function testExtraction() {
+      const resultsDiv = document.getElementById('results');
+
+      try {
+        resultsDiv.innerHTML = '<p>Loading PDF...</p>';
+
+        // Load the PDF
+        const pdfPath = '/Users/jti/Library/CloudStorage/OneDrive-JoshuaToddIndustriesLLC/Interactive Parts Manual/TS Feeder Cover PL.pdf';
+        const loadingTask = pdfjsLib.getDocument(pdfPath);
+        const pdf = await loadingTask.promise;
+
+        resultsDiv.innerHTML += '<p>PDF loaded, extracting text...</p>';
+
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent({
+            includeMarkedContent: true,
+            disableNormalization: false
+          });
+
+          // Group text items by Y position to reconstruct table rows
+          const lines = {};
+          textContent.items.forEach((item) => {
+            if (!item.str || !item.transform) return;
+
+            const y = Math.round(item.transform[5]);
+            const x = item.transform[4];
+
+            if (!lines[y]) lines[y] = [];
+            lines[y].push({ x, text: item.str });
+          });
+
+          // Sort lines by Y position (top to bottom)
+          const sortedY = Object.keys(lines).sort((a, b) => b - a);
+
+          sortedY.forEach(y => {
+            const lineItems = lines[y].sort((a, b) => a.x - b.x);
+
+            // Smart text reconstruction - join words properly
+            let lineText = '';
+            for (let i = 0; i < lineItems.length; i++) {
+              const current = lineItems[i];
+              const next = lineItems[i + 1];
+
+              lineText += current.text;
+
+              if (next) {
+                const gap = next.x - (current.x + current.text.length * 6);
+                // If gap is small, join without space (for split words)
+                // If gap is large, add space (separate columns)
+                if (gap > 10) {
+                  lineText += ' ';
+                }
+              }
+            }
+
+            if (lineText.trim()) {
+              fullText += lineText + '\n';
+            }
+          });
+        }
+
+        resultsDiv.innerHTML += '<h2>Extracted Text:</h2>';
+        resultsDiv.innerHTML += '<pre style="background: #f5f5f5; padding: 10px; overflow: auto; max-height: 400px;">' +
+          fullText.substring(0, 2000) + (fullText.length > 2000 ? '\n\n... (truncated)' : '') +
+          '</pre>';
+
+        // Try to parse as table
+        const lines = fullText.trim().split('\n');
+        let tableHTML = '<h2>Parsed as Table:</h2><table border="1" style="border-collapse: collapse;"><tr><th>NO</th><th>PART CODE</th><th>PART NAME</th><th>QUANTITY</th></tr>';
+
+        let foundData = false;
+        for (let line of lines) {
+          // Simple parsing - look for lines that might be data rows
+          if (line.match(/^\d+/) && line.includes('-')) {
+            const parts = line.split(/\s{2,}/);
+            if (parts.length >= 3) {
+              foundData = true;
+              tableHTML += '<tr>';
+              parts.forEach(part => {
+                tableHTML += '<td>' + part + '</td>';
+              });
+              tableHTML += '</tr>';
+            }
+          }
+        }
+        tableHTML += '</table>';
+
+        if (foundData) {
+          resultsDiv.innerHTML += tableHTML;
+        } else {
+          resultsDiv.innerHTML += '<p style="color: red;">No table data detected in expected format</p>';
+        }
+
+      } catch (error) {
+        resultsDiv.innerHTML += '<p style="color: red;">Error: ' + error.message + '</p>';
+      }
+    }
+
+    // Run test on load
+    testExtraction();
+  </script>
+</body>
+</html>

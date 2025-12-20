@@ -1,0 +1,114 @@
+{
+  "logoUrl": "https://i.imgur.com/GQRZTtW.png",
+  "quoteTitle": "SERVICE QUOTE",
+  "business": {
+    "name": "Joshua Todd Industries LLC",
+    "address": "Gilbert, AZ",
+    "contact": "Email: josh@jtiaz.com    Phone: (623) 300-6445"
+  },
+  "customer": {
+    "label": "CUSTOMER",
+    "name": "Shearer's Fort Worth, TX"
+  },
+  "dates": {
+    "label": "DATES",
+    "value": "TBD"
+  },
+  "dateOfQuote": {
+    "label": "DATE OF QUOTE",
+    "value": "2025-06-18"
+  },
+  "quoteNumber": {
+    "label": "QUOTE #",
+    "value": "JTIQ4061825"
+  },
+  "message": "Thank you for your interest with JTI. This is an estimated quote. Service call will be actual hours worked and expenses accrued.",
+  "items": [
+    {
+      "service": "Weekday Labor",
+      "rate": 120,
+      "unit": "Per Hour",
+      "quantity": 24,
+      "cost": 2880
+    },
+    {
+      "service": "Weekday Labor Overtime",
+      "rate": 180,
+      "unit": "Per Hour",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Saturday Labor",
+      "rate": 180,
+      "unit": "Per Hour",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Sunday and Holiday Labor",
+      "rate": 240,
+      "unit": "Per Hour",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Weekday Travel",
+      "rate": 80,
+      "unit": "Per Hour",
+      "quantity": 12,
+      "cost": 960
+    },
+    {
+      "service": "Saturday Travel",
+      "rate": 120,
+      "unit": "Per Hour",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Sunday and Holiday Travel",
+      "rate": 160,
+      "unit": "Per Hour",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Airline (Round Trip)",
+      "rate": "Estimate",
+      "unit": "",
+      "quantity": 0,
+      "cost": 800
+    },
+    {
+      "service": "Rental Car, Gas, and Tolls",
+      "rate": "Estimate",
+      "unit": "",
+      "quantity": 0,
+      "cost": 450
+    },
+    {
+      "service": "Mileage (Business Vehicle Only)",
+      "rate": 0.63,
+      "unit": "Per Mile",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Per Diem (Local)",
+      "rate": 65,
+      "unit": "Per Day",
+      "quantity": 0,
+      "cost": 0
+    },
+    {
+      "service": "Per Diem (Non-Local)",
+      "rate": 220,
+      "unit": "Per Day",
+      "quantity": 4,
+      "cost": 880
+    }
+  ],
+  "totalEstimatedCost": 5970,
+  "notes": "Proposed work schedule\\nMonday: Travel day\\nTuesday: Work on site\\nWednesday: Work on site\\nThursday: Work on site and travel out to office\\n\\nI would perform training and CCW repairs while on site. Travel costs are approximate. I could likely get it down to $500 round trip for airfare."
+}

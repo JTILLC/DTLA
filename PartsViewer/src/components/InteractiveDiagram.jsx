@@ -393,10 +393,40 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
   };
 
   const updateOrderQty = (orderKey, qty) => {
+    // Allow empty string temporarily while user is typing
+    if (qty === '') {
+      setOrderList(prev => ({
+        ...prev,
+        [orderKey]: {
+          ...prev[orderKey],
+          orderQty: ''
+        }
+      }));
+      return;
+    }
+
     const newQty = parseInt(qty) || 0;
     if (newQty <= 0) {
       removeFromOrder(orderKey);
     } else {
+      setOrderList(prev => ({
+        ...prev,
+        [orderKey]: {
+          ...prev[orderKey],
+          orderQty: newQty
+        }
+      }));
+    }
+  };
+
+  // Handle when user leaves the quantity field
+  const handleQuantityBlur = (orderKey, qty) => {
+    // If empty or 0 when leaving the field, remove the part
+    const newQty = parseInt(qty) || 0;
+    if (newQty <= 0) {
+      removeFromOrder(orderKey);
+    } else {
+      // Ensure it's a valid number
       setOrderList(prev => ({
         ...prev,
         [orderKey]: {
@@ -741,7 +771,7 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
       orderList: orderList,
       metadata: {
         totalItems: Object.keys(orderList).length,
-        totalQuantity: Object.values(orderList).reduce((sum, item) => sum + item.orderQty, 0),
+        totalQuantity: Object.values(orderList).reduce((sum, item) => sum + (parseInt(item.orderQty) || 0), 0),
         diagrams: [...new Set(Object.values(orderList).map(item => item.diagramName))]
       }
     };
@@ -792,8 +822,10 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
               const merged = { ...prev };
               Object.entries(importedData.orderList).forEach(([key, item]) => {
                 if (merged[key]) {
-                  // Item exists, add quantities
-                  merged[key].orderQty += item.orderQty;
+                  // Item exists, add quantities (handle empty strings)
+                  const existingQty = parseInt(merged[key].orderQty) || 0;
+                  const importedQty = parseInt(item.orderQty) || 0;
+                  merged[key].orderQty = existingQty + importedQty;
                 } else {
                   // New item, add it
                   merged[key] = item;
@@ -1457,6 +1489,7 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                               min="1"
                               value={item.orderQty}
                               onChange={(e) => updateOrderQty(orderKey, e.target.value)}
+                              onBlur={(e) => handleQuantityBlur(orderKey, e.target.value)}
                               style={{
                                 width: '50px',
                                 padding: '4px',
