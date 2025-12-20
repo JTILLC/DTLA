@@ -1,0 +1,16 @@
+{
+  "name": "JTI Jobs Tracker",
+  "short_name": "JTI Jobs",
+  "icons": [
+    {
+      "src": "/jtijobs.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#198754",
+  "background_color": "#f8f9fa",
+  "display": "standalone",
+  "start_url": "/"
+}
