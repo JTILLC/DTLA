@@ -6,7 +6,6 @@ import { app } from '../firebaseConfig';
 import { useDates } from '../context/DatesContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import Navigation from './Navigation';
 
 const database = getDatabase(app);
 const auth = getAuth(app);
@@ -134,16 +133,39 @@ export default function Summary({ data }) {
 
         if (running) {
           (entry.heads || []).filter(isHeadDown).forEach((h) => {
-            result.push({
-              key: `${date}|${line}|${h.head}|H`,
-              date,
-              line,
-              head: h.head,
-              issue: h.issue || 'None',
-              notes: h.notes || '',
-              repaired: h.repaired || 'Not Fixed',
-              running: 'Yes',
-              _exportable: { date, line, head: h.head, issue: h.issue || 'None', repaired: h.repaired || 'Not Fixed', notes: h.notes || '' },
+            // Handle new multi-issue format
+            let issuesArray = [];
+            if (Array.isArray(h.issues) && h.issues.length > 0) {
+              issuesArray = h.issues;
+            } else if (h.issue && h.issue !== 'None') {
+              // Fallback for old single-issue format
+              issuesArray = [{ type: h.issue, repaired: h.repaired || 'Not Fixed', replacementReason: '' }];
+            }
+
+            // Create one row per issue
+            issuesArray.forEach((iss, idx) => {
+              const issueDisplay = iss.type === 'WDU Replacement' && iss.replacementReason
+                ? `${iss.type} (${iss.replacementReason})`
+                : iss.type;
+
+              result.push({
+                key: `${date}|${line}|${h.head}|${idx}|H`,
+                date,
+                line,
+                head: h.head,
+                issue: issueDisplay,
+                notes: h.notes || '',
+                repaired: iss.repaired || 'Not Fixed',
+                running: 'Yes',
+                _exportable: {
+                  date,
+                  line,
+                  head: h.head,
+                  issue: issueDisplay,
+                  repaired: iss.repaired || 'Not Fixed',
+                  notes: h.notes || ''
+                },
+              });
             });
           });
         }
@@ -255,8 +277,7 @@ export default function Summary({ data }) {
   };
 
   return (
-    <Navigation>
-      <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
+    <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
       <h2 className="text-2xl font-semibold text-center mb-2 sm:text-xl dark:text-gray-100">Summary</h2>
 
       {dbError && (
@@ -346,10 +367,12 @@ export default function Summary({ data }) {
                 const past = r.head ? (historyCounts.get(pastKey) || 0) : '-';
                 const rowClass =
                   r.head === ''
-                    ? 'bg-yellow-50'
+                    ? 'bg-yellow-200 dark:bg-yellow-400'
+                    : r.issue && r.issue.includes('WDU Replacement')
+                    ? 'bg-purple-300 dark:bg-purple-700'
                     : r.repaired === 'Fixed'
-                    ? 'bg-orange-200'
-                    : 'bg-red-200';
+                    ? 'bg-orange-200 dark:bg-orange-600'
+                    : 'bg-red-200 dark:bg-red-700';
 
                 return (
                   <tr key={r.key} className={rowClass}>
@@ -404,10 +427,12 @@ export default function Summary({ data }) {
             const past = r.head ? (historyCounts.get(pastKey) || 0) : '-';
             const cardClass =
               r.head === ''
-                ? 'bg-yellow-50'
+                ? 'bg-yellow-200 dark:bg-yellow-400'
+                : r.issue && r.issue.includes('WDU Replacement')
+                ? 'bg-purple-300 dark:bg-purple-700'
                 : r.repaired === 'Fixed'
-                ? 'bg-orange-200'
-                : 'bg-red-200';
+                ? 'bg-orange-200 dark:bg-orange-600'
+                : 'bg-red-200 dark:bg-red-700';
 
             return (
               <div key={r.key} className={`${cardClass} border dark:border-gray-600 rounded-lg p-4 shadow-sm`}>
@@ -516,6 +541,5 @@ export default function Summary({ data }) {
         </div>
       )}
     </div>
-    </Navigation>
   );
 }

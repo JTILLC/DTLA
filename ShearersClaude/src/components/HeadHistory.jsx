@@ -83,6 +83,10 @@ export default function HeadHistory() {
   const [showMachineModal, setShowMachineModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editingData, setEditingData] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+    // Default to table on desktop, cards on mobile
+    return window.innerWidth <= 768 ? 'cards' : 'table';
+  });
 
   const [newHeadEntry, setNewHeadEntry] = useState({
     date: '',
@@ -357,8 +361,8 @@ export default function HeadHistory() {
 
   // ---------- UI ----------
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
-      <h2 className="text-2xl font-semibold text-center mb-2 sm:text-xl">Head History</h2>
+    <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
+      <h2 className="text-2xl font-semibold text-center mb-2 text-gray-900 dark:text-gray-100 sm:text-xl">Head History</h2>
 
       {dbError && (
         <div className="mb-3 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
@@ -370,12 +374,36 @@ export default function HeadHistory() {
         <div className="flex gap-2 flex-wrap">
           <Link to="/logger" className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1">Back to Logger</Link>
           <Link to="/summary" className="px-4 py-2 bg-indigo-600 text-white rounded sm:px-2 sm:py-1">Back to Summary</Link>
+
+          {/* Card/Table view toggle */}
+          <div className="flex gap-1 border dark:border-gray-600 rounded">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
         </div>
 
         <input
           type="text"
           placeholder="Search…"
-          className="border rounded px-3 py-1 w-full sm:w-72"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-1 w-full sm:w-72"
           value={globalSearch}
           onChange={(e) => setGlobalSearch(e.target.value)}
         />
@@ -393,12 +421,12 @@ export default function HeadHistory() {
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <input
           type="date"
-          className="border rounded px-2 py-1"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
           value={filters.date}
           onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
         />
         <select
-          className="border rounded px-2 py-1"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
           value={filters.line}
           onChange={(e) => setFilters((f) => ({ ...f, line: e.target.value }))}
         >
@@ -409,12 +437,12 @@ export default function HeadHistory() {
           type="number"
           min="1"
           placeholder="Head #"
-          className="border rounded px-2 py-1 w-24"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 w-24"
           value={filters.head}
           onChange={(e) => setFilters((f) => ({ ...f, head: e.target.value }))}
         />
         <select
-          className="border rounded px-2 py-1"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
           value={filters.issue}
           onChange={(e) => setFilters((f) => ({ ...f, issue: e.target.value }))}
         >
@@ -422,7 +450,7 @@ export default function HeadHistory() {
           {ISSUE_TYPES.map((i) => <option key={i} value={i}>{i}</option>)}
         </select>
         <select
-          className="border rounded px-2 py-1"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
           value={filters.repaired}
           onChange={(e) => setFilters((f) => ({ ...f, repaired: e.target.value }))}
         >
@@ -436,11 +464,11 @@ export default function HeadHistory() {
             checked={machineOnly}
             onChange={(e) => setMachineOnly(e.target.checked)}
           />
-          <span className="text-sm">Machine notes only</span>
+          <span className="text-sm dark:text-gray-200">Machine notes only</span>
         </label>
 
         <button
-          className="ml-auto px-3 py-1 bg-gray-200 rounded text-sm"
+          className="ml-auto px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-sm"
           onClick={() => { setFilters({ date: '', line: '', head: '', issue: '', repaired: '' }); setGlobalSearch(''); setMachineOnly(false); }}
         >
           Clear Filters
@@ -457,16 +485,16 @@ export default function HeadHistory() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* Table or Cards */}
       {rows.length === 0 ? (
-        <p className="text-center text-gray-600 sm:text-sm">No history to display.</p>
-      ) : (
+        <p className="text-center text-gray-600 dark:text-gray-400 sm:text-sm">No history to display.</p>
+      ) : viewMode === 'table' ? (
         <div className="overflow-x-auto">
           <table className="w-full table-auto border-collapse min-w-max">
             <thead>
-              <tr className="bg-gray-100">
+              <tr className="bg-gray-100 dark:bg-gray-700">
                 {['Date','Line','Head','Issue','Repaired','Notes','Actions'].map((c) => (
-                  <th key={c} className="p-2 text-center border sm:p-1 sm:text-sm">{c}</th>
+                  <th key={c} className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">{c}</th>
                 ))}
               </tr>
             </thead>
@@ -474,21 +502,23 @@ export default function HeadHistory() {
               {rows.map((r) => {
                 const isMachineNote = (r.head ?? '') === '';
                 const rowClass = isMachineNote
-                  ? 'bg-yellow-50'
-                  : (r.repaired === 'Fixed' ? 'bg-orange-200' : 'bg-red-200');
+                  ? 'bg-yellow-200 dark:bg-yellow-400'
+                  : (r.issue && r.issue.includes('WDU Replacement'))
+                  ? 'bg-purple-300 dark:bg-purple-700'
+                  : (r.repaired === 'Fixed' ? 'bg-orange-200 dark:bg-orange-600' : 'bg-red-200 dark:bg-red-700');
 
                 return (
                   <tr key={r.id} className={rowClass}>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{r.date}</td>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{r.line}</td>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{isMachineNote ? '—' : r.head}</td>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{isMachineNote ? '—' : (r.issue || 'None')}</td>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">{isMachineNote ? '—' : (r.repaired || 'Not Fixed')}</td>
-                    <td className="p-2 border sm:p-1 sm:text-sm max-w-md whitespace-normal">{r.notes || (isMachineNote ? '(Machine Note)' : '—')}</td>
-                    <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.date}</td>
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.line}</td>
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{isMachineNote ? '—' : r.head}</td>
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{isMachineNote ? '—' : (r.issue || 'None')}</td>
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{isMachineNote ? '—' : (r.repaired || 'Not Fixed')}</td>
+                    <td className="p-2 border dark:border-gray-600 sm:p-1 sm:text-sm max-w-md whitespace-normal">{r.notes || (isMachineNote ? '(Machine Note)' : '—')}</td>
+                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">
                       <div className="flex justify-center gap-2">
                         <button
-                          className="px-2 py-1 bg-gray-700 text-white rounded text-xs"
+                          className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs"
                           onClick={() => {
                             setEditId(r.id);
                             setEditingData({
@@ -504,7 +534,7 @@ export default function HeadHistory() {
                           Edit
                         </button>
                         <button
-                          className="px-2 py-1 bg-rose-600 text-white rounded text-xs"
+                          className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs"
                           onClick={() => deleteEntry(r.id)}
                         >
                           Delete
@@ -517,60 +547,136 @@ export default function HeadHistory() {
             </tbody>
           </table>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {rows.map((r) => {
+            const isMachineNote = (r.head ?? '') === '';
+            const cardClass = isMachineNote
+              ? 'bg-yellow-200 dark:bg-yellow-400 border-yellow-300 dark:border-yellow-500'
+              : (r.issue && r.issue.includes('WDU Replacement'))
+              ? 'bg-purple-300 dark:bg-purple-700 border-purple-300 dark:border-purple-600'
+              : (r.repaired === 'Fixed' ? 'bg-orange-200 dark:bg-orange-600 border-orange-300 dark:border-orange-500' : 'bg-red-200 dark:bg-red-700 border-red-300 dark:border-red-600');
+
+            return (
+              <div key={r.id} className={`p-4 rounded-lg border-2 ${cardClass}`}>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="font-semibold text-lg dark:text-gray-100">{r.date}</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300">{r.line}</div>
+                  </div>
+                  {!isMachineNote && (
+                    <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">#{r.head}</div>
+                  )}
+                </div>
+
+                {isMachineNote ? (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Machine Note:</div>
+                    <div className="text-sm text-gray-800 dark:text-gray-200 italic">{r.notes || '(No notes)'}</div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Issue:</span>
+                        <div className="text-sm dark:text-gray-100">{r.issue || 'None'}</div>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Repaired:</span>
+                        <div className="text-sm dark:text-gray-100">{r.repaired || 'Not Fixed'}</div>
+                      </div>
+                    </div>
+                    {r.notes && (
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Notes:</span>
+                        <div className="text-sm text-gray-800 dark:text-gray-200">{r.notes}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                  <button
+                    className="flex-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm"
+                    onClick={() => {
+                      setEditId(r.id);
+                      setEditingData({
+                        date: r.date,
+                        line: r.line,
+                        head: r.head ?? '',
+                        issue: r.head ? (r.issue || 'None') : '',
+                        repaired: r.head ? (r.repaired || 'Not Fixed') : '',
+                        notes: r.notes || ''
+                      });
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="flex-1 px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-sm"
+                    onClick={() => deleteEntry(r.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Add Head Entry Modal */}
       {showHeadModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-3">Add Head Entry</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-3 dark:text-gray-100">Add Head Entry</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Date</label>
-                <input type="date" className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Date</label>
+                <input type="date" className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.date}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, date: e.target.value }))} />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Line</label>
-                <select className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Line</label>
+                <select className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.line}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, line: e.target.value }))}>
                   {Array.from({ length: 39 }, (_, i) => `Line ${i + 1}`).map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Head #</label>
-                <input type="number" min="1" className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Head #</label>
+                <input type="number" min="1" className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.head}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, head: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Repaired</label>
-                <select className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Repaired</label>
+                <select className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.repaired}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, repaired: e.target.value }))}>
                   {REPAIRED_TYPES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Issue</label>
-                <select className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Issue</label>
+                <select className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.issue}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, issue: e.target.value }))}>
                   {ISSUE_TYPES.map((i) => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Notes</label>
-                <textarea rows={3} className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes</label>
+                <textarea rows={3} className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newHeadEntry.notes}
                   onChange={(e) => setNewHeadEntry((s) => ({ ...s, notes: e.target.value }))} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button className="px-3 py-1 bg-gray-200 rounded" onClick={() => setShowHeadModal(false)}>Cancel</button>
-              <button className="px-3 py-1 bg-purple-600 text-white rounded" onClick={submitHeadModal}>Add</button>
+              <button className="px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 rounded" onClick={() => setShowHeadModal(false)}>Cancel</button>
+              <button className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded" onClick={submitHeadModal}>Add</button>
             </div>
           </div>
         </div>
@@ -579,33 +685,33 @@ export default function HeadHistory() {
       {/* Add Machine Note Modal */}
       {showMachineModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-3">Add Machine Note</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-3 dark:text-gray-100">Add Machine Note</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Date</label>
-                <input type="date" className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Date</label>
+                <input type="date" className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newMachineNote.date}
                   onChange={(e) => setNewMachineNote((s) => ({ ...s, date: e.target.value }))} />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Line</label>
-                <select className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Line</label>
+                <select className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newMachineNote.line}
                   onChange={(e) => setNewMachineNote((s) => ({ ...s, line: e.target.value }))}>
                   {Array.from({ length: 39 }, (_, i) => `Line ${i + 1}`).map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Notes</label>
-                <textarea rows={4} className="w-full border rounded px-2 py-1"
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes</label>
+                <textarea rows={4} className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={newMachineNote.notes}
                   onChange={(e) => setNewMachineNote((s) => ({ ...s, notes: e.target.value }))} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button className="px-3 py-1 bg-gray-200 rounded" onClick={() => setShowMachineModal(false)}>Cancel</button>
-              <button className="px-3 py-1 bg-amber-600 text-white rounded" onClick={submitMachineModal}>Add</button>
+              <button className="px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 rounded" onClick={() => setShowMachineModal(false)}>Cancel</button>
+              <button className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded" onClick={submitMachineModal}>Add</button>
             </div>
           </div>
         </div>
@@ -614,22 +720,22 @@ export default function HeadHistory() {
       {/* Edit Modal */}
       {editId && editingData && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-3">Edit Entry</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-3 dark:text-gray-100">Edit Entry</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Date</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Date</label>
                 <input
                   type="date"
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={editingData.date}
                   onChange={(e) => setEditingData((s) => ({ ...s, date: e.target.value }))}
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Line</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-200">Line</label>
                 <select
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                   value={editingData.line}
                   onChange={(e) => setEditingData((s) => ({ ...s, line: e.target.value }))}
                 >
@@ -640,10 +746,10 @@ export default function HeadHistory() {
               {editingData.head === '' ? (
                 <>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes</label>
                     <textarea
                       rows={4}
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                       value={editingData.notes}
                       onChange={(e) => setEditingData((s) => ({ ...s, notes: e.target.value }))}
                     />
@@ -652,19 +758,19 @@ export default function HeadHistory() {
               ) : (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Head #</label>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-200">Head #</label>
                     <input
                       type="number"
                       min="1"
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                       value={editingData.head}
                       onChange={(e) => setEditingData((s) => ({ ...s, head: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Repaired</label>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-200">Repaired</label>
                     <select
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                       value={editingData.repaired}
                       onChange={(e) => setEditingData((s) => ({ ...s, repaired: e.target.value }))}
                     >
@@ -672,9 +778,9 @@ export default function HeadHistory() {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">Issue</label>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-200">Issue</label>
                     <select
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                       value={editingData.issue}
                       onChange={(e) => setEditingData((s) => ({ ...s, issue: e.target.value }))}
                     >
@@ -682,10 +788,10 @@ export default function HeadHistory() {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes</label>
                     <textarea
                       rows={3}
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1"
                       value={editingData.notes}
                       onChange={(e) => setEditingData((s) => ({ ...s, notes: e.target.value }))}
                     />
@@ -695,8 +801,8 @@ export default function HeadHistory() {
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button className="px-3 py-1 bg-gray-200 rounded" onClick={cancelEdit}>Cancel</button>
-              <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={saveEdit}>Save</button>
+              <button className="px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-200 rounded" onClick={cancelEdit}>Cancel</button>
+              <button className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded" onClick={saveEdit}>Save</button>
             </div>
           </div>
         </div>
