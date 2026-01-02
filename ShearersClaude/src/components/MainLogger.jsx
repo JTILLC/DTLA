@@ -5,6 +5,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { getDatabase, ref, set, get } from 'firebase/database';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { app } from '../firebaseConfig';
+import { useDates as useDatesContext } from '../context/DatesContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -22,13 +23,39 @@ const makeDefaultHeads = () =>
   Array.from({ length: HEADS_PER_LINE }, (_, i) => ({
     head: i + 1,
     offline: 'Active',
-    issue: 'None',
-    repaired: 'Not Fixed',
+    issues: [],  // Array of {type: string, repaired: string, replacementReason: string}
     notes: ''
   }));
 
+// Migrate old single-issue format to new multi-issue format
+const migrateHeadData = (head) => {
+  // If already has issues array, return as-is
+  if (head.issues && Array.isArray(head.issues)) {
+    return head;
+  }
+
+  // Convert old format to new format
+  const migratedHead = {
+    head: head.head,
+    offline: head.offline || 'Active',
+    issues: [],
+    notes: head.notes || ''
+  };
+
+  // If there was an old issue field and it wasn't "None", convert it
+  if (head.issue && head.issue !== 'None') {
+    migratedHead.issues.push({
+      type: head.issue,
+      repaired: head.repaired || 'Not Fixed',
+      replacementReason: ''
+    });
+  }
+
+  return migratedHead;
+};
+
 const issueTypes = [
-  'None','Chute','Operator','Load Cell','Detached Head','Stepper Motor Error','Hopper Issues','Installed Wrong','Other'
+  'WDU Replacement','Chute','Operator','Load Cell','Detached Head','Stepper Motor Error','Hopper Issues','Installed Wrong','Other'
 ];
 
 const toYmd = (d) => {
@@ -47,22 +74,36 @@ const newestFiveDates = () => {
   });
 };
 
-export default function MainLogger({ data, setData, dates, setDates }) {
+export default function MainLogger({ data, setData }) {
+  // Use DatesContext
+  const { dates: contextDates, setDates: setContextDates } = useDatesContext();
+
   // Local persistence (autosave)
   const [localData, setLocalData] = useState(() => {
     const saved = localStorage.getItem('downtimeLoggerData');
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [localDates, setLocalDates] = useState(() => {
-    const saved = localStorage.getItem('downtimeLoggerDates');
-    if (saved) try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length === 5) return p; } catch {}
-    return newestFiveDates();
+    if (!saved) return {};
+
+    const parsedData = JSON.parse(saved);
+    // Migrate data on load
+    const migratedData = {};
+    Object.keys(parsedData).forEach(date => {
+      migratedData[date] = {};
+      Object.keys(parsedData[date]).forEach(line => {
+        const lineData = parsedData[date][line];
+        const migratedHeads = (lineData.heads || []).map(head => migrateHeadData(head));
+        migratedData[date][line] = {
+          ...lineData,
+          heads: migratedHeads
+        };
+      });
+    });
+    return migratedData;
   });
 
   const useData = data ?? localData;
   const useSetData = setData ?? setLocalData;
-  const useDates = dates ?? localDates;
-  const useSetDates = setDates ?? setLocalDates;
+  const useDates = contextDates;
+  const useSetDates = setContextDates;
 
   const { state } = useLocation();
   const [currentDay, setCurrentDay] = useState(() => state?.selectedDate || useDates[0]);
@@ -71,6 +112,11 @@ export default function MainLogger({ data, setData, dates, setDates }) {
   const [saveStatus, setSaveStatus] = useState('');
   const [authError, setAuthError] = useState(null);
   const [actionsOpen, setActionsOpen] = useState(false); // NEW: actions dropdown
+  const [viewMode, setViewMode] = useState(() => {
+    // Default to table on desktop, cards on mobile
+    return window.innerWidth <= 768 ? 'cards' : 'table';
+  });
+  const [showActiveHeads, setShowActiveHeads] = useState(false); // Collapse active heads by default
 
   // Firebase anon auth
   useEffect(() => {
@@ -97,9 +143,6 @@ export default function MainLogger({ data, setData, dates, setDates }) {
   useEffect(() => {
     try { localStorage.setItem('downtimeLoggerData', JSON.stringify(useData)); } catch {}
   }, [useData]);
-  useEffect(() => {
-    try { localStorage.setItem('downtimeLoggerDates', JSON.stringify(useDates)); } catch {}
-  }, [useDates]);
 
   const showSave = (msg) => {
     setSaveStatus(msg);
@@ -127,7 +170,21 @@ export default function MainLogger({ data, setData, dates, setDates }) {
         ? payload.dates
         : Object.keys(cloudData).sort((a,b)=>new Date(b)-new Date(a)).slice(0,5);
 
-      useSetData(cloudData);
+      // Migrate old data format to new format
+      const migratedData = {};
+      Object.keys(cloudData).forEach(date => {
+        migratedData[date] = {};
+        Object.keys(cloudData[date]).forEach(line => {
+          const lineData = cloudData[date][line];
+          const migratedHeads = (lineData.heads || []).map(head => migrateHeadData(head));
+          migratedData[date][line] = {
+            ...lineData,
+            heads: migratedHeads
+          };
+        });
+      });
+
+      useSetData(migratedData);
       useSetDates(cloudDates);
       setCurrentDay(cloudDates[0]);
       setExpandedDays(new Set([cloudDates[0]]));
@@ -224,9 +281,43 @@ export default function MainLogger({ data, setData, dates, setDates }) {
     (getDayData(date)[currentLine]) || { heads: makeDefaultHeads(), machineNotes: '', running: false };
 
   const getRowClass = (h) => {
-    if (h.offline === 'Active') return 'bg-green-200';
-    if (h.repaired === 'Fixed') return 'bg-orange-200';
-    return 'bg-red-200';
+    if (h.offline === 'Active') return 'bg-green-200 dark:bg-green-700';
+
+    const issues = h.issues || [];
+
+    // Purple if any WDU issue
+    if (issues.some(iss => iss.type === 'WDU Replacement')) {
+      return 'bg-purple-300 dark:bg-purple-700';
+    }
+
+    // Orange if all issues are fixed
+    if (issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed')) {
+      return 'bg-orange-200 dark:bg-orange-600';
+    }
+
+    // Red if offline with unfixed issues
+    return 'bg-red-200 dark:bg-red-700';
+  };
+
+  // Categorize heads: priority (offline/has issues/has notes) vs active with no issues/notes
+  const categorizeHeads = (heads) => {
+    const priority = [];
+    const activeEmpty = [];
+
+    heads.forEach((h, idx) => {
+      const issues = h.issues || [];
+      const hasIssues = issues.length > 0;
+      const hasNotes = (h.notes || '').trim() !== '';
+      const isOffline = h.offline !== 'Active';
+
+      if (isOffline || hasIssues || hasNotes) {
+        priority.push({ ...h, originalIndex: idx });
+      } else {
+        activeEmpty.push({ ...h, originalIndex: idx });
+      }
+    });
+
+    return { priority, activeEmpty };
   };
 
   // Reset helpers
@@ -279,7 +370,11 @@ export default function MainLogger({ data, setData, dates, setDates }) {
 
   const fixedCount = useMemo(() => {
     const heads = entryFor(currentDay).heads || makeDefaultHeads();
-    return heads.filter(h => h.offline !== 'Active' && h.repaired === 'Fixed').length;
+    return heads.filter(h => {
+      if (h.offline === 'Active') return false;
+      const issues = h.issues || [];
+      return issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed');
+    }).length;
   }, [currentDay, currentLine, useData]);
 
   const notFixedCount = Math.max(0, offlineCount - fixedCount);
@@ -297,7 +392,11 @@ export default function MainLogger({ data, setData, dates, setDates }) {
       {
         label: 'Fixed',
         data: (useDates || []).map((d) =>
-          (entryFor(d).heads || makeDefaultHeads()).filter((h) => h.offline !== 'Active' && h.repaired === 'Fixed').length
+          (entryFor(d).heads || makeDefaultHeads()).filter((h) => {
+            if (h.offline === 'Active') return false;
+            const issues = h.issues || [];
+            return issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed');
+          }).length
         ),
         backgroundColor: '#3B82F6'
       }
@@ -306,7 +405,7 @@ export default function MainLogger({ data, setData, dates, setDates }) {
   }), [useDates, currentLine, useData]);
 
   return (
-    <div className="relative max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
+    <div className="relative max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
       {/* fixed status badge */}
       {saveStatus && (
         <div className="absolute top-2 right-2 px-3 py-1 rounded text-white text-xs shadow bg-slate-700/90 pointer-events-none">
@@ -314,7 +413,7 @@ export default function MainLogger({ data, setData, dates, setDates }) {
         </div>
       )}
 
-      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl">Downtime Logger</h2>
+      <h2 className="text-2xl font-semibold text-center mb-4 text-gray-900 dark:text-gray-100 sm:text-xl">Downtime Logger</h2>
 
       {/* Top nav + cloud + actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4 relative">
@@ -322,6 +421,31 @@ export default function MainLogger({ data, setData, dates, setDates }) {
           <Link to="/summary" className="px-4 py-2 bg-blue-500 text-white rounded text-sm">View Summary</Link>
           <Link to="/dashboard" className="px-4 py-2 bg-indigo-500 text-white rounded text-sm">Dashboard</Link>
           <Link to="/running" className="px-4 py-2 bg-purple-500 text-white rounded text-sm">Running</Link>
+          <Link to="/issues-chart" className="px-4 py-2 bg-teal-500 text-white rounded text-sm">Issues Chart</Link>
+
+          {/* Card/Table view toggle */}
+          <div className="flex gap-1 border rounded">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <label htmlFor="import-json" className="px-3 py-2 bg-green-600 text-white rounded text-sm cursor-pointer">Import</label>
@@ -378,6 +502,84 @@ export default function MainLogger({ data, setData, dates, setDates }) {
         </div>
       </div>
 
+      {/* Quick Head Toggle */}
+      <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          Quick Head Toggle - {currentLine} ({currentDay})
+        </h3>
+        <div className="grid grid-cols-7 gap-2 mb-4">
+          {Array.from({ length: HEADS_PER_LINE }, (_, i) => {
+            const currentEntry = entryFor(currentDay);
+            const currentHeads = currentEntry.heads || makeDefaultHeads();
+            const head = currentHeads[i];
+            const isActive = head.offline === 'Active';
+            const issues = head.issues || [];
+            const hasWDU = issues.some(iss => iss.type === 'WDU Replacement');
+            const allFixed = issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed');
+
+            let displayText = 'Active';
+            let bgColor = 'bg-green-500';
+            let textColor = 'text-white';
+
+            if (!isActive) {
+              if (hasWDU) {
+                displayText = 'WDU';
+                bgColor = 'bg-purple-500';
+                textColor = 'text-white';
+              } else if (allFixed) {
+                displayText = 'Fixed';
+                bgColor = 'bg-orange-500';
+                textColor = 'text-white';
+              } else {
+                displayText = 'Offline';
+                bgColor = 'bg-red-500';
+                textColor = 'text-white';
+              }
+            }
+
+            return (
+              <button
+                key={i}
+                onClick={() => {
+                  const dayData = getDayData(currentDay);
+                  const entry = dayData[currentLine] || { heads: makeDefaultHeads(), machineNotes: '', running: false };
+                  const newHeads = (entry.heads || makeDefaultHeads()).map((h, idx) =>
+                    idx === i ? { ...h, offline: h.offline === 'Active' ? 'Offline' : 'Active' } : h
+                  );
+                  updateDay(currentDay, {
+                    [currentLine]: { ...entry, heads: newHeads }
+                  });
+                }}
+                className={`px-3 py-2 rounded border border-gray-300 dark:border-gray-600 ${bgColor} ${textColor} hover:opacity-80 transition-all`}
+              >
+                <div className="font-semibold text-sm">Head {i + 1}</div>
+                <div className="text-xs mt-1">{displayText}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Color Legend */}
+        <div className="flex flex-wrap gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-green-500 rounded"></div>
+            <span className="dark:text-gray-200">Green = Active</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-500 rounded"></div>
+            <span className="dark:text-gray-200">Red = Offline</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-orange-500 rounded"></div>
+            <span className="dark:text-gray-200">Orange = Fixed</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-purple-500 rounded"></div>
+            <span className="dark:text-gray-200">Purple = WDU</span>
+          </div>
+        </div>
+      </div>
+
       {/* Day cards */}
       <div className="space-y-2">
         {(useDates || []).map((date, index) => {
@@ -401,28 +603,31 @@ export default function MainLogger({ data, setData, dates, setDates }) {
 
           const lineCounts = (() => {
             const off = (heads || makeDefaultHeads()).filter(h => h.offline !== 'Active');
-            const fixed = off.filter(h => h.repaired === 'Fixed');
+            const fixed = off.filter(h => {
+              const issues = h.issues || [];
+              return issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed');
+            });
             return { notFixed: off.length - fixed.length, fixed: fixed.length };
           })();
 
           return (
-            <div key={date} className="border rounded-lg overflow-hidden">
+            <div key={date} className="border dark:border-gray-600 rounded-lg overflow-hidden">
               {/* Header */}
-              <button onClick={() => toggleDay(date)} className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200">
+              <button onClick={() => toggleDay(date)} className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <label className="text-sm font-medium whitespace-nowrap">Date</label>
+                    <label className="text-sm font-medium whitespace-nowrap dark:text-gray-200">Date</label>
                     <input
                       type="date"
                       value={date}
                       onChange={(e) => { e.stopPropagation(); handleEditDate(index, e.target.value); }}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-sm border rounded px-2 py-1"
+                      className="text-sm border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-100 rounded px-2 py-1"
                     />
-                    <span className="font-medium text-left leading-tight sm:text-sm">{date}</span>
+                    <span className="font-medium text-left leading-tight dark:text-gray-100 sm:text-sm">{date}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 whitespace-nowrap">
+                    <span className="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
                       {Object.keys(dayData).filter((l) => dayData[l]?.running).length} active
                     </span>
                     <svg className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -434,34 +639,34 @@ export default function MainLogger({ data, setData, dates, setDates }) {
 
               {/* Body */}
               {isExpanded && (
-                <div className="p-4 bg-white space-y-4">
+                <div className="p-4 bg-white dark:bg-gray-800 space-y-4">
                   {/* Controls row */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                     {/* Line & running (with counts) */}
                     <div className="md:col-span-8 flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium whitespace-nowrap">Line:</span>
+                        <span className="font-medium whitespace-nowrap dark:text-gray-100">Line:</span>
                         <select
                           value={currentLine}
                           onChange={(e) => setCurrentLine(e.target.value)}
-                          className="border p-2 rounded sm:w-44 w-48"
+                          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 p-2 rounded sm:w-44 w-48"
                         >
                           {Array.from({ length: 39 }, (_, i) => `Line ${i + 1}`).map((line) => (
                             <option key={line} value={line}>{line}</option>
                           ))}
                         </select>
 
-                        {/* NEW: counts badges for current line/date */}
-                        <span className="px-2 py-1 rounded text-white text-xs" style={{ background: '#EF4444' }}>
-                          Not Fixed: <b>{lineCounts.notFixed}</b>
+                        {/* Count badges for current line/date */}
+                        <span className="px-2 py-1 rounded text-white text-xs font-semibold bg-red-600">
+                          Not Fixed: {lineCounts.notFixed}
                         </span>
-                        <span className="px-2 py-1 rounded text-white text-xs" style={{ background: '#3B82F6' }}>
-                          Fixed: <b>{lineCounts.fixed}</b>
+                        <span className="px-2 py-1 rounded text-white text-xs font-semibold bg-blue-600">
+                          Fixed: {lineCounts.fixed}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="sm:text-sm">Running:</span>
+                        <span className="sm:text-sm dark:text-gray-100">Running:</span>
                         <button
                           onClick={() => updateEntry((ent) => ({ ...ent, running: !ent.running }))}
                           className={'px-4 py-1 rounded text-white ' + (running ? 'bg-green-500' : 'bg-red-500') + ' sm:px-3 sm:py-1 sm:text-sm'}
@@ -471,74 +676,406 @@ export default function MainLogger({ data, setData, dates, setDates }) {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button onClick={prevLine} className="px-3 py-1 bg-gray-200 rounded sm:px-2 sm:py-1">Prev</button>
-                        <button onClick={nextLine} className="px-3 py-1 bg-gray-200 rounded sm:px-2 sm:py-1">Next</button>
+                        <button onClick={prevLine} className="px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-100 rounded sm:px-2 sm:py-1">Prev</button>
+                        <button onClick={nextLine} className="px-3 py-1 bg-gray-200 dark:bg-gray-700 dark:text-gray-100 rounded sm:px-2 sm:py-1">Next</button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Heads table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full table-auto border-collapse min-w-max">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          {['Head', 'Status', 'Issue', 'Repaired', 'Notes'].map((c) => (
-                            <th key={c} className="p-2 text-center border sm:p-1 sm:text-sm">{c}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(heads || makeDefaultHeads()).map((h, i) => (
-                          <tr key={i} className={getRowClass(h)}>
-                            <td className="p-2 text-center sm:p-1 sm:text-sm">{h.head}</td>
-                            <td className="p-2 text-center sm:p-1 sm:text-sm">
-                              <button
-                                onClick={() => updateHeadField(i, 'offline', h.offline === 'Active' ? 'Offline' : 'Active')}
-                                className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
-                              >
-                                {h.offline}
-                              </button>
-                            </td>
-                            <td className="p-2 text-center sm:p-1 sm:text-sm">
-                              <select
-                                value={h.issue}
-                                onChange={(e) => updateHeadField(i, 'issue', e.target.value)}
-                                className="w-full sm:text-sm"
-                              >
-                                {issueTypes.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2 text-center sm:p-1 sm:text-sm">
-                              <button
-                                onClick={() => updateHeadField(i, 'repaired', h.repaired === 'Fixed' ? 'Not Fixed' : 'Fixed')}
-                                className={'px-4 py-1 rounded text-white ' + (h.repaired === 'Fixed' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
-                              >
-                                {h.repaired}
-                              </button>
-                            </td>
-                            <td className="p-2 sm:p-1 sm:text-sm">
-                              <input
-                                value={h.notes}
-                                onChange={(e) => updateHeadField(i, 'notes', e.target.value)}
-                                className="w-full p-1 border rounded sm:text-sm"
-                              />
-                            </td>
+                  {/* Heads display (table or cards) */}
+                  {viewMode === 'table' ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-auto border-collapse min-w-max">
+                        <thead>
+                          <tr className="bg-gray-100 dark:bg-gray-700">
+                            {['Head', 'Status', 'Issues', 'Notes'].map((c) => (
+                              <th key={c} className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">{c}</th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const { priority, activeEmpty } = categorizeHeads(heads || makeDefaultHeads());
+
+                            return (
+                              <>
+                                {/* Priority heads: offline, has issues, or has notes */}
+                                {priority.map((h) => {
+                                  const headIdx = h.originalIndex;
+                                  const issues = h.issues || [];
+                                  const rowBg = getRowClass(h);
+
+                                  return (
+                                    <React.Fragment key={headIdx}>
+                                <tr className={rowBg}>
+                                  <td className="p-2 text-center align-top border dark:border-gray-600 sm:p-1 sm:text-sm font-semibold">
+                                    {h.head}
+                                  </td>
+                                  <td className="p-2 text-center align-top border dark:border-gray-600 sm:p-1 sm:text-sm">
+                                    <button
+                                      onClick={() => updateHeadField(headIdx, 'offline', h.offline === 'Active' ? 'Offline' : 'Active')}
+                                      className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
+                                    >
+                                      {h.offline}
+                                    </button>
+                                  </td>
+                                  <td className="p-2 border dark:border-gray-600">
+                                    {/* Issues list */}
+                                    <div className="space-y-2">
+                                      {issues.map((iss, issIdx) => (
+                                        <div key={issIdx} className="space-y-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <select
+                                              value={iss.type}
+                                              onChange={(e) => {
+                                                const newIssues = [...issues];
+                                                newIssues[issIdx] = { ...iss, type: e.target.value };
+                                                updateHeadField(headIdx, 'issues', newIssues);
+                                              }}
+                                              className="flex-1 min-w-[150px] p-1 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                            >
+                                              {issueTypes.map((opt) => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                              ))}
+                                            </select>
+                                            <button
+                                              onClick={() => {
+                                                const newIssues = [...issues];
+                                                newIssues[issIdx] = { ...iss, repaired: iss.repaired === 'Fixed' ? 'Not Fixed' : 'Fixed' };
+                                                updateHeadField(headIdx, 'issues', newIssues);
+                                              }}
+                                              className={'px-3 py-1 rounded text-white text-sm ' + (iss.repaired === 'Fixed' ? 'bg-green-500' : 'bg-red-500')}
+                                            >
+                                              {iss.repaired || 'Not Fixed'}
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                const newIssues = issues.filter((_, idx) => idx !== issIdx);
+                                                updateHeadField(headIdx, 'issues', newIssues);
+                                              }}
+                                              className="px-2 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                              title="Delete issue"
+                                            >
+                                              X
+                                            </button>
+                                          </div>
+                                          {iss.type === 'WDU Replacement' && (
+                                            <div className="flex items-center gap-2 pl-4">
+                                              <span className="text-xs font-medium dark:text-gray-300">Error was:</span>
+                                              <select
+                                                value={iss.replacementReason || ''}
+                                                onChange={(e) => {
+                                                  const newIssues = [...issues];
+                                                  newIssues[issIdx] = { ...iss, replacementReason: e.target.value };
+                                                  updateHeadField(headIdx, 'issues', newIssues);
+                                                }}
+                                                className="flex-1 p-1 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                              >
+                                                <option value="">Select error...</option>
+                                                {issueTypes.filter(t => t !== 'WDU Replacement').map((opt) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                      <button
+                                        onClick={() => {
+                                          const newIssues = [...issues, { type: 'Chute', repaired: 'Not Fixed', replacementReason: '' }];
+                                          updateHeadField(headIdx, 'issues', newIssues);
+                                        }}
+                                        className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                                      >
+                                        + Add Issue
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="p-2 align-top border dark:border-gray-600 sm:p-1 sm:text-sm">
+                                    <input
+                                      value={h.notes}
+                                      onChange={(e) => updateHeadField(headIdx, 'notes', e.target.value)}
+                                      className="w-full p-1 border rounded sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                      placeholder="Notes..."
+                                    />
+                                  </td>
+                                </tr>
+                              </React.Fragment>
+                                  );
+                                })}
+
+                                {/* Collapsible Active Heads section */}
+                                {activeEmpty.length > 0 && (
+                                  <>
+                                    <tr>
+                                      <td colSpan="4" className="p-0 border dark:border-gray-600">
+                                        <button
+                                          onClick={() => setShowActiveHeads(!showActiveHeads)}
+                                          className="w-full p-2 text-left bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-between"
+                                        >
+                                          <span className="text-sm font-medium dark:text-gray-200">
+                                            Active Heads with No Issues ({activeEmpty.length})
+                                          </span>
+                                          <svg
+                                            className={`w-5 h-5 transition-transform dark:text-gray-200 ${showActiveHeads ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                    {showActiveHeads && activeEmpty.map((h) => {
+                                      const headIdx = h.originalIndex;
+                                      const issues = h.issues || [];
+                                      const rowBg = getRowClass(h);
+
+                                      return (
+                                        <React.Fragment key={headIdx}>
+                                          <tr className={rowBg}>
+                                            <td className="p-2 text-center align-top border dark:border-gray-600 sm:p-1 sm:text-sm font-semibold dark:text-gray-100">
+                                              {h.head}
+                                            </td>
+                                            <td className="p-2 text-center align-top border dark:border-gray-600 sm:p-1 sm:text-sm">
+                                              <button
+                                                onClick={() => updateHeadField(headIdx, 'offline', h.offline === 'Active' ? 'Offline' : 'Active')}
+                                                className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500') + ' sm:px-2 sm:py-1 sm:text-sm'}
+                                              >
+                                                {h.offline}
+                                              </button>
+                                            </td>
+                                            <td className="p-2 border dark:border-gray-600">
+                                              <div className="space-y-2">
+                                                <button
+                                                  onClick={() => {
+                                                    const newIssues = [{ type: 'Chute', repaired: 'Not Fixed', replacementReason: '' }];
+                                                    updateHeadField(headIdx, 'issues', newIssues);
+                                                  }}
+                                                  className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                                                >
+                                                  + Add Issue
+                                                </button>
+                                              </div>
+                                            </td>
+                                            <td className="p-2 align-top border dark:border-gray-600 sm:p-1 sm:text-sm">
+                                              <input
+                                                value={h.notes}
+                                                onChange={(e) => updateHeadField(headIdx, 'notes', e.target.value)}
+                                                className="w-full p-1 border rounded sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                                placeholder="Notes..."
+                                              />
+                                            </td>
+                                          </tr>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const { priority, activeEmpty } = categorizeHeads(heads || makeDefaultHeads());
+
+                        return (
+                          <>
+                            {/* Priority heads: offline, has issues, or has notes */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                              {priority.map((h) => {
+                                const headIdx = h.originalIndex;
+                                const issues = h.issues || [];
+                                return (
+                                  <div key={headIdx} className={`p-3 rounded-lg border-2 ${getRowClass(h)}`}>
+                                    <div className="font-semibold text-lg mb-2 dark:text-gray-100">Head {h.head}</div>
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium dark:text-gray-200">Status:</span>
+                                        <button
+                                          onClick={() => updateHeadField(headIdx, 'offline', h.offline === 'Active' ? 'Offline' : 'Active')}
+                                          className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500')}
+                                        >
+                                          {h.offline}
+                                        </button>
+                                      </div>
+
+                                      {/* Issues list */}
+                                      <div>
+                                        <div className="text-sm font-medium mb-2 dark:text-gray-200">Issues:</div>
+                                        <div className="space-y-2">
+                                          {issues.map((iss, issIdx) => (
+                                            <div key={issIdx} className="p-2 bg-white dark:bg-gray-700 rounded border dark:border-gray-600 space-y-2">
+                                              <div className="flex items-center gap-2">
+                                                <select
+                                                  value={iss.type}
+                                                  onChange={(e) => {
+                                                    const newIssues = [...issues];
+                                                    newIssues[issIdx] = { ...iss, type: e.target.value };
+                                                    updateHeadField(headIdx, 'issues', newIssues);
+                                                  }}
+                                                  className="flex-1 p-1 border rounded text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100"
+                                                >
+                                                  {issueTypes.map((opt) => (
+                                                    <option key={opt} value={opt}>{opt}</option>
+                                                  ))}
+                                                </select>
+                                                <button
+                                                  onClick={() => {
+                                                    const newIssues = issues.filter((_, idx) => idx !== issIdx);
+                                                    updateHeadField(headIdx, 'issues', newIssues);
+                                                  }}
+                                                  className="px-2 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                                >
+                                                  X
+                                                </button>
+                                              </div>
+                                              {iss.type === 'WDU Replacement' && (
+                                                <div className="space-y-1">
+                                                  <label className="text-xs font-medium dark:text-gray-300">Error was:</label>
+                                                  <select
+                                                    value={iss.replacementReason || ''}
+                                                    onChange={(e) => {
+                                                      const newIssues = [...issues];
+                                                      newIssues[issIdx] = { ...iss, replacementReason: e.target.value };
+                                                      updateHeadField(headIdx, 'issues', newIssues);
+                                                    }}
+                                                    className="w-full p-1 border rounded text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100"
+                                                  >
+                                                    <option value="">Select error...</option>
+                                                    {issueTypes.filter(t => t !== 'WDU Replacement').map((opt) => (
+                                                      <option key={opt} value={opt}>{opt}</option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+                                              )}
+                                              <button
+                                                onClick={() => {
+                                                  const newIssues = [...issues];
+                                                  newIssues[issIdx] = { ...iss, repaired: iss.repaired === 'Fixed' ? 'Not Fixed' : 'Fixed' };
+                                                  updateHeadField(headIdx, 'issues', newIssues);
+                                                }}
+                                                className={'w-full px-3 py-1 rounded text-white text-sm ' + (iss.repaired === 'Fixed' ? 'bg-green-500' : 'bg-red-500')}
+                                              >
+                                                {iss.repaired || 'Not Fixed'}
+                                              </button>
+                                            </div>
+                                          ))}
+                                          <button
+                                            onClick={() => {
+                                              const newIssues = [...issues, { type: 'Chute', repaired: 'Not Fixed', replacementReason: '' }];
+                                              updateHeadField(headIdx, 'issues', newIssues);
+                                            }}
+                                            className="w-full px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                                          >
+                                            + Add Issue
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <label className="text-sm font-medium block mb-1 dark:text-gray-200">Notes:</label>
+                                        <input
+                                          value={h.notes}
+                                          onChange={(e) => updateHeadField(headIdx, 'notes', e.target.value)}
+                                          className="w-full p-1 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                          placeholder="Notes..."
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Collapsible Active Heads section */}
+                            {activeEmpty.length > 0 && (
+                              <div className="mb-4">
+                                <button
+                                  onClick={() => setShowActiveHeads(!showActiveHeads)}
+                                  className="w-full p-3 text-left bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors flex items-center justify-between border-2 border-gray-300 dark:border-gray-600"
+                                >
+                                  <span className="text-sm font-medium dark:text-gray-200">
+                                    Active Heads with No Issues ({activeEmpty.length})
+                                  </span>
+                                  <svg
+                                    className={`w-5 h-5 transition-transform dark:text-gray-200 ${showActiveHeads ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+
+                                {showActiveHeads && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                    {activeEmpty.map((h) => {
+                                      const headIdx = h.originalIndex;
+                                      const issues = h.issues || [];
+                                      return (
+                                        <div key={headIdx} className={`p-3 rounded-lg border-2 ${getRowClass(h)}`}>
+                                          <div className="font-semibold text-lg mb-2 dark:text-gray-100">Head {h.head}</div>
+                                          <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-medium dark:text-gray-200">Status:</span>
+                                              <button
+                                                onClick={() => updateHeadField(headIdx, 'offline', h.offline === 'Active' ? 'Offline' : 'Active')}
+                                                className={'px-4 py-1 rounded text-white ' + (h.offline === 'Active' ? 'bg-green-500' : 'bg-red-500')}
+                                              >
+                                                {h.offline}
+                                              </button>
+                                            </div>
+
+                                            <div>
+                                              <div className="text-sm font-medium mb-2 dark:text-gray-200">Issues:</div>
+                                              <button
+                                                onClick={() => {
+                                                  const newIssues = [{ type: 'Chute', repaired: 'Not Fixed', replacementReason: '' }];
+                                                  updateHeadField(headIdx, 'issues', newIssues);
+                                                }}
+                                                className="w-full px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                                              >
+                                                + Add Issue
+                                              </button>
+                                            </div>
+
+                                            <div>
+                                              <label className="text-sm font-medium block mb-1 dark:text-gray-200">Notes:</label>
+                                              <input
+                                                value={h.notes}
+                                                onChange={(e) => updateHeadField(headIdx, 'notes', e.target.value)}
+                                                className="w-full p-1 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                                placeholder="Notes..."
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
 
                   {/* Machine notes */}
                   <div>
-                    <label className="block mb-1 font-medium sm:text-sm">Machine Notes:</label>
+                    <label className="block mb-1 font-medium dark:text-gray-100 sm:text-sm">Machine Notes:</label>
                     <textarea
                       rows={3}
                       value={machineNotes}
                       onChange={(e) => updateEntry({ machineNotes: e.target.value })}
-                      className="w-full border p-2 rounded sm:text-sm"
+                      className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 p-2 rounded sm:text-sm"
                     />
                   </div>
                 </div>
@@ -550,7 +1087,7 @@ export default function MainLogger({ data, setData, dates, setDates }) {
 
       {/* Tiny trend */}
       <div className="mt-6">
-        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg">Heads Down Per Day</h3>
+        <h3 className="text-xl font-semibold mb-2 text-center dark:text-gray-100 sm:text-lg">Heads Down Per Day</h3>
         <Bar
           data={headsDownGraphData}
           options={{

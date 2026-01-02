@@ -6,7 +6,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, 
 import { getDatabase, ref, get } from 'firebase/database';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { app } from '../firebaseConfig';
-import Navigation from './Navigation';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -26,6 +25,7 @@ const CHART_TYPES = [
 ];
 
 const ISSUE_TYPES = [
+  'WDU Replacement',
   'Chute',
   'Operator',
   'Load Cell',
@@ -37,6 +37,7 @@ const ISSUE_TYPES = [
 ];
 
 const COLORS = {
+  'WDU Replacement': '#a855f7',
   'Chute': '#ef4444',
   'Operator': '#f97316',
   'Load Cell': '#eab308',
@@ -45,7 +46,7 @@ const COLORS = {
   'Hopper Issues': '#14b8a6',
   'Installed Wrong': '#06b6d4',
   'Other': '#8b5cf6',
-  'Fixed': '#10b981',
+  'Fixed': '#f97316',
   'Not Fixed': '#ef4444'
 };
 
@@ -411,8 +412,7 @@ export default function HeadIssuesChart() {
   };
 
   return (
-    <Navigation>
-      <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md max-w-7xl mx-auto">
+    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md max-w-7xl mx-auto">
         <div className="mb-5 flex justify-between items-center flex-wrap gap-4">
           <h1 className="m-0 text-2xl font-semibold dark:text-gray-100">Head Issues Analysis</h1>
           <button
@@ -548,6 +548,5 @@ export default function HeadIssuesChart() {
           )}
         </div>
       </div>
-    </Navigation>
   );
 }

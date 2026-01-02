@@ -27,7 +27,7 @@ const sections = [
 ];
 
 const issueTypes = [
-  'None',
+  'WDU Replacement',
   'Chute',
   'Operator',
   'Load Cell',
@@ -39,7 +39,7 @@ const issueTypes = [
 ];
 
 const issueColors = {
-  None: '#E0E0E0',
+  'WDU Replacement': '#A855F7',
   Chute: '#FF6384',
   Operator: '#36A2EB',
   'Load Cell': '#FFCE56',
@@ -60,7 +60,7 @@ const makeDefaultHeads = () =>
   }));
 
 export default function Dashboard({ data = {}, dates: propDates = [] }) {
-  // Robust 5-day window sourcing: Context → props → localStorage → data keys
+  // Use the 5 days from the logger: Context → props → localStorage → data keys
   let ctxDates;
   try {
     if (useDatesHook) ctxDates = useDatesHook()?.dates;
@@ -137,9 +137,19 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
           }
 
           const offline = heads.filter((h) => (h.offline ?? 'Active') !== 'Active').length;
-          const fixed = heads.filter(
-            (h) => (h.offline ?? 'Active') !== 'Active' && (h.repaired ?? 'Not Fixed') === 'Fixed'
-          ).length;
+
+          // Handle new multi-issue format
+          const fixed = heads.filter((h) => {
+            if ((h.offline ?? 'Active') === 'Active') return false;
+            const issues = h.issues || [];
+            // If no issues array but has old repaired field, use it
+            if (issues.length === 0) {
+              return (h.repaired ?? 'Not Fixed') === 'Fixed';
+            }
+            // All issues must be fixed
+            return issues.length > 0 && issues.every(iss => iss.repaired === 'Fixed');
+          }).length;
+
           const notFixed = offline - fixed;
 
           headsDown[line][d] = { offline, fixed, notFixed };
@@ -162,9 +172,20 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
           heads
             .filter((h) => (h.offline ?? 'Active') !== 'Active')
             .forEach((h) => {
-              const k = h.issue || 'None';
-              countsAll[k] = (countsAll[k] || 0) + 1;
-              countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
+              const issues = h.issues || [];
+              // If using new multi-issue format, count each issue
+              if (issues.length > 0) {
+                issues.forEach(iss => {
+                  const k = iss.type || 'None';
+                  countsAll[k] = (countsAll[k] || 0) + 1;
+                  countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
+                });
+              } else {
+                // Fallback to old single-issue format
+                const k = h.issue || 'None';
+                countsAll[k] = (countsAll[k] || 0) + 1;
+                countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
+              }
             });
         });
       });
@@ -242,8 +263,18 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
             heads
               .filter((h) => (h.offline ?? 'Active') !== 'Active')
               .forEach((h) => {
-                const k = h.issue || 'None';
-                counts[k] = (counts[k] || 0) + 1;
+                const issues = h.issues || [];
+                // If using new multi-issue format, count each issue
+                if (issues.length > 0) {
+                  issues.forEach(iss => {
+                    const k = iss.type || 'None';
+                    counts[k] = (counts[k] || 0) + 1;
+                  });
+                } else {
+                  // Fallback to old single-issue format
+                  const k = h.issue || 'None';
+                  counts[k] = (counts[k] || 0) + 1;
+                }
               });
           });
         });
@@ -269,20 +300,20 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
   }, [data, dates]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md md:p-4 sm:p-2">
-      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl">Dashboard</h2>
+    <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
+      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl dark:text-gray-100">Dashboard</h2>
 
       {/* Global Totals (respect selectedDate) */}
       <div className="flex flex-wrap justify-center gap-4 mb-6 text-center">
-        <div className="bg-red-100 text-red-700 px-4 py-2 rounded-lg shadow">
+        <div className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg shadow">
           <p className="font-bold text-lg">{totals.offline}</p>
           <p>Heads Offline</p>
         </div>
-        <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg shadow">
+        <div className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-4 py-2 rounded-lg shadow">
           <p className="font-bold text-lg">{totals.fixed}</p>
           <p>Heads Fixed</p>
         </div>
-        <div className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-lg shadow">
+        <div className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-4 py-2 rounded-lg shadow">
           <p className="font-bold text-lg">{totals.notFixed}</p>
           <p>Not Fixed</p>
         </div>
@@ -312,11 +343,11 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
       {/* Date selector (5-day window) */}
       <div className="flex justify-center items-center mb-4 space-x-4 sm:flex-col sm:space-x-0 sm:space-y-2">
-        <label className="font-medium">Select Date:</label>
+        <label className="font-medium dark:text-gray-200">Select Date:</label>
         <select
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="border p-2 rounded sm:w-full"
+          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 p-2 rounded sm:w-full"
         >
           {dates.length ? <option value="All Days">All Days</option> : null}
           {(dates || []).map((d) => (
@@ -342,22 +373,22 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
           sections.map((section) => (
             <div key={section.name} className="mb-4">
               <div
-                className="flex flex-wrap items-center justify-between bg-gray-200 p-2 cursor-pointer rounded gap-2"
+                className="flex flex-wrap items-center justify-between bg-gray-200 dark:bg-gray-700 p-2 cursor-pointer rounded gap-2"
                 onClick={() => toggleSection(section.name)}
               >
-                <h4 className="text-lg font-medium sm:text-base">
+                <h4 className="text-lg font-medium sm:text-base dark:text-gray-100">
                   {section.name} (Total: {efficiencies[section.name]?.totalEfficiency ?? '0.00'}
                   %, Fixed: {efficiencies[section.name]?.fixedEfficiency ?? '0.00'}%)
                 </h4>
 
                 <div className="flex flex-wrap gap-2">
-                  <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-sm">
+                  <span className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-1 rounded text-sm">
                     Offline: <b>{perSectionTotals[section.name]?.offline ?? 0}</b>
                   </span>
-                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm">
+                  <span className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-2 py-1 rounded text-sm">
                     Fixed: <b>{perSectionTotals[section.name]?.fixed ?? 0}</b>
                   </span>
-                  <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-sm">
+                  <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-2 py-1 rounded text-sm">
                     Not Fixed: <b>{perSectionTotals[section.name]?.notFixed ?? 0}</b>
                   </span>
                 </div>
@@ -392,20 +423,20 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
                     return (
                       <div key={line} className="mb-4">
-                        <h5 className="text-base font-medium sm:text-sm">{line}</h5>
+                        <h5 className="text-base font-medium sm:text-sm dark:text-gray-200">{line}</h5>
                         <table className="w-full table-auto border-collapse">
                           <thead>
-                            <tr className="bg-gray-100">
-                              <th className="p-2 text-center border sm:p-1 sm:text-sm">
+                            <tr className="bg-gray-100 dark:bg-gray-700">
+                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
                                 Date
                               </th>
-                              <th className="p-2 text-center border sm:p-1 sm:text-sm">
+                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
                                 Offline Heads
                               </th>
-                              <th className="p-2 text-center border sm:p-1 sm:text-sm">
+                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
                                 Fixed Heads
                               </th>
-                              <th className="p-2 text-center border sm:p-1 sm:text-sm">
+                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
                                 Not Fixed
                               </th>
                             </tr>
@@ -416,16 +447,16 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
                               .sort((a, b) => new Date(a) - new Date(b))
                               .map((d) => (
                                 <tr key={d}>
-                                  <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
                                     {d}
                                   </td>
-                                  <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
                                     {headsDownData[line][d].offline}
                                   </td>
-                                  <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
                                     {headsDownData[line][d].fixed}
                                   </td>
-                                  <td className="p-2 text-center border sm:p-1 sm:text-sm">
+                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
                                     {headsDownData[line][d].notFixed}
                                   </td>
                                 </tr>
@@ -474,18 +505,18 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
       {/* Per-day pies at bottom */}
       <div className="mt-6">
-        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg">
+        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg dark:text-gray-100">
           Issue Type Distribution Per Day
         </h3>
         {perDayPieCharts.length === 0 ? (
-          <p className="text-center text-gray-600 sm:text-sm">
+          <p className="text-center text-gray-600 dark:text-gray-400 sm:text-sm">
             No issues to display for any day.
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {perDayPieCharts.map((chart) => (
               <div key={chart.date} className="max-w-md mx-auto">
-                <h4 className="text-lg font-medium text-center sm:text-base mb-2">
+                <h4 className="text-lg font-medium text-center sm:text-base mb-2 dark:text-gray-200">
                   {chart.date}
                 </h4>
                 <Pie
