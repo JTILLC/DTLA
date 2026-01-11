@@ -149,7 +149,18 @@ const exportDashboardToPDF = (lines, globalData) => {
   if (lines.length === 0) return alert('No data to export');
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageHeight = doc.internal.pageSize.height;
-  
+
+  // Helper function to convert fixed status to readable text
+  const getFixedStatusLabel = (status) => {
+    switch(status) {
+      case 'active_with_issues': return 'Active with Issues';
+      case 'na': return 'N/A';
+      case 'fixed': return 'Fixed';
+      case 'not_fixed': return 'Not Fixed';
+      default: return status;
+    }
+  };
+
   // Add JTI logo top-left
   const logoUrl = 'https://i.imgur.com/GQRZTtW.png';
   doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
@@ -212,7 +223,7 @@ const exportDashboardToPDF = (lines, globalData) => {
     }
 
     if (hasIssues) {
-      const headData = issueHeads.map(head => [head.id, head.status, head.error, head.fixed, head.notes || '']);
+      const headData = issueHeads.map(head => [head.id, head.status, head.error, getFixedStatusLabel(head.fixed), head.notes || '']);
       doc.autoTable({
         startY: y,
         head: [['Head #', 'Status', 'Error', 'Fixed', 'Notes']],
@@ -1876,6 +1887,7 @@ const AppContent = () => {
                     resetLine={() => resetLine(line, globalData, setLines, lines)}
                     isVisible={line.id === activeLineId}
                     exportLineToPDF={() => exportLineToPDF(line, globalData)}
+                    isDark={isDark}
                   />
                 ))}
               </div>

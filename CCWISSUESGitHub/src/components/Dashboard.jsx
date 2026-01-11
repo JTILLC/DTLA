@@ -5,6 +5,17 @@ const Dashboard = ({ lines, setShowDashboardView }) => {
     console.debug('Dashboard rendered with lines:', lines);
   }, [lines]);
 
+  // Helper function to convert fixed status to readable text
+  const getFixedStatusLabel = (status) => {
+    switch(status) {
+      case 'active_with_issues': return 'Active with Issues';
+      case 'na': return 'N/A';
+      case 'fixed': return 'Fixed';
+      case 'not_fixed': return 'Not Fixed';
+      default: return status;
+    }
+  };
+
   const offlineHeadsExist = lines.some(line => line.heads.some(head => head.status === 'offline'));
 
   return (
@@ -30,11 +41,16 @@ const Dashboard = ({ lines, setShowDashboardView }) => {
               </thead>
               <tbody>
                 {offlineHeads.map(head => (
-                  <tr key={head.index} style={{ backgroundColor: head.fixed === 'fixed' ? 'orange' : 'lightcoral' }}>
+                  <tr key={head.index} style={{
+                    backgroundColor:
+                      head.fixed === 'fixed' ? 'orange' :
+                      head.fixed === 'active_with_issues' ? 'lightblue' :
+                      'lightcoral' // Red for not fixed
+                  }}>
                     <td>{head.index}</td>
                     <td>Offline</td>
                     <td>{head.error}</td>
-                    <td>{head.fixed}</td>
+                    <td>{getFixedStatusLabel(head.fixed)}</td>
                     <td>{head.notes}</td>
                   </tr>
                 ))}
