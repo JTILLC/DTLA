@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import SpanAdjust from './SpanAdjust.jsx';
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, isDark }) => {
   const [localLine, setLocalLine] = useState(line);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [showActiveHeads, setShowActiveHeads] = useState(true);
+  const [showActiveHeads, setShowActiveHeads] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
 
   useEffect(() => {
@@ -152,7 +152,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       </div>
 
       {/* Quick Head Toggle */}
-      <div className="quick-head-toggle mb-3 p-3" style={{ background: '#f8f9fa', borderRadius: '8px' }}>
+      <div className="quick-head-toggle mb-3 p-3" style={{ background: isDark ? '#2a2a2a' : '#f8f9fa', borderRadius: '8px' }}>
         <h6 className="mb-2"><strong>Quick Head Toggle</strong></h6>
         <div style={{
           display: 'grid',
@@ -166,6 +166,8 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
             let btnClass = 'btn-success'; // Default green for active
             if (head.fixed === 'fixed') {
               btnClass = 'btn-warning'; // Orange for fixed
+            } else if (head.fixed === 'active_with_issues') {
+              btnClass = 'btn-info'; // Blue-green for active with issues
             } else if (head.status === 'offline') {
               btnClass = 'btn-danger'; // Red for offline
             }
@@ -197,6 +199,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           <span className="badge bg-success me-1">Green</span> Active
           <span className="badge bg-danger ms-2 me-1">Red</span> Offline
           <span className="badge bg-warning text-dark ms-2 me-1">Orange</span> Fixed
+          <span className="badge bg-info text-dark ms-2 me-1">Blue-Green</span> Active with Issues
         </small>
       </div>
 
@@ -219,7 +222,10 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                 <tr
                   key={head.index}
                   style={{
-                    backgroundColor: head.fixed === 'fixed' ? 'orange' : 'lightcoral',
+                    backgroundColor:
+                      head.fixed === 'fixed' ? 'orange' :
+                      head.fixed === 'active_with_issues' ? 'lightblue' :
+                      'lightcoral', // Red for offline (not fixed)
                   }}
                 >
                   <td data-label="Head #">{head.index + 1}</td>
@@ -252,6 +258,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                       <option value="na">N/A</option>
                       <option value="not_fixed">Not Fixed</option>
                       <option value="fixed">Fixed</option>
+                      <option value="active_with_issues">Active with Issues</option>
                     </select>
                   </td>
                 </tr>
@@ -287,7 +294,10 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                   <tr
                     key={head.index}
                     style={{
-                      backgroundColor: 'lightgreen',
+                      backgroundColor:
+                        head.fixed === 'fixed' ? 'orange' :
+                        head.fixed === 'active_with_issues' ? 'lightblue' : // Blue-green for active with issues
+                        '#28a745', // Bootstrap success button green - matches quick toggle
                     }}
                   >
                     <td data-label="Head #">{head.index + 1}</td>
@@ -320,6 +330,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                         <option value="na">N/A</option>
                         <option value="not_fixed">Not Fixed</option>
                         <option value="fixed">Fixed</option>
+                        <option value="active_with_issues">Active with Issues</option>
                       </select>
                     </td>
                   </tr>
