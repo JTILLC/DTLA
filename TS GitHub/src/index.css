@@ -1,1 +1,160 @@
 @import "tailwindcss";
+
+/* Ensure DaisyUI base styles are available */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+  }
+}
+
+/* Override Tailwind utility classes to respond to dark mode */
+[data-theme="dark"] .bg-white {
+  background-color: oklch(var(--b2)) !important;
+}
+
+[data-theme="dark"] .bg-gray-50 {
+  background-color: oklch(var(--b1)) !important;
+}
+
+[data-theme="dark"] .bg-gray-100 {
+  background-color: oklch(var(--b2)) !important;
+}
+
+[data-theme="dark"] .bg-gray-200 {
+  background-color: oklch(var(--b3)) !important;
+}
+
+[data-theme="dark"] .even\:bg-gray-50:nth-child(even) {
+  background-color: oklch(var(--b1)) !important;
+}
+
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-900 {
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-600 {
+  color: oklch(var(--bc) / 0.7) !important;
+}
+
+[data-theme="dark"] .text-xs {
+  color: oklch(var(--bc) / 0.8) !important;
+}
+
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-gray-200 {
+  border-color: oklch(var(--b3)) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: oklch(var(--b1));
+  color: oklch(var(--bc));
+  border-color: oklch(var(--b3));
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] select::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: oklch(var(--bc) / 0.5);
+}
+
+[data-theme="dark"] .shadow-md,
+[data-theme="dark"] .shadow-lg,
+[data-theme="dark"] .shadow-sm {
+  --tw-shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Ensure cards and other DaisyUI components work properly */
+[data-theme="dark"] .card {
+  background-color: oklch(var(--b2));
+  color: oklch(var(--bc));
+}
+
+[data-theme="dark"] .min-h-screen {
+  background-color: oklch(var(--b1));
+  color: oklch(var(--bc));
+}
+
+/* Fix table headers and other light text in dark mode */
+[data-theme="dark"] th,
+[data-theme="dark"] thead,
+[data-theme="dark"] thead th {
+  color: oklch(var(--bc)) !important;
+  background-color: oklch(var(--b3)) !important;
+}
+
+[data-theme="dark"] td {
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] tbody td {
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] table {
+  border-color: oklch(var(--b3)) !important;
+}
+
+/* Specific fix for .bg-gray-200 table headers */
+[data-theme="dark"] tr.bg-gray-200,
+[data-theme="dark"] tr.bg-gray-200 th {
+  background-color: oklch(var(--b3)) !important;
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] .text-blue-600,
+[data-theme="dark"] .text-blue-700 {
+  color: oklch(0.8 0.2 240) !important;
+}
+
+[data-theme="dark"] .text-blue-800 {
+  color: oklch(0.75 0.15 240) !important;
+}
+
+[data-theme="dark"] .bg-blue-50 {
+  background-color: oklch(0.25 0.08 240) !important;
+}
+
+[data-theme="dark"] .bg-blue-100 {
+  background-color: oklch(0.3 0.1 240) !important;
+}
+
+[data-theme="dark"] .text-red-600 {
+  color: oklch(0.65 0.25 25) !important;
+}
+
+[data-theme="dark"] .text-green-600 {
+  color: oklch(0.65 0.2 145) !important;
+}
+
+[data-theme="dark"] .text-yellow-600,
+[data-theme="dark"] .text-amber-600 {
+  color: oklch(0.75 0.15 85) !important;
+}
+
+/* Improve contrast for all text elements */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] label {
+  color: oklch(var(--bc)) !important;
+}
+
+[data-theme="dark"] .font-semibold,
+[data-theme="dark"] .font-bold {
+  color: oklch(var(--bc)) !important;
+}

@@ -61,22 +61,50 @@ function ServiceReportPage() {
       let y = 10;
 
       // Load logo as data URI
-      const logoDataURI = await new Promise((resolve, reject) => {
+      console.log('[ServiceReport] Logo URL:', logo);
+      const logoDataURI = await new Promise((resolve) => {
         const img = new Image();
-        img.src = logo;
+
+        const timeout = setTimeout(() => {
+          console.warn('[ServiceReport] Logo load timeout, continuing without logo');
+          resolve(null);
+        }, 3000);
+
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
+          clearTimeout(timeout);
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const dataUrl = canvas.toDataURL('image/png');
+            console.log('[ServiceReport] Logo loaded successfully as data URI');
+            resolve(dataUrl);
+          } catch (err) {
+            console.error('[ServiceReport] Error converting logo to data URI:', err);
+            resolve(null);
+          }
         };
-        img.onerror = (err) => reject(err);
+
+        img.onerror = (err) => {
+          clearTimeout(timeout);
+          console.error('[ServiceReport] Error loading logo image:', err);
+          resolve(null);
+        };
+
+        // Set src last, after handlers are attached
+        img.src = logo;
       });
 
-      // Header
-      doc.addImage(logoDataURI, 'PNG', pageWidth - 52.5, 10, 37.5, 11.25);
+      // Header - only add logo if it loaded successfully
+      if (logoDataURI) {
+        try {
+          doc.addImage(logoDataURI, 'PNG', pageWidth - 52.5, 10, 37.5, 11.25);
+        } catch (err) {
+          console.error('[ServiceReport] Error adding logo to PDF:', err);
+        }
+      }
       doc.setTextColor(0, 0, 255);
       doc.setFontSize(8);
       doc.text('Joshua Todd Industries, LLC Service Report', marginX, y);
@@ -95,7 +123,7 @@ function ServiceReportPage() {
       doc.setFontSize(7);
       doc.text('Customer Information', marginX, y);
       y += 3;
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         head: [['Field','Value','Field','Value']],
         body: [
@@ -123,7 +151,7 @@ function ServiceReportPage() {
       if (!machineRows.length) {
         machineRows = [['Model', 'N/A', 'Serial No.', 'N/A', 'Job No.', 'N/A']];
       }
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         head: [['Field','Value','Field','Value','Field','Value']],
         body: machineRows,
@@ -142,7 +170,7 @@ function ServiceReportPage() {
         serviceReportData?.[e.date] || 'No description'
       ]);
       if (workRows.length) {
-        doc.autoTable({
+        autoTable(doc, {
           startY: y,
           head: [['Date','Work Performed']],
           body: workRows,
@@ -190,7 +218,7 @@ function ServiceReportPage() {
         ];
       });
       if (hoursWorkedRows.length) {
-        doc.autoTable({
+        autoTable(doc, {
           head: [['Date','Travel To','On-site','Travel Home','Lunch','Travel Hrs','Work Hrs','Total Hrs']],
           body: hoursWorkedRows,
           startY: y,
@@ -212,7 +240,7 @@ function ServiceReportPage() {
 
       // Service Charges (Top-left)
       doc.text('Service Charges', marginX, gridY);
-      doc.autoTable({
+      autoTable(doc, {
         margin: { left: marginX },
         startY: gridY + 3,
         tableWidth: colW,
@@ -231,7 +259,7 @@ function ServiceReportPage() {
 
       // Travel Charges (Top-right)
       doc.text('Travel Charges', marginX + colW + gap, gridY);
-      doc.autoTable({
+      autoTable(doc, {
         margin: { left: marginX + colW + gap },
         startY: gridY + 3,
         tableWidth: colW,
@@ -253,7 +281,7 @@ function ServiceReportPage() {
 
       // Travel Expenses (Bottom-left)
       doc.text('Travel Expenses', marginX, bottomY);
-      doc.autoTable({
+      autoTable(doc, {
         margin: { left: marginX },
         startY: bottomY + 3,
         tableWidth: colW,
@@ -273,7 +301,7 @@ function ServiceReportPage() {
 
       // Total Charges (Bottom-right)
       doc.text('Total Charges', marginX + colW + gap, bottomY);
-      doc.autoTable({
+      autoTable(doc, {
         margin: { left: marginX + colW + gap },
         startY: bottomY + 3,
         tableWidth: colW,

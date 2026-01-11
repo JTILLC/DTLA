@@ -107,10 +107,19 @@ function TimeSheet() {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const handleAddDaySave = (savedEntry, serviceWork) => {
+  const handleAddDaySave = (formData) => {
     const fullEntry = {
-      ...savedEntry,
-      serviceWork: serviceWork || '',
+      date: formData.date,
+      travel: {
+        to: formData.travelTo,
+        home: formData.travelHome
+      },
+      onsite: formData.onsite,
+      lunch: formData.lunch,
+      lunchDuration: formData.lunchDuration,
+      holiday: formData.holiday,
+      travelOnly: formData.travelOnly,
+      serviceWork: formData.serviceWork || '',
       customer: currentCustomer || 'General'
     };
 
@@ -126,7 +135,12 @@ function TimeSheet() {
 
     setServiceReportData(prev => ({
       ...prev,
-      [fullEntry.date]: serviceWork || ''
+      [fullEntry.date]: formData.serviceWork || ''
+    }));
+
+    setServiceReportForm(prev => ({
+      ...prev,
+      [fullEntry.date]: formData.serviceWork || ''
     }));
 
     setShowTimeEntryForm(false);
@@ -140,9 +154,22 @@ function TimeSheet() {
 
   const handleEdit = (index) => {
     const entry = entries[index];
+
+    // Get the most up-to-date service work from either the form or the entry
+    const currentServiceWork = serviceReportForm[entry.date] || entry.serviceWork || '';
+
+    // Update the entry with the current service work before editing
+    setEntries(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        serviceWork: currentServiceWork
+      };
+      return updated;
+    });
+
     setEditEntryIndex(index);
     setShowTimeEntryForm(true);
-    setServiceReportForm(prev => ({ ...prev, [entry.date]: entry.serviceWork || '' }));
   };
 
   const handleDeleteDay = (index) => {

@@ -23,6 +23,13 @@ function InvoicePage() {
   const formatDate = (dateString) => {
     try {
       console.log('Formatting date:', dateString);
+
+      // If already formatted as MM/DD/YYYY or MM/DD/YY, return as is
+      if (dateString && dateString.includes('/')) {
+        return dateString;
+      }
+
+      // Otherwise parse YYYY-MM-DD format
       const [year, month, day] = dateString.split('-').map(Number);
       const date = new Date(year, month - 1, day); // Local date, no UTC to avoid offset
       if (isNaN(date.getTime())) throw new Error('Invalid date');
@@ -33,7 +40,7 @@ function InvoicePage() {
       return `${formattedMonth}/${formattedDay}/${yearShort}`;
     } catch (error) {
       console.error('Error formatting date:', dateString, error);
-      return 'Invalid Date';
+      return dateString || 'Invalid Date';
     }
   };
 
@@ -85,7 +92,7 @@ function InvoicePage() {
         ['City', customerInfo?.city || 'N/A', 'Email', customerInfo?.email || 'N/A'],
         ['State', customerInfo?.state || 'N/A', 'Purpose', customerInfo?.purpose || 'N/A'],
       ];
-      doc.autoTable({
+      autoTable(doc, {
         startY: yOffset,
         head: [['Field', 'Value', 'Field', 'Value']],
         body: customerFields,
@@ -110,7 +117,7 @@ function InvoicePage() {
       console.log('Charges tables widths:', { service: 180, travel: 180, expenses: 180 });
 
       // Service Charges Table
-      doc.autoTable({
+      autoTable(doc, {
         startY: yOffset,
         head: [['Category', 'Hours', 'Rate', 'Charge']],
         body: [
@@ -135,7 +142,7 @@ function InvoicePage() {
       doc.setFontSize(9);
       doc.text('Travel Charges', 10, yOffset);
       yOffset += 4;
-      doc.autoTable({
+      autoTable(doc, {
         startY: yOffset,
         head: [['Category', 'Hours', 'Rate', 'Charge']],
         body: [
@@ -160,7 +167,7 @@ function InvoicePage() {
       doc.setFontSize(9);
       doc.text('Travel Expenses', 10, yOffset);
       yOffset += 4;
-      doc.autoTable({
+      autoTable(doc, {
         startY: yOffset,
         head: [['Category', 'Amount', 'Details']],
         body: [
@@ -202,7 +209,7 @@ function InvoicePage() {
         travelExpensesSubtotal: charges.travel?.travelExpensesSubtotal,
         totalCharges
       });
-      doc.autoTable({
+      autoTable(doc, {
         startY: yOffset,
         head: [['Category', 'Total']],
         body: [
