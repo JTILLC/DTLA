@@ -1,15 +1,61 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import SpanAdjust from './SpanAdjust.jsx';
+import { buildHeadIssueHistory } from '../utils/headHelpers.js';
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, isDark }) => {
-  const [localLine, setLocalLine] = useState(line);
+const issueTypes = [
+  'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
+  'Hopper Issues', 'Installed Wrong', 'Radial Feeder', 'Booster Hopper Issues', 'Other'
+];
+
+// Migrate old single-error format to new multi-issue format
+const migrateHeadData = (head) => {
+  // If already has issues array, return as-is
+  if (head.issues && Array.isArray(head.issues)) {
+    return head;
+  }
+
+  // Convert old format to new format
+  const migratedHead = {
+    ...head,
+    issues: []
+  };
+
+  // If there was an old error field and it wasn't "None", convert it
+  if (head.error && head.error !== 'None') {
+    migratedHead.issues.push({
+      type: head.error,
+      fixed: head.fixed || 'na',
+      notes: head.notes || ''
+    });
+    // Clear old fields to avoid confusion
+    migratedHead.error = 'None';
+    migratedHead.notes = '';
+  }
+
+  return migratedHead;
+};
+
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, isDark, visits, currentVisitId }) => {
+  const [expandedHistory, setExpandedHistory] = useState({});
+  // Migrate heads on initial load
+  const migratedLine = {
+    ...line,
+    heads: line.heads.map(migrateHeadData)
+  };
+
+  const [localLine, setLocalLine] = useState(migratedLine);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showActiveHeads, setShowActiveHeads] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
 
   useEffect(() => {
     console.debug('Line component updated with new prop:', line);
-    setLocalLine(line); // Sync localLine with prop
+    // Migrate heads when prop changes
+    const migrated = {
+      ...line,
+      heads: line.heads.map(migrateHeadData)
+    };
+    setLocalLine(migrated);
   }, [line]);
 
   const handleChange = (e) => {
@@ -92,12 +138,123 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // Separate heads by status
   const offlineHeads = localLine.heads.map((head, i) => ({ ...head, index: i })).filter(head => head.status === 'offline');
   const activeHeads = localLine.heads.map((head, i) => ({ ...head, index: i })).filter(head => head.status === 'active');
-  const hasIssues = offlineHeads.length > 0 || localLine.heads.some(h => h.error !== 'None' || h.notes.trim() !== '' || h.fixed !== 'na');
+  const hasIssues = offlineHeads.length > 0 || localLine.heads.some(h => {
+    const issues = h.issues || [];
+    return issues.length > 0 || h.error !== 'None' || h.notes.trim() !== '' || h.fixed !== 'na';
+  });
 
-  // Auto-collapse active heads if no issues
-  useEffect(() => {
-    setShowActiveHeads(hasIssues);
-  }, [hasIssues]);
+  // Add issue to a head
+  const addIssue = (headIndex) => {
+    const updatedHeads = localLine.heads.map((h, j) => {
+      if (j === headIndex) {
+        const issues = h.issues || [];
+        return {
+          ...h,
+          issues: [...issues, { type: 'Chute', fixed: 'not_fixed', notes: '' }]
+        };
+      }
+      return h;
+    });
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Update an issue
+  const updateIssue = (headIndex, issueIndex, field, value) => {
+    const updatedHeads = localLine.heads.map((h, j) => {
+      if (j === headIndex) {
+        const issues = [...(h.issues || [])];
+        issues[issueIndex] = { ...issues[issueIndex], [field]: value };
+        return { ...h, issues };
+      }
+      return h;
+    });
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Remove an issue
+  const removeIssue = (headIndex, issueIndex) => {
+    const updatedHeads = localLine.heads.map((h, j) => {
+      if (j === headIndex) {
+        const issues = (h.issues || []).filter((_, idx) => idx !== issueIndex);
+        return { ...h, issues };
+      }
+      return h;
+    });
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Toggle fixed status: not_fixed -> fixed -> active_with_issues -> not_fixed
+  const toggleFixedStatus = (headIndex, issueIndex) => {
+    const statusOrder = ['not_fixed', 'fixed', 'active_with_issues'];
+    const updatedHeads = localLine.heads.map((h, j) => {
+      if (j === headIndex) {
+        const issues = [...(h.issues || [])];
+        const currentStatus = issues[issueIndex].fixed;
+        const currentIdx = statusOrder.indexOf(currentStatus);
+        const nextIdx = (currentIdx + 1) % statusOrder.length;
+        issues[issueIndex] = { ...issues[issueIndex], fixed: statusOrder[nextIdx] };
+        return { ...h, issues };
+      }
+      return h;
+    });
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Get label for fixed status
+  const getFixedLabel = (status) => {
+    switch(status) {
+      case 'fixed': return 'Fixed';
+      case 'active_with_issues': return 'Active w/ Issues';
+      default: return 'Not Fixed';
+    }
+  };
+
+  // Active heads always start collapsed - user can expand if needed
+
+  // Change head count for the line
+  const changeHeadCount = (newCount) => {
+    const count = parseInt(newCount);
+    if (isNaN(count) || count < 1) return;
+
+    const currentCount = localLine.heads.length;
+    let newHeads;
+
+    if (count > currentCount) {
+      // Add new heads
+      newHeads = [
+        ...localLine.heads,
+        ...Array.from({ length: count - currentCount }, (_, i) => ({
+          id: currentCount + i + 1,
+          status: 'active',
+          error: 'None',
+          notes: '',
+          fixed: 'na',
+          issues: [],
+          currentWeight: 0,
+          spanWeight: 0,
+          weightDifference: 0,
+        }))
+      ];
+    } else if (count < currentCount) {
+      // Remove heads from the end
+      if (!window.confirm(`This will remove ${currentCount - count} head(s) from the end. Continue?`)) return;
+      newHeads = localLine.heads.slice(0, count);
+    } else {
+      return; // No change
+    }
+
+    const updated = { ...localLine, heads: newHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
 
   console.log('Rendering Line component - id:', line.id, 'isVisible:', isVisible, 'localLine:', localLine);
 
@@ -143,6 +300,20 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           <input type="text" name="jobNumber" value={localLine.jobNumber} onChange={handleChange} />
           <label>Serial Number:</label>
           <input type="text" name="serialNumber" value={localLine.serialNumber} onChange={handleChange} />
+          <label>Head Count:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              value={localLine.heads.length}
+              onChange={(e) => changeHeadCount(e.target.value)}
+              style={{ width: '80px' }}
+            />
+            <span style={{ fontSize: '0.85em', color: '#666' }}>
+              (Currently {localLine.heads.length} heads)
+            </span>
+          </div>
         </div>
       )}
       <div className="machine-running">
@@ -162,14 +333,30 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           margin: '0 auto'
         }}>
           {localLine.heads.map((head, i) => {
-            // Determine button color based on status and fixed state
+            const issues = head.issues || [];
+            const hasIssues = issues.length > 0;
+            const allFixed = hasIssues && issues.every(iss => iss.fixed === 'fixed');
+            const someActiveWithIssues = hasIssues && issues.some(iss => iss.fixed === 'active_with_issues');
+
+            // Determine button color based on status and issues
             let btnClass = 'btn-success'; // Default green for active
-            if (head.fixed === 'fixed') {
-              btnClass = 'btn-warning'; // Orange for fixed
-            } else if (head.fixed === 'active_with_issues') {
-              btnClass = 'btn-info'; // Blue-green for active with issues
-            } else if (head.status === 'offline') {
-              btnClass = 'btn-danger'; // Red for offline
+            let titleText = 'Click to set Offline';
+
+            if (head.status === 'offline') {
+              if (allFixed) {
+                btnClass = 'btn-warning'; // Orange - all issues fixed
+                titleText = 'All issues fixed';
+              } else if (someActiveWithIssues) {
+                btnClass = 'btn-info'; // Blue - some active with issues
+                titleText = 'Active with issues';
+              } else {
+                btnClass = 'btn-danger'; // Red for offline with unfixed issues
+                titleText = 'Click to set Active';
+              }
+            } else if (hasIssues) {
+              // Active but has issues logged
+              btnClass = 'btn-info';
+              titleText = 'Active with issues logged';
             }
 
             return (
@@ -188,7 +375,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                   minWidth: '0',
                   width: '100%'
                 }}
-                title={`Head ${i + 1}: ${head.fixed === 'fixed' ? 'Fixed' : head.status === 'offline' ? 'Click to set Active' : 'Click to set Offline'}`}
+                title={`Head ${i + 1}: ${titleText}${hasIssues ? ` (${issues.length} issue${issues.length > 1 ? 's' : ''})` : ''}`}
               >
                 {i + 1}
               </button>
@@ -197,9 +384,9 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         </div>
         <small className="text-muted d-block mt-2" style={{ textAlign: 'center', maxWidth: '700px', margin: '0.5rem auto 0' }}>
           <span className="badge bg-success me-1">Green</span> Active
-          <span className="badge bg-danger ms-2 me-1">Red</span> Offline
-          <span className="badge bg-warning text-dark ms-2 me-1">Orange</span> Fixed
-          <span className="badge bg-info text-dark ms-2 me-1">Blue-Green</span> Active with Issues
+          <span className="badge bg-danger ms-2 me-1">Red</span> Offline (Not Fixed)
+          <span className="badge bg-warning text-dark ms-2 me-1">Orange</span> All Issues Fixed
+          <span className="badge bg-info text-dark ms-2 me-1">Blue</span> Active with Issues
         </small>
       </div>
 
@@ -212,57 +399,140 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
               <tr>
                 <th>Head #</th>
                 <th>Status</th>
-                <th>Error</th>
-                <th>Notes</th>
-                <th>Fixed</th>
+                <th>Issues</th>
+                <th>Head Notes</th>
               </tr>
             </thead>
             <tbody>
-              {offlineHeads.map((head) => (
-                <tr
-                  key={head.index}
-                  style={{
-                    backgroundColor:
-                      head.fixed === 'fixed' ? 'orange' :
-                      head.fixed === 'active_with_issues' ? 'lightblue' :
-                      'lightcoral', // Red for offline (not fixed)
-                  }}
-                >
-                  <td data-label="Head #">{head.index + 1}</td>
-                  <td data-label="Status">
-                    <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
-                      <option value="active">Active</option>
-                      <option value="offline">Offline</option>
-                    </select>
-                  </td>
-                  <td data-label="Error">
-                    <select value={head.error} onChange={(e) => handleHeadChange(head.index, 'error', e.target.value)}>
-                      <option value="None">None</option>
-                      <option value="Chute">Chute</option>
-                      <option value="Operator">Operator</option>
-                      <option value="Load Cell">Load Cell</option>
-                      <option value="Detached Head">Detached Head</option>
-                      <option value="Stepper Motor Error">Stepper Motor Error</option>
-                      <option value="Hopper Issues">Hopper Issues</option>
-                      <option value="Installed Wrong">Installed Wrong</option>
-                      <option value="Radial Feeder">Radial Feeder</option>
-                      <option value="Booster Hopper Issues">Booster Hopper Issues</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </td>
-                  <td data-label="Notes">
-                    <input type="text" value={head.notes} onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)} />
-                  </td>
-                  <td data-label="Fixed">
-                    <select value={head.fixed} onChange={(e) => handleHeadChange(head.index, 'fixed', e.target.value)}>
-                      <option value="na">N/A</option>
-                      <option value="not_fixed">Not Fixed</option>
-                      <option value="fixed">Fixed</option>
-                      <option value="active_with_issues">Active with Issues</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
+              {offlineHeads.map((head) => {
+                const issues = head.issues || [];
+                const allFixed = issues.length > 0 && issues.every(iss => iss.fixed === 'fixed');
+                const hasActiveWithIssues = issues.some(iss => iss.fixed === 'active_with_issues');
+                const history = buildHeadIssueHistory(localLine.title, head.id || head.index + 1, visits, currentVisitId);
+                const historyKey = `${head.index}`;
+                const isHistoryExpanded = expandedHistory[historyKey];
+
+                return (
+                  <React.Fragment key={head.index}>
+                  <tr
+                    style={{
+                      backgroundColor:
+                        allFixed ? 'orange' :
+                        hasActiveWithIssues ? 'lightblue' :
+                        'lightcoral',
+                    }}
+                  >
+                    <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                    <td data-label="Status" style={{ verticalAlign: 'top' }}>
+                      <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                        <option value="active">Active</option>
+                        <option value="offline">Offline</option>
+                      </select>
+                    </td>
+                    <td data-label="Issues" style={{ verticalAlign: 'top' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {issues.map((issue, issIdx) => (
+                          <div key={issIdx} style={{
+                            padding: '8px',
+                            backgroundColor: isDark ? '#333' : '#f8f9fa',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd'
+                          }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <select
+                                value={issue.type}
+                                onChange={(e) => updateIssue(head.index, issIdx, 'type', e.target.value)}
+                                style={{ flex: 1, minWidth: '120px' }}
+                              >
+                                {issueTypes.filter(t => t !== 'None').map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => toggleFixedStatus(head.index, issIdx)}
+                                className="btn btn-sm"
+                                style={{
+                                  backgroundColor: issue.fixed === 'fixed' ? 'orange' :
+                                    issue.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral',
+                                  fontWeight: 'bold',
+                                  color: '#000',
+                                  minWidth: '110px'
+                                }}
+                                title="Click to toggle status"
+                              >
+                                {getFixedLabel(issue.fixed)}
+                              </button>
+                              <button
+                                onClick={() => removeIssue(head.index, issIdx)}
+                                className="btn btn-sm btn-danger"
+                                title="Remove this issue"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addIssue(head.index)}
+                          className="btn btn-sm btn-primary"
+                          style={{ alignSelf: 'flex-start' }}
+                        >
+                          + Add Issue
+                        </button>
+                      </div>
+                    </td>
+                    <td data-label="Head Notes" style={{ verticalAlign: 'top' }}>
+                      <input
+                        type="text"
+                        placeholder="General head notes..."
+                        value={head.notes}
+                        onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                  {history.length > 0 && (
+                    <tr>
+                      <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: isDark ? '#1a1a2e' : '#f0f0f5' }}>
+                        <button
+                          onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
+                          className="btn btn-sm btn-outline-secondary"
+                          style={{ fontSize: '0.8rem', padding: '2px 8px' }}
+                        >
+                          {isHistoryExpanded ? '▼' : '▶'} Past Issues ({history.length})
+                        </button>
+                        {isHistoryExpanded && (
+                          <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
+                            {history.map((entry, hIdx) => (
+                              <div key={hIdx} style={{ marginBottom: '4px', fontSize: '0.85rem' }}>
+                                <strong>{new Date(entry.date).toLocaleDateString()}:</strong>{' '}
+                                {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
+                                  <span
+                                    key={iIdx}
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '1px 6px',
+                                      borderRadius: '3px',
+                                      marginLeft: '4px',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 'bold',
+                                      color: '#000',
+                                      backgroundColor: iss.fixed === 'fixed' ? 'orange' :
+                                        iss.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral'
+                                    }}
+                                  >
+                                    {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
+                                  </span>
+                                )) : <span className="text-muted">Offline (no issues logged)</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -284,57 +554,92 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                 <tr>
                   <th>Head #</th>
                   <th>Status</th>
-                  <th>Error</th>
-                  <th>Notes</th>
-                  <th>Fixed</th>
+                  <th>Issues</th>
+                  <th>Head Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {activeHeads.map((head) => (
-                  <tr
-                    key={head.index}
-                    style={{
-                      backgroundColor:
-                        head.fixed === 'fixed' ? 'orange' :
-                        head.fixed === 'active_with_issues' ? 'lightblue' : // Blue-green for active with issues
-                        '#28a745', // Bootstrap success button green - matches quick toggle
-                    }}
-                  >
-                    <td data-label="Head #">{head.index + 1}</td>
-                    <td data-label="Status">
-                      <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
-                        <option value="active">Active</option>
-                        <option value="offline">Offline</option>
-                      </select>
-                    </td>
-                    <td data-label="Error">
-                      <select value={head.error} onChange={(e) => handleHeadChange(head.index, 'error', e.target.value)}>
-                        <option value="None">None</option>
-                        <option value="Chute">Chute</option>
-                        <option value="Operator">Operator</option>
-                        <option value="Load Cell">Load Cell</option>
-                        <option value="Detached Head">Detached Head</option>
-                        <option value="Stepper Motor Error">Stepper Motor Error</option>
-                        <option value="Hopper Issues">Hopper Issues</option>
-                        <option value="Installed Wrong">Installed Wrong</option>
-                        <option value="Radial Feeder">Radial Feeder</option>
-                        <option value="Booster Hopper Issues">Booster Hopper Issues</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </td>
-                    <td data-label="Notes">
-                      <input type="text" value={head.notes} onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)} />
-                    </td>
-                    <td data-label="Fixed">
-                      <select value={head.fixed} onChange={(e) => handleHeadChange(head.index, 'fixed', e.target.value)}>
-                        <option value="na">N/A</option>
-                        <option value="not_fixed">Not Fixed</option>
-                        <option value="fixed">Fixed</option>
-                        <option value="active_with_issues">Active with Issues</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                {activeHeads.map((head) => {
+                  const issues = head.issues || [];
+                  const hasIssuesOrNotes = issues.length > 0 || head.notes.trim() !== '';
+
+                  return (
+                    <tr
+                      key={head.index}
+                      style={{
+                        backgroundColor: hasIssuesOrNotes ? 'lightblue' : '#28a745',
+                      }}
+                    >
+                      <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                      <td data-label="Status" style={{ verticalAlign: 'top' }}>
+                        <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                          <option value="active">Active</option>
+                          <option value="offline">Offline</option>
+                        </select>
+                      </td>
+                      <td data-label="Issues" style={{ verticalAlign: 'top' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {issues.map((issue, issIdx) => (
+                            <div key={issIdx} style={{
+                              padding: '8px',
+                              backgroundColor: isDark ? '#333' : '#f8f9fa',
+                              borderRadius: '4px',
+                              border: '1px solid #ddd'
+                            }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <select
+                                  value={issue.type}
+                                  onChange={(e) => updateIssue(head.index, issIdx, 'type', e.target.value)}
+                                  style={{ flex: 1, minWidth: '120px' }}
+                                >
+                                  {issueTypes.filter(t => t !== 'None').map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => toggleFixedStatus(head.index, issIdx)}
+                                  className="btn btn-sm"
+                                  style={{
+                                    backgroundColor: issue.fixed === 'fixed' ? 'orange' :
+                                      issue.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral',
+                                    fontWeight: 'bold',
+                                    color: '#000',
+                                    minWidth: '110px'
+                                  }}
+                                  title="Click to toggle status"
+                                >
+                                  {getFixedLabel(issue.fixed)}
+                                </button>
+                                <button
+                                  onClick={() => removeIssue(head.index, issIdx)}
+                                  className="btn btn-sm btn-danger"
+                                  title="Remove this issue"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => addIssue(head.index)}
+                            className="btn btn-sm btn-outline-primary"
+                            style={{ alignSelf: 'flex-start' }}
+                          >
+                            + Add Issue
+                          </button>
+                        </div>
+                      </td>
+                      <td data-label="Head Notes" style={{ verticalAlign: 'top' }}>
+                        <input
+                          type="text"
+                          placeholder="General head notes..."
+                          value={head.notes}
+                          onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
