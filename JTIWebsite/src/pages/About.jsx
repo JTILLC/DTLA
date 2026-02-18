@@ -5,7 +5,7 @@ const values = [
   {
     icon: Target,
     title: 'Mission',
-    desc: 'To deliver reliable, expert service for Ishida and Ceia equipment that keeps our clients\u2019 production lines running efficiently and profitably.',
+    desc: 'To deliver reliable, expert service and preventative maintenance for Ishida and Ceia equipment that keeps our clients\u2019 production lines running efficiently and profitably.',
   },
   {
     icon: Eye,
@@ -36,21 +36,21 @@ export default function About() {
       <section className="bg-white py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row items-center gap-16">
-            <div className="flex-shrink-0 bg-jti-dark rounded-2xl p-12 shadow-xl">
-              <img src="/Logo.png" alt="JTI" className="w-52 md:w-64" />
+            <div className="flex-shrink-0 bg-jti-light rounded-2xl p-12 shadow-xl">
+              <img src="/Logo-transparent.png" alt="JTI" className="w-52 md:w-64" />
             </div>
             <div className="flex-1">
               <h2 className="text-3xl md:text-4xl font-bold text-jti-dark">
                 Joshua Todd Industries LLC
               </h2>
-              <div className="mt-8 space-y-6 text-gray-600 text-lg leading-relaxed">
-                <p>
+              <div className="mt-8 text-gray-600 text-lg leading-relaxed">
+                <p className="mb-6">
                   Joshua Todd Industries (JTI) has more than 18 years of experience servicing
                   a wide variety of Ishida products and Ceia metal detectors. Based in Gilbert,
                   Arizona, JTI provides expert repair, service, validation, and training for
                   the equipment that food processing and packaging operations depend on.
                 </p>
-                <p>
+                <p className="mb-6">
                   JTI specializes in Ishida combination weighers (CCW), checkweighers (DACS),
                   and X-ray inspection systems (IX), as well as Ceia metal detectors. Whether
                   your equipment needs a routine service, emergency repair, or full validation,
