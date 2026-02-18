@@ -188,24 +188,30 @@ export default function Apps() {
               </p>
 
               {/* View Tabs */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {viewerViews.map((view, idx) => {
-                  const VIcon = view.icon
-                  return (
-                    <button
-                      key={view.id}
-                      onClick={() => setActiveView(idx)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        activeView === idx
-                          ? 'bg-jti-blue text-white'
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-jti-blue hover:text-jti-blue'
-                      }`}
-                    >
-                      <VIcon size={16} />
-                      {view.label}
-                    </button>
-                  )
-                })}
+              <div className="mb-6">
+                <p className="text-sm text-gray-700 font-bold mb-3 flex items-center gap-1.5">
+                  <MousePointerClick size={14} />
+                  Click a view to see it in action:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {viewerViews.map((view, idx) => {
+                    const VIcon = view.icon
+                    return (
+                      <button
+                        key={view.id}
+                        onClick={() => setActiveView(idx)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          activeView === idx
+                            ? 'bg-jti-blue text-white shadow-lg shadow-jti-blue/30 scale-105'
+                            : 'bg-white text-gray-600 border-2 border-gray-200 hover:border-jti-blue hover:text-jti-blue hover:shadow-md cursor-pointer'
+                        }`}
+                      >
+                        <VIcon size={16} />
+                        {view.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Screenshot Frame + Description */}
@@ -284,24 +290,30 @@ export default function Apps() {
               </p>
 
               {/* View Tabs */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {partsViews.map((view, idx) => {
-                  const VIcon = view.icon
-                  return (
-                    <button
-                      key={view.id}
-                      onClick={() => setActivePartsView(idx)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        activePartsView === idx
-                          ? 'bg-jti-blue text-white'
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-jti-blue hover:text-jti-blue'
-                      }`}
-                    >
-                      <VIcon size={16} />
-                      {view.label}
-                    </button>
-                  )
-                })}
+              <div className="mb-6">
+                <p className="text-sm text-gray-700 font-bold mb-3 flex items-center gap-1.5">
+                  <MousePointerClick size={14} />
+                  Click a view to see it in action:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {partsViews.map((view, idx) => {
+                    const VIcon = view.icon
+                    return (
+                      <button
+                        key={view.id}
+                        onClick={() => setActivePartsView(idx)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          activePartsView === idx
+                            ? 'bg-jti-blue text-white shadow-lg shadow-jti-blue/30 scale-105'
+                            : 'bg-white text-gray-600 border-2 border-gray-200 hover:border-jti-blue hover:text-jti-blue hover:shadow-md cursor-pointer'
+                        }`}
+                      >
+                        <VIcon size={16} />
+                        {view.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Screenshot Frame + Description */}
