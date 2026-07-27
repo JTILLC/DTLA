@@ -1,0 +1,17 @@
+name = "ccw-media"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Non-secret config (safe to commit).
+[vars]
+FIREBASE_PROJECT_ID = "downtimelogger-a96fb"
+STORAGE_BUCKET      = "downtimelogger-a96fb.firebasestorage.app"
+# Comma-separated. Needed for the canvas reads the PDF export performs.
+ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,https://jti-issues-mt.pages.dev,http://localhost:5173,http://localhost:5174"
+
+# Secrets — set with wrangler, never commit:
+#   npx wrangler secret put GCP_SA_EMAIL
+#   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON
+#
+# Deploy:
+#   cd media-worker && npx wrangler deploy

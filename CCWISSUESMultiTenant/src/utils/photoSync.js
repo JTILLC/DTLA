@@ -49,8 +49,14 @@ async function uploadOne(entry) {
   const path = `${entry.pathBase}/${entry.id}.jpg`;
   const ref = firebase.storage().ref().child(path);
   await ref.put(entry.blob, { contentType: 'image/jpeg' });
-  const url = await ref.getDownloadURL();
-  return { url, path };
+  // Revoke the auto-created public download token so this object is reachable
+  // only through the media broker (same reasoning as IssuePhotos). Best-effort.
+  try {
+    await ref.updateMetadata({ customMetadata: { firebaseStorageDownloadTokens: '' } });
+  } catch (err) {
+    console.warn('Could not revoke public token for', path, err?.message || err);
+  }
+  return { path };
 }
 
 async function reconcile(entry, resolved) {

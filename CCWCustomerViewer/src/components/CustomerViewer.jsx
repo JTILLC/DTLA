@@ -402,6 +402,14 @@ const CustomerViewer = () => {
         onToggleDark={() => setIsDark(!isDark)}
         onPrint={handlePrint}
         serviceReportUrl={visit?.serviceReportUrl}
+        // The report's object path is derivable from the ids, so legacy visits
+        // that only stored a URL resolve through the broker too.
+        serviceReportPath={
+          shareData?.userId && shareData?.customerId && selectedVisitId
+            ? `service-reports/${shareData.userId}/${shareData.customerId}/${selectedVisitId}.pdf`
+            : null
+        }
+        shareToken={token}
       />
 
       {/* Visit selector and view toggle */}

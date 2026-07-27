@@ -76,10 +76,13 @@ state that guards Firestore. So:
   "secret by URL", not access-controlled.
 - Revoking a share does **not** revoke previously-issued file URLs.
 
-Closing this properly means serving media through a signing broker — a Worker
-that validates the share and issues short-lived signed URLs — instead of handing
-out permanent download URLs. Worth doing before a customer's security review
-asks about it.
+**A media broker now exists to close this** — see `media-worker/`. It re-checks
+the share on every request and streams the bytes, so media access expires with
+the link. It is written but NOT yet deployed, and deploying it alone is not
+enough: every URL already stored in a visit document keeps working until its
+download token is revoked per object. See `media-worker/README.md` for the
+three-stage migration. Stage 1 (broker + viewer wiring, behind an empty
+`MEDIA_BROKER_BASE` flag) is done; stages 2 and 3 are not started.
 
 ## Not yet covered
 
