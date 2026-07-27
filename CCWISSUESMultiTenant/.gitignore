@@ -1,0 +1,24 @@
+# Service account keys and other secrets.
+#
+# A Firebase service account key grants FULL admin access to the project and
+# bypasses every Firestore and Storage security rule. It is needed only to run
+# scripts/sync-claims.mjs (see SECURITY.md). Keep it outside this folder if you
+# can; these patterns are the backstop if you don't.
+*serviceAccount*.json
+*service-account*.json
+sa.json
+# Firebase names the download <project>-firebase-adminsdk-<hash>.json, so the
+# leading wildcard matters — an anchored `firebase-adminsdk-*` would miss it.
+*firebase-adminsdk*.json
+*-firebase-*.json
+*.pem
+*.key
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Editor/OS noise
+.DS_Store
+*.log

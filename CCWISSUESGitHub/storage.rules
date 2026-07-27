@@ -1,0 +1,56 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Public read: the login-less customer viewer needs it, and download URLs
+    // carry an unguessable token. Storage rules cannot read Firestore, so the
+    // share-expiry check that guards Firestore reads has no equivalent here —
+    // a file URL that leaks stays readable. Treat photos as "secret by URL",
+    // not "access controlled". Closing this properly means serving media through
+    // a signing broker (a Worker that checks the share, then issues a short-lived
+    // signed URL) rather than handing out permanent download URLs.
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+
+    // ---- Writes: ownership enforced via CUSTOM CLAIMS -----------------------
+    //
+    // Previously any authenticated user could write or delete ANY path, so one
+    // tenant's login could clobber another tenant's photos. Storage rules can't
+    // read the app_roles collection, so ownership rides on the auth token
+    // instead: scripts/sync-claims.mjs mirrors app_roles -> custom claims
+    // (`admin`, `customerId`). Both upload paths embed the customer id, so the
+    // rule compares the path segment against the caller's claim.
+    //
+    // NOTE: a user's claims only take effect once their ID token refreshes
+    // (about an hour, or immediately on re-login / getIdToken(true)).
+
+    // issue-photos/{workspaceId}/{customerId}/{visitId}/{lineId}/head-{n}/{file}
+    match /issue-photos/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
+    }
+
+    // service-reports/{workspaceId}/{customerId}/{visitId}.pdf
+    match /service-reports/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 25 * 1024 * 1024
+                && request.resource.contentType == 'application/pdf'));
+    }
+
+    // No write rule for any other path → arbitrary uploads are denied.
+
+    // --- helpers ---
+    // An admin (JTI staff) may write anywhere. A customer login may only write
+    // under its own customer id. Users with no claims yet can't write at all —
+    // run the claims sync before relying on this.
+    function canWrite(customerId) {
+      return request.auth != null
+        && (request.auth.token.get('admin', false) == true
+            || request.auth.token.get('customerId', '') == customerId);
+    }
+  }
+}

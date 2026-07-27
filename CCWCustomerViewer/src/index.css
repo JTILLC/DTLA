@@ -1,0 +1,673 @@
+/* CSS Variables for theming */
+:root {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --input-bg: #ffffff;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-card: #2d2d2d;
+  --text-primary: #f8f9fa;
+  --text-secondary: #adb5bd;
+  --border-color: #495057;
+  --input-bg: #3d3d3d;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bootstrap dark mode overrides */
+[data-theme="dark"] .bg-light {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: var(--bg-card) !important;
+}
+
+[data-theme="dark"] .card {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .btn-outline-secondary {
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Header */
+.header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-logo {
+  height: 40px;
+  width: auto;
+}
+
+/* Loading and Error states */
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  background-color: var(--bg-primary);
+}
+
+/* Customer Viewer */
+.customer-viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.view-controls {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 16px;
+}
+
+.view-controls .form-select {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.viewer-content {
+  flex: 1;
+  background: var(--bg-primary);
+}
+
+.viewer-footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 12px 16px;
+}
+
+/* Dashboard */
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.stat-card.stat-danger .stat-value {
+  color: #dc3545;
+}
+
+.stat-card.stat-warning .stat-value {
+  color: #ffc107;
+}
+
+/* Lines Grid */
+.lines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.line-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow);
+  border-left-width: 4px;
+}
+
+/* Only lift on devices with a real pointer — on touch the transform sticks
+   after a tap and the card looks stuck in a hover state. */
+@media (hover: hover) {
+  .line-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.line-card:active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.line-card-success {
+  border-left-color: #28a745;
+}
+
+.line-card-warning {
+  border-left-color: #ffc107;
+}
+
+.line-card-danger {
+  border-left-color: #dc3545;
+}
+
+.line-card-info {
+  border-left-color: #17a2b8;
+}
+
+.line-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.line-card-header h6 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.line-card-body {
+  margin-bottom: 12px;
+}
+
+.line-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.875rem;
+}
+
+.line-card-notes {
+  margin-top: 8px;
+}
+
+.line-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Line Detail */
+.line-detail {
+  padding: 16px 0;
+}
+
+.line-detail-header {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+
+.line-info p {
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.line-notes-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.line-notes-section h6 {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* Heads Grid */
+.heads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.head-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  border-left-width: 4px;
+}
+
+.head-card.head-active {
+  border-left-color: #28a745;
+}
+
+.head-card.head-offline {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.head-card.head-fixed {
+  border-left-color: #ffc107;
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.head-card.head-active-issues {
+  border-left-color: #17a2b8;
+  background: rgba(23, 162, 184, 0.05);
+}
+
+.head-card.head-has-issues {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.head-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.head-number {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.head-issues {
+  margin-bottom: 10px;
+}
+
+.head-notes {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.875rem;
+}
+
+.head-notes p {
+  color: var(--text-primary);
+}
+
+.head-ok {
+  padding: 8px 0;
+  text-align: center;
+}
+
+/* Issue List */
+.issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.issue-item {
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.issue-notes {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+/* Status sublabels under the stat values (theme-aware, unlike the old
+   hardcoded #4ade80/#38bdf8 which washed out on the white light-mode card). */
+.stat-sublabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+.stat-sub-good { color: #15803d; }   /* green-700 — readable on white */
+.stat-sub-info { color: #0369a1; }   /* sky-700 */
+[data-theme="dark"] .stat-sub-good { color: #4ade80; }
+[data-theme="dark"] .stat-sub-info { color: #38bdf8; }
+
+/* Photo thumbnails — a real button so it is keyboard/screen-reader reachable
+   and gets a proper touch target, without inheriting Bootstrap .btn sizing. */
+.photo-thumb-btn {
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  background: none;
+  overflow: hidden;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.photo-thumb-btn:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+[data-theme="dark"] .photo-thumb-btn { border-color: rgba(255, 255, 255, 0.3); }
+
+/* Header + view-control layout (shared by desktop and mobile) */
+.header-row,
+.view-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header-titles { min-width: 0; }
+.header-titles h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view-visit-picker { min-width: 0; flex: 1 1 240px; }
+.view-visit-picker .form-select { min-width: 0; }
+.label-short { display: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header {
+    padding: 10px 12px;
+  }
+
+  .header-logo {
+    height: 32px;
+  }
+
+  .dashboard-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .lines-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .heads-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .line-detail-header {
+    padding: 16px;
+  }
+
+  /* The view toggle gets its own full-width row as a 3-up segmented control —
+     "Lines Overview / Offline Heads / Factory View" does not fit beside the
+     visit picker on a phone. */
+  .view-controls-row {
+    gap: 8px;
+  }
+  .view-visit-picker {
+    flex: 1 1 100%;
+  }
+  .view-mode-group {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .view-mode-toggle {
+    width: 100%;
+  }
+  .view-mode-toggle .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+    white-space: nowrap;
+  }
+  .label-full { display: none; }
+  .label-short { display: inline; }
+
+  /* Offline-heads table restacks into one card per head. The head number
+     becomes the card title, so it stays visible instead of scrolling away. */
+  .mobile-cards { border: 0; }
+  .mobile-cards thead { display: none; }
+  .mobile-cards tbody,
+  .mobile-cards tr,
+  .mobile-cards td { display: block; width: 100%; }
+  .mobile-cards tr {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+  }
+  .mobile-cards td {
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 0;
+  }
+  .mobile-cards td:last-child { border-bottom: 0; }
+  .mobile-cards td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .mobile-cards td.cell-head-no {
+    font-size: 1.25rem !important;
+    padding-top: 0;
+  }
+  .mobile-cards td.cell-head-no::before { content: 'Head'; display: inline; margin-right: 6px; }
+  /* The history row is a full-width strip, not a labelled field. */
+  .mobile-cards td[colspan]::before { content: none; }
+
+  /* Table-responsive would otherwise still allow a sideways drag. */
+  .offline-dashboard .table-responsive { overflow-x: visible; }
+
+  /* In card mode the status colour reads better as a left bar on the card than
+     as a flood behind every field (the flooded cells fight the notes text). */
+  .offline-dashboard .mobile-cards tr.row-fixed td,
+  .offline-dashboard .mobile-cards tr.row-active-issues td,
+  .offline-dashboard .mobile-cards tr.row-not-fixed td {
+    background-color: transparent;
+  }
+  .offline-dashboard .mobile-cards tr.row-fixed,
+  .offline-dashboard .mobile-cards tr.row-active-issues,
+  .offline-dashboard .mobile-cards tr.row-not-fixed {
+    border-left-width: 5px;
+  }
+  .offline-dashboard .mobile-cards tr.row-fixed { border-left-color: #ffc107; }
+  .offline-dashboard .mobile-cards tr.row-active-issues { border-left-color: #17a2b8; }
+  .offline-dashboard .mobile-cards tr.row-not-fixed { border-left-color: #dc3545; }
+}
+
+@media (max-width: 480px) {
+  .dashboard-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  /* One head card per row — two columns get cramped once a card carries
+     issues, notes, photos and history. */
+  .heads-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Trim the sticky header to logo + customer name so content starts higher. */
+  .header-date { display: none; }
+  .header-shared-badge { display: none; }
+  .header-titles h1 { font-size: 1.05rem; }
+}
+
+/* Offline Dashboard */
+.offline-dashboard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.offline-dashboard .table {
+  margin-bottom: 0;
+}
+
+.offline-dashboard .table th {
+  background-color: #0d6efd;
+  color: white;
+}
+
+[data-theme="dark"] .offline-dashboard .table th {
+  background-color: #0d6efd;
+  color: white;
+}
+
+[data-theme="dark"] .offline-dashboard .table thead.table-primary th {
+  background-color: #0d6efd;
+  color: white;
+}
+
+[data-theme="dark"] .offline-dashboard .table {
+  --bs-table-bg: var(--bg-secondary);
+  --bs-table-border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .offline-dashboard .table td {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .offline-dashboard .table-bordered {
+  border-color: var(--border-color);
+}
+
+/* Offline Dashboard Row Colors */
+.offline-dashboard .row-fixed td {
+  background-color: #fff3cd;
+}
+
+.offline-dashboard .row-active-issues td {
+  background-color: #d1ecf1;
+}
+
+.offline-dashboard .row-not-fixed td {
+  background-color: #f8d7da;
+}
+
+.offline-dashboard .history-row {
+  padding: 4px 8px;
+  background-color: #f0f0f5;
+}
+
+[data-theme="dark"] .offline-dashboard .row-fixed td {
+  background-color: #5c4a1e;
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .offline-dashboard .row-active-issues td {
+  background-color: #1a3a4a;
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .offline-dashboard .row-not-fixed td {
+  background-color: #4a1e1e;
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .offline-dashboard .history-row {
+  background-color: #3a3a4a;
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .offline-dashboard .history-row button {
+  color: #f8f9fa;
+  border-color: #6c757d;
+}
+
+/* Print styles */
+@media print {
+  .header,
+  .viewer-footer {
+    display: none;
+  }
+
+  .viewer-content {
+    padding: 0;
+  }
+
+  .line-card,
+  .head-card {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}
