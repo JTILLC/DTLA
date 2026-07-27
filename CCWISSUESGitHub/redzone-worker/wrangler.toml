@@ -1,0 +1,18 @@
+name = "ccwissues-redzone"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Non-secret config (safe to commit). Set the real values when known.
+[vars]
+ALLOWED_ORIGIN = "https://jti-issues.pages.dev"
+# REDZONE_API_BASE  = "https://api.rzsoftware.com/v1"   # confirm from Developer Hub
+# REDZONE_TOKEN_URL = "https://auth.rzsoftware.com/oauth/token"  # confirm
+
+# Secrets — set with wrangler, never commit these:
+#   npx wrangler secret put REDZONE_CLIENT_ID
+#   npx wrangler secret put REDZONE_CLIENT_SECRET
+#   npx wrangler secret put CCW_CLIENT_KEY   # optional shared secret (matches REDZONE_CONFIG.clientKey in the app)
+#
+# Deploy:
+#   cd redzone-worker && npm i && npx wrangler deploy
+# Then copy the deployed URL + "/push" into src/config/constants.js REDZONE_CONFIG.pushEndpoint

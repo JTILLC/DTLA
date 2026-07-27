@@ -32,7 +32,10 @@ export const buildHeadIssueHistory = (lineTitle, headId, allVisits, currentVisit
     const matchingLine = lines.find(l => l.title === lineTitle);
     if (!matchingLine) return;
 
-    const matchingHead = matchingLine.heads?.find(h => h.id === headId);
+    // Match by head id; fall back to position (headId is 1-based) so legacy
+    // heads saved without an `id` still appear in the history.
+    const heads = matchingLine.heads || [];
+    const matchingHead = heads.find(h => h.id === headId) || heads[headId - 1];
     if (!matchingHead) return;
 
     const migrated = migrateHeadData(matchingHead);

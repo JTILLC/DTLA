@@ -1,0 +1,472 @@
+<title>JTI CCW Log — User Guide</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f3f6fa;
+    --surface-3: #e6ebf2;
+    --border: #d3dae4;
+    --border-strong: #b9c3d1;
+    --ink: #16202e;
+    --ink-soft: #465264;
+    --ink-faint: #6c7889;
+    --accent: #1d5fb3;
+    --accent-strong: #164a8c;
+    --accent-wash: #e7effa;
+    --active: #1a9d5a;
+    --offline: #d63a3a;
+    --fixed: #e08a1e;
+    --issues: #2a92c9;
+    --shadow: 0 1px 2px rgba(20,32,50,.06), 0 8px 24px -12px rgba(20,32,50,.18);
+    --radius: 12px;
+    --maxread: 44rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e131a;
+      --surface: #151d28;
+      --surface-2: #1a2430;
+      --surface-3: #212d3b;
+      --border: #2a3644;
+      --border-strong: #3a4858;
+      --ink: #e7ecf3;
+      --ink-soft: #aab5c4;
+      --ink-faint: #7f8b9c;
+      --accent: #4f95e8;
+      --accent-strong: #6aa8ef;
+      --accent-wash: #16283f;
+      --active: #35b978;
+      --offline: #ee5b5b;
+      --fixed: #f0a63f;
+      --issues: #46a9dd;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6fa; --surface-3: #e6ebf2;
+    --border: #d3dae4; --border-strong: #b9c3d1; --ink: #16202e; --ink-soft: #465264;
+    --ink-faint: #6c7889; --accent: #1d5fb3; --accent-strong: #164a8c; --accent-wash: #e7effa;
+    --active: #1a9d5a; --offline: #d63a3a; --fixed: #e08a1e; --issues: #2a92c9;
+    --shadow: 0 1px 2px rgba(20,32,50,.06), 0 8px 24px -12px rgba(20,32,50,.18);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e131a; --surface: #151d28; --surface-2: #1a2430; --surface-3: #212d3b;
+    --border: #2a3644; --border-strong: #3a4858; --ink: #e7ecf3; --ink-soft: #aab5c4;
+    --ink-faint: #7f8b9c; --accent: #4f95e8; --accent-strong: #6aa8ef; --accent-wash: #16283f;
+    --active: #35b978; --offline: #ee5b5b; --fixed: #f0a63f; --issues: #46a9dd;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* ---------- header ---------- */
+  header.top {
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(120% 140% at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+      var(--surface);
+  }
+  .eyebrow {
+    font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 .7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    line-height: 1.04; letter-spacing: -.03em; font-weight: 800;
+    margin: 0 0 .6rem; text-wrap: balance; max-width: 20ch;
+  }
+  .lede { font-size: 1.16rem; color: var(--ink-soft); margin: 0; max-width: 46ch; text-wrap: pretty; }
+  .top .wrap { padding-top: 3.2rem; padding-bottom: 2.6rem; }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem;
+  }
+  .tag {
+    font-size: .78rem; font-weight: 600; color: var(--ink-soft);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: .28rem .66rem; border-radius: 100px;
+  }
+
+  /* ---------- layout ---------- */
+  .grid { display: block; }
+  @media (min-width: 62rem) {
+    .grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 3rem; align-items: start; }
+  }
+  nav.toc {
+    display: none;
+  }
+  @media (min-width: 62rem) {
+    nav.toc {
+      display: block; position: sticky; top: 1.5rem;
+      padding: 1.4rem 0; font-size: .9rem;
+      max-height: calc(100vh - 3rem); overflow-y: auto;
+    }
+    nav.toc .toc-h {
+      font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--ink-faint); font-weight: 700; margin: 0 0 .7rem;
+    }
+    nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .12rem; }
+    nav.toc a {
+      display: flex; gap: .6rem; align-items: baseline;
+      text-decoration: none; color: var(--ink-soft);
+      padding: .32rem .55rem; border-radius: 7px; border-left: 2px solid transparent;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    nav.toc a:hover { color: var(--ink); background: var(--surface-2); }
+    nav.toc a .n { color: var(--ink-faint); font-variant-numeric: tabular-nums; font-weight: 600; font-size: .78rem; min-width: 1.1rem; }
+    nav.toc a.admin { color: var(--accent); }
+  }
+  main { padding: 2.4rem 0 4rem; min-width: 0; }
+
+  /* ---------- sections ---------- */
+  section { scroll-margin-top: 1.5rem; }
+  section + section { margin-top: 2.9rem; }
+  .sec-head { display: flex; gap: .85rem; align-items: baseline; margin: 0 0 .35rem; }
+  .sec-num {
+    font-size: .82rem; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums; letter-spacing: .04em;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: .05rem .42rem; line-height: 1.5; flex: none; margin-top: .25rem;
+  }
+  h2 { font-size: 1.5rem; letter-spacing: -.02em; font-weight: 750; margin: 0; line-height: 1.2; text-wrap: balance; }
+  h3 { font-size: 1.06rem; font-weight: 700; letter-spacing: -.01em; margin: 1.8rem 0 .5rem; }
+  p { margin: .7rem 0; max-width: var(--maxread); }
+  .intro-line { color: var(--ink-soft); max-width: var(--maxread); margin-top: .1rem; }
+  a { color: var(--accent-strong); }
+
+  ol.steps { counter-reset: step; list-style: none; margin: 1.1rem 0; padding: 0; max-width: var(--maxread); }
+  ol.steps > li {
+    counter-increment: step; position: relative;
+    padding: 0 0 0 2.6rem; margin: 0 0 1rem;
+  }
+  ol.steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: -.05rem;
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-size: .82rem; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.steps > li p { margin: .15rem 0; }
+  ul.plain { margin: .7rem 0; padding-left: 1.2rem; max-width: var(--maxread); }
+  ul.plain li { margin: .35rem 0; }
+  ul.plain li::marker { color: var(--accent); }
+
+  /* ---------- UI tokens (teach recognition) ---------- */
+  .ui { font-weight: 600; background: var(--surface-3); border: 1px solid var(--border); border-radius: 6px; padding: .04em .4em; font-size: .92em; white-space: nowrap; }
+  .k { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .86em; background: var(--surface-3); border: 1px solid var(--border); border-radius: 5px; padding: .05em .38em; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .74rem; font-weight: 700; letter-spacing: .01em;
+    padding: .18rem .5rem; border-radius: 5px; color: #fff; vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  .badge.jti { background: var(--accent); }
+  .badge.shift { background: var(--surface-3); color: var(--ink-soft); border: 1px solid var(--border-strong); }
+  .badge.sr { background: transparent; color: var(--active); border: 1px solid var(--active); }
+
+  /* head color legend */
+  .legend { display: grid; gap: .7rem; margin: 1.2rem 0; max-width: var(--maxread); }
+  @media (min-width: 34rem) { .legend { grid-template-columns: 1fr 1fr; } }
+  .swatch { display: flex; gap: .8rem; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; }
+  .chip {
+    width: 2.35rem; height: 2.35rem; border-radius: 8px; flex: none;
+    display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1rem;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .chip.active { background: var(--active); }
+  .chip.offline { background: var(--offline); }
+  .chip.fixed { background: var(--fixed); }
+  .chip.issues { background: var(--issues); }
+  .swatch b { display: block; font-size: .95rem; }
+  .swatch span { display: block; font-size: .84rem; color: var(--ink-soft); }
+
+  /* status toggle demo */
+  .statusrow { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; align-items: center; }
+  .stbtn { font-size: .82rem; font-weight: 700; padding: .3rem .7rem; border-radius: 6px; color: #fff; }
+  .stbtn.nf { background: var(--offline); }
+  .stbtn.fx { background: var(--fixed); }
+  .stbtn.aw { background: var(--issues); }
+  .arrow { color: var(--ink-faint); font-weight: 700; }
+
+  /* save chip demo */
+  .chips-demo { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .savechip { font-size: .8rem; font-weight: 600; padding: .25rem .6rem; border-radius: 100px; border: 1px solid var(--border); background: var(--surface); }
+  .savechip.ok { color: var(--active); border-color: color-mix(in srgb, var(--active) 45%, var(--border)); }
+  .savechip.saving { color: var(--ink-soft); }
+  .savechip.off { color: var(--fixed); border-color: color-mix(in srgb, var(--fixed) 45%, var(--border)); }
+
+  /* callouts */
+  .call { border: 1px solid var(--border); border-left-width: 3px; border-radius: 10px; background: var(--surface); padding: 1rem 1.15rem; margin: 1.3rem 0; max-width: var(--maxread); box-shadow: var(--shadow); }
+  .call .call-h { font-weight: 750; font-size: .96rem; margin: 0 0 .3rem; display: flex; align-items: center; gap: .5rem; }
+  .call p { margin: .35rem 0; font-size: .96rem; color: var(--ink-soft); }
+  .call p:first-of-type { margin-top: 0; }
+  .call.view { border-left-color: var(--accent); }
+  .call.view .call-h { color: var(--accent); }
+  .call.lock { border-left-color: var(--fixed); }
+  .call.lock .call-h { color: var(--fixed); }
+  .call.tip { border-left-color: var(--active); }
+  .call.tip .call-h { color: var(--active); }
+
+  /* view-only banner mock */
+  .mock-banner { display: flex; gap: .6rem; align-items: center; background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); color: var(--ink); border-radius: 9px; padding: .7rem .85rem; font-size: .9rem; max-width: var(--maxread); margin: 1rem 0; }
+  .mock-banner .dot { color: var(--accent); flex: none; }
+
+  hr.div { border: 0; border-top: 1px solid var(--border); margin: 3.4rem 0; max-width: var(--maxread); }
+
+  /* admin appendix */
+  .admin-band { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.7rem 1.6rem; margin-top: 1.4rem; box-shadow: var(--shadow); }
+  .admin-band h2 { font-size: 1.35rem; }
+  .admin-eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 .3rem; }
+  dl.admin { margin: 1.1rem 0 0; display: grid; gap: .1rem; }
+  dl.admin div { padding: .8rem 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr; gap: .1rem; }
+  @media (min-width: 40rem) { dl.admin div { grid-template-columns: 11rem 1fr; gap: 1rem; } }
+  dl.admin dt { font-weight: 700; font-size: .95rem; }
+  dl.admin dd { margin: 0; color: var(--ink-soft); font-size: .95rem; }
+
+  footer { border-top: 1px solid var(--border); color: var(--ink-faint); font-size: .86rem; }
+  footer .wrap { padding: 1.8rem 1.5rem; display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; justify-content: space-between; }
+
+  a:focus-visible, nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">JTI CCW Log · User Guide</p>
+    <h1>Logging weigher head issues, start to finish</h1>
+    <p class="lede">A plain-language walkthrough of the app your team uses to record which CCW heads are down, what's wrong, and what got fixed on each shift.</p>
+    <div class="meta-row">
+      <span class="tag">For plant supervisors &amp; operators</span>
+      <span class="tag">Works on phone, tablet &amp; computer</span>
+      <span class="tag">No install — open the link JTI sent you</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap grid">
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-h">Contents</p>
+    <ol>
+      <li><a href="#signin"><span class="n">1</span> Signing in</a></li>
+      <li><a href="#screen"><span class="n">2</span> The screen at a glance</a></li>
+      <li><a href="#colors"><span class="n">3</span> What the head colors mean</a></li>
+      <li><a href="#newlog"><span class="n">4</span> Start a daily log</a></li>
+      <li><a href="#markdown"><span class="n">5</span> Mark a head down &amp; explain it</a></li>
+      <li><a href="#photos"><span class="n">6</span> Add photos</a></li>
+      <li><a href="#fixed"><span class="n">7</span> Mark an issue fixed</a></li>
+      <li><a href="#lines"><span class="n">8</span> Lines &amp; head counts</a></li>
+      <li><a href="#review"><span class="n">9</span> Dashboard &amp; history</a></li>
+      <li><a href="#export"><span class="n">10</span> Export &amp; share</a></li>
+      <li><a href="#jti"><span class="n">11</span> "JTI Visit" entries</a></li>
+      <li><a href="#locked"><span class="n">12</span> Locked actions</a></li>
+      <li><a href="#recover"><span class="n">13</span> Undo &amp; recover</a></li>
+      <li><a href="#offline"><span class="n">14</span> Working offline</a></li>
+      <li><a href="#admin" class="admin"><span class="n">＋</span> For JTI admins</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <p class="intro-line"><strong>What this app is for.</strong> Each shift, you record the state of every weigher head on your lines — which are running, which are offline, what the problem is, and whether it was fixed. That record builds a shared history JTI uses to service your equipment. You never lose work: everything saves to the cloud automatically.</p>
+
+    <section id="signin">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Signing in</h2></div>
+      <p>Open the link JTI gave you and sign in with the <strong>email and password</strong> JTI set up for your plant. There's no self sign-up — accounts are created by JTI.</p>
+      <ul class="plain">
+        <li>Enter your <span class="ui">Email</span> and <span class="ui">Password</span>, then tap <span class="ui">Sign In</span>.</li>
+        <li>Forgot it? Type your email, then tap <span class="ui">Forgot password?</span> — a reset link is emailed to you (check spam).</li>
+        <li>If you see <em>"Account not set up yet,"</em> you're signed in but haven't been linked to a plant. Contact JTI to finish setup.</li>
+      </ul>
+      <p>Once you're in, the app opens straight to <strong>your plant</strong> — you only ever see your own data.</p>
+    </section>
+
+    <section id="screen">
+      <div class="sec-head"><span class="sec-num">02</span><h2>The screen at a glance</h2></div>
+      <p>Across the top is a toolbar. The pieces you'll use most:</p>
+      <ul class="plain">
+        <li><span class="ui">Customer:</span> — your plant name and head count, shown as a locked label.</li>
+        <li><span class="ui">Daily Log</span> — opens the list of logs. This is where you start a new one or open an old one.</li>
+        <li><span class="ui">Help</span> — a built-in quick guide, always one tap away.</li>
+        <li><span class="ui">Export</span> — save a PDF or data file of the current log.</li>
+        <li>A <strong>save status chip</strong> on the right tells you your work is safe:</li>
+      </ul>
+      <div class="chips-demo">
+        <span class="savechip ok">✓ Saved 2:14 PM</span>
+        <span class="savechip saving">Saving…</span>
+        <span class="savechip off">⚠ Offline — will retry</span>
+      </div>
+      <p>Below the toolbar are three tabs: <span class="ui">Current Log</span> (where you work), <span class="ui">Issue History</span> (past problems per head), and <span class="ui">Factory Layout</span> (a map of your lines).</p>
+    </section>
+
+    <section id="colors">
+      <div class="sec-head"><span class="sec-num">03</span><h2>What the head colors mean</h2></div>
+      <p>Every head is a numbered button. Its color tells you its state at a glance — this is the single most useful thing to memorize:</p>
+      <div class="legend">
+        <div class="swatch"><div class="chip active">7</div><div><b>Green — Active</b><span>Running normally, no issues.</span></div></div>
+        <div class="swatch"><div class="chip offline">7</div><div><b>Red — Offline</b><span>Down with an unfixed problem.</span></div></div>
+        <div class="swatch"><div class="chip fixed">7</div><div><b>Orange — Fixed</b><span>Had issues, all now marked fixed.</span></div></div>
+        <div class="swatch"><div class="chip issues">7</div><div><b>Blue — Active w/ Issues</b><span>Running, but a problem is still open.</span></div></div>
+      </div>
+      <p>The same four colors appear in the head tables, the Dashboard, and the line list, so the whole app reads consistently.</p>
+    </section>
+
+    <section id="newlog">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Start a daily log</h2></div>
+      <p>A <strong>daily log</strong> is one shift's record. A single day can have a separate log for each shift.</p>
+      <ol class="steps">
+        <li><p>Tap <span class="ui">Daily Log</span> in the toolbar, then <span class="ui">+ New Log</span>.</p></li>
+        <li><p>Pick the <span class="ui">Date</span> and <span class="ui">Shift</span> — <span class="badge shift">1st Shift</span> <span class="badge shift">2nd Shift</span> <span class="badge shift">3rd Shift</span>.</p></li>
+        <li><p>Leave <span class="ui">Continue from last shift</span> checked to carry over heads that are still offline and their open issues. <em>(Photos aren't carried over.)</em></p></li>
+        <li><p>Tap <span class="ui">Create Log</span>. The log is named automatically, like <span class="k">2026-07-24 — 1st Shift</span>.</p></li>
+      </ol>
+      <p>To reopen an old log, tap <span class="ui">Daily Log</span> and pick it from the list. Each row shows its shift badge, date, and — if JTI attached a service report — an <span class="badge sr">SR 2026014</span> tag.</p>
+    </section>
+
+    <section id="markdown">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Mark a head down &amp; explain it</h2></div>
+      <p>This is the core task. On the <span class="ui">Current Log</span> tab, find the line and its grid of numbered heads.</p>
+      <ol class="steps">
+        <li><p><strong>Tap the head's number.</strong> It flips to <span class="chip offline" style="width:1.3rem;height:1.3rem;border-radius:5px;font-size:.75rem;display:inline-grid;vertical-align:middle;">7</span> red (offline) and a panel opens: <span class="ui">Head 7 — Line 1</span>.</p></li>
+        <li><p>Confirm the <span class="ui">Status</span> — <span class="ui">Offline</span> or <span class="ui">Active</span>.</p></li>
+        <li><p>Tap <span class="ui">+ Add Issue</span> and choose what's wrong from the list: Chute, Operator, Load Cell, Detached Head, Stepper Motor Error, Hopper Issues, Installed Wrong, Radial Feeder, Booster Hopper Issues, or Other.</p></li>
+        <li><p>Set the issue's state with the toggle, and type a note if it helps. Add <span class="ui">Head Notes</span> for anything general.</p></li>
+        <li><p>Tap <span class="ui">Done</span>. Your work is already saved.</p></li>
+      </ol>
+      <p>You can add more than one issue to a single head — tap <span class="ui">+ Add Issue</span> again.</p>
+    </section>
+
+    <section id="photos">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Add photos</h2></div>
+      <p>A photo often explains a problem better than words. Tap the <span class="ui">Photo</span> button on an issue (or on the head itself) to take a picture or pick one — you can add several at once.</p>
+      <ul class="plain">
+        <li><strong>Save the log first.</strong> Photos upload to the cloud, so a brand-new log needs to be saved before the Photo button turns on.</li>
+        <li>Tap any thumbnail to open it <strong>full screen</strong>; tap the small red ✕ on a thumbnail to delete it.</li>
+        <li>Photos show up in the Dashboard and can be included in the PDF you export.</li>
+      </ul>
+    </section>
+
+    <section id="fixed">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Mark an issue fixed</h2></div>
+      <p>When a problem is resolved, reopen the head and tap the issue's status toggle. It cycles through three states:</p>
+      <div class="statusrow">
+        <span class="stbtn nf">Not Fixed</span><span class="arrow">→</span>
+        <span class="stbtn fx">Fixed</span><span class="arrow">→</span>
+        <span class="stbtn aw">Active w/ Issues</span><span class="arrow">→</span>
+        <span class="stbtn nf">Not Fixed</span>
+      </div>
+      <ul class="plain">
+        <li>Once <strong>every</strong> issue on a head is <span class="stbtn fx" style="font-size:.72rem;padding:.15rem .5rem;">Fixed</span>, the head turns <strong style="color:var(--fixed);">orange</strong>.</li>
+        <li>Use <strong style="color:var(--issues);">Active w/ Issues</strong> when a head is running again but you're watching a lingering problem — it turns the head blue.</li>
+      </ul>
+    </section>
+
+    <section id="lines">
+      <div class="sec-head"><span class="sec-num">08</span><h2>Lines &amp; head counts</h2></div>
+      <p>Switch lines with the <span class="ui">Select Line</span> dropdown or the <span class="ui">Lines</span> button. To add one, tap <span class="ui">Add Line</span>, give it a <span class="ui">Line Name</span> (e.g. "Packing Line A") and a <span class="ui">Number of Heads</span>.</p>
+      <p>To change how many heads a line has, open <span class="ui">Show Details</span> and edit <span class="ui">Head Count</span>. Adding heads is instant; <em>reducing</em> the count removes heads from the end and asks you to confirm.</p>
+      <div class="call tip">
+        <p class="call-h">Tip · Carrying work forward</p>
+        <p>You rarely re-enter your line setup. Starting a new log with <span class="ui">Continue from last shift</span> brings your lines, head counts, statuses, and open issues along automatically.</p>
+      </div>
+    </section>
+
+    <section id="review">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Dashboard &amp; history</h2></div>
+      <p>Two views help you see the whole picture:</p>
+      <ul class="plain">
+        <li><strong>Dashboard</strong> (button on Current Log) — every offline and active-with-issues head, grouped by line, with photos. A live banner up top reads <strong style="color:var(--offline);">🔴 {n} heads down</strong> or <strong style="color:var(--active);">✓ All heads running</strong>.</li>
+        <li><strong>Issue History</strong> tab — shows a head's past problems across earlier logs, so recurring trouble on the same head is easy to spot. Expand <span class="ui">Past Issues</span> on any head to see it inline too.</li>
+      </ul>
+    </section>
+
+    <section id="export">
+      <div class="sec-head"><span class="sec-num">10</span><h2>Export &amp; share</h2></div>
+      <p>Tap <span class="ui">Export</span> in the toolbar to save the current log:</p>
+      <ul class="plain">
+        <li><span class="ui">Dashboard PDF</span> — a clean report of every down/issue head.</li>
+        <li><span class="ui">Dashboard PDF (with Photos)</span> — the same report with your photos embedded.</li>
+        <li><span class="ui">All Data JSON</span> — the raw data, for backup or handoff.</li>
+      </ul>
+    </section>
+
+    <section id="jti">
+      <div class="sec-head"><span class="sec-num">11</span><h2>"JTI Visit" entries</h2></div>
+      <p>Some logs are created by <strong>JTI technicians</strong> during a service visit. In the log list they carry a <span class="badge jti">JTI Visit</span> badge, and when you open one you'll see:</p>
+      <div class="mock-banner"><span class="dot">👁</span> JTI service visit — view only. This log was done by JTI. Contact JTI to make changes.</div>
+      <div class="call view">
+        <p class="call-h">These are read-only for you</p>
+        <p>The form is dimmed and can't be edited — that's on purpose, so a service record stays exactly as JTI left it. Your own shift logs are always fully editable.</p>
+      </div>
+    </section>
+
+    <section id="locked">
+      <div class="sec-head"><span class="sec-num">12</span><h2>Locked actions &amp; the supervisor password</h2></div>
+      <p>Day-to-day logging is open to everyone. A few <strong>bigger, harder-to-undo actions</strong> ask for a <strong>supervisor password</strong> first:</p>
+      <ul class="plain">
+        <li>Adding or removing a line</li>
+        <li>Reducing a line's head count</li>
+        <li>Deleting a log (or deleting one permanently)</li>
+        <li>Discarding a recovery backup</li>
+      </ul>
+      <p>When prompted you'll see <span class="ui">Password required</span> — enter the supervisor password and tap <span class="ui">Confirm</span>.</p>
+      <div class="call lock">
+        <p class="call-h">No password set?</p>
+        <p>If your plant hasn't been given a supervisor password, these actions are blocked with a note to <em>"Ask JTI to set a password that lets a supervisor make these changes."</em> Just contact JTI — only they can set or change it.</p>
+      </div>
+    </section>
+
+    <section id="recover">
+      <div class="sec-head"><span class="sec-num">13</span><h2>Undo &amp; recover</h2></div>
+      <ul class="plain">
+        <li><strong>Reset a line by accident?</strong> A yellow <span class="ui">Recover</span> button appears in the toolbar. Open it and tap <span class="ui">Restore</span> — reset lines are kept for 7 days. (Reset itself isn't password-locked, because it's this easy to undo.)</li>
+        <li><strong>Deleted a log?</strong> It goes to the <span class="ui">Recycle Bin</span> (in the settings menu), where you can <span class="ui">Restore</span> it. Items there auto-delete after 30 days.</li>
+      </ul>
+    </section>
+
+    <section id="offline">
+      <div class="sec-head"><span class="sec-num">14</span><h2>Working offline</h2></div>
+      <p>Signal drops out on the plant floor — that's fine. If you go offline you'll see a banner: <em>"Offline — Your changes are saved and sync when you're back online."</em> Keep logging; the save chip shows <span class="savechip off" style="font-size:.72rem;">⚠ Offline — will retry</span> and everything uploads automatically once you're back on Wi-Fi or data.</p>
+      <div class="call tip">
+        <p class="call-h">The one rule worth remembering</p>
+        <p>Your work saves itself, constantly. You never need a "save" button for normal logging — just watch for the green <span class="savechip ok" style="font-size:.72rem;">✓ Saved</span> chip.</p>
+      </div>
+    </section>
+
+    <hr class="div" />
+
+    <section id="admin">
+      <div class="admin-band">
+        <p class="admin-eyebrow">Appendix</p>
+        <h2>For JTI admins</h2>
+        <p style="color:var(--ink-soft);max-width:var(--maxread);">When you sign in as JTI (admin), the app unlocks tools that are hidden from customer logins. Admins are never asked for the supervisor password.</p>
+        <dl class="admin">
+          <div><dt>Customer picker</dt><dd>A dropdown to switch between every plant, instead of a locked single-plant label.</dd></div>
+          <div><dt>Add Customer</dt><dd>Settings menu → create a new plant with name, address, city/state, and head count.</dd></div>
+          <div><dt>Password</dt><dd>Toolbar lock button — set, change, or clear a plant's supervisor password. Shows <span class="ui">Password ✓</span> when one is set. Leaving it blank means only JTI can perform the locked actions.</dd></div>
+          <div><dt>Share</dt><dd>Generate a no-login, read-only link so a customer can view a visit's equipment status. Revoke it any time; view counts are shown.</dd></div>
+          <div><dt>Service reports</dt><dd>Attach a service report PDF and set its <span class="ui">SR #</span> (<span class="k">YYYY###</span>) on a log.</dd></div>
+          <div><dt>JTI Visits</dt><dd>Any log an admin creates without a shift becomes a read-only "JTI Visit" for the customer.</dd></div>
+          <div><dt>Import JSON &amp; Delete Options</dt><dd>Bulk data import and customer-level deletion — admin only, in the settings menu.</dd></div>
+        </dl>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>JTI CCW Log — User Guide</span>
+    <span>Questions or account changes? Contact JTI.</span>
+  </div>
+</footer>

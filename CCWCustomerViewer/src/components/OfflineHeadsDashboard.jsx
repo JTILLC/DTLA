@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { buildHeadIssueHistory } from '../utils/headHistory';
+import PhotoStrip from './PhotoStrip';
 
 const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsForHistory, currentVisitId }) => {
   const [expandedHistory, setExpandedHistory] = useState({});
@@ -37,18 +38,18 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
     }
   };
 
-  const getHeadRowColor = (head) => {
+  const getHeadRowClass = (head) => {
     const issues = head.issues || [];
     if (issues.length === 0 && head.error && head.error !== 'None') {
-      return head.fixed === 'fixed' ? '#fff3cd' :
-             head.fixed === 'active_with_issues' ? '#d1ecf1' : '#f8d7da';
+      return head.fixed === 'fixed' ? 'row-fixed' :
+             head.fixed === 'active_with_issues' ? 'row-active-issues' : 'row-not-fixed';
     }
-    if (issues.length === 0) return '#f8d7da';
+    if (issues.length === 0) return 'row-not-fixed';
     const allFixed = issues.every(iss => iss.fixed === 'fixed');
     const someActiveWithIssues = issues.some(iss => iss.fixed === 'active_with_issues');
-    if (allFixed) return '#fff3cd';
-    if (someActiveWithIssues) return '#d1ecf1';
-    return '#f8d7da';
+    if (allFixed) return 'row-fixed';
+    if (someActiveWithIssues) return 'row-active-issues';
+    return 'row-not-fixed';
   };
 
   // Render a single visit's offline heads
@@ -86,8 +87,10 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
             </p>
           )}
 
+          {/* mobile-cards: below 768px this table restacks into one card per head
+              (see index.css) so the head number never scrolls out of view. */}
           <div className="table-responsive">
-            <table className="table table-bordered">
+            <table className="table table-bordered mobile-cards">
               <thead className="table-primary">
                 <tr>
                   <th style={{ width: '80px' }}>Head #</th>
@@ -105,11 +108,11 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
 
                   return (
                     <React.Fragment key={head.index}>
-                    <tr style={{ backgroundColor: getHeadRowColor(head) }}>
-                      <td style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
+                    <tr className={getHeadRowClass(head)}>
+                      <td className="cell-head-no" data-label="Head" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
                         {head.index}
                       </td>
-                      <td>
+                      <td data-label="Issues">
                         {hasOldFormat ? (
                           <div style={{
                             padding: '6px 10px',
@@ -142,6 +145,7 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
                                     {issue.notes}
                                   </div>
                                 )}
+                                <PhotoStrip photos={issue.photos} label="Issue photo" size={56} />
                               </div>
                             ))}
                           </div>
@@ -149,11 +153,14 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
                           <span className="text-muted fst-italic">No issues logged</span>
                         )}
                       </td>
-                      <td>{head.notes || <span className="text-muted">—</span>}</td>
+                      <td data-label="Notes">
+                        {head.notes || <span className="text-muted">—</span>}
+                        <PhotoStrip photos={head.photos} label="Head photo" size={56} />
+                      </td>
                     </tr>
                     {history.length > 0 && (
                       <tr>
-                        <td colSpan="3" style={{ padding: '4px 8px', backgroundColor: '#f0f0f5' }}>
+                        <td colSpan="3" className="history-row">
                           <button
                             onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
                             style={{

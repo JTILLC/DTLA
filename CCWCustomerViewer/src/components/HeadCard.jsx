@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import IssueList from './IssueList';
+import PhotoStrip from './PhotoStrip';
 import { buildHeadIssueHistory } from '../utils/headHistory';
 
 const HeadCard = ({ head, headNumber, allVisits, currentVisitId, lineTitle }) => {
@@ -60,7 +61,14 @@ const HeadCard = ({ head, headNumber, allVisits, currentVisitId, lineTitle }) =>
         </div>
       )}
 
-      {!hasIssues && !head.notes && (
+      {Array.isArray(head.photos) && head.photos.length > 0 && (
+        <div className="head-notes" style={{ marginTop: '6px' }}>
+          <small className="text-muted">Photos:</small>
+          <PhotoStrip photos={head.photos} label="Head photo" size={56} />
+        </div>
+      )}
+
+      {!hasIssues && !head.notes && (!head.photos || head.photos.length === 0) && (
         <div className="head-ok">
           <span className="text-success">No issues</span>
         </div>

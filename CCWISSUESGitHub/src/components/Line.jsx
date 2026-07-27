@@ -1,116 +1,128 @@
 import React, { useState, useEffect } from 'react';
 import SpanAdjust from './SpanAdjust.jsx';
-import { buildHeadIssueHistory } from '../utils/headHelpers.js';
+import SpanCalPreview from './SpanCalPreview.jsx';
+import Audit from './Audit.jsx';
+import CombinedExport from './CombinedExport.jsx';
+import IssuePhotos from './IssuePhotos.jsx';
+import RedZoneSync from './RedZoneSync.jsx';
+import HeadIssueModal from './HeadIssueModal.jsx';
+import { useDialog } from './DialogSystem.jsx';
+import { buildHeadIssueHistory, migrateHeadData as migrateHeadDataShared } from '../utils/headHelpers.js';
 
 const issueTypes = [
   'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
   'Hopper Issues', 'Installed Wrong', 'Radial Feeder', 'Booster Hopper Issues', 'Other'
 ];
 
-// Migrate old single-error format to new multi-issue format
-const migrateHeadData = (head) => {
-  // If already has issues array, return as-is
-  if (head.issues && Array.isArray(head.issues)) {
-    return head;
-  }
-
-  // Convert old format to new format
-  const migratedHead = {
-    ...head,
-    issues: []
-  };
-
-  // If there was an old error field and it wasn't "None", convert it
-  if (head.error && head.error !== 'None') {
-    migratedHead.issues.push({
-      type: head.error,
-      fixed: head.fixed || 'na',
-      notes: head.notes || ''
-    });
-    // Clear old fields to avoid confusion
-    migratedHead.error = 'None';
-    migratedHead.notes = '';
-  }
-
-  return migratedHead;
+// Migrate + clear legacy error/notes after moving them into the issues array,
+// so the head-level notes field doesn't duplicate the first issue's notes.
+const migrateHead = (head) => {
+  const needsLegacyClear = !Array.isArray(head.issues) && head.error && head.error !== 'None';
+  const migrated = migrateHeadDataShared(head);
+  if (!needsLegacyClear) return migrated;
+  return { ...migrated, error: 'None', notes: '' };
 };
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, isDark, visits, currentVisitId }) => {
-  const [expandedHistory, setExpandedHistory] = useState({});
-  // Migrate heads on initial load
-  const migratedLine = {
-    ...line,
-    heads: line.heads.map(migrateHeadData)
-  };
+const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-  const [localLine, setLocalLine] = useState(migratedLine);
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId }) => {
+  const dialog = useDialog();
+  const photosDisabled = !userId || !customerId || !visitId;
+  const photoPathBase = (headId) =>
+    `issue-photos/${userId}/${customerId}/${visitId}/${line.id}/head-${headId}`;
+  // Where a queued (offline) photo's URL gets written back once it uploads.
+  const visitDocPath =
+    userId && customerId && visitId
+      ? `user_files/${userId}/customers/${customerId}/visits/${visitId}`
+      : null;
+  const [expandedHistory, setExpandedHistory] = useState({});
+  const [localLine, setLocalLine] = useState(() => migrateLine(line));
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showActiveHeads, setShowActiveHeads] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
+  const [showSpanPreview, setShowSpanPreview] = useState(false);
+  const [showCombined, setShowCombined] = useState(false);
+
+  const updateAudit = (label, field, value) => {
+    const prevAudit = localLine.audit || {};
+    const prevRow = prevAudit[label] || {};
+    const updated = { ...localLine, audit: { ...prevAudit, [label]: { ...prevRow, [field]: value } } };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  const updateAuditNotes = (value) => {
+    const updated = { ...localLine, auditNotes: value };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
 
   useEffect(() => {
-    console.debug('Line component updated with new prop:', line);
-    // Migrate heads when prop changes
-    const migrated = {
-      ...line,
-      heads: line.heads.map(migrateHeadData)
-    };
-    setLocalLine(migrated);
+    setLocalLine(migrateLine(line));
   }, [line]);
 
   const handleChange = (e) => {
-    console.debug(`Line field changed: ${e.target.name}=${e.target.value}`);
     const updated = { ...localLine, [e.target.name]: e.target.value };
     setLocalLine(updated);
     updateLine(updated);
   };
 
   const handleCheckbox = (e) => {
-    console.debug(`Checkbox changed: ${e.target.name}=${e.target.checked}`);
     const updated = { ...localLine, [e.target.name]: e.target.checked };
     setLocalLine(updated);
     updateLine(updated);
   };
 
   const handleHeadChange = (index, field, value) => {
-    console.debug(`Head ${index + 1} changed: ${field}=${value}`);
     const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, [field]: value } : h);
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
   };
 
+  // Merge several fields onto one head at once (used by RedZone sync so a single
+  // update carries the work-order id/status/timestamp rather than three writes).
+  const updateHeadFields = (index, fields) => {
+    const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, ...fields } : h);
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Toggling Span Adjust off now just hides it — the weights are kept.
   const toggleSpanAdjust = (e) => {
-    const checked = e.target.checked;
-    console.debug(`Toggling span adjust for line ${line.id}: ${checked}`);
-    if (!checked) {
-      if (window.confirm("Are you sure you want to hide and clear Span Adjust data?")) {
-        const updatedHeads = localLine.heads.map(head => ({
-          ...head,
-          currentWeight: 0,
-          spanWeight: 0,
-          weightDifference: 0,
-        }));
-        const updated = { ...localLine, showSpanAdjust: false, heads: updatedHeads };
-        setLocalLine(updated);
-        updateLine(updated);
-      } else {
-        e.target.checked = true;
-      }
-    } else {
-      const updated = { ...localLine, showSpanAdjust: true };
-      setLocalLine(updated);
-      updateLine(updated);
-    }
+    const updated = { ...localLine, showSpanAdjust: e.target.checked };
+    setLocalLine(updated);
+    updateLine(updated);
   };
 
   const updateHeadWeight = (index, field, value) => {
-    console.debug(`Updating weight for head ${index + 1}: ${field}=${value}`);
     const updatedHeads = localLine.heads.map((h, j) => j === index ? {
       ...h,
       [field]: parseFloat(value) || 0,
       weightDifference: (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight) - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
     } : h);
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Span Adjust bulk helpers.
+  const [spanAllValue, setSpanAllValue] = useState('');
+  const clearSpanCurrentWeights = () => {
+    const updatedHeads = localLine.heads.map(h => ({
+      ...h, currentWeight: 0, weightDifference: (h.spanWeight || 0) - 0,
+    }));
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+  const applyAllSpanWeights = () => {
+    const val = parseFloat(spanAllValue);
+    if (isNaN(val)) return;
+    const updatedHeads = localLine.heads.map(h => ({
+      ...h, spanWeight: val, weightDifference: val - (h.currentWeight || 0),
+    }));
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
@@ -135,6 +147,20 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
+  // Which head the issue modal is showing (index into localLine.heads), or null.
+  const [issueModalHead, setIssueModalHead] = useState(null);
+
+  // Tapping a head in the Quick Head Toggle: if it's active, disable it (and seed
+  // a first issue) then open the modal so the issue can be entered right there;
+  // if it's already offline, just open the modal to review/edit or re-activate.
+  const openHeadModal = (index) => {
+    const head = localLine.heads[index];
+    if (head.status === 'active') {
+      quickToggleHead(index, true); // disable it (turns red)
+    }
+    setIssueModalHead(index);
+  };
+
   // Separate heads by status
   const offlineHeads = localLine.heads.map((head, i) => ({ ...head, index: i })).filter(head => head.status === 'offline');
   const activeHeads = localLine.heads.map((head, i) => ({ ...head, index: i })).filter(head => head.status === 'active');
@@ -150,7 +176,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         const issues = h.issues || [];
         return {
           ...h,
-          issues: [...issues, { type: 'Chute', fixed: 'not_fixed', notes: '' }]
+          issues: [...issues, { type: 'Chute', fixed: 'not_fixed', notes: '', photos: [] }]
         };
       }
       return h;
@@ -220,7 +246,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // Active heads always start collapsed - user can expand if needed
 
   // Change head count for the line
-  const changeHeadCount = (newCount) => {
+  const changeHeadCount = async (newCount) => {
     const count = parseInt(newCount);
     if (isNaN(count) || count < 1) return;
 
@@ -245,7 +271,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       ];
     } else if (count < currentCount) {
       // Remove heads from the end
-      if (!window.confirm(`This will remove ${currentCount - count} head(s) from the end. Continue?`)) return;
+      const confirmed = await dialog.confirm(`This will remove ${currentCount - count} head(s) from the end. Continue?`, {
+        title: 'Remove Heads',
+        confirmText: 'Continue',
+        variant: 'warning'
+      });
+      if (!confirmed) return;
       newHeads = localLine.heads.slice(0, count);
     } else {
       return; // No change
@@ -255,8 +286,6 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     setLocalLine(updated);
     updateLine(updated);
   };
-
-  console.log('Rendering Line component - id:', line.id, 'isVisible:', isVisible, 'localLine:', localLine);
 
   return (
     <div className="machine-section" style={{ display: isVisible ? 'block' : 'none' }}>
@@ -292,17 +321,19 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       </div>
 
       <div>
+      {/* htmlFor/id pairs so tapping a label focuses its input on touch. */}
       {showLineDetails && (
         <div className="line-fields">
-          <label>Model:</label>
-          <input type="text" name="model" value={localLine.model} onChange={handleChange} />
-          <label>Job Number:</label>
-          <input type="text" name="jobNumber" value={localLine.jobNumber} onChange={handleChange} />
-          <label>Serial Number:</label>
-          <input type="text" name="serialNumber" value={localLine.serialNumber} onChange={handleChange} />
-          <label>Head Count:</label>
+          <label htmlFor={`line-${localLine.id}-model`}>Model:</label>
+          <input id={`line-${localLine.id}-model`} type="text" name="model" value={localLine.model} onChange={handleChange} />
+          <label htmlFor={`line-${localLine.id}-job`}>Job Number:</label>
+          <input id={`line-${localLine.id}-job`} type="text" name="jobNumber" value={localLine.jobNumber} onChange={handleChange} />
+          <label htmlFor={`line-${localLine.id}-serial`}>Serial Number:</label>
+          <input id={`line-${localLine.id}-serial`} type="text" name="serialNumber" value={localLine.serialNumber} onChange={handleChange} />
+          <label htmlFor={`line-${localLine.id}-headcount`}>Head Count:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
+              id={`line-${localLine.id}-headcount`}
               type="number"
               min="1"
               max="50"
@@ -338,32 +369,39 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
             const allFixed = hasIssues && issues.every(iss => iss.fixed === 'fixed');
             const someActiveWithIssues = hasIssues && issues.some(iss => iss.fixed === 'active_with_issues');
 
-            // Determine button color based on status and issues
+            // Determine button colour based on status and issues. `glyph` carries
+            // the same information non-visually — colour alone is unreadable in
+            // bright plant lighting and for colour-blind users.
             let btnClass = 'btn-success'; // Default green for active
             let titleText = 'Click to set Offline';
+            let glyph = '';               // active + clean needs no marker
 
             if (head.status === 'offline') {
               if (allFixed) {
                 btnClass = 'btn-warning'; // Orange - all issues fixed
                 titleText = 'All issues fixed';
+                glyph = '✓';
               } else if (someActiveWithIssues) {
                 btnClass = 'btn-info'; // Blue - some active with issues
                 titleText = 'Active with issues';
+                glyph = '!';
               } else {
                 btnClass = 'btn-danger'; // Red for offline with unfixed issues
                 titleText = 'Click to set Active';
+                glyph = '✕';
               }
             } else if (hasIssues) {
               // Active but has issues logged
               btnClass = 'btn-info';
               titleText = 'Active with issues logged';
+              glyph = '!';
             }
 
             return (
               <button
                 key={i}
-                onClick={() => quickToggleHead(i, head.status === 'active')}
-                className={`btn btn-sm ${btnClass}`}
+                onClick={() => openHeadModal(i)}
+                className={`btn btn-sm head-tile ${btnClass}`}
                 style={{
                   aspectRatio: '1',
                   fontWeight: 'bold',
@@ -376,25 +414,30 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                   width: '100%'
                 }}
                 title={`Head ${i + 1}: ${titleText}${hasIssues ? ` (${issues.length} issue${issues.length > 1 ? 's' : ''})` : ''}`}
+                aria-label={`Head ${i + 1}: ${titleText}${hasIssues ? `, ${issues.length} issue${issues.length > 1 ? 's' : ''}` : ''}`}
               >
+                {glyph && <span className="head-tile-glyph" aria-hidden="true">{glyph}</span>}
                 {i + 1}
+                {issues.length > 0 && (
+                  <span className="head-tile-count" aria-hidden="true">{issues.length}</span>
+                )}
               </button>
             );
           })}
         </div>
-        <small className="text-muted d-block mt-2" style={{ textAlign: 'center', maxWidth: '700px', margin: '0.5rem auto 0' }}>
-          <span className="badge bg-success me-1">Green</span> Active
-          <span className="badge bg-danger ms-2 me-1">Red</span> Offline (Not Fixed)
-          <span className="badge bg-warning text-dark ms-2 me-1">Orange</span> All Issues Fixed
-          <span className="badge bg-info text-dark ms-2 me-1">Blue</span> Active with Issues
-        </small>
+        <div className="head-legend text-muted">
+          <span><span className="badge bg-success">Green</span> Active</span>
+          <span><span className="badge bg-danger">✕ Red</span> Offline (Not Fixed)</span>
+          <span><span className="badge bg-warning text-dark">✓ Orange</span> All Issues Fixed</span>
+          <span><span className="badge bg-info text-dark">! Blue</span> Active with Issues</span>
+        </div>
       </div>
 
       {/* Offline Heads Section */}
       {offlineHeads.length > 0 && (
         <div className="mb-3">
           <h6 className="text-danger"><strong>Offline Heads ({offlineHeads.length})</strong></h6>
-          <table>
+          <table className="mobile-cards">
             <thead>
               <tr>
                 <th>Head #</th>
@@ -415,12 +458,11 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                 return (
                   <React.Fragment key={head.index}>
                   <tr
-                    style={{
-                      backgroundColor:
-                        allFixed ? 'orange' :
-                        hasActiveWithIssues ? 'lightblue' :
-                        'lightcoral',
-                    }}
+                    className={
+                      allFixed ? 'head-row--fixed' :
+                      hasActiveWithIssues ? 'head-row--attn' :
+                      'head-row--offline'
+                    }
                   >
                     <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
                     <td data-label="Status" style={{ verticalAlign: 'top' }}>
@@ -470,6 +512,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                 ✕
                               </button>
                             </div>
+                            <IssuePhotos
+                              photos={issue.photos}
+                              onChange={(next) => updateIssue(head.index, issIdx, 'photos', next)}
+                              pathBase={photoPathBase(head.id || head.index + 1)}
+                              docPath={visitDocPath}
+                              disabled={photosDisabled}
+                              disabledReason="Save the visit first before adding photos"
+                              isDark={isDark}
+                            />
                           </div>
                         ))}
                         <button
@@ -479,6 +530,18 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                         >
                           + Add Issue
                         </button>
+                        {issues.length > 0 && (
+                          <RedZoneSync
+                            head={head}
+                            line={localLine}
+                            globalData={globalData}
+                            customerId={customerId}
+                            visitId={visitId}
+                            onChange={(fields) => updateHeadFields(head.index, fields)}
+                            disabled={photosDisabled}
+                            disabledReason="Save the visit first before sending to RedZone"
+                          />
+                        )}
                       </div>
                     </td>
                     <td data-label="Head Notes" style={{ verticalAlign: 'top' }}>
@@ -487,6 +550,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                         placeholder="General head notes..."
                         value={head.notes}
                         onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)}
+                      />
+                      <IssuePhotos
+                        photos={head.photos}
+                        onChange={(next) => handleHeadChange(head.index, 'photos', next)}
+                        pathBase={`${photoPathBase(head.id || head.index + 1)}/head`}
+                        docPath={visitDocPath}
+                        disabled={photosDisabled}
+                        disabledReason="Save the visit first before adding photos"
+                        isDark={isDark}
                       />
                     </td>
                   </tr>
@@ -549,7 +621,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
             Active Heads ({activeHeads.length}) {showActiveHeads ? '▼' : '▶'}
           </h6>
           {showActiveHeads && (
-            <table>
+            <table className="mobile-cards">
               <thead>
                 <tr>
                   <th>Head #</th>
@@ -562,14 +634,13 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                 {activeHeads.map((head) => {
                   const issues = head.issues || [];
                   const hasIssuesOrNotes = issues.length > 0 || head.notes.trim() !== '';
+                  const history = buildHeadIssueHistory(localLine.title, head.id || head.index + 1, visits, currentVisitId);
+                  const historyKey = `active-${head.index}`;
+                  const isHistoryExpanded = expandedHistory[historyKey];
 
                   return (
-                    <tr
-                      key={head.index}
-                      style={{
-                        backgroundColor: hasIssuesOrNotes ? 'lightblue' : '#28a745',
-                      }}
-                    >
+                    <React.Fragment key={head.index}>
+                    <tr className={hasIssuesOrNotes ? 'head-row--attn' : 'head-row--ok'}>
                       <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
                       <td data-label="Status" style={{ verticalAlign: 'top' }}>
                         <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
@@ -618,6 +689,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                   ✕
                                 </button>
                               </div>
+                              <IssuePhotos
+                                photos={issue.photos}
+                                onChange={(next) => updateIssue(head.index, issIdx, 'photos', next)}
+                                pathBase={photoPathBase(head.id || head.index + 1)}
+                                docPath={visitDocPath}
+                                disabled={photosDisabled}
+                                disabledReason="Save the visit first before adding photos"
+                                isDark={isDark}
+                              />
                             </div>
                           ))}
                           <button
@@ -627,6 +707,18 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                           >
                             + Add Issue
                           </button>
+                          {issues.length > 0 && (
+                            <RedZoneSync
+                              head={head}
+                              line={localLine}
+                              globalData={globalData}
+                              customerId={customerId}
+                              visitId={visitId}
+                              onChange={(fields) => updateHeadFields(head.index, fields)}
+                              disabled={photosDisabled}
+                              disabledReason="Save the visit first before sending to RedZone"
+                            />
+                          )}
                         </div>
                       </td>
                       <td data-label="Head Notes" style={{ verticalAlign: 'top' }}>
@@ -636,8 +728,58 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                           value={head.notes}
                           onChange={(e) => handleHeadChange(head.index, 'notes', e.target.value)}
                         />
+                        <IssuePhotos
+                          photos={head.photos}
+                          onChange={(next) => handleHeadChange(head.index, 'photos', next)}
+                          pathBase={`${photoPathBase(head.id || head.index + 1)}/head`}
+                          docPath={visitDocPath}
+                          disabled={photosDisabled}
+                          disabledReason="Save the visit first before adding photos"
+                          isDark={isDark}
+                        />
                       </td>
                     </tr>
+                    {history.length > 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: isDark ? '#1a1a2e' : '#f0f0f5' }}>
+                          <button
+                            onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
+                            className="btn btn-sm btn-outline-secondary"
+                            style={{ fontSize: '0.8rem', padding: '2px 8px' }}
+                          >
+                            {isHistoryExpanded ? '▼' : '▶'} Past Issues ({history.length})
+                          </button>
+                          {isHistoryExpanded && (
+                            <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
+                              {history.map((entry, hIdx) => (
+                                <div key={hIdx} style={{ marginBottom: '4px', fontSize: '0.85rem' }}>
+                                  <strong>{new Date(entry.date).toLocaleDateString()}:</strong>{' '}
+                                  {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
+                                    <span
+                                      key={iIdx}
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '1px 6px',
+                                        borderRadius: '3px',
+                                        marginLeft: '4px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 'bold',
+                                        color: '#000',
+                                        backgroundColor: iss.fixed === 'fixed' ? 'orange' :
+                                          iss.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral'
+                                      }}
+                                    >
+                                      {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
+                                    </span>
+                                  )) : <span className="text-muted">Offline (no issues logged)</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -650,26 +792,96 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         <input type="checkbox" checked={localLine.showSpanAdjust} onChange={toggleSpanAdjust} /> Span Adjust
       </label>
       {localLine.showSpanAdjust && (
-        <SpanAdjust heads={localLine.heads} updateHeadWeight={(i, field, value) => updateHeadWeight(i, field, value)} />
+        <>
+          <SpanAdjust heads={localLine.heads} updateHeadWeight={(i, field, value) => updateHeadWeight(i, field, value)} />
+          <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
+            <button type="button" onClick={clearSpanCurrentWeights} className="btn btn-sm btn-outline-warning">
+              Clear Current Weights
+            </button>
+            <div className="input-group input-group-sm" style={{ width: 'auto' }}>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="e.g. 200"
+                value={spanAllValue}
+                onChange={(e) => setSpanAllValue(e.target.value)}
+                style={{ maxWidth: '90px' }}
+              />
+              <span className="input-group-text">g</span>
+              <button type="button" onClick={applyAllSpanWeights} className="btn btn-outline-primary">
+                Set All Span Weights
+              </button>
+            </div>
+          </div>
+          <button onClick={() => setShowSpanPreview(true)} className="btn btn-primary" style={{ marginTop: '10px' }}>
+            Span Calibration PDF…
+          </button>
+        </>
+      )}
+      {showSpanPreview && (
+        <SpanCalPreview
+          line={localLine}
+          globalData={globalData}
+          buildPdf={buildSpanCalibrationPDF}
+          onClose={() => setShowSpanPreview(false)}
+          onSave={(merged) => { setLocalLine(merged); updateLine(merged); }}
+        />
+      )}
+
+      <label>
+        <input type="checkbox" name="showAudit" checked={!!localLine.showAudit} onChange={handleCheckbox} /> Audit
+      </label>
+      {localLine.showAudit && (
+        <Audit
+          audit={localLine.audit}
+          onChange={updateAudit}
+          notes={localLine.auditNotes || ''}
+          onNotesChange={updateAuditNotes}
+        />
       )}
       <div className="notes-container">
         <label><strong>Notes:</strong></label>
         <textarea name="notes" rows="4" value={localLine.notes} onChange={handleChange} />
       </div>
       <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-        <button onClick={exportLineToPDF} className="btn btn-success">
+        <button onClick={() => exportLineToPDF(line)} className="btn btn-success">
           Export Line PDF
         </button>
-        <button onClick={resetLine} className="btn btn-warning">
+        <button onClick={() => setShowCombined(true)} className="btn btn-primary">
+          Export PDF…
+        </button>
+        <button onClick={() => resetLine(line)} className="btn btn-warning">
           Reset Line
         </button>
-        <button onClick={removeLine} className="btn btn-danger">
+        <button onClick={() => removeLine(line.id)} className="btn btn-danger">
           Remove Line
         </button>
       </div>
+      {showCombined && (
+        <CombinedExport line={localLine} buildPdf={buildCombinedPDF} onClose={() => setShowCombined(false)} />
+      )}
       </div>
+      <HeadIssueModal
+        head={issueModalHead != null && localLine.heads[issueModalHead]
+          ? { ...localLine.heads[issueModalHead], index: issueModalHead }
+          : null}
+        lineTitle={localLine.title}
+        isDark={isDark}
+        issueTypes={issueTypes}
+        getFixedLabel={getFixedLabel}
+        onClose={() => setIssueModalHead(null)}
+        addIssue={addIssue}
+        updateIssue={updateIssue}
+        removeIssue={removeIssue}
+        toggleFixedStatus={toggleFixedStatus}
+        onHeadChange={handleHeadChange}
+        photosDisabled={photosDisabled}
+        photoPathBase={photoPathBase}
+        visitDocPath={visitDocPath}
+      />
+      {dialog.DialogComponent}
     </div>
   );
 };
 
-export default Line;
+export default React.memo(Line);
