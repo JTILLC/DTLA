@@ -1,6 +1,13 @@
 import { Moon, Sun, Printer, FileText, ExternalLink } from 'lucide-react';
 
-const Header = ({ customerName, visitName, visitDate, isDark, onToggleDark, onPrint, serviceReportUrl }) => {
+import { mediaUrl } from '../config/media';
+
+const Header = ({ customerName, visitName, visitDate, isDark, onToggleDark, onPrint, serviceReportUrl, serviceReportPath, shareToken }) => {
+  // Route the report through the broker so access dies with the share link.
+  // Falls back to the stored public URL when the broker isn't configured.
+  const reportHref = serviceReportPath
+    ? mediaUrl({ path: serviceReportPath, url: serviceReportUrl }, shareToken)
+    : serviceReportUrl;
   const formattedDate = visitDate ? new Date(visitDate).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -33,7 +40,7 @@ const Header = ({ customerName, visitName, visitDate, isDark, onToggleDark, onPr
             </span>
             {serviceReportUrl && (
               <a
-                href={serviceReportUrl}
+                href={reportHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-primary btn-sm"

@@ -9,17 +9,25 @@ import 'firebase/compat/storage';
 import { Camera, Loader } from 'lucide-react';
 import { useToast } from './Toast.jsx';
 import photoQueue from '../utils/photoQueue.js';
+import { useAuthedMedia } from '../utils/useAuthedMedia.js';
 
 const MAX_DIM = 1600;      // longest edge after downscale
 // No bytes moved for this long => treat as no signal and queue it instead.
 const STALL_MS = 12000;
 const JPEG_QUALITY = 0.8;
 
-// Downscale large phone photos before upload to keep uploads fast and
-// storage small. Falls back to the original file if anything goes wrong.
+// Downscale large phone photos before upload to keep uploads fast and storage
+// small — and, importantly, to normalise HEIC to JPEG.
+//
+// iOS shoots HEIC by default. Safari can decode it, so the canvas re-encode
+// below turns it into a JPEG everything can display. Other browsers CANNOT
+// decode HEIC: the old code resolved with the original file on decode failure,
+// which uploaded HEIC bytes labelled `image/jpeg` — an image no browser could
+// ever render. Resolving null instead lets the caller reject the file with an
+// explanation rather than silently storing something unviewable.
 const compressImage = (file) =>
   new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) return resolve(file);
+    if (!file.type.startsWith('image/')) return resolve(null);
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -38,8 +46,9 @@ const compressImage = (file) =>
       );
     };
     img.onerror = () => {
+      // Could not decode — most often HEIC in a non-Safari browser.
       URL.revokeObjectURL(url);
-      resolve(file);
+      resolve(null);
     };
     img.src = url;
   });
@@ -79,6 +88,10 @@ const IssuePhotos = ({ photos = [], onChange, pathBase, docPath, disabled, disab
   // pendingId, so a queued photo still shows a thumbnail — including after a
   // reload, since the blob itself is persisted in IndexedDB.
   const [pendingUrls, setPendingUrls] = useState({});
+  // Resolves stored photos to displayable URLs, fetching through the media
+  // broker with the signed-in user's ID token once objects lose their public
+  // download token.
+  const { srcFor } = useAuthedMedia(photos);
 
   const pendingIds = (photos || []).filter((p) => p?.pendingId).map((p) => p.pendingId).join(',');
   useEffect(() => {
@@ -121,6 +134,13 @@ const IssuePhotos = ({ photos = [], onChange, pathBase, docPath, disabled, disab
         setProgress(0);
         // eslint-disable-next-line no-await-in-loop
         const blob = await compressImage(files[i]);
+        if (!blob) {
+          toast.error(
+            `Couldn't read "${files[i].name}". If it's a HEIC photo, open it on ` +
+            `your phone or save it as JPEG first.`
+          );
+          continue;
+        }
         const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         // No signal? Park it rather than failing — this is the plant-floor case.
@@ -173,9 +193,21 @@ const IssuePhotos = ({ photos = [], onChange, pathBase, docPath, disabled, disab
               () => finish(resolve)
             );
           });
-          // eslint-disable-next-line no-await-in-loop
-          const url = await task.snapshot.ref.getDownloadURL();
-          added.push({ url, path });
+          // Firebase mints a PUBLIC download token for every upload, and those
+          // tokenized URLs bypass Storage security rules entirely. Strip it so
+          // the object is only reachable through the media broker, which
+          // re-checks the share (or the user's claims) on every request.
+          // Best-effort: if it fails the photo is still saved, just public — far
+          // better than losing a tech's photo over a metadata call.
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            await task.snapshot.ref.updateMetadata({
+              customMetadata: { firebaseStorageDownloadTokens: '' },
+            });
+          } catch (metaErr) {
+            console.warn('Could not revoke public token for', path, metaErr?.message || metaErr);
+          }
+          added.push({ path });
         } catch (uploadErr) {
           // Signal dropped mid-upload, or Storage rejected it. Queue and retry
           // on reconnect instead of losing the photo.
@@ -232,7 +264,7 @@ const IssuePhotos = ({ photos = [], onChange, pathBase, docPath, disabled, disab
           // A queued photo has no URL yet — preview it from the IndexedDB blob
           // and mark it so the tech knows it hasn't reached the cloud.
           const isPending = !!photo?.pendingId;
-          const src = isPending ? pendingUrls[photo.pendingId] : photo.url;
+          const src = srcFor(photo, pendingUrls);
           return (
           <div key={photo.path || photo.pendingId || idx} style={{ position: 'relative', width: '56px', height: '56px' }}>
             <button

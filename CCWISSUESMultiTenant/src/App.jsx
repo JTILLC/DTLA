@@ -55,6 +55,7 @@ import offlineQueue from './utils/offlineQueue';
 import syncManager from './utils/syncManager';
 import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
+import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
 import { lineStatusKey } from './utils/headHelpers.js';
 import photoQueue from './utils/photoQueue.js';
 
@@ -148,6 +149,62 @@ async function sha256Hex(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Decode a data: URL and re-encode it down to something sensible for print.
+// Photos are stored at up to 1600px but rendered in 40mm boxes — roughly 240px
+// at print resolution — so embedding the originals bloated the PDF about 5x for
+// no visible gain. A 20-photo visit would produce a ~10MB file that bounces off
+// mail servers. No CORS concerns here: the bytes are already inline, which is
+// what makes the broker path immune to the canvas tainting the old
+// <img crossOrigin> approach risked.
+const PDF_PHOTO_MAX_DIM = 800;
+const measureDataUrl = (dataUrl) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, PDF_PHOTO_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+      if (scale === 1) {
+        resolve({ dataUrl, w: img.naturalWidth, h: img.naturalHeight });
+        return;
+      }
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({
+          dataUrl: canvas.toDataURL('image/jpeg', 0.85),
+          w: canvas.width,
+          h: canvas.height,
+        });
+      } catch {
+        // Fall back to the full-size original rather than dropping the photo.
+        resolve({ dataUrl, w: img.naturalWidth, h: img.naturalHeight });
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+
+// A photo's stable identity for the PDF's preload map. `path` is present on
+// everything uploaded since photos were introduced; `url` covers anything older.
+const photoKey = (p) => p?.path || p?.url || '';
+
+// Load one photo for embedding: through the broker when we have a path, else the
+// legacy public URL. Falls back rather than failing so one unreachable photo
+// never breaks the whole export.
+const loadPhotoForPdf = async (p) => {
+  if (usingBroker() && p?.path) {
+    try {
+      const dataUrl = await fetchAuthedDataUrl(p.path);
+      const measured = await measureDataUrl(dataUrl);
+      if (measured) return measured;
+    } catch (err) {
+      console.warn('Broker photo fetch failed, trying legacy URL:', p.path, err?.message || err);
+    }
+  }
+  return p?.url ? loadImageForPdf(p.url) : null;
+};
+
 // 3-way merge of a visit's `lines` array so concurrent edits to DIFFERENT lines
 // both survive. `baseline` = the lines this client last synced; `local` = its
 // current lines; `remote` = the lines currently in the cloud. A line this client
@@ -225,15 +282,17 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   // synchronous render loop below can drop them in via doc.addImage.
   const photoMap = new Map();
   if (includePhotos) {
-    const urls = [];
+    const found = [];
     migratedLines.forEach(line => (line.heads || []).forEach(head => {
       if (!headHasIssues(head)) return;
-      (head.issues || []).forEach(iss => (iss.photos || []).forEach(p => p?.url && urls.push(p.url)));
-      (head.photos || []).forEach(p => p?.url && urls.push(p.url));
+      (head.issues || []).forEach(iss => (iss.photos || []).forEach(p => photoKey(p) && found.push(p)));
+      (head.photos || []).forEach(p => photoKey(p) && found.push(p));
     }));
-    const unique = [...new Set(urls)];
-    const loaded = await Promise.all(unique.map(loadImageForPdf));
-    unique.forEach((u, i) => { if (loaded[i]) photoMap.set(u, loaded[i]); });
+    const byKey = new Map();
+    found.forEach(p => { if (!byKey.has(photoKey(p))) byKey.set(photoKey(p), p); });
+    const keys = [...byKey.keys()];
+    const loaded = await Promise.all(keys.map(k => loadPhotoForPdf(byKey.get(k))));
+    keys.forEach((k, i) => { if (loaded[i]) photoMap.set(k, loaded[i]); });
   }
 
   const drawPageHeader = () => {
@@ -246,9 +305,9 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   const renderHeadPhotos = (head, startY) => {
     let y = startY;
     const photos = [
-      ...(head.issues || []).flatMap(iss => (iss.photos || []).map(p => p?.url)),
-      ...(head.photos || []).map(p => p?.url),
-    ].filter(u => photoMap.has(u));
+      ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
+      ...(head.photos || []).map(photoKey),
+    ].filter(k => photoMap.has(k));
     if (!photos.length) return y;
 
     if (y + 10 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
@@ -260,8 +319,8 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
 
     const boxW = 40, gap = 6, maxH = 45, rightEdge = 14 + 182;
     let x = 14, rowH = 0;
-    photos.forEach(url => {
-      const im = photoMap.get(url);
+    photos.forEach(key => {
+      const im = photoMap.get(key);
       const dispW = boxW;
       const dispH = Math.min(maxH, boxW * (im.h / im.w));
       if (x + dispW > rightEdge) { x = 14; y += rowH + 4; rowH = 0; }

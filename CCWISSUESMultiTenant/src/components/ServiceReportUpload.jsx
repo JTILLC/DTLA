@@ -4,10 +4,36 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/storage';
 import 'firebase/compat/firestore';
 import { Upload, FileText, Trash2, ExternalLink, Loader } from 'lucide-react';
+import { fetchAuthedMedia } from '../config/media.js';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
 const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, onReportUploaded }) => {
+  const [opening, setOpening] = useState(false);
+
+  // The report's object path is fully determined by the ids, so legacy visits
+  // (which only stored a URL) resolve too — no backfill needed.
+  const reportPath = () => `service-reports/${userId}/${customerId}/${visitId}.pdf`;
+
+  // Fetch through the broker and open the blob. An <a href> can't carry an
+  // Authorization header, and the stored URL no longer works once the public
+  // token is stripped.
+  const handleView = async () => {
+    setOpening(true);
+    try {
+      const objUrl = await fetchAuthedMedia(reportPath());
+      window.open(objUrl, '_blank', 'noopener');
+      // Give the new tab time to load before releasing the blob.
+      setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+    } catch (err) {
+      console.error('Could not open service report:', err);
+      if (currentReportUrl) window.open(currentReportUrl, '_blank', 'noopener'); // legacy fallback
+      else setError('Could not open the report. Please try again.');
+    } finally {
+      setOpening(false);
+    }
+  };
+
   const toast = useToast();
   const dialog = useDialog();
   const [uploading, setUploading] = useState(false);
@@ -59,7 +85,20 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
           setUploading(false);
         },
         async () => {
-          // Get download URL
+          // Firebase mints a PUBLIC download token on upload whose URL bypasses
+          // Storage rules. Strip it so the report is reachable only through the
+          // media broker. Best-effort — a failure here must not lose the upload.
+          try {
+            await uploadTask.snapshot.ref.updateMetadata({
+              customMetadata: { firebaseStorageDownloadTokens: '' },
+            });
+          } catch (metaErr) {
+            console.warn('Could not revoke public token for service report:', metaErr?.message || metaErr);
+          }
+
+          // Still stored, but only as an "a report exists" flag and a legacy
+          // fallback — it is no longer what the app fetches. The object path is
+          // derivable from the ids, so no schema change is needed.
           const downloadUrl = await uploadTask.snapshot.ref.getDownloadURL();
 
           // Update visit document with the report URL
@@ -153,16 +192,16 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
 
       {currentReportUrl ? (
         <div className="d-flex gap-2 align-items-center">
-          <a
-            href={currentReportUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={handleView}
+            disabled={opening}
             className="btn btn-sm btn-outline-primary"
           >
             <FileText size={16} className="me-1" />
-            View Report
+            {opening ? 'Opening…' : 'View Report'}
             <ExternalLink size={14} className="ms-1" />
-          </a>
+          </button>
           <button
             onClick={handleDelete}
             className="btn btn-sm btn-outline-danger"

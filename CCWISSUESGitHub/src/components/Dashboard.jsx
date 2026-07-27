@@ -1,28 +1,37 @@
 import { useMemo, useState } from 'react';
 import { migrateLineHeads, getFixedStatusLabel } from '../utils/headHelpers.js';
+import { useAuthedMedia } from '../utils/useAuthedMedia.js';
+
+// Read-only photo thumbnails (issue or head photos); tap to view full screen.
+// MUST live at module scope: it owns a media hook, and a component defined
+// inside another component is a new type on every render, so React would
+// remount it and refetch every photo continuously.
+const Thumbs = ({ photos, onView }) => {
+  const { srcFor } = useAuthedMedia(photos);
+  if (!Array.isArray(photos) || photos.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+      {photos.map((p, i) => {
+        const src = srcFor(p);
+        return src ? (
+          <img
+            key={p.path || i}
+            src={src}
+            alt={`Photo ${i + 1}`}
+            loading="lazy"
+            onClick={() => onView(src)}
+            title="Tap to view"
+            style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.25)', cursor: 'pointer', display: 'block' }}
+          />
+        ) : null;
+      })}
+    </div>
+  );
+};
 
 const Dashboard = ({ lines, setShowDashboardView }) => {
   const migratedLines = useMemo(() => lines.map(migrateLineHeads), [lines]);
   const [viewer, setViewer] = useState(null);
-
-  // Read-only photo thumbnails (issue or head photos); tap to view full screen.
-  const Thumbs = ({ photos }) => (
-    Array.isArray(photos) && photos.length > 0 ? (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-        {photos.map((p, i) => (p?.url ? (
-          <img
-            key={p.path || i}
-            src={p.url}
-            alt={`Photo ${i + 1}`}
-            loading="lazy"
-            onClick={() => setViewer(p.url)}
-            title="Tap to view"
-            style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.25)', cursor: 'pointer', display: 'block' }}
-          />
-        ) : null))}
-      </div>
-    ) : null
-  );
 
   // Get background color based on issue status
   const getIssueColor = (fixed) => {
@@ -127,7 +136,7 @@ const Dashboard = ({ lines, setShowDashboardView }) => {
                                     {issue.notes}
                                   </div>
                                 )}
-                                <Thumbs photos={issue.photos} />
+                                <Thumbs photos={issue.photos} onView={setViewer} />
                               </div>
                             ))}
                           </div>
@@ -137,7 +146,7 @@ const Dashboard = ({ lines, setShowDashboardView }) => {
                       </td>
                       <td style={{ verticalAlign: 'top' }}>
                         {head.notes || <span style={{ color: '#999' }}>—</span>}
-                        <Thumbs photos={head.photos} />
+                        <Thumbs photos={head.photos} onView={setViewer} />
                       </td>
                     </tr>
                   );
