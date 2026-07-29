@@ -53,7 +53,7 @@ export function DatesProvider({ children }) {
   const replaceDatesFromDataKeys = (dataObj) => {
     const keys = Object.keys(dataObj || {});
     if (!keys.length) return;
-    const next = sortDesc(keys).slice(0, 5);
+    const next = sortDesc(keys).slice(0, 7); // stints run 5–7 days
     setDates(next);
   };
 

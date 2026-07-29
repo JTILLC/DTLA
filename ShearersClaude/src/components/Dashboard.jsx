@@ -1,42 +1,15 @@
 // src/components/Dashboard.jsx
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-
-// Try to use DatesContext if available; fall back gracefully
-let useDatesHook = null;
-try {
-  useDatesHook = require('../context/DatesContext').useDates;
-} catch (_) {
-  useDatesHook = null;
-}
+import { useDates } from '../context/DatesContext';
+import { HEADS_PER_LINE, ISSUE_TYPES, SECTIONS } from '../constants';
+import { sortAsc } from '../utils/stintDays';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const HEADS_PER_LINE = 14;
-
-const sections = [
-  { name: 'PC Line',     lines: Array.from({ length: 7 },  (_, i) => `Line ${i + 1}`) },
-  { name: 'Pellet Line', lines: Array.from({ length: 3 },  (_, i) => `Line ${i + 8}`) },
-  { name: 'Extruded',    lines: Array.from({ length: 6 },  (_, i) => `Line ${i + 11}`) },
-  { name: 'Hand Kettle', lines: Array.from({ length: 7 },  (_, i) => `Line ${i + 17}`) },
-  { name: 'Twin Screw',  lines: Array.from({ length: 8 },  (_, i) => `Line ${i + 24}`) },
-  { name: 'Sheeted 1',   lines: Array.from({ length: 6 },  (_, i) => `Line ${i + 32}`) },
-  { name: 'Sheeted 2',   lines: Array.from({ length: 2 },  (_, i) => `Line ${i + 38}`) },
-];
-
-const issueTypes = [
-  'WDU Replacement',
-  'Chute',
-  'Operator',
-  'Load Cell',
-  'Detached Head',
-  'Stepper Motor Error',
-  'Hopper Issues',
-  'Installed Wrong',
-  'Other',
-];
+const sections = SECTIONS;
+const issueTypes = ISSUE_TYPES;
 
 const issueColors = {
   'WDU Replacement': '#A855F7',
@@ -61,12 +34,7 @@ const makeDefaultHeads = () =>
 
 export default function Dashboard({ data = {}, dates: propDates = [] }) {
   // Use the 5 days from the logger: Context → props → localStorage → data keys
-  let ctxDates;
-  try {
-    if (useDatesHook) ctxDates = useDatesHook()?.dates;
-  } catch {
-    ctxDates = undefined;
-  }
+  const ctxDates = useDates()?.dates;
 
   let lsDates = [];
   try {
@@ -79,7 +47,7 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
   const dataDates = Object.keys(data || {})
     .sort((a, b) => new Date(b) - new Date(a))
-    .slice(0, 5);
+    .slice(0, 7); // stints run 5–7 days
 
   const dates =
     (Array.isArray(ctxDates) && ctxDates.length ? ctxDates :
@@ -88,6 +56,22 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
   // Default to the latest (first) date in the array, or empty string if no dates
   const [selectedDate, setSelectedDate] = useState(dates.length ? dates[0] : '');
+
+
+  // Dark mode detection for chart colors
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const chartTextColor = isDarkMode ? '#f3f4f6' : '#374151';
 
   const dayObj = (d) => data?.[d] || {};
   const entry  = (d, line) => dayObj(d)?.[line] || { heads: makeDefaultHeads(), running: false };
@@ -100,6 +84,7 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
     totals,
     issueCountsAllDays,
     issueCountsPerDay,
+    dailyTotals,
   } = useMemo(() => {
     const targetDates = !dates.length ? [] :
       (selectedDate === 'All Days' ? dates : [selectedDate]);
@@ -108,6 +93,12 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
     const sectionTotals = {};
     const sectionEff = {};
     const totals = { offline: 0, fixed: 0, notFixed: 0 };
+
+    // Daily totals - track heads down per day across all lines
+    const dailyTotals = {};
+    (dates || []).forEach((d) => {
+      dailyTotals[d] = { offline: 0, fixed: 0, notFixed: 0 };
+    });
 
     // For pies
     const countsAll = issueTypes.reduce((acc, k) => (acc[k] = 0, acc), {});
@@ -127,9 +118,11 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
       sec.lines.forEach((line) => {
         headsDown[line] = headsDown[line] || {};
 
-        targetDates.forEach((d) => {
+        // Iterate over ALL dates for daily totals, but only add to main totals for targetDates
+        (dates || []).forEach((d) => {
           const e = entry(d, line);
           const heads = e.heads?.length ? e.heads : makeDefaultHeads();
+          const isTargetDate = targetDates.includes(d);
 
           if (!e.running) {
             headsDown[line][d] = { offline: 0, fixed: 0, notFixed: 0 };
@@ -154,39 +147,48 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
 
           headsDown[line][d] = { offline, fixed, notFixed };
 
-          // Global + Section totals (restricted to targetDates)
-          totals.offline += offline;
-          totals.fixed += fixed;
-          totals.notFixed += notFixed;
+          // Daily totals (always accumulate for all dates)
+          if (dailyTotals[d]) {
+            dailyTotals[d].offline += offline;
+            dailyTotals[d].fixed += fixed;
+            dailyTotals[d].notFixed += notFixed;
+          }
 
-          sectionTotals[sec.name].offline += offline;
-          sectionTotals[sec.name].fixed += fixed;
-          sectionTotals[sec.name].notFixed += notFixed;
+          // Global + Section totals (restricted to targetDates only)
+          if (isTargetDate) {
+            totals.offline += offline;
+            totals.fixed += fixed;
+            totals.notFixed += notFixed;
 
-          // Efficiency (restricted to targetDates)
-          totalHeads += HEADS_PER_LINE;
-          activeHeads += HEADS_PER_LINE - offline;
-          fixedHeads += fixed;
+            sectionTotals[sec.name].offline += offline;
+            sectionTotals[sec.name].fixed += fixed;
+            sectionTotals[sec.name].notFixed += notFixed;
 
-          // Issue breakdowns for pies – restricted to targetDates
-          heads
-            .filter((h) => (h.offline ?? 'Active') !== 'Active')
-            .forEach((h) => {
-              const issues = h.issues || [];
-              // If using new multi-issue format, count each issue
-              if (issues.length > 0) {
-                issues.forEach(iss => {
-                  const k = iss.type || 'None';
+            // Efficiency (restricted to targetDates)
+            totalHeads += HEADS_PER_LINE;
+            activeHeads += HEADS_PER_LINE - offline;
+            fixedHeads += fixed;
+
+            // Issue breakdowns for pies – restricted to targetDates
+            heads
+              .filter((h) => (h.offline ?? 'Active') !== 'Active')
+              .forEach((h) => {
+                const issues = h.issues || [];
+                // If using new multi-issue format, count each issue
+                if (issues.length > 0) {
+                  issues.forEach(iss => {
+                    const k = iss.type || 'None';
+                    countsAll[k] = (countsAll[k] || 0) + 1;
+                    countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
+                  });
+                } else {
+                  // Fallback to old single-issue format
+                  const k = h.issue || 'None';
                   countsAll[k] = (countsAll[k] || 0) + 1;
                   countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
-                });
-              } else {
-                // Fallback to old single-issue format
-                const k = h.issue || 'None';
-                countsAll[k] = (countsAll[k] || 0) + 1;
-                countsPerDay[d][k] = (countsPerDay[d][k] || 0) + 1;
-              }
-            });
+                }
+              });
+          }
         });
       });
 
@@ -205,6 +207,7 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
       totals,
       issueCountsAllDays: countsAll,
       issueCountsPerDay: countsPerDay,
+      dailyTotals,
     };
   }, [data, dates, selectedDate]);
 
@@ -300,182 +303,202 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
   }, [data, dates]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
-      <h2 className="text-2xl font-semibold text-center mb-4 sm:text-xl dark:text-gray-100">Dashboard</h2>
-
-      {/* Global Totals (respect selectedDate) */}
-      <div className="flex flex-wrap justify-center gap-4 mb-6 text-center">
-        <div className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg shadow">
-          <p className="font-bold text-lg">{totals.offline}</p>
-          <p>Heads Offline</p>
+    <div className="max-w-6xl mx-auto space-y-4">
+      {/* Header + date selector */}
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Heads-down totals, efficiency, and issue breakdown
+          </p>
         </div>
-        <div className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-4 py-2 rounded-lg shadow">
-          <p className="font-bold text-lg">{totals.fixed}</p>
-          <p>Heads Fixed</p>
-        </div>
-        <div className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-4 py-2 rounded-lg shadow">
-          <p className="font-bold text-lg">{totals.notFixed}</p>
-          <p>Not Fixed</p>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
+          <select
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="field w-auto py-2"
+          >
+            {dates.length ? <option value="All Days">All Days</option> : null}
+            {sortAsc(dates).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+            {!dates.length && <option value="">No dates</option>}
+          </select>
         </div>
       </div>
 
-      {/* Nav */}
-      <div className="flex justify-between mb-4">
-        <Link
-          to="/logger"
-          className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1"
-        >
-          Back to Logger
-        </Link>
-        <Link
-          to="/summary"
-          className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1"
-        >
-          View Summary
-        </Link>
-        <Link
-          to="/running"
-          className="px-4 py-2 bg-purple-500 text-white rounded sm:px-2 sm:py-1"
-        >
-          Running
-        </Link>
+      {/* Global Totals KPI tiles (respect selectedDate) */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Heads Offline</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{totals.offline}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Heads Fixed</p>
+          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{totals.fixed}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Not Fixed</p>
+          <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{totals.notFixed}</p>
+        </div>
       </div>
 
-      {/* Date selector (5-day window) */}
-      <div className="flex justify-center items-center mb-4 space-x-4 sm:flex-col sm:space-x-0 sm:space-y-2">
-        <label className="font-medium dark:text-gray-200">Select Date:</label>
-        <select
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 p-2 rounded sm:w-full"
-        >
-          {dates.length ? <option value="All Days">All Days</option> : null}
-          {(dates || []).map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-          {!dates.length && <option value="">No dates</option>}
-        </select>
-      </div>
+      {/* Daily Heads Down Totals */}
+      {dates.length > 0 && (
+        <div className="card p-4">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">
+            Daily Heads Down Totals
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-700/60">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Total Offline</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Total Fixed</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Not Fixed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortAsc(dates).map((d) => {
+                  const dayStats = dailyTotals[d] || { offline: 0, fixed: 0, notFixed: 0 };
+                  return (
+                    <tr
+                      key={d}
+                      className={`border-b border-gray-200/70 dark:border-gray-700 ${selectedDate === d ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''}`}
+                    >
+                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-200 whitespace-nowrap">
+                        {d}
+                        {selectedDate === d && (
+                          <span className="ml-2 text-indigo-600 dark:text-indigo-400 text-xs">(selected)</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-bold text-red-600 dark:text-red-400">{dayStats.offline}</td>
+                      <td className="px-3 py-2 font-bold text-orange-600 dark:text-orange-400">{dayStats.fixed}</td>
+                      <td className="px-3 py-2 font-bold text-yellow-600 dark:text-yellow-400">{dayStats.notFixed}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Heads Down Summary by Section/Line */}
-      <div className="mt-6">
-        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg">
+      <div className="card p-4">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">
           Heads Down Summary
         </h3>
 
         {!dates.length ? (
-          <p className="text-center text-gray-600 sm:text-sm">
+          <p className="text-center text-gray-500 dark:text-gray-400 py-6 text-sm">
             No dates found. Enter data in Main Logger first.
           </p>
         ) : (
-          sections.map((section) => (
-            <div key={section.name} className="mb-4">
+          <div className="space-y-3">
+            {sections.map((section) => (
               <div
-                className="flex flex-wrap items-center justify-between bg-gray-200 dark:bg-gray-700 p-2 cursor-pointer rounded gap-2"
-                onClick={() => toggleSection(section.name)}
+                key={section.name}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
-                <h4 className="text-lg font-medium sm:text-base dark:text-gray-100">
-                  {section.name} (Total: {efficiencies[section.name]?.totalEfficiency ?? '0.00'}
-                  %, Fixed: {efficiencies[section.name]?.fixedEfficiency ?? '0.00'}%)
-                </h4>
-
-                <div className="flex flex-wrap gap-2">
-                  <span className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-1 rounded text-sm">
-                    Offline: <b>{perSectionTotals[section.name]?.offline ?? 0}</b>
-                  </span>
-                  <span className="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-2 py-1 rounded text-sm">
-                    Fixed: <b>{perSectionTotals[section.name]?.fixed ?? 0}</b>
-                  </span>
-                  <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-2 py-1 rounded text-sm">
-                    Not Fixed: <b>{perSectionTotals[section.name]?.notFixed ?? 0}</b>
-                  </span>
-                </div>
-
-                <svg
-                  className={`w-5 h-5 transition-transform ${
-                    openSections.includes(section.name) ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <div
+                  className="flex flex-wrap items-center justify-between bg-gray-50 dark:bg-gray-700/60 p-3 cursor-pointer gap-2"
+                  onClick={() => toggleSection(section.name)}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {section.name}{' '}
+                    <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                      (Total: {efficiencies[section.name]?.totalEfficiency ?? '0.00'}%, Fixed:{' '}
+                      {efficiencies[section.name]?.fixedEfficiency ?? '0.00'}%)
+                    </span>
+                  </h4>
 
-              {openSections.includes(section.name) && (
-                <div className="mt-2 pl-4">
-                  {section.lines.map((line) => {
-                    const datesToShow =
-                      selectedDate === 'All Days'
-                        ? (dates || []).filter((d) => headsDownData[line]?.[d])
-                        : headsDownData[line]?.[selectedDate]
-                        ? [selectedDate]
-                        : [];
-                    if (!datesToShow.length) return null;
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="pill bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                      Offline {perSectionTotals[section.name]?.offline ?? 0}
+                    </span>
+                    <span className="pill bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                      Fixed {perSectionTotals[section.name]?.fixed ?? 0}
+                    </span>
+                    <span className="pill bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+                      Not Fixed {perSectionTotals[section.name]?.notFixed ?? 0}
+                    </span>
+                  </div>
 
-                    return (
-                      <div key={line} className="mb-4">
-                        <h5 className="text-base font-medium sm:text-sm dark:text-gray-200">{line}</h5>
-                        <table className="w-full table-auto border-collapse">
-                          <thead>
-                            <tr className="bg-gray-100 dark:bg-gray-700">
-                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
-                                Date
-                              </th>
-                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
-                                Offline Heads
-                              </th>
-                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
-                                Fixed Heads
-                              </th>
-                              <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-100 sm:p-1 sm:text-sm">
-                                Not Fixed
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {datesToShow
-                              .slice()
-                              .sort((a, b) => new Date(a) - new Date(b))
-                              .map((d) => (
-                                <tr key={d}>
-                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
-                                    {d}
-                                  </td>
-                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
-                                    {headsDownData[line][d].offline}
-                                  </td>
-                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
-                                    {headsDownData[line][d].fixed}
-                                  </td>
-                                  <td className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
-                                    {headsDownData[line][d].notFixed}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
+                  <svg
+                    className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform ${
+                      openSections.includes(section.name) ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
                 </div>
-              )}
-            </div>
-          ))
+
+                {openSections.includes(section.name) && (
+                  <div className="p-3 space-y-4">
+                    {section.lines.map((line) => {
+                      const datesToShow =
+                        selectedDate === 'All Days'
+                          ? (dates || []).filter((d) => headsDownData[line]?.[d])
+                          : headsDownData[line]?.[selectedDate]
+                          ? [selectedDate]
+                          : [];
+                      if (!datesToShow.length) return null;
+
+                      return (
+                        <div key={line}>
+                          <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">{line}</h5>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-gray-50 dark:bg-gray-700/60">
+                                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Date</th>
+                                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Offline Heads</th>
+                                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Fixed Heads</th>
+                                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Not Fixed</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {datesToShow
+                                  .slice()
+                                  .sort((a, b) => new Date(a) - new Date(b))
+                                  .map((d) => (
+                                    <tr key={d} className="border-b border-gray-200/70 dark:border-gray-700">
+                                      <td className="px-3 py-2 text-gray-700 dark:text-gray-200 whitespace-nowrap">{d}</td>
+                                      <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{headsDownData[line][d].offline}</td>
+                                      <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{headsDownData[line][d].fixed}</td>
+                                      <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{headsDownData[line][d].notFixed}</td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* Main Issue Type Distribution (selectedDate vs All Days) */}
-      <div className="mt-6">
-        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg">
+      <div className="card p-4">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">
           Issue Type Distribution
         </h3>
         {pieChartData.labels?.length ? (
@@ -485,38 +508,42 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
               options={{
                 responsive: true,
                 plugins: {
-                  legend: { position: 'top' },
+                  legend: {
+                    position: 'top',
+                    labels: { color: chartTextColor }
+                  },
                   title: {
                     display: true,
                     text: `Issue Types — ${
                       selectedDate === 'All Days' ? 'All Days' : selectedDate
                     }`,
+                    color: chartTextColor,
                   },
                 },
               }}
             />
           </div>
         ) : (
-          <p className="text-center text-gray-600 sm:text-sm">
+          <p className="text-center text-gray-500 dark:text-gray-400 py-6 text-sm">
             No issues to display.
           </p>
         )}
       </div>
 
       {/* Per-day pies at bottom */}
-      <div className="mt-6">
-        <h3 className="text-xl font-semibold mb-2 text-center sm:text-lg dark:text-gray-100">
+      <div className="card p-4">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">
           Issue Type Distribution Per Day
         </h3>
         {perDayPieCharts.length === 0 ? (
-          <p className="text-center text-gray-600 dark:text-gray-400 sm:text-sm">
+          <p className="text-center text-gray-500 dark:text-gray-400 py-6 text-sm">
             No issues to display for any day.
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {perDayPieCharts.map((chart) => (
-              <div key={chart.date} className="max-w-md mx-auto">
-                <h4 className="text-lg font-medium text-center sm:text-base mb-2 dark:text-gray-200">
+              <div key={chart.date} className="max-w-md mx-auto w-full">
+                <h4 className="text-sm font-semibold text-center mb-2 text-gray-700 dark:text-gray-200">
                   {chart.date}
                 </h4>
                 <Pie
@@ -524,10 +551,14 @@ export default function Dashboard({ data = {}, dates: propDates = [] }) {
                   options={{
                     responsive: true,
                     plugins: {
-                      legend: { position: 'top' },
+                      legend: {
+                        position: 'top',
+                        labels: { color: chartTextColor }
+                      },
                       title: {
                         display: true,
                         text: `Issue Types — ${chart.date}`,
+                        color: chartTextColor,
                       },
                     },
                   }}

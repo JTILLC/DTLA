@@ -3,24 +3,26 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { app } from '../firebaseConfig';
+import ShareModal from './ShareModal';
 
 const auth = getAuth(app);
 
 const navItems = [
   { to: '/logger',   label: 'Logger',   icon: 'home' },
-  { to: '/summary',  label: 'Summary',  icon: 'list' },
+  // Summary removed from nav 2026-07-02 (Finish Day + daily PDF + Hx cover it);
+  // the /summary route still works as a fallback until the page is deleted.
   { to: '/dashboard',label: 'Dashboard',icon: 'chart-bar' },
   { to: '/running',  label: 'Running',  icon: 'play' },
   { to: '/head-history', label: 'History', icon: 'history' },
   { to: '/issues-chart', label: 'Issues Chart', icon: 'chart-line' },
 ];
 
-export default function Navigation({ children }) {
+export default function Navigation({ children, onLogout }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [showSide, setShowSide] = useState(false);
   const [hasUnsaved, setHasUnsaved] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? saved === 'true' : true; // Default to true (dark mode on)
@@ -59,21 +61,11 @@ export default function Navigation({ children }) {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* ----- TOP BAR ----- */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center space-x-3">
-            {/* Hamburger (desktop) */}
-            <button
-              onClick={() => setShowSide(!showSide)}
-              className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-
             <Link to="/logger" className="flex items-center space-x-2">
               <img src="/Logo.png" alt="Shearers Logger" className="w-8 h-8 rounded-full object-cover" />
               <span className="font-semibold text-xl text-gray-800 dark:text-gray-100 hidden sm:inline">Shearers Logger</span>
@@ -93,6 +85,15 @@ export default function Navigation({ children }) {
 
           <div className="flex items-center space-x-3">
             {hasUnsaved && <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" title="Unsaved changes" />}
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Share Data"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+            </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -115,11 +116,9 @@ export default function Navigation({ children }) {
         </div>
       </header>
 
-      {/* ----- SIDE MENU (desktop) ----- */}
+      {/* ----- SIDE MENU (desktop only) ----- */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform lg:translate-x-0 ${
-          showSide ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className="hidden lg:block fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 shadow-lg"
       >
         <div className="flex flex-col h-full pt-20 lg:pt-16">
           <nav className="flex-1 px-4 pb-4 space-y-1">
@@ -127,7 +126,6 @@ export default function Navigation({ children }) {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => setShowSide(false)}
                 className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   location.pathname === item.to
                     ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
@@ -150,7 +148,7 @@ export default function Navigation({ children }) {
           {/* Logout */}
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
             <button
-              onClick={() => auth.signOut().then(() => navigate('/'))}
+              onClick={() => (onLogout || (() => auth.signOut()))().then(() => navigate('/'))}
               className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,7 +162,9 @@ export default function Navigation({ children }) {
 
       {/* ----- MAIN CONTENT ----- */}
       <main className="flex-1 overflow-y-auto lg:ml-64">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Extra bottom padding on mobile so the fixed bottom nav bar doesn't
+            cover page content when scrolled to the bottom. */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6">
           {children}
         </div>
       </main>
@@ -198,6 +198,12 @@ export default function Navigation({ children }) {
       <UnsavedContext.Provider value={setHasUnsaved}>
         {/* children are already rendered above */}
       </UnsavedContext.Provider>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
     </div>
   );
 }

@@ -1,44 +1,24 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { getDatabase, ref, get, set } from 'firebase/database';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getDatabase, ref, get, update } from 'firebase/database';
 import { app } from '../firebaseConfig';
 import { useDates } from '../context/DatesContext';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { useToast } from '../context/ToastContext';
+import { canonicalString, firebaseKeyForEntry } from '../utils/historyKeys';
+import useModalDismiss from '../utils/useModalDismiss';
+import PhotoThumbs from './PhotoThumbs';
 
 const database = getDatabase(app);
-const auth = getAuth(app);
 
 // History path (namespaced)
 const HISTORY_PATH = 'jti-downtime/head-history';
 const getHistoryRef = () => ref(database, HISTORY_PATH);
 
-// ---- Key helpers (shared with HeadHistory) ----
-const canonicalString = (e) => {
-  const date = (e.date ?? '').trim();
-  const line = (e.line ?? '').trim();
-  const head = e.head === '' || e.head === undefined || e.head === null ? '' : String(e.head).trim();
-  const issue = (e.issue ?? '').trim();
-  const repaired = (e.repaired ?? '').trim();
-  const notes = (e.notes ?? '').trim();
-  if (!head) return `MN|${date}|${line}|${notes}`;
-  return `H|${date}|${line}|${head}|${issue}|${repaired}|${notes}`;
-};
-const hashHex = (str) => {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return (h >>> 0).toString(16);
-};
-const firebaseKeyForEntry = (e) => {
-  const c = canonicalString(e);
-  const type = c.startsWith('MN|') ? 'MN' : 'H';
-  return `${type}_${hashHex(c)}`;
-};
 const isHeadDown = (h) => (String(h?.offline ?? '').toLowerCase() || 'active') !== 'active';
 
 export default function Summary({ data }) {
   const { dates } = useDates();
+  const toast = useToast();
+
   const [globalSearch, setGlobalSearch] = useState('');
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
   const [authReady, setAuthReady] = useState(false);
@@ -55,22 +35,12 @@ export default function Summary({ data }) {
   const [modalTitle, setModalTitle] = useState('');
   const [modalItems, setModalItems] = useState([]);
 
-  // Ensure anonymous auth before DB calls
+  const closeModal = useCallback(() => setModalOpen(false), []);
+  useModalDismiss(modalOpen, closeModal);
+
+  // Auth is handled at the app level (email/password login)
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!auth.currentUser) await signInAnonymously(auth);
-        if (!cancelled) setAuthReady(true);
-      } catch (e) {
-        if (!cancelled) {
-          setAuthReady(true);
-          setDbError('Auth failed (anonymous). Some cloud features may be disabled.');
-          console.error('Anonymous auth failed:', e);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
+    setAuthReady(true);
   }, []);
 
   // Load head-history counts + keep a cached list so the modal can show items
@@ -142,36 +112,63 @@ export default function Summary({ data }) {
               issuesArray = [{ type: h.issue, repaired: h.repaired || 'Not Fixed', replacementReason: '' }];
             }
 
-            // Create one row per issue
-            issuesArray.forEach((iss, idx) => {
-              const issueDisplay = iss.type === 'WDU Replacement' && iss.replacementReason
-                ? `${iss.type} (${iss.replacementReason})`
-                : iss.type;
-
+            // If head is offline but has no issues, show as "Undetermined"
+            if (issuesArray.length === 0) {
               result.push({
-                key: `${date}|${line}|${h.head}|${idx}|H`,
+                key: `${date}|${line}|${h.head}|0|H`,
                 date,
                 line,
                 head: h.head,
-                issue: issueDisplay,
+                issue: 'Undetermined',
                 notes: h.notes || '',
-                repaired: iss.repaired || 'Not Fixed',
+                repaired: 'Not Fixed',
                 running: 'Yes',
                 _exportable: {
                   date,
                   line,
                   head: h.head,
-                  issue: issueDisplay,
-                  repaired: iss.repaired || 'Not Fixed',
+                  issue: 'Undetermined',
+                  repaired: 'Not Fixed',
                   notes: h.notes || ''
                 },
               });
-            });
+            } else {
+              // Create one row per issue
+              issuesArray.forEach((iss, idx) => {
+                const issueDisplay = iss.type === 'WDU Replacement' && iss.replacementReason
+                  ? `${iss.type} (${iss.replacementReason})`
+                  : iss.type;
+
+                const issuePhotos = (iss.photos || []).filter((ph) => ph && ph.url);
+                result.push({
+                  key: `${date}|${line}|${h.head}|${idx}|H`,
+                  date,
+                  line,
+                  head: h.head,
+                  issue: issueDisplay,
+                  notes: h.notes || '',
+                  repaired: iss.repaired || 'Not Fixed',
+                  running: 'Yes',
+                  photos: issuePhotos,
+                  _exportable: {
+                    ...(issuePhotos.length ? { photos: issuePhotos } : {}),
+                    date,
+                    line,
+                    head: h.head,
+                    issue: issueDisplay,
+                    repaired: iss.repaired || 'Not Fixed',
+                    notes: h.notes || ''
+                  },
+                });
+              });
+            }
           });
         }
 
         if (running && entry.machineNotes && entry.machineNotes.trim()) {
+          const notePhotos = (entry.notePhotos || []).filter((ph) => ph && ph.url);
           result.push({
+            photos: notePhotos,
             key: `${date}|${line}|MN|M`,
             date,
             line,
@@ -180,15 +177,18 @@ export default function Summary({ data }) {
             notes: entry.machineNotes.trim(),
             repaired: '',
             running: 'Yes',
-            _exportable: { date, line, head: '', issue: '', repaired: '', notes: `Machine note: ${entry.machineNotes.trim()}` },
+            _exportable: {
+              ...(notePhotos.length ? { photos: notePhotos } : {}),
+              date, line, head: '', issue: '', repaired: '', notes: `Machine note: ${entry.machineNotes.trim()}`,
+            },
           });
         }
       });
     });
 
-    // Oldest -> Newest (unchanged). Flip if you want.
+    // Newest -> Oldest: the most recent work day is what you want at the top.
     result.sort((a, b) => {
-      const d = new Date(a.date) - new Date(b.date);
+      const d = new Date(b.date) - new Date(a.date);
       if (d !== 0) return d;
       const la = parseInt(a.line.replace('Line ', '') || '0', 10);
       const lb = parseInt(b.line.replace('Line ', '') || '0', 10);
@@ -205,10 +205,15 @@ export default function Summary({ data }) {
   const selectAll = () => setSelectedKeys(new Set(rows.map((r) => r.key)));
   const clearSelection = () => setSelectedKeys(new Set());
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
+    // Load the PDF libraries on demand so they're not in the initial bundle.
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
     const doc = new jsPDF();
     doc.text('Downtime Summary', 14, 20);
-    doc.autoTable({
+    autoTable(doc, {
       startY: 30,
       head: [['', 'Date', 'Line', 'Head', 'Issue', 'Notes', 'Repaired', 'Running', 'Past Failures']],
       body: rows.map((r) => {
@@ -224,42 +229,39 @@ export default function Summary({ data }) {
     doc.save('downtime-summary.pdf');
   };
 
-  // Add selected to head-history (merge + set)
+  // Add selected to head-history. Writes only the specific child keys via
+  // update() so concurrent additions from other devices aren't clobbered
+  // (the old read-whole-node + set-whole-node was last-write-wins).
   const addSelectedToHeadHistory = useCallback(async () => {
     const toAdd = rows
       .filter((r) => selectedKeys.has(r.key))
       .map((r) => r._exportable);
 
     if (!toAdd.length) {
-      alert('No rows selected.');
+      toast.info('No rows selected.');
       return;
     }
 
     try {
-      if (!auth.currentUser) await signInAnonymously(auth);
-
-      const snap = await get(getHistoryRef());
-      const existing = snap.exists() ? snap.val() : {};
-      const merged = { ...(existing || {}) };
-
+      const updates = {};
       toAdd.forEach((e) => {
-        merged[firebaseKeyForEntry(e)] = e;
+        updates[firebaseKeyForEntry(e)] = e;
       });
 
-      await set(getHistoryRef(), merged);
-      alert(`Added ${toAdd.length} entr${toAdd.length === 1 ? 'y' : 'ies'} to Head History`);
+      await update(getHistoryRef(), updates);
+      toast.success(`Added ${toAdd.length} entr${toAdd.length === 1 ? 'y' : 'ies'} to Head History`);
       setDbError('');
     } catch (e) {
       console.warn('Add to Head History failed:', e);
       if (String(e?.message || '').toLowerCase().includes('permission')) {
-        alert('Cannot write to Head History (permission denied).');
+        toast.error('Cannot write to Head History (permission denied).');
         setDbError('Cannot write to Head History (permission denied).');
       } else {
-        alert('Failed to add to Head History: ' + e.message);
+        toast.error('Failed to add to Head History: ' + e.message);
         setDbError('Failed to add to Head History.');
       }
     }
-  }, [rows, selectedKeys]);
+  }, [rows, selectedKeys, toast]);
 
   // Open modal with all failures for a given (line, head)
   const openPastFailures = (line, head) => {
@@ -276,72 +278,96 @@ export default function Summary({ data }) {
     setModalOpen(true);
   };
 
+  // Presentational status meta (color coding only — derived from existing fields)
+  const statusMeta = (r) =>
+    r.head === ''
+      ? { label: 'Machine Note', pill: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', tint: 'bg-yellow-50 dark:bg-yellow-900/15' }
+      : r.issue && r.issue.includes('WDU Replacement')
+      ? { label: 'WDU', pill: 'bg-purple-600 text-white', tint: 'bg-purple-50 dark:bg-purple-900/15' }
+      : r.repaired === 'Fixed'
+      ? { label: 'Fixed', pill: 'bg-orange-500 text-orange-950', tint: 'bg-orange-50 dark:bg-orange-900/15' }
+      : { label: 'Offline', pill: 'bg-red-600 text-white', tint: 'bg-red-50 dark:bg-red-900/15' };
+
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md md:p-4 sm:p-2">
-      <h2 className="text-2xl font-semibold text-center mb-2 sm:text-xl dark:text-gray-100">Summary</h2>
+    <div className="max-w-6xl mx-auto space-y-4">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Summary</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Downtime across all dates · running lines only</p>
+      </div>
 
       {dbError && (
-        <div className="mb-3 text-sm text-yellow-800 dark:text-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded px-3 py-2">
+        <div className="text-sm text-yellow-800 dark:text-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg px-3 py-2">
           {dbError}
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-        <div className="flex gap-2 flex-wrap">
-          <Link to="/logger" className="px-4 py-2 bg-blue-500 text-white rounded sm:px-2 sm:py-1">Back to Logger</Link>
-          <Link to="/head-history" className="px-4 py-2 bg-teal-600 text-white rounded sm:px-2 sm:py-1">View Head History</Link>
+      {/* Controls */}
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search rows…"
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="field sm:max-w-xs"
+          />
+          <div className="flex gap-2 sm:ml-auto">
+            <button onClick={exportToPDF} className="btn-secondary flex-1 sm:flex-none">Export PDF</button>
+            <button onClick={addSelectedToHeadHistory} disabled={!authReady} className="btn-primary flex-1 sm:flex-none disabled:opacity-50">
+              Add Selected to History
+            </button>
+          </div>
         </div>
 
-        <input
-          type="text"
-          placeholder="Search rows…"
-          value={globalSearch}
-          onChange={(e) => setGlobalSearch(e.target.value)}
-          className="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-3 py-1 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={selectAll} className="btn-secondary !px-3 !py-2 text-sm">
+            Select All ({rows.length})
+          </button>
+          <button onClick={clearSelection} className="btn-ghost !px-3 !py-2 text-sm">
+            Clear Selection
+          </button>
+          {selectedKeys.size > 0 && (
+            <span className="pill bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+              {selectedKeys.size} selected
+            </span>
+          )}
 
-        <div className="flex gap-2">
-          <button onClick={exportToPDF} className="px-4 py-2 bg-green-600 text-white rounded sm:px-2 sm:py-1">Export PDF</button>
-          <button onClick={addSelectedToHeadHistory} disabled={!authReady} className="px-3 py-2 bg-indigo-600 text-white rounded text-sm disabled:opacity-50">
-            Add Selected to Head History
-          </button>
-        </div>
-      </div>
-
-      {/* View Toggle */}
-      <div className="flex justify-end mb-3">
-        <div className="inline-flex rounded-md shadow-sm" role="group">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-4 py-2 text-sm font-medium border ${
-              viewMode === 'table'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            } rounded-l-lg`}
-          >
-            Table
-          </button>
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`px-4 py-2 text-sm font-medium border-t border-b border-r ${
-              viewMode === 'cards'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            } rounded-r-lg`}
-          >
-            Cards
-          </button>
+          {/* View Toggle — hidden on mobile; mobile always uses the card layout */}
+          <div className="hidden md:inline-flex ml-auto rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden" role="group">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-4 py-2 text-sm font-medium border-l border-gray-300 dark:border-gray-600 transition-colors ${
+                viewMode === 'cards'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
         </div>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-center text-gray-600 dark:text-gray-400 sm:text-sm">No downtime entries found.</p>
-      ) : viewMode === 'table' ? (
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto border-collapse min-w-max">
+        <div className="card p-10 text-center text-gray-500 dark:text-gray-400">No downtime entries found.</div>
+      ) : (
+        <>
+        {viewMode === 'table' && (
+        <div className="card p-0 hidden md:block overflow-x-auto">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700">
-                <th className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">
+              <tr className="bg-gray-50 dark:bg-gray-700/60">
+                <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
                   <input
                     type="checkbox"
                     checked={selectedKeys.size === rows.length && rows.length > 0}
@@ -355,28 +381,19 @@ export default function Summary({ data }) {
                     title="Select All"
                   />
                 </th>
-                {['Date', 'Line', 'Head', 'Issue', 'Notes', 'Repaired', 'Running', 'Past Failures'].map((c) => (
-                  <th key={c} className="p-2 text-center border dark:border-gray-600 dark:text-gray-200 sm:p-1 sm:text-sm">{c}</th>
+                {['Status', 'Date', 'Line', 'Head', 'Issue', 'Notes', 'Repaired', 'Running', 'Photos', 'Past Failures'].map((c) => (
+                  <th key={c} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
                 const checked = selectedKeys.has(r.key);
-                const pastKey = r.head ? `${r.line}-Head ${r.head}` : '';
-                const past = r.head ? (historyCounts.get(pastKey) || 0) : '-';
-                const rowClass =
-                  r.head === ''
-                    ? 'bg-yellow-200 dark:bg-yellow-400'
-                    : r.issue && r.issue.includes('WDU Replacement')
-                    ? 'bg-purple-300 dark:bg-purple-700'
-                    : r.repaired === 'Fixed'
-                    ? 'bg-orange-200 dark:bg-orange-600'
-                    : 'bg-red-200 dark:bg-red-700';
+                const meta = statusMeta(r);
 
                 return (
-                  <tr key={r.key} className={rowClass}>
-                    <td className="p-2 text-center border">
+                  <tr key={r.key} className={`${meta.tint} border-b border-gray-200/70 dark:border-gray-700`}>
+                    <td className="px-3 py-2 text-center">
                       <input
                         type="checkbox"
                         checked={checked}
@@ -389,19 +406,25 @@ export default function Summary({ data }) {
                         }
                       />
                     </td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.date}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.line}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.head || '—'}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.issue || '—'}</td>
-                    <td className="p-2 border dark:border-gray-600 sm:p-1 sm:text-sm max-w-xs whitespace-normal">{r.notes || '—'}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.repaired || '—'}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">{r.running}</td>
-                    <td className="p-2 text-center border dark:border-gray-600 sm:p-1 sm:text-sm">
+                    <td className="px-3 py-2"><span className={`pill ${meta.pill}`}>{meta.label}</span></td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                      {r.date}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">{r.line}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">{r.head || '—'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">{r.issue || '—'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 max-w-xs whitespace-normal">{r.notes || '—'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">{r.repaired || '—'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">{r.running}</td>
+                    <td className="px-3 py-2">
+                      {r.photos && r.photos.length ? <PhotoThumbs photos={r.photos} /> : <span className="text-gray-400 text-sm">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
                       {r.head ? (
                         (historyCounts.get(`${r.line}-Head ${r.head}`) || 0) > 0 ? (
                           <button
                             onClick={() => openPastFailures(r.line, r.head)}
-                            className="underline text-blue-700 hover:text-blue-900"
+                            className="pill bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60"
                             title="Show past failures"
                           >
                             {historyCounts.get(`${r.line}-Head ${r.head}`)}
@@ -419,24 +442,15 @@ export default function Summary({ data }) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        )}
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4${viewMode === 'table' ? ' md:hidden' : ''}`}>
           {rows.map((r) => {
             const checked = selectedKeys.has(r.key);
-            const pastKey = r.head ? `${r.line}-Head ${r.head}` : '';
-            const past = r.head ? (historyCounts.get(pastKey) || 0) : '-';
-            const cardClass =
-              r.head === ''
-                ? 'bg-yellow-200 dark:bg-yellow-400'
-                : r.issue && r.issue.includes('WDU Replacement')
-                ? 'bg-purple-300 dark:bg-purple-700'
-                : r.repaired === 'Fixed'
-                ? 'bg-orange-200 dark:bg-orange-600'
-                : 'bg-red-200 dark:bg-red-700';
+            const meta = statusMeta(r);
 
             return (
-              <div key={r.key} className={`${cardClass} border dark:border-gray-600 rounded-lg p-4 shadow-sm`}>
-                <div className="flex items-start justify-between mb-3">
+              <div key={r.key} className={`card p-4 ${meta.tint}`}>
+                <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -447,35 +461,41 @@ export default function Summary({ data }) {
                         return n;
                       })
                     }
-                    className="mt-1"
+                    className="mt-1 h-5 w-5"
                   />
-                  <div className="flex-1 ml-3">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className={`pill ${meta.pill}`}>{meta.label}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {r.date}
+                      </span>
+                    </div>
+                    {r.photos && r.photos.length > 0 && (
+                      <div className="mb-2"><PhotoThumbs photos={r.photos} size={48} /></div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm text-gray-700 dark:text-gray-200">
                       <div>
-                        <span className="font-semibold">Date:</span> {r.date}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Line:</span> {r.line}
                       </div>
                       <div>
-                        <span className="font-semibold">Line:</span> {r.line}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Head:</span> {r.head || '—'}
                       </div>
                       <div>
-                        <span className="font-semibold">Head:</span> {r.head || '—'}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Issue:</span> {r.issue || '—'}
                       </div>
                       <div>
-                        <span className="font-semibold">Issue:</span> {r.issue || '—'}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Running:</span> {r.running}
                       </div>
                       <div>
-                        <span className="font-semibold">Running:</span> {r.running}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Repaired:</span> {r.repaired || '—'}
                       </div>
                       <div>
-                        <span className="font-semibold">Repaired:</span> {r.repaired || '—'}
-                      </div>
-                      <div>
-                        <span className="font-semibold">Past Failures:</span>{' '}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Past:</span>{' '}
                         {r.head ? (
                           (historyCounts.get(`${r.line}-Head ${r.head}`) || 0) > 0 ? (
                             <button
                               onClick={() => openPastFailures(r.line, r.head)}
-                              className="underline text-blue-700 hover:text-blue-900"
+                              className="pill bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60"
                               title="Show past failures"
                             >
                               {historyCounts.get(`${r.line}-Head ${r.head}`)}
@@ -487,9 +507,8 @@ export default function Summary({ data }) {
                           '-'
                         )}
                       </div>
-                      <div></div>
                       <div className="col-span-2">
-                        <span className="font-semibold">Notes:</span> {r.notes || '—'}
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">Notes:</span> {r.notes || '—'}
                       </div>
                     </div>
                   </div>
@@ -498,44 +517,45 @@ export default function Summary({ data }) {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Past Failures Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold dark:text-gray-100">{modalTitle}</h3>
-              <button onClick={() => setModalOpen(false)} className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">✕</button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onClick={closeModal}>
+          <div className="card shadow-xl max-w-2xl w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{modalTitle}</h3>
+              <button onClick={() => setModalOpen(false)} className="btn-ghost !px-3 !py-2" aria-label="Close">✕</button>
             </div>
             <div className="p-4 max-h-[60vh] overflow-auto">
               {modalItems.length === 0 ? (
-                <p className="text-sm text-gray-600 dark:text-gray-400">No entries.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No entries.</p>
               ) : (
-                <table className="w-full table-auto border-collapse">
+                <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-gray-100 dark:bg-gray-700 text-sm">
-                      <th className="border dark:border-gray-600 dark:text-gray-200 p-2">Date</th>
-                      <th className="border dark:border-gray-600 dark:text-gray-200 p-2">Issue</th>
-                      <th className="border dark:border-gray-600 dark:text-gray-200 p-2">Repaired</th>
-                      <th className="border dark:border-gray-600 dark:text-gray-200 p-2">Notes</th>
+                    <tr className="bg-gray-50 dark:bg-gray-700/60">
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Date</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Issue</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Repaired</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {modalItems.map((e, i) => (
-                      <tr key={i} className="text-sm">
-                        <td className="border dark:border-gray-600 dark:text-gray-200 p-2 text-center">{e.date}</td>
-                        <td className="border dark:border-gray-600 dark:text-gray-200 p-2 text-center">{e.issue || 'None'}</td>
-                        <td className="border dark:border-gray-600 dark:text-gray-200 p-2 text-center">{e.repaired || 'Not Fixed'}</td>
-                        <td className="border dark:border-gray-600 dark:text-gray-200 p-2">{e.notes || '—'}</td>
+                      <tr key={i} className="border-b border-gray-200/70 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200">
+                        <td className="px-3 py-2">{e.date}</td>
+                        <td className="px-3 py-2">{e.issue || 'None'}</td>
+                        <td className="px-3 py-2">{e.repaired || 'Not Fixed'}</td>
+                        <td className="px-3 py-2">{e.notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
-            <div className="p-3 border-t text-right">
-              <button onClick={() => setModalOpen(false)} className="px-3 py-1 bg-blue-600 text-white rounded">Close</button>
+            <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-right">
+              <button onClick={() => setModalOpen(false)} className="btn-primary">Close</button>
             </div>
           </div>
         </div>
