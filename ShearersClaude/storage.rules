@@ -1,8 +1,27 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // Legacy backup blob.
     match /downtime-logger-data.json {
       allow read, write: if request.auth != null;
+    }
+
+    // Downtime photos: issue photos and general-notes photos.
+    //
+    // Kept deliberately simple. This project (shearers-4c4b4) serves one
+    // logger used by JTI and one customer, so photos are read by download URL
+    // rather than through a broker. Writes require sign-in; reads are open
+    // because the shared read-only viewer has no login to check.
+    //
+    // Uploads are downscaled to JPEG client-side, so the 15 MB ceiling is a
+    // guard against a mis-picked file rather than a normal limit.
+    match /downtime-photos/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
     }
   }
 }

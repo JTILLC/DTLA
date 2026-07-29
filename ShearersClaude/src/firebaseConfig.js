@@ -14,6 +14,4 @@ const firebaseConfig = {
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
-// --- Custom UID override (persistent across sessions) ---
-export const FIXED_UID = 'I2tTAyeThDOKGRj5wc9xAuklmvo2';
 

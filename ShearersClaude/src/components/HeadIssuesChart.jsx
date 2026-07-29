@@ -1,16 +1,15 @@
 // src/components/HeadIssuesChart.jsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Bar, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js';
 import { getDatabase, ref, get } from 'firebase/database';
-import { getAuth, signInAnonymously } from 'firebase/auth';
 import { app } from '../firebaseConfig';
+import { ISSUE_TYPES } from '../constants';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
 const database = getDatabase(app);
-const auth = getAuth(app);
 
 const DB_ROOT = 'jti-downtime';
 const HEADHISTORY_PATH = `${DB_ROOT}/head-history`;
@@ -24,18 +23,6 @@ const CHART_TYPES = [
   { value: 'avg-heads-down', label: 'Average Heads Down Per Day' }
 ];
 
-const ISSUE_TYPES = [
-  'WDU Replacement',
-  'Chute',
-  'Operator',
-  'Load Cell',
-  'Detached Head',
-  'Stepper Motor Error',
-  'Hopper Issues',
-  'Installed Wrong',
-  'Other'
-];
-
 const COLORS = {
   'WDU Replacement': '#a855f7',
   'Chute': '#ef4444',
@@ -46,13 +33,12 @@ const COLORS = {
   'Hopper Issues': '#14b8a6',
   'Installed Wrong': '#06b6d4',
   'Other': '#8b5cf6',
-  'Fixed': '#f97316',
-  'Not Fixed': '#ef4444'
+  'Fixed': '#f97316',     // orange-500 — matches the History page Fixed pill
+  'Not Fixed': '#dc2626'  // red-600 — matches the History page Not Fixed pill
 };
 
 export default function HeadIssuesChart() {
   const location = useLocation();
-  const navigate = useNavigate();
 
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,11 +54,6 @@ export default function HeadIssuesChart() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedLine, setSelectedLine] = useState(location.state?.line || 'all');
   const [selectedHead, setSelectedHead] = useState('all');
-
-  // Auth
-  useEffect(() => {
-    signInAnonymously(auth).catch((e) => setError(e.message));
-  }, []);
 
   // Fetch data
   useEffect(() => {
@@ -412,141 +393,123 @@ export default function HeadIssuesChart() {
   };
 
   return (
-    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md max-w-7xl mx-auto">
-        <div className="mb-5 flex justify-between items-center flex-wrap gap-4">
-          <h1 className="m-0 text-2xl font-semibold dark:text-gray-100">Head Issues Analysis</h1>
-          <button
-            onClick={() => navigate('/logger')}
-            className="px-4 py-2 bg-gray-600 dark:bg-gray-700 text-white border-none rounded-md cursor-pointer hover:bg-gray-700 dark:hover:bg-gray-600"
-          >
-            ← Back to Logger
+    <div className="max-w-6xl mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Head Issues Analysis</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Trends and breakdowns across the head-history log</p>
+      </div>
+
+      {/* Filters */}
+      <div className="card p-4 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Chart Type */}
+          <div>
+            <label className="block mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Chart Type</label>
+            <select
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value)}
+              className="field py-2 text-sm"
+            >
+              {CHART_TYPES.map(type => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Start Date */}
+          <div>
+            <label className="block mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="field py-2 text-sm"
+            />
+          </div>
+
+          {/* End Date */}
+          <div>
+            <label className="block mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="field py-2 text-sm"
+            />
+          </div>
+
+          {/* Line Filter */}
+          <div>
+            <label className="block mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Line</label>
+            <select
+              value={selectedLine}
+              onChange={(e) => setSelectedLine(e.target.value)}
+              className="field py-2 text-sm"
+            >
+              {lines.map(line => (
+                <option key={line} value={line}>{line === 'all' ? 'All Lines' : line}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Head Filter */}
+          <div>
+            <label className="block mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Head</label>
+            <select
+              value={selectedHead}
+              onChange={(e) => setSelectedHead(e.target.value)}
+              className="field py-2 text-sm"
+            >
+              {heads.map(head => (
+                <option key={head} value={head}>{head === 'all' ? 'All Heads' : `Head ${head}`}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-start flex-wrap gap-4 pt-1 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex-1 min-w-[200px] pt-3">
+            <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+              Total Issues: {filteredEntries.length}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400">
+              {ISSUE_TYPES.map(type => (
+                errorTypeBreakdown[type] > 0 && (
+                  <div key={type} className="flex items-center gap-2">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm shrink-0"
+                      style={{ backgroundColor: COLORS[type] }}
+                    ></span>
+                    <span>{type}: {errorTypeBreakdown[type]}</span>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+          <button onClick={resetFilters} className="btn-secondary mt-3">
+            Reset Filters
           </button>
         </div>
-
-        {/* Filters */}
-        <div className="bg-white dark:bg-gray-700 p-5 rounded-lg shadow mb-5">
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-            {/* Chart Type */}
-            <div>
-              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Chart Type
-              </label>
-              <select
-                value={chartType}
-                onChange={(e) => setChartType(e.target.value)}
-                className="w-full p-2 border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-200 rounded-md text-sm"
-              >
-                {CHART_TYPES.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Start Date */}
-            <div>
-              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-2 border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-200 rounded-md text-sm"
-              />
-            </div>
-
-            {/* End Date */}
-            <div>
-              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2 border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-200 rounded-md text-sm"
-              />
-            </div>
-
-            {/* Line Filter */}
-            <div>
-              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Line
-              </label>
-              <select
-                value={selectedLine}
-                onChange={(e) => setSelectedLine(e.target.value)}
-                className="w-full p-2 border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-200 rounded-md text-sm"
-              >
-                {lines.map(line => (
-                  <option key={line} value={line}>{line === 'all' ? 'All Lines' : line}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Head Filter */}
-            <div>
-              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Head
-              </label>
-              <select
-                value={selectedHead}
-                onChange={(e) => setSelectedHead(e.target.value)}
-                className="w-full p-2 border dark:border-gray-600 dark:bg-gray-600 dark:text-gray-200 rounded-md text-sm"
-              >
-                {heads.map(head => (
-                  <option key={head} value={head}>{head === 'all' ? 'All Heads' : `Head ${head}`}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-between items-start flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Total Issues: {filteredEntries.length}
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400">
-                {ISSUE_TYPES.map(type => (
-                  errorTypeBreakdown[type] > 0 && (
-                    <div key={type} className="flex items-center gap-2">
-                      <span
-                        className="inline-block w-3 h-3 rounded-sm"
-                        style={{ backgroundColor: COLORS[type] }}
-                      ></span>
-                      <span>{type}: {errorTypeBreakdown[type]}</span>
-                    </div>
-                  )
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white text-sm font-medium border-none rounded-md cursor-pointer hover:bg-blue-700 dark:hover:bg-blue-600"
-            >
-              Reset Filters
-            </button>
-          </div>
-        </div>
-
-        {/* Chart */}
-        <div className="bg-white dark:bg-gray-700 p-5 rounded-lg shadow h-[500px]">
-          {loading ? (
-            <div className="flex items-center justify-center h-full dark:text-gray-200">
-              Loading data...
-            </div>
-          ) : error ? (
-            <div className="flex items-center justify-center h-full text-red-500 dark:text-red-400">
-              {error}
-            </div>
-          ) : filteredEntries.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-600 dark:text-gray-400">
-              No data available for the selected filters
-            </div>
-          ) : (
-            <ChartComponent data={chartData} options={chartOptions} />
-          )}
-        </div>
       </div>
+
+      {/* Chart */}
+      <div className="card p-4 h-[420px] sm:h-[500px]">
+        {loading ? (
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            Loading data…
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full text-red-500 dark:text-red-400">
+            {error}
+          </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            No data available for the selected filters
+          </div>
+        ) : (
+          <ChartComponent data={chartData} options={chartOptions} />
+        )}
+      </div>
+    </div>
   );
 }
