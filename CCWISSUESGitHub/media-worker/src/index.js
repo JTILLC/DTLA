@@ -205,8 +205,15 @@ const b64urlToBytes = (s) => {
 };
 
 // Returns the token's claims, or null if it is not a valid, unexpired ID token
-// for this project.
-async function verifyIdToken(jwt, projectId) {
+// for one of the accepted projects.
+//
+// `projectIds` takes a string or an array. Media routes pass the single CCW
+// project; /scan-weights passes the allow-list, because the Shearers app is a
+// SEPARATE Firebase project (shearers-4c4b4) whose tokens would otherwise fail
+// the audience check. The issuer is then checked against the audience we
+// accepted, so a token cannot claim one project and be issued by another.
+async function verifyIdToken(jwt, projectIds) {
+  const allowed = Array.isArray(projectIds) ? projectIds : [projectIds];
   const parts = jwt.split('.');
   if (parts.length !== 3) return null;
 
@@ -226,8 +233,8 @@ async function verifyIdToken(jwt, projectId) {
 
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp <= now) return null;
-  if (payload.aud !== projectId) return null;
-  if (payload.iss !== `https://securetoken.google.com/${projectId}`) return null;
+  if (!allowed.includes(payload.aud)) return null;
+  if (payload.iss !== `https://securetoken.google.com/${payload.aud}`) return null;
   if (!payload.sub) return null;
 
   const jwk = (await getJwks()).find((k) => k.kid === header.kid);
@@ -303,15 +310,21 @@ export default {
       const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
       if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
 
+      // Accepts the CCW project plus any other allow-listed one (Shearers).
+      const scanProjects = (env.SCAN_PROJECT_IDS || env.FIREBASE_PROJECT_ID)
+        .split(',').map((s) => s.trim()).filter(Boolean);
+
       let claims;
       try {
-        claims = await verifyIdToken(jwt, env.FIREBASE_PROJECT_ID);
+        claims = await verifyIdToken(jwt, scanProjects);
       } catch (err) {
         console.error('id token verify error', err);
         return deny(502, 'Upstream auth error', origin, allowed);
       }
       if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
-      if (!mayScan(claims)) return deny(403, 'Not permitted for this account.', origin, allowed);
+      if (!mayScan(claims, env.FIREBASE_PROJECT_ID)) {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
 
       let body;
       try {

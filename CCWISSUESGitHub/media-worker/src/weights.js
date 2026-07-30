@@ -98,10 +98,22 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-// Callers must be a provisioned user. Anonymous Firebase sessions carry a valid
-// ID token but no claims, and this endpoint costs money per call.
-export const mayScan = (claims) =>
-  claims?.admin === true || !!claims?.customerId;
+// Callers must be a provisioned user — this endpoint costs money per call.
+//
+// Anonymous sessions are refused outright wherever they come from: the CCW
+// project alone has ~50 of them, and an anonymous token is free to mint.
+//
+// Beyond that the rule is per project. CCW is multi-tenant, so a caller must
+// carry the same claims storage.rules uses. The Shearers app is a separate,
+// single-plant project with email/password sign-in only — there is no anonymous
+// or self-serve account to gate against, so a verified user is sufficient.
+export const mayScan = (claims, ccwProjectId) => {
+  if (claims?.firebase?.sign_in_provider === 'anonymous') return false;
+  if (claims?.aud === ccwProjectId) {
+    return claims.admin === true || !!claims.customerId;
+  }
+  return true;   // any other project only reaches here if it is allow-listed
+};
 
 export async function scanWeights(env, claims, body) {
   if (rateLimited(claims.sub)) {
