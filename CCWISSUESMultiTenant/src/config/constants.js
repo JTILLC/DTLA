@@ -14,6 +14,21 @@ export const ISSUE_TYPES = [
   'Other'
 ];
 
+// Board types for the circuit board replacement log. Kept here rather than in
+// the component so both apps stay in step and the list can grow without
+// touching UI code.
+export const BOARD_TYPES = [
+  'Load Cell Amplifier',
+  'Stepper Driver',
+  'Head Control Board',
+  'Main Control Board',
+  'I/O Board',
+  'Power Supply',
+  'Display / HMI',
+  'Network / Comms',
+  'Other',
+];
+
 export const FIXED_STATUS = {
   NA: 'na',
   FIXED: 'fixed',

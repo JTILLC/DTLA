@@ -54,6 +54,9 @@ import OfflineIndicator from './components/OfflineIndicator.jsx';
 import offlineQueue from './utils/offlineQueue';
 import syncManager from './utils/syncManager';
 import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
+import SpanAdjustPage from './components/SpanAdjustPage.jsx';
+import BoardReplacementPage from './components/BoardReplacementPage.jsx';
+import PmLogPage from './components/PmLogPage.jsx';
 import { lineStatusKey, scaffoldLinesFrom } from './utils/headHelpers.js';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
@@ -3560,10 +3563,54 @@ const AppContent = () => {
                     userId={user?.uid}
                     customerId={currentCustomer?.id}
                     visitId={currentVisitId}
+                    performedByName={user?.email || 'JTI'}
                   />
                 ))}
               </div>
             )}
+          </div>
+        </Tab>
+
+        <Tab eventKey="span" title="Span Adjust">
+          <div className="tab-content p-3">
+            <SpanAdjustPage
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={user?.email || 'JTI'}
+              role="jti"
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="boards" title="Boards">
+          <div className="tab-content p-3">
+            <BoardReplacementPage
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={user?.email || 'JTI'}
+              role="jti"
+              canEditTypes
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="pm" title="PM Log">
+          <div className="tab-content p-3">
+            {/* Setup + read only here: the plant fills these in, not JTI. */}
+            <PmLogPage
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={user?.email || 'JTI'}
+              role="jti"
+              canEditTemplate
+              canSubmit={false}
+            />
           </div>
         </Tab>
 

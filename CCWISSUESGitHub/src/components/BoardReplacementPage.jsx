@@ -1,0 +1,433 @@
+// src/components/BoardReplacementPage.jsx
+//
+// Circuit board replacement log — what was changed, on which head, when, and by
+// whom. Customer-level like the span log, so the history survives across visits
+// and the share-link viewer can show the customer what's been replaced.
+//
+// Boards are tracked by SERIAL, removed and installed. That's the field that
+// makes the log worth keeping: it answers "has this board been swapped before",
+// and catches a board that gets refitted somewhere else after being pulled.
+//
+// A replacement may be head-level (load cell amp, stepper driver) or
+// machine-level (main control, power supply), so the head number is optional
+// rather than assumed.
+import { useEffect, useMemo, useState } from 'react';
+import { Cpu, ChevronLeft, Trash2, Plus, Settings, X } from 'lucide-react';
+import {
+  LOG_BOARD, subscribeLog, addLogEntry, deleteLogEntry, sinceLabel,
+  subscribeBoardTypes, saveBoardTypes,
+} from '../services/logs.js';
+import { BOARD_TYPES } from '../config/constants';
+import { useToast } from './Toast.jsx';
+import { useDialog } from './DialogSystem.jsx';
+
+const BLANK = {
+  lineTitle: '',
+  headNumber: '',
+  boardType: BOARD_TYPES[0],
+  partNumber: '',
+  serialRemoved: '',
+  serialInstalled: '',
+  reason: '',
+  notes: '',
+};
+
+export default function BoardReplacementPage({
+  workspaceId,
+  customerId,
+  customerName,
+  visits = [],
+  performedByName,
+  role = 'jti',
+  canEditTypes = false,   // the original app sets the list; the customer app uses it
+}) {
+  const toast = useToast();
+  const dialog = useDialog();
+  const [entries, setEntries] = useState([]);
+  const [form, setForm] = useState(BLANK);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [filterLine, setFilterLine] = useState('');
+  // null until the config doc resolves; then either the configured list or null
+  // meaning "never set up", in which case we fall back to the built-in defaults.
+  const [configuredTypes, setConfiguredTypes] = useState(null);
+  const [editingTypes, setEditingTypes] = useState(false);
+  const [draftTypes, setDraftTypes] = useState([]);
+  const [savingTypes, setSavingTypes] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeLog(workspaceId, customerId, LOG_BOARD, setEntries);
+  }, [workspaceId, customerId]);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeBoardTypes(workspaceId, customerId, setConfiguredTypes);
+  }, [workspaceId, customerId]);
+
+  // Configured list wins; BOARD_TYPES is the starting point for a customer
+  // nobody has set up yet.
+  const boardTypes = (configuredTypes && configuredTypes.length) ? configuredTypes : BOARD_TYPES;
+
+  // Lines come from the customer's visits — the only place a line is defined.
+  const lines = useMemo(() => {
+    const seen = new Map();
+    [...visits]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+      .forEach((v) => (v.lines || []).forEach((l) => {
+        if (l?.title && !seen.has(l.title)) seen.set(l.title, (l.heads || []).length);
+      }));
+    return [...seen.entries()].map(([title, heads]) => ({ title, heads }));
+  }, [visits]);
+
+  const headCount = lines.find((l) => l.title === form.lineTitle)?.heads || 0;
+
+  const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+  // Keep the selected board type valid if the list changes underneath.
+  useEffect(() => {
+    if (boardTypes.length && !boardTypes.includes(form.boardType)) {
+      setForm((f) => ({ ...f, boardType: boardTypes[0] }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardTypes.join('|')]);
+
+  const openTypeEditor = () => {
+    setDraftTypes([...boardTypes]);
+    setEditingTypes(true);
+  };
+
+  const commitTypes = async () => {
+    const cleaned = draftTypes.map((t) => t.trim()).filter(Boolean);
+    if (cleaned.length === 0) return toast.error('Keep at least one board type');
+    setSavingTypes(true);
+    try {
+      await saveBoardTypes(workspaceId, customerId, cleaned);
+      setEditingTypes(false);
+      toast.success('Board types saved — the customer app will use these');
+    } catch (err) {
+      toast.error('Could not save board types: ' + (err?.message || 'unknown error'));
+    } finally {
+      setSavingTypes(false);
+    }
+  };
+
+  const save = async () => {
+    if (!form.lineTitle) return toast.error('Pick a line');
+    if (!form.boardType) return toast.error('Pick a board type');
+    setSaving(true);
+    try {
+      await addLogEntry(workspaceId, customerId, LOG_BOARD, {
+        lineTitle: form.lineTitle,
+        // Empty means a machine-level board rather than head 0.
+        headNumber: form.headNumber === '' ? null : Number(form.headNumber),
+        boardType: form.boardType,
+        partNumber: form.partNumber.trim(),
+        serialRemoved: form.serialRemoved.trim(),
+        serialInstalled: form.serialInstalled.trim(),
+        reason: form.reason.trim(),
+        notes: form.notes.trim(),
+        performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
+        role,
+      });
+      setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
+      setAdding(false);
+      toast.success('Board replacement logged');
+    } catch (err) {
+      console.error('Board log save failed:', err);
+      toast.error('Could not save: ' + (err?.message || 'unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (entry) => {
+    const ok = await dialog.confirm(
+      `Delete the ${entry.boardType || 'board'} replacement logged ${new Date(entry.performedAt).toLocaleDateString()}?`,
+      { title: 'Delete log entry', confirmText: 'Delete', variant: 'danger' }
+    );
+    if (!ok) return;
+    try {
+      await deleteLogEntry(workspaceId, customerId, LOG_BOARD, entry.id);
+      toast.success('Entry deleted');
+    } catch (err) {
+      toast.error('Could not delete: ' + (err?.message || 'unknown error'));
+    }
+  };
+
+  if (!customerId) {
+    return <div className="text-muted p-3">Select a customer to record board replacements.</div>;
+  }
+
+  const shown = filterLine ? entries.filter((e) => e.lineTitle === filterLine) : entries;
+
+  // A board serial seen more than once has been swapped before — worth
+  // surfacing, because a repeat failure on the same serial is a different
+  // problem from a one-off.
+  const serialCounts = entries.reduce((acc, e) => {
+    const s = (e.serialInstalled || '').trim().toLowerCase();
+    if (s) acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h5 className="d-flex align-items-center gap-2 mb-0">
+          <Cpu size={18} /> Board Replacements{customerName ? ` — ${customerName}` : ''}
+        </h5>
+        <div className="d-flex align-items-center gap-2">
+          {canEditTypes && !editingTypes && (
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={openTypeEditor}>
+              <Settings size={16} /> Board types
+            </button>
+          )}
+          {!adding && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
+              <Plus size={16} /> Log a replacement
+            </button>
+          )}
+        </div>
+      </div>
+
+      {editingTypes && (
+        <div className="card mb-3">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <strong>Board types for {customerName || 'this customer'}</strong>
+            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setEditingTypes(false)}>
+              Cancel
+            </button>
+          </div>
+          <div className="card-body d-flex flex-column gap-2">
+            <small className="text-muted">
+              These are the options the customer app offers when logging a board.
+              Renaming or removing one never changes entries already logged — they
+              keep the name they were recorded with.
+            </small>
+            {draftTypes.map((t, i) => (
+              <div key={i} className="input-group">
+                <input
+                  type="text"
+                  className="form-control"
+                  value={t}
+                  onChange={(e) => setDraftTypes((d) => d.map((v, j) => (j === i ? e.target.value : v)))}
+                  placeholder="Board type"
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline-danger"
+                  onClick={() => setDraftTypes((d) => d.filter((_, j) => j !== i))}
+                  aria-label={`Remove ${t}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary align-self-start"
+              onClick={() => setDraftTypes((d) => [...d, ''])}
+            >
+              <Plus size={16} /> Add type
+            </button>
+            <button type="button" className="btn btn-primary" onClick={commitTypes} disabled={savingTypes}>
+              {savingTypes ? 'Saving…' : 'Save board types'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {adding && (
+        <div className="card mb-3">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <strong>New board replacement</strong>
+            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setAdding(false)}>
+              <ChevronLeft size={16} /> Cancel
+            </button>
+          </div>
+          <div className="card-body d-flex flex-column gap-2">
+            <div>
+              <label className="form-label" htmlFor="board-line">Line</label>
+              <select
+                id="board-line"
+                className="form-select"
+                value={form.lineTitle}
+                onChange={(e) => set('lineTitle', e.target.value)}
+              >
+                <option value="">-- Select line --</option>
+                {lines.map((l) => <option key={l.title} value={l.title}>{l.title}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" htmlFor="board-head">Head</label>
+              <select
+                id="board-head"
+                className="form-select"
+                value={form.headNumber}
+                onChange={(e) => set('headNumber', e.target.value)}
+              >
+                <option value="">Not head-specific (machine board)</option>
+                {Array.from({ length: headCount }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>Head {i + 1}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" htmlFor="board-type">Board type</label>
+              <select
+                id="board-type"
+                className="form-select"
+                value={form.boardType}
+                onChange={(e) => set('boardType', e.target.value)}
+              >
+                {boardTypes.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" htmlFor="board-part">Part number</label>
+              <input
+                id="board-part"
+                type="text"
+                className="form-control"
+                value={form.partNumber}
+                onChange={(e) => set('partNumber', e.target.value)}
+                placeholder="e.g. AC-3401"
+              />
+            </div>
+
+            <div className="row g-2">
+              <div className="col-12 col-sm-6">
+                <label className="form-label" htmlFor="board-sn-out">Serial removed</label>
+                <input
+                  id="board-sn-out"
+                  type="text"
+                  className="form-control"
+                  value={form.serialRemoved}
+                  onChange={(e) => set('serialRemoved', e.target.value)}
+                  placeholder="old board"
+                />
+              </div>
+              <div className="col-12 col-sm-6">
+                <label className="form-label" htmlFor="board-sn-in">Serial installed</label>
+                <input
+                  id="board-sn-in"
+                  type="text"
+                  className="form-control"
+                  value={form.serialInstalled}
+                  onChange={(e) => set('serialInstalled', e.target.value)}
+                  placeholder="new board"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label" htmlFor="board-reason">Reason</label>
+              <input
+                id="board-reason"
+                type="text"
+                className="form-control"
+                value={form.reason}
+                onChange={(e) => set('reason', e.target.value)}
+                placeholder="e.g. intermittent load cell reading"
+              />
+            </div>
+
+            <div>
+              <label className="form-label" htmlFor="board-notes">Notes</label>
+              <input
+                id="board-notes"
+                type="text"
+                className="form-control"
+                value={form.notes}
+                onChange={(e) => set('notes', e.target.value)}
+                placeholder="optional"
+              />
+            </div>
+
+            <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : 'Log board replacement'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <strong>History</strong>
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-secondary">{shown.length}</span>
+            <select
+              className="form-select form-select-sm"
+              style={{ width: 'auto' }}
+              value={filterLine}
+              onChange={(e) => setFilterLine(e.target.value)}
+              aria-label="Filter by line"
+            >
+              <option value="">All lines</option>
+              {lines.map((l) => <option key={l.title} value={l.title}>{l.title}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="card-body">
+          {shown.length === 0 ? (
+            <div className="text-muted small">
+              {entries.length === 0 ? 'No board replacements logged yet.' : 'None for this line.'}
+            </div>
+          ) : (
+            <div className="d-flex flex-column gap-2">
+              {shown.map((e) => {
+                const sn = (e.serialInstalled || '').trim().toLowerCase();
+                const repeat = sn && serialCounts[sn] > 1;
+                return (
+                  <div key={e.id} className="border rounded p-2">
+                    <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                      <div>
+                        <div className="fw-semibold">
+                          {e.boardType || 'Board'}
+                          {e.headNumber != null ? ` · Head ${e.headNumber}` : ' · machine board'}
+                        </div>
+                        <div className="small text-muted">
+                          {e.lineTitle} · {new Date(e.performedAt).toLocaleDateString()} ({sinceLabel(e.performedAt)})
+                          {' · '}by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => remove(e)}
+                        aria-label="Delete entry"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    <div className="small mt-1">
+                      {e.partNumber && <>Part <strong>{e.partNumber}</strong>{' '}</>}
+                      {e.serialRemoved && <>· out <code>{e.serialRemoved}</code>{' '}</>}
+                      {e.serialInstalled && (
+                        <>
+                          · in <code>{e.serialInstalled}</code>
+                          {repeat && (
+                            <span className="badge bg-warning text-dark ms-1" title="This serial appears more than once in the log">
+                              seen {serialCounts[sn]}×
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {e.reason && <div className="small mt-1"><em>{e.reason}</em></div>}
+                    {e.notes && <div className="small text-muted mt-1">{e.notes}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
