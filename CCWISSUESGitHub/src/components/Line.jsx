@@ -6,6 +6,7 @@ import CombinedExport from './CombinedExport.jsx';
 import IssuePhotos from './IssuePhotos.jsx';
 import RedZoneSync from './RedZoneSync.jsx';
 import HeadIssueModal from './HeadIssueModal.jsx';
+import SpanAdjustLog from './SpanAdjustLog.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import { buildHeadIssueHistory, migrateHeadData as migrateHeadDataShared } from '../utils/headHelpers.js';
 
@@ -25,7 +26,7 @@ const migrateHead = (head) => {
 
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti' }) => {
   const dialog = useDialog();
   const photosDisabled = !userId || !customerId || !visitId;
   const photoPathBase = (headId) =>
@@ -96,11 +97,19 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
+  // Weights are entered to one decimal, so differences are meaningful to one
+  // decimal too. Rounding here rather than only at render keeps the stored
+  // value clean for the span log, PDFs and exports alike.
+  const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
+
   const updateHeadWeight = (index, field, value) => {
     const updatedHeads = localLine.heads.map((h, j) => j === index ? {
       ...h,
       [field]: parseFloat(value) || 0,
-      weightDifference: (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight) - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
+      weightDifference: round1(
+        (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight)
+        - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
+      )
     } : h);
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
@@ -111,7 +120,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   const [spanAllValue, setSpanAllValue] = useState('');
   const clearSpanCurrentWeights = () => {
     const updatedHeads = localLine.heads.map(h => ({
-      ...h, currentWeight: 0, weightDifference: (h.spanWeight || 0) - 0,
+      ...h, currentWeight: 0, weightDifference: round1((h.spanWeight || 0) - 0),
     }));
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
@@ -121,7 +130,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const val = parseFloat(spanAllValue);
     if (isNaN(val)) return;
     const updatedHeads = localLine.heads.map(h => ({
-      ...h, spanWeight: val, weightDifference: val - (h.currentWeight || 0),
+      ...h, spanWeight: val, weightDifference: round1(val - (h.currentWeight || 0)),
     }));
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
@@ -816,6 +825,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           <button onClick={() => setShowSpanPreview(true)} className="btn btn-primary" style={{ marginTop: '10px' }}>
             Span Calibration PDF…
           </button>
+
+          <SpanAdjustLog
+            workspaceId={userId}
+            customerId={customerId}
+            line={localLine}
+            performedByName={performedByName}
+            role={logRole}
+            visitId={visitId}
+          />
         </>
       )}
       {showSpanPreview && (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import SpanAdjust from './SpanAdjust.jsx';
 import SpanCalPreview from './SpanCalPreview.jsx';
 import Audit from './Audit.jsx';
 import CombinedExport from './CombinedExport.jsx';
@@ -25,7 +24,7 @@ const migrateHead = (head) => {
 
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, requireEditAuth }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, requireEditAuth, performedByName, logRole = 'customer' }) => {
   const dialog = useDialog();
   const photosDisabled = !userId || !customerId || !visitId;
   const photoPathBase = (headId) =>
@@ -89,44 +88,8 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  // Toggling Span Adjust off now just hides it — the weights are kept.
-  const toggleSpanAdjust = (e) => {
-    const updated = { ...localLine, showSpanAdjust: e.target.checked };
-    setLocalLine(updated);
-    updateLine(updated);
-  };
-
-  const updateHeadWeight = (index, field, value) => {
-    const updatedHeads = localLine.heads.map((h, j) => j === index ? {
-      ...h,
-      [field]: parseFloat(value) || 0,
-      weightDifference: (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight) - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
-    } : h);
-    const updated = { ...localLine, heads: updatedHeads };
-    setLocalLine(updated);
-    updateLine(updated);
-  };
-
-  // Span Adjust bulk helpers.
-  const [spanAllValue, setSpanAllValue] = useState('');
-  const clearSpanCurrentWeights = () => {
-    const updatedHeads = localLine.heads.map(h => ({
-      ...h, currentWeight: 0, weightDifference: (h.spanWeight || 0) - 0,
-    }));
-    const updated = { ...localLine, heads: updatedHeads };
-    setLocalLine(updated);
-    updateLine(updated);
-  };
-  const applyAllSpanWeights = () => {
-    const val = parseFloat(spanAllValue);
-    if (isNaN(val)) return;
-    const updatedHeads = localLine.heads.map(h => ({
-      ...h, spanWeight: val, weightDifference: val - (h.currentWeight || 0),
-    }));
-    const updated = { ...localLine, heads: updatedHeads };
-    setLocalLine(updated);
-    updateLine(updated);
-  };
+  // Span-adjust weight handling lived here; it moved to SpanAdjustPage along
+  // with the UI, so the customer app has exactly one place to record one.
 
   const handleTitleChange = (e) => {
     const updated = { ...localLine, title: e.target.value };
@@ -790,33 +753,9 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         </div>
       )}
 
-      <label>
-        <input type="checkbox" checked={localLine.showSpanAdjust} onChange={toggleSpanAdjust} /> Span Adjust
-      </label>
-      {localLine.showSpanAdjust && (
-        <>
-          <SpanAdjust heads={localLine.heads} updateHeadWeight={(i, field, value) => updateHeadWeight(i, field, value)} />
-          <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
-            <button type="button" onClick={clearSpanCurrentWeights} className="btn btn-sm btn-outline-warning">
-              Clear Current Weights
-            </button>
-            <div className="input-group input-group-sm" style={{ width: 'auto' }}>
-              <input
-                type="number"
-                className="form-control"
-                placeholder="e.g. 200"
-                value={spanAllValue}
-                onChange={(e) => setSpanAllValue(e.target.value)}
-                style={{ maxWidth: '90px' }}
-              />
-              <span className="input-group-text">g</span>
-              <button type="button" onClick={applyAllSpanWeights} className="btn btn-outline-primary">
-                Set All Span Weights
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Span Adjust moved to its own page (SpanAdjustPage): it is a recurring
+          maintenance task on its own schedule, not part of a visit, and
+          operators shouldn't need an open visit to record one. */}
 
       <div className="notes-container">
         <label><strong>Notes:</strong></label>

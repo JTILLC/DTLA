@@ -16,6 +16,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const RunningHeadsPage = lazy(() => import('./components/RunningHeadsPage'));
 const HeadHistory = lazy(() => import('./components/HeadHistory'));
 const HeadIssuesChart = lazy(() => import('./components/HeadIssuesChart'));
+const SpanAdjustPage = lazy(() => import('./components/SpanAdjustPage'));
 const SharedViewer = lazy(() => import('./components/SharedViewer'));
 
 const RouteFallback = () => (
@@ -61,6 +62,7 @@ function AppContent({ data, setData }) {
           <Route path="/logger" element={<MainLogger data={data} setData={setData} />} />
           <Route path="/summary" element={<Summary data={data} />} />
           <Route path="/dashboard" element={<Dashboard data={data} />} />
+          <Route path="/span-adjust" element={<SpanAdjustPage />} />
           <Route path="/running" element={<RunningHeadsPage data={data} />} />
           <Route path="/head-history" element={<HeadHistory />} />
           <Route path="/issues-chart" element={<HeadIssuesChart />} />

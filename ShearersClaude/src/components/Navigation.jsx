@@ -13,6 +13,7 @@ const navItems = [
   // the /summary route still works as a fallback until the page is deleted.
   { to: '/dashboard',label: 'Dashboard',icon: 'chart-bar' },
   { to: '/running',  label: 'Running',  icon: 'play' },
+  { to: '/span-adjust', label: 'Span', icon: 'scale' },
   { to: '/head-history', label: 'History', icon: 'history' },
   { to: '/issues-chart', label: 'Issues Chart', icon: 'chart-line' },
 ];
@@ -137,6 +138,7 @@ export default function Navigation({ children, onLogout }) {
                   {item.icon === 'list' && <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />}
                   {item.icon === 'chart-bar' && <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0v-6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 9v-2a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2zm10 0v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2z" />}
                   {item.icon === 'play' && <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />}
+                  {item.icon === 'scale' && <path d="M12 3v18m0-18L7 8m5-5l5 5M5 21h14M3 8l4 8H1l2-8zm14 0l4 8h-6l2-8z" />}
                   {item.icon === 'history' && <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                   {item.icon === 'chart-line' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />}
                 </svg>
@@ -185,6 +187,7 @@ export default function Navigation({ children, onLogout }) {
                 {item.icon === 'list' && <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />}
                 {item.icon === 'chart-bar' && <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0v-6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 9v-2a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2zm10 0v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2z" />}
                 {item.icon === 'play' && <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />}
+                {item.icon === 'scale' && <path d="M12 3v18m0-18L7 8m5-5l5 5M5 21h14M3 8l4 8H1l2-8zm14 0l4 8h-6l2-8z" />}
                 {item.icon === 'history' && <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                 {item.icon === 'chart-line' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />}
               </svg>

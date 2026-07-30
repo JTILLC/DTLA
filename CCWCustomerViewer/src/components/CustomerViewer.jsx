@@ -6,9 +6,10 @@ import VisitDashboard from './VisitDashboard';
 import LineDetail from './LineDetail';
 import OfflineHeadsDashboard from './OfflineHeadsDashboard';
 import FactoryView from './FactoryView';
+import MaintenanceLogs from './MaintenanceLogs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { LayoutGrid, AlertCircle, Factory } from 'lucide-react';
+import { LayoutGrid, AlertCircle, Factory, ClipboardList } from 'lucide-react';
 
 // "Updated 2 min ago" reads as a live signal in a way an absolute timestamp
 // doesn't — the customer can tell at a glance whether the data is fresh.
@@ -466,6 +467,15 @@ const CustomerViewer = () => {
                   <span className="label-full">Factory View</span>
                   <span className="label-short">Factory</span>
                 </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${viewMode === 'logs' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => { setViewMode('logs'); setSelectedLine(null); }}
+                >
+                  <ClipboardList size={16} className="me-1" />
+                  <span className="label-full">Maintenance Logs</span>
+                  <span className="label-short">Logs</span>
+                </button>
               </div>
 
               {viewMode === 'dashboard' && allVisits.length > 1 && (
@@ -498,6 +508,8 @@ const CustomerViewer = () => {
               allVisitsForHistory={allVisits}
               currentVisitId={selectedVisitId}
             />
+          ) : viewMode === 'logs' ? (
+            <MaintenanceLogs shareData={shareData} />
           ) : viewMode === 'factory' ? (
             <FactoryView
               shareData={shareData}

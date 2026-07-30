@@ -82,6 +82,16 @@ body {
 [data-theme="dark"] .card {
   background-color: var(--bg-card) !important;
   border-color: var(--border-color) !important;
+  /* Bootstrap's .card sets a light-mode body colour that nothing here
+     overrode, so any text in a card without its own colour class (a <strong>,
+     a .fw-semibold heading) rendered near-black on the dark card. */
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .card-header,
+[data-theme="dark"] .card-body,
+[data-theme="dark"] .card-footer {
+  color: var(--text-primary);
 }
 
 [data-theme="dark"] .border-bottom {

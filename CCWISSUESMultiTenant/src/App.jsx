@@ -54,6 +54,9 @@ import OfflineIndicator from './components/OfflineIndicator.jsx';
 import offlineQueue from './utils/offlineQueue';
 import syncManager from './utils/syncManager';
 import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
+import SpanAdjustPage from './components/SpanAdjustPage.jsx';
+import BoardReplacementPage from './components/BoardReplacementPage.jsx';
+import PmLogPage from './components/PmLogPage.jsx';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
 import { lineStatusKey } from './utils/headHelpers.js';
@@ -3981,12 +3984,55 @@ const AppContent = () => {
                     userId={WORKSPACE_UID}
                     customerId={currentCustomer?.id}
                     visitId={currentVisitId}
+                    performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
+                    logRole={isAdmin ? 'jti' : 'customer'}
                     requireEditAuth={requireDestructiveAuth}
                   />
                 ))}
               </div>
               </div>
             )}
+          </div>
+        </Tab>
+
+        <Tab eventKey="span" title="Span Adjust">
+          <div className="tab-content p-3">
+            <SpanAdjustPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
+              role={isAdmin ? 'jti' : 'customer'}
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="boards" title="Boards">
+          <div className="tab-content p-3">
+            <BoardReplacementPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
+              role={isAdmin ? 'jti' : 'customer'}
+              canEditTypes={isAdmin}
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="pm" title="PM Log">
+          <div className="tab-content p-3">
+            <PmLogPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+              performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
+              role={isAdmin ? 'jti' : 'customer'}
+              canEditTemplate={isAdmin}
+            />
           </div>
         </Tab>
 
