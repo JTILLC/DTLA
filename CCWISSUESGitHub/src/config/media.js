@@ -57,4 +57,37 @@ export async function fetchAuthedDataUrl(path) {
   });
 }
 
-export default { MEDIA_BROKER_BASE, usingBroker, fetchAuthedMedia, fetchAuthedDataUrl };
+// Send a photo of a weigher screen to the broker and get back the head/weight
+// pairs it could read. The API key lives in the Worker, never in the bundle.
+//
+// Returns { heads: [{head, weight, confident}], unit, notes }. It is a READING,
+// not a decision: the caller shows it for review and the operator still saves.
+export async function scanWeigherScreen(blob) {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error('not signed in');
+  const idToken = await user.getIdToken();
+
+  const b64 = await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result).replace(/^data:[^,]+,/, ''));
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+
+  const res = await fetch(`${MEDIA_BROKER_BASE}/scan-weights`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: b64 }),
+  });
+  if (!res.ok) {
+    // The Worker replies in plain text on failure, and those messages are
+    // written for the operator — surface them rather than a status code.
+    const detail = (await res.text().catch(() => '')).trim();
+    throw new Error(detail || `Screen reading failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export default {
+  MEDIA_BROKER_BASE, usingBroker, fetchAuthedMedia, fetchAuthedDataUrl, scanWeigherScreen,
+};

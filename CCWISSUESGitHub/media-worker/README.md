@@ -57,6 +57,43 @@ curl -sI ".../m/<validShareToken>/issue-photos/<ws>/<OTHER_cid>/..." # -> 403
 That last one is the important one: it proves a valid share token is not a key
 to another tenant's media.
 
+## `POST /scan-weights` — reading a weigher screen
+
+Second job, same Worker: an operator photographs the Ishida CCW screen and the
+span-adjust page fills the current-weight fields from it, instead of them typing
+14–20 numbers standing at the machine.
+
+It shares this Worker because it needs exactly the same gate — a Firebase ID
+token checked against the same custom claims. A second Worker would mean a
+second copy of that logic to keep in step.
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler deploy
+```
+
+Until that secret is set the route returns **503** with a plain message and
+everything else is unaffected.
+
+Request: `{"image": "<base64 jpeg>"}` with `Authorization: Bearer <idToken>`.
+Response: `{"heads": [{"head": 1, "weight": 1000.5, "confident": true}, …],
+"unit": "g", "notes": ""}`.
+
+Three things about it are load-bearing:
+
+- **Anchored on the circled numeral, never on position.** Head 1 can sit at 12
+  o'clock on one line and 3 o'clock on the next, so nothing may be inferred from
+  ring position or reading order. The prompt says this explicitly.
+- **The expected head count is not sent to the model.** Telling it "this line has
+  14 heads" invites padding a 12-head read up to 14 with invented numbers. The
+  client compares counts itself and warns.
+- **It pre-fills, it never saves.** Scanned values land in editable fields marked
+  with a blue border; the operator still presses the log button.
+
+Cost control is the claims check — anonymous Firebase sessions hold a valid ID
+token but no claims, and are refused before the model is called. There is also a
+per-isolate 8/minute throttle, which is a speed bump rather than a quota.
+
 ## What this does and does not close
 
 Deploying this Worker and flipping `MEDIA_BROKER_BASE` means **new** page views

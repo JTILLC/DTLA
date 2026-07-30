@@ -28,12 +28,22 @@
 //   3. Stream the object from GCS using the Worker's own service-account
 //      credential, which never reaches the browser.
 //
+// Also hosts POST /scan-weights (see weights.js) — a photo of a weigher screen
+// in, head/weight pairs out. It lives here rather than in its own Worker because
+// it needs exactly the same gate: a valid Firebase ID token checked against the
+// same custom claims. Two Workers would mean two copies of that logic to keep in
+// step, and a second place for it to drift.
+//
 // Secrets (wrangler secret put):
 //   GCP_SA_EMAIL        service account email
 //   GCP_SA_PRIVATE_KEY  its PEM private key (literal \n escapes are handled)
+//   ANTHROPIC_API_KEY   for /scan-weights only
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
+import { scanWeights, mayScan } from './weights.js';
+
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8' };
+const JSON_CT = { 'Content-Type': 'application/json; charset=utf-8' };
 
 const originAllowed = (origin, list) => {
   if (!origin) return false;
@@ -61,8 +71,8 @@ const corsHeaders = (origin, allowed) => {
   return ok
     ? {
         'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Range, Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range, Authorization, Content-Type',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin',
       }
@@ -274,13 +284,74 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(origin, allowed) });
     }
+
+    const url = new URL(request.url);
+
+    // --- POST /scan-weights: read a weigher screen ---------------------------
+    if (url.pathname === '/scan-weights') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      // Unlike media GETs, this one spends money per call, so an unrecognised
+      // caller must not reach the model at all.
+      if (!originAllowed(origin, (allowed || '').split(',').map((s) => s.trim()).filter(Boolean))) {
+        return deny(403, 'Origin not permitted.', origin, allowed);
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return deny(503, 'Screen reading is not configured yet.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, env.FIREBASE_PROJECT_ID);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (!mayScan(claims)) return deny(403, 'Not permitted for this account.', origin, allowed);
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return deny(400, 'Expected a JSON body.', origin, allowed);
+      }
+
+      try {
+        const result = await scanWeights(env, claims, body);
+        return new Response(JSON.stringify(result), {
+          headers: { ...JSON_CT, ...corsHeaders(origin, allowed) },
+        });
+      } catch (err) {
+        // Anything without an explicit status is an upstream failure, not the
+        // caller's fault — don't blame the operator for our outage.
+        const status = err?.status || 502;
+        // err.cause carries the upstream body when the message was rewritten for
+        // the operator — log it, or the real reason is lost.
+        if (status >= 500) console.error('scan-weights error', err?.message, err?.cause || err);
+        return deny(status, err?.message || 'Screen reading failed.', origin, allowed);
+      }
+    }
+
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return deny(405, 'Method not allowed', origin, allowed);
     }
 
-    const url = new URL(request.url);
     if (url.pathname === '/health') {
-      return new Response('ok', { headers: { ...TEXT, ...corsHeaders(origin, allowed) } });
+      // Reports which optional features have their secrets, as booleans only —
+      // never a value or a prefix. Without this, a missing secret is
+      // indistinguishable from a bad deploy from the outside.
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          media: !!env.GCP_SA_EMAIL && !!env.GCP_SA_PRIVATE_KEY,
+          scanWeights: !!env.ANTHROPIC_API_KEY,
+        }),
+        { headers: { ...JSON_CT, ...corsHeaders(origin, allowed) } }
+      );
     }
 
     let storagePath = null;
