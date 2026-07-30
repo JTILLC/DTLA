@@ -20,6 +20,7 @@ import {
   subscribePmTemplate, savePmTemplate, DEFAULT_PM_SECTIONS,
   sinceLabel, dueStatus, addDays,
 } from '../services/logs.js';
+import ReferenceImage from './ReferenceImage.jsx';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
@@ -153,7 +154,12 @@ export default function PmLogPage({
         ...sec,
         title: (sec.title || '').trim(),
         items: (sec.items || [])
-          .map((it) => ({ ...it, label: (it.label || '').trim() }))
+          .map((it) => ({
+            ...it,
+            label: (it.label || '').trim(),
+            // Firestore rejects undefined; a missing image must be null.
+            image: it.image || null,
+          }))
           .filter((it) => it.label),
       }))
       .filter((sec) => sec.title && sec.items.length);
@@ -245,6 +251,16 @@ export default function PmLogPage({
                   >
                     <X size={16} />
                   </button>
+                  <span className="input-group-text p-1">
+                    <ReferenceImage
+                      image={it.image}
+                      pathPrefix={`pm-images/${workspaceId}/${customerId}`}
+                      onChange={(img) => setDraft((d) => d.map((s, i) => i !== si ? s : {
+                        ...s, items: s.items.map((x, j) => (j === ii ? { ...x, image: img } : x)),
+                      }))}
+                      size={40}
+                    />
+                  </span>
                 </div>
               ))}
               <button
@@ -305,7 +321,18 @@ export default function PmLogPage({
                 const a = answers[it.id] || {};
                 return (
                   <div key={it.id}>
-                    <div className="fw-semibold mb-1">{it.label}</div>
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <div className="fw-semibold flex-grow-1">{it.label}</div>
+                      {/* Reference photo, if the checklist has one — shows the
+                          operator what they're looking at. */}
+                      <ReferenceImage
+                        image={it.image}
+                        pathPrefix={`pm-images/${workspaceId}/${customerId}`}
+                        onChange={() => {}}
+                        readOnly
+                        size={44}
+                      />
+                    </div>
                     {it.type === 'value' ? (
                       <input
                         type="text"

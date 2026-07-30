@@ -31,7 +31,8 @@ service firebase.storage {
 
     function isBrokerOnly() {
       return resource.name.matches('.*issue-photos/.*')
-          || resource.name.matches('.*service-reports/.*');
+          || resource.name.matches('.*service-reports/.*')
+          || resource.name.matches('.*pm-images/.*');
     }
 
     // ---- Writes: ownership enforced via CUSTOM CLAIMS -----------------------
@@ -60,6 +61,18 @@ service firebase.storage {
         && (request.resource == null
             || (request.resource.size < 25 * 1024 * 1024
                 && request.resource.contentType == 'application/pdf'));
+    }
+
+    // pm-images/{workspaceId}/{customerId}/{itemId}.jpg
+    // Reference photos on the PM checklist — "this is what to look at". Written
+    // by whoever maintains the checklist, read by operators through the broker
+    // like all other CCW media, rather than carving out a public exception for
+    // pictures of a customer's equipment.
+    match /pm-images/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
     }
 
     // No write rule for any other path → arbitrary uploads are denied.
