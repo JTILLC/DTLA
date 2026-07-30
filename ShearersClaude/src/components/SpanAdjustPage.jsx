@@ -16,6 +16,7 @@ import { getDatabase, ref, onValue, update, remove as rtdbRemove } from 'firebas
 import { app } from '../firebaseConfig';
 import { HEADS_PER_LINE, SECTIONS } from '../constants';
 import { useToast } from '../context/ToastContext';
+import WeightScanner from './WeightScanner';
 
 const database = getDatabase(app);
 const SPAN_PATH = 'jti-downtime/span-log';
@@ -58,6 +59,10 @@ export default function SpanAdjustPage() {
   const [notes, setNotes] = useState('');
   const [intervalDays, setIntervalDays] = useState('30');
   const [saving, setSaving] = useState(false);
+  // Heads whose current weight came from a photo rather than a keypress.
+  // Marked in the list so an operator knows which to sanity-check, and
+  // cleared the moment one is typed over.
+  const [scanned, setScanned] = useState(() => new Set());
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
@@ -91,12 +96,28 @@ export default function SpanAdjustPage() {
       return { head: i + 1, currentWeight: '', spanWeight: prev?.spanWeight ?? '' };
     }));
     setNotes('');
+    setScanned(new Set());
     try { localStorage.setItem(LAST_LINE_KEY, selected); } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, entries.length]);
 
   const setRow = (i, field, value) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [field]: value } : r)));
+
+  const clearCurrent = () => {
+    setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })));
+    setScanned(new Set());
+  };
+
+  // A scan fills the fields; it does not log anything. Heads the reader
+  // couldn't make out keep whatever is already in them, so a partial scan
+  // tops up a partly-typed column instead of wiping it.
+  const applyScan = (byHead) => {
+    setRows((prev) => prev.map((r) => (
+      byHead.has(r.head) ? { ...r, currentWeight: String(byHead.get(r.head)) } : r
+    )));
+    setScanned(new Set(byHead.keys()));
+  };
 
   const save = async () => {
     if (!selected) return toast.error('Pick a line first');
@@ -127,7 +148,7 @@ export default function SpanAdjustPage() {
           nextDueAt,
         },
       });
-      setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })));
+      clearCurrent();
       setNotes('');
       toast.success(`Span adjustment logged for ${selected}`);
     } catch (err) {
@@ -256,6 +277,8 @@ export default function SpanAdjustPage() {
       <h2 className="text-xl font-bold dark:text-gray-100">{selected}</h2>
 
       <div className="card p-4">
+        <WeightScanner expectedHeads={rows.length} onApply={applyScan} />
+
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <input
             type="number"
@@ -269,7 +292,7 @@ export default function SpanAdjustPage() {
           <button
             type="button"
             className="btn-secondary ml-auto"
-            onClick={() => setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })))}
+            onClick={clearCurrent}
           >
             Clear current
           </button>
@@ -286,10 +309,21 @@ export default function SpanAdjustPage() {
                   type="number"
                   step="any"
                   inputMode="decimal"
-                  className="field flex-1 min-w-0"
+                  className={'field flex-1 min-w-0' + (scanned.has(r.head) ? ' ring-2 ring-indigo-500' : '')}
                   placeholder="current"
                   value={r.currentWeight}
-                  onChange={(e) => setRow(i, 'currentWeight', e.target.value)}
+                  title={scanned.has(r.head) ? 'Read from the scanned photo — check it' : undefined}
+                  onChange={(e) => {
+                    setRow(i, 'currentWeight', e.target.value);
+                    // Typed over: it's the operator's number now.
+                    if (scanned.has(r.head)) {
+                      setScanned((prev) => {
+                        const next = new Set(prev);
+                        next.delete(r.head);
+                        return next;
+                      });
+                    }
+                  }}
                 />
                 <input
                   type="number"
