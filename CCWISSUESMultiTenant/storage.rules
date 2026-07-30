@@ -2,15 +2,37 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Public read: the login-less customer viewer needs it, and download URLs
-    // carry an unguessable token. Storage rules cannot read Firestore, so the
-    // share-expiry check that guards Firestore reads has no equivalent here —
-    // a file URL that leaks stays readable. Treat photos as "secret by URL",
-    // not "access controlled". Closing this properly means serving media through
-    // a signing broker (a Worker that checks the share, then issues a short-lived
-    // signed URL) rather than handing out permanent download URLs.
+    // ---- Reads --------------------------------------------------------------
+    //
+    // CCW media (issue-photos/**, service-reports/**) is NO LONGER publicly
+    // readable. It is served exclusively by the media broker Worker, which
+    // authenticates with a service account — service accounts use IAM and are
+    // not subject to these rules, so the broker keeps working. Every request it
+    // serves is re-checked against a live share link or the caller's claims, so
+    // media access finally expires with the share.
+    //
+    // Everything else stays public. This bucket is shared with other JTI apps
+    // (e.g. JTI Inventory under user_files/**/inventory-photos/), which read
+    // their images by public URL; denying those would break them.
+    //
+    // Why the exclusion lives in the CONDITION rather than a narrower match:
+    // Firebase rules are ADDITIVE. A broad `allow read: if true` cannot be
+    // overridden by a more specific `allow read: if false` — if any matching
+    // rule grants access, access is granted. So the catch-all itself has to
+    // exclude the CCW prefixes.
+    //
+    // The `.*prefix/.*` form matches whether or not resource.name carries a
+    // bucket prefix. That bias is deliberate: an over-broad match denies a read
+    // (which the broker still serves), while an under-broad one would silently
+    // leave customer photos public.
     match /{allPaths=**} {
-      allow read: if true;
+      allow read: if resource == null || !isBrokerOnly();
+    }
+
+    function isBrokerOnly() {
+      return resource.name.matches('.*issue-photos/.*')
+          || resource.name.matches('.*service-reports/.*')
+          || resource.name.matches('.*pm-images/.*');
     }
 
     // ---- Writes: ownership enforced via CUSTOM CLAIMS -----------------------
@@ -39,6 +61,18 @@ service firebase.storage {
         && (request.resource == null
             || (request.resource.size < 25 * 1024 * 1024
                 && request.resource.contentType == 'application/pdf'));
+    }
+
+    // pm-images/{workspaceId}/{customerId}/{itemId}.jpg
+    // Reference photos on the PM checklist — "this is what to look at". Written
+    // by whoever maintains the checklist, read by operators through the broker
+    // like all other CCW media, rather than carving out a public exception for
+    // pictures of a customer's equipment.
+    match /pm-images/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
     }
 
     // No write rule for any other path → arbitrary uploads are denied.
