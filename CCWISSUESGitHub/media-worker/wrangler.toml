@@ -1,6 +1,8 @@
 name = "ccw-media"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
+# The Anthropic SDK (used by /scan-weights) expects a few Node built-ins.
+compatibility_flags = ["nodejs_compat"]
 
 # Non-secret config (safe to commit).
 [vars]
@@ -14,6 +16,7 @@ ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
 #   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON
+#   npx wrangler secret put ANTHROPIC_API_KEY    # /scan-weights only; without it that route returns 503
 #
 # Deploy:
 #   cd media-worker && npx wrangler deploy

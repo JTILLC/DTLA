@@ -21,6 +21,7 @@ import {
 } from '../services/logs.js';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
+import WeightScanner from './WeightScanner.jsx';
 
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 const LAST_LINE_KEY = 'ccw-span-last-line';
@@ -42,6 +43,10 @@ export default function SpanAdjustPage({
   const [intervalDays, setIntervalDays] = useState('30');
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // Heads whose current weight came from a photo rather than a keypress. Marked
+  // in the table so an operator knows which numbers to sanity-check, and cleared
+  // the moment one is typed over.
+  const [scanned, setScanned] = useState(() => new Set());
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -97,6 +102,7 @@ export default function SpanAdjustPage({
     });
     setRows(next);
     setNotes('');
+    setScanned(new Set());
     try { localStorage.setItem(LAST_LINE_KEY, selected); } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, lines.length, entries.length]);
@@ -106,6 +112,21 @@ export default function SpanAdjustPage({
 
   const setAllSpan = (value) =>
     setRows((prev) => prev.map((r) => ({ ...r, spanWeight: value })));
+
+  const clearCurrent = () => {
+    setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })));
+    setScanned(new Set());
+  };
+
+  // A scan fills the fields; it does not log anything. Heads the reader couldn't
+  // make out keep whatever is already in them, so a partial scan tops up a
+  // partly-typed column instead of wiping it.
+  const applyScan = (byHead) => {
+    setRows((prev) => prev.map((r) => (
+      byHead.has(r.head) ? { ...r, currentWeight: String(byHead.get(r.head)) } : r
+    )));
+    setScanned(new Set(byHead.keys()));
+  };
 
   const save = async () => {
     if (!selected) return toast.error('Pick a line first');
@@ -133,7 +154,7 @@ export default function SpanAdjustPage({
         nextDueAt: intervalDays === '' ? null : addDays(null, Number(intervalDays)),
       });
       setNotes('');
-      setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })));
+      clearCurrent();
       toast.success(`Span adjustment logged for ${selected}`);
     } catch (err) {
       console.error('Span log save failed:', err);
@@ -279,11 +300,13 @@ export default function SpanAdjustPage({
             <button
               type="button"
               className="btn btn-sm btn-outline-warning"
-              onClick={() => setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })))}
+              onClick={clearCurrent}
             >
               Clear current
             </button>
           </div>
+
+          <WeightScanner expectedHeads={rows.length} onApply={applyScan} />
 
           <div className="table-responsive">
             <table className="table table-sm mobile-cards mb-0">
@@ -307,10 +330,21 @@ export default function SpanAdjustPage({
                           type="number"
                           step="any"
                           inputMode="decimal"
-                          className="form-control form-control-sm"
+                          className={'form-control form-control-sm' + (scanned.has(r.head) ? ' border-primary' : '')}
                           value={r.currentWeight}
                           placeholder="—"
-                          onChange={(e) => setRow(i, 'currentWeight', e.target.value)}
+                          title={scanned.has(r.head) ? 'Read from the scanned photo — check it' : undefined}
+                          onChange={(e) => {
+                            setRow(i, 'currentWeight', e.target.value);
+                            // Typed over: it's the operator's number now.
+                            if (scanned.has(r.head)) {
+                              setScanned((prev) => {
+                                const next = new Set(prev);
+                                next.delete(r.head);
+                                return next;
+                              });
+                            }
+                          }}
                         />
                       </td>
                       <td data-label="Span">
