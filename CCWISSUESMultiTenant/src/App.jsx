@@ -3150,9 +3150,45 @@ const AppContent = () => {
         <h4 className="mb-3">Account not set up yet</h4>
         <p className="text-muted">
           You're signed in as <strong>{user.email}</strong>, but this account hasn't been
-          granted access to a customer yet. Please contact JTI to finish setup.
+          granted access to a customer yet. Send JTI the ID below and they can
+          finish setup in a moment.
         </p>
-        <button className="btn btn-outline-secondary btn-sm mt-2" onClick={() => firebase.auth().signOut()}>
+
+        {/* The account ID, shown because linking an account needs it and the
+            person staring at this screen is the only one who can see it. It was
+            previously findable only in the Firebase console, which turned a
+            ten-second job into a support call. It identifies the account, and
+            grants nothing on its own — the link is written by an admin. */}
+        <div className="card mx-auto mt-3" style={{ maxWidth: '520px' }}>
+          <div className="card-body">
+            <label className="form-label small text-muted mb-1">Account ID</label>
+            <div className="input-group input-group-sm">
+              <input
+                type="text"
+                className="form-control font-monospace"
+                value={user.uid}
+                readOnly
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => {
+                  navigator.clipboard?.writeText(user.uid)
+                    .then(() => toast.success('Account ID copied'))
+                    .catch(() => toast.error('Select the ID and copy it manually'));
+                }}
+              >
+                Copy
+              </button>
+            </div>
+            <div className="form-text">
+              JTI links this to your plant with ⚙ → Link login to customer.
+            </div>
+          </div>
+        </div>
+
+        <button className="btn btn-outline-secondary btn-sm mt-3" onClick={() => firebase.auth().signOut()}>
           Sign out
         </button>
       </div>
@@ -3611,6 +3647,9 @@ const AppContent = () => {
           <p className="text-muted small mb-2">
             Create the account in Firebase Authentication first, then paste its <strong>User UID</strong> here and choose the plant.
             That person can then sign in and will only see that plant. Repeat with more UIDs to give a plant several supervisor logins.
+            <br />
+            Quickest way to get the UID: have them sign in once. They'll be told the account isn't set up yet, and that screen shows
+            their Account ID with a Copy button — no need to go digging in the Firebase console.
           </p>
           <div className="row g-2 align-items-end">
             <div className="col-md-5">
