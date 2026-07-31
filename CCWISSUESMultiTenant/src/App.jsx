@@ -3535,6 +3535,16 @@ const AppContent = () => {
                   </button>
                 </li>
                 <li>
+                  <a
+                    className="dropdown-item d-flex align-items-center gap-2"
+                    href="/USER_GUIDE"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FileText className="w-4 h-4" /> User guide
+                  </a>
+                </li>
+                <li>
                   <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => setShowHelp(!showHelp)}>
                     <HelpCircle className="w-4 h-4" /> Help
                   </button>
@@ -3739,9 +3749,24 @@ const AppContent = () => {
 
       {showHelp && (
         <div className="p-3 bg-info bg-opacity-10 border-bottom" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-          <div className="d-flex justify-content-between align-items-start mb-3">
+          <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
             <h5 className="mb-0">Help Guide</h5>
-            <button onClick={() => setShowHelp(false)} className="btn btn-sm btn-outline-secondary">Close</button>
+            <div className="d-flex align-items-center gap-2">
+              {/* The long-form guide, served as a static page from public/.
+                  Extensionless: Cloudflare Pages 308s /USER_GUIDE.html to
+                  /USER_GUIDE, so linking the .html adds a redirect for nothing.
+                  New tab rather than routed — reading it must not throw away an
+                  in-progress log behind the modal. */}
+              <a
+                href="/USER_GUIDE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm btn-primary"
+              >
+                <FileText className="w-4 h-4" /> Full user guide
+              </a>
+              <button onClick={() => setShowHelp(false)} className="btn btn-sm btn-outline-secondary">Close</button>
+            </div>
           </div>
 
           <div className="mb-4">
