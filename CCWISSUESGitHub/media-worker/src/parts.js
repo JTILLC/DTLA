@@ -37,6 +37,17 @@ const scalar = (f) => {
   return '';
 };
 
+// Part names come out of the manuals as fixed-width text: padded with runs of
+// spaces and terminated with the field separators, e.g. "MAIN  BODY  AS::" or
+// "COVER:MAIN  BODY:". Left alone they read as broken in a suggestion list.
+// Internal colons are kept — they separate name from qualifier and carry
+// meaning; only the empty trailing fields go.
+const tidy = (s) =>
+  String(s || '')
+    .replace(/\s+/g, ' ')
+    .replace(/:+\s*$/, '')
+    .trim();
+
 async function runQuery(env, token, structuredQuery) {
   const url =
     `https://firestore.googleapis.com/v1/projects/${env.PARTS_PROJECT_ID}` +
@@ -119,7 +130,7 @@ export async function partsForFolder(env, token, customer, folder) {
     for (const [itemNo, v] of Object.entries(entries)) {
       const pf = v?.mapValue?.fields || {};
       const partCode = scalar(pf.partCode).trim();
-      const partName = scalar(pf.partName).trim();
+      const partName = tidy(pf.partName);
       // Same part can appear on several drawings of one machine; list it once.
       const key = `${partCode}|${itemNo}|${partName}`;
       if (seen.has(key)) continue;

@@ -444,6 +444,7 @@ export default {
           ok: true,
           media: !!env.GCP_SA_EMAIL && !!env.GCP_SA_PRIVATE_KEY,
           scanWeights: !!env.ANTHROPIC_API_KEY,
+          parts: partsConfigured(env),
         }),
         { headers: { ...JSON_CT, ...corsHeaders(origin, allowed) } }
       );
