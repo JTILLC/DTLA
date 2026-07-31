@@ -24,8 +24,10 @@ export default function PartLookupField({
   binding,            // { partsCustomer, folder } | null
   value,              // current partNumber text
   onChange,           // (partNumber) => void
-  onPick,             // (part | null) => void — full record when confirmed
-  picked,             // the confirmed part, if any
+  onPick,             // (part | null) => void — the primary confirmed part
+  picked,             // the primary confirmed part, if any
+  extras = [],        // further parts on the same replacement
+  onExtras,           // (parts[]) => void
   disabled = false,
 }) {
   const [parts, setParts] = useState(null);     // null = not loaded yet
@@ -137,6 +139,22 @@ export default function PartLookupField({
         </div>
       ) : null}
 
+      {extras.length > 0 && (
+        <div className="d-flex flex-wrap gap-1 mt-1">
+          {extras.map((p) => (
+            <button
+              key={`${p.diagramId}-${p.itemNo}-${p.partCode}`}
+              type="button"
+              className="badge bg-secondary border-0"
+              title={`${p.partName || ''} — remove`}
+              onClick={() => onExtras?.(extras.filter((x) => x !== p))}
+            >
+              + {p.partCode || `Item ${p.itemNo}`} ✕
+            </button>
+          ))}
+        </div>
+      )}
+
       {!binding && (
         <div className="form-text">
           No parts manual linked to this line, so numbers can&apos;t be checked.
@@ -149,7 +167,13 @@ export default function PartLookupField({
         <PartsBrowser
           binding={binding}
           parts={parts || []}
-          onPick={choose}
+          onPick={(list) => {
+            // First pick fills the field; the rest ride along on the same entry.
+            // A board and its gasket are one replacement, not two.
+            const [first, ...rest] = list;
+            if (first) choose(first);
+            onExtras?.(rest);
+          }}
           onClose={() => setBrowsing(false)}
         />
       )}
