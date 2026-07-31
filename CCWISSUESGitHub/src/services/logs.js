@@ -171,6 +171,14 @@ export async function saveCrew(workspaceId, customerId, people) {
         id: p.id,
         name: String(p.name || '').trim(),
         roles: Array.isArray(p.roles) ? p.roles : [],
+        // Plant-level admin: may set and reset other people's PINs. Distinct
+        // from the JTI admin claim, which is an access boundary — this one only
+        // governs who can hand out PINs inside their own plant.
+        admin: !!p.admin,
+        // Written by the PIN flows; carried through here so an unrelated roster
+        // edit never silently clears someone's PIN.
+        ...(p.pinHash ? { pinHash: p.pinHash } : {}),
+        ...(p.pinSetAt ? { pinSetAt: p.pinSetAt } : {}),
       }))
       .filter((p) => p.name && p.roles.length),
     updatedAt: new Date().toISOString(),

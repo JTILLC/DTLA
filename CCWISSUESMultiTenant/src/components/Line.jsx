@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { subscribeCrew } from '../services/logs.js';
+import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
+import PinPrompt from './PinPrompt.jsx';
+import SpanAdjust from './SpanAdjust.jsx';
 import SpanCalPreview from './SpanCalPreview.jsx';
 import Audit from './Audit.jsx';
 import CombinedExport from './CombinedExport.jsx';
 import IssuePhotos from './IssuePhotos.jsx';
 import RedZoneSync from './RedZoneSync.jsx';
 import HeadIssueModal from './HeadIssueModal.jsx';
+import SpanAdjustLog from './SpanAdjustLog.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import { buildHeadIssueHistory, migrateHeadData as migrateHeadDataShared } from '../utils/headHelpers.js';
 
@@ -24,7 +29,27 @@ const migrateHead = (head) => {
 
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, requireEditAuth, performedByName, logRole = 'customer' }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti' }) => {
+  // Who is at this device, proven once with a PIN. Taking a head offline is the
+  // action most worth attributing: it stops product, and "who turned this off?"
+  // is the first question asked the next morning.
+  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const [crewPeople, setCrewPeople] = useState([]);
+  const [pendingAction, setPendingAction] = useState(null);   // () => void
+
+  useEffect(() => {
+    if (!userId || !customerId) return undefined;
+    return subscribeCrew(userId, customerId, setCrewPeople);
+  }, [userId, customerId]);
+
+  // Run an attributable action, asking who is here if we do not already know.
+  // A plant with no PINs set keeps working unattributed rather than being
+  // locked out of its own machines — the feature must not become a gate.
+  const attributed = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (actor || !anyPin) return run(actor?.name || '');
+    setPendingAction(() => run);
+  };
   const dialog = useDialog();
   const photosDisabled = !userId || !customerId || !visitId;
   const photoPathBase = (headId) =>
@@ -72,8 +97,18 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  const handleHeadChange = (index, field, value) => {
-    const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, [field]: value } : h);
+  const handleHeadChange = (index, field, value, who) => {
+    const updatedHeads = localLine.heads.map((h, j) => j === index
+      ? {
+          ...h,
+          [field]: value,
+          // Only a status change is attributed — notes and issue text are edits,
+          // not the act of stopping or restarting a head.
+          ...(field === 'status'
+            ? { statusBy: who || '', statusAt: new Date().toISOString(), statusAction: value }
+            : {}),
+        }
+      : h);
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
@@ -88,8 +123,52 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  // Span-adjust weight handling lived here; it moved to SpanAdjustPage along
-  // with the UI, so the customer app has exactly one place to record one.
+  // Toggling Span Adjust off now just hides it — the weights are kept.
+  const toggleSpanAdjust = (e) => {
+    const updated = { ...localLine, showSpanAdjust: e.target.checked };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Weights are entered to one decimal, so differences are meaningful to one
+  // decimal too. Rounding here rather than only at render keeps the stored
+  // value clean for the span log, PDFs and exports alike.
+  const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
+
+  const updateHeadWeight = (index, field, value) => {
+    const updatedHeads = localLine.heads.map((h, j) => j === index ? {
+      ...h,
+      [field]: parseFloat(value) || 0,
+      weightDifference: round1(
+        (field === 'spanWeight' ? parseFloat(value) || 0 : h.spanWeight)
+        - (field === 'currentWeight' ? parseFloat(value) || 0 : h.currentWeight)
+      )
+    } : h);
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+
+  // Span Adjust bulk helpers.
+  const [spanAllValue, setSpanAllValue] = useState('');
+  const clearSpanCurrentWeights = () => {
+    const updatedHeads = localLine.heads.map(h => ({
+      ...h, currentWeight: 0, weightDifference: round1((h.spanWeight || 0) - 0),
+    }));
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
+  const applyAllSpanWeights = () => {
+    const val = parseFloat(spanAllValue);
+    if (isNaN(val)) return;
+    const updatedHeads = localLine.heads.map(h => ({
+      ...h, spanWeight: val, weightDifference: round1(val - (h.currentWeight || 0)),
+    }));
+    const updated = { ...localLine, heads: updatedHeads };
+    setLocalLine(updated);
+    updateLine(updated);
+  };
 
   const handleTitleChange = (e) => {
     const updated = { ...localLine, title: e.target.value };
@@ -101,14 +180,25 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     setIsEditingTitle(!isEditingTitle);
   };
 
-  const quickToggleHead = (index, isOffline) => {
+  const quickToggleHead = (index, isOffline) => attributed((who) => {
+    const at = new Date().toISOString();
     const updatedHeads = localLine.heads.map((h, j) =>
-      j === index ? { ...h, status: isOffline ? 'offline' : 'active' } : h
+      j === index
+        ? {
+            ...h,
+            status: isOffline ? 'offline' : 'active',
+            // Stamped on the head, not in a side log: whoever opens this line
+            // next sees who took it off without going looking.
+            statusBy: who,
+            statusAt: at,
+            statusAction: isOffline ? 'offline' : 'active',
+          }
+        : h
     );
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Which head the issue modal is showing (index into localLine.heads), or null.
   const [issueModalHead, setIssueModalHead] = useState(null);
@@ -179,7 +269,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   };
 
   // Toggle fixed status: not_fixed -> fixed -> active_with_issues -> not_fixed
-  const toggleFixedStatus = (headIndex, issueIndex) => {
+  const toggleFixedStatus = (headIndex, issueIndex) => attributed((whoFixed) => {
     const statusOrder = ['not_fixed', 'fixed', 'active_with_issues'];
     const updatedHeads = localLine.heads.map((h, j) => {
       if (j === headIndex) {
@@ -187,7 +277,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         const currentStatus = issues[issueIndex].fixed;
         const currentIdx = statusOrder.indexOf(currentStatus);
         const nextIdx = (currentIdx + 1) % statusOrder.length;
-        issues[issueIndex] = { ...issues[issueIndex], fixed: statusOrder[nextIdx] };
+        issues[issueIndex] = {
+          ...issues[issueIndex],
+          fixed: statusOrder[nextIdx],
+          fixedBy: whoFixed,
+          fixedAt: new Date().toISOString(),
+        };
         return { ...h, issues };
       }
       return h;
@@ -195,7 +290,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Get label for fixed status
   const getFixedLabel = (status) => {
@@ -233,8 +328,6 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         }))
       ];
     } else if (count < currentCount) {
-      // Removing heads is destructive — gate it (customer logins need the password).
-      if (requireEditAuth && !(await requireEditAuth('reduce the head count'))) return;
       // Remove heads from the end
       const confirmed = await dialog.confirm(`This will remove ${currentCount - count} head(s) from the end. Continue?`, {
         title: 'Remove Heads',
@@ -406,6 +499,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
             <thead>
               <tr>
                 <th>Head #</th>
+                <th>Taken off by</th>
                 <th>Status</th>
                 <th>Issues</th>
                 <th>Head Notes</th>
@@ -430,8 +524,24 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     }
                   >
                     <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                    <td data-label="Taken off by" style={{ verticalAlign: 'top' }}>
+                      {head.statusBy ? (
+                        <span className="small">
+                          {head.statusBy}
+                          {head.statusAt && (
+                            <span className="d-block text-muted">
+                              {new Date(head.statusAt).toLocaleString([], {
+                                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="small text-muted">—</span>
+                      )}
+                    </td>
                     <td data-label="Status" style={{ verticalAlign: 'top' }}>
-                      <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                      <select value={head.status} onChange={(e) => attributed((who) => handleHeadChange(head.index, 'status', e.target.value, who))}>
                         <option value="active">Active</option>
                         <option value="offline">Offline</option>
                       </select>
@@ -608,7 +718,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     <tr className={hasIssuesOrNotes ? 'head-row--attn' : 'head-row--ok'}>
                       <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
                       <td data-label="Status" style={{ verticalAlign: 'top' }}>
-                        <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                        <select value={head.status} onChange={(e) => attributed((who) => handleHeadChange(head.index, 'status', e.target.value, who))}>
                           <option value="active">Active</option>
                           <option value="offline">Offline</option>
                         </select>
@@ -753,10 +863,66 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         </div>
       )}
 
-      {/* Span Adjust moved to its own page (SpanAdjustPage): it is a recurring
-          maintenance task on its own schedule, not part of a visit, and
-          operators shouldn't need an open visit to record one. */}
+      <label>
+        <input type="checkbox" checked={localLine.showSpanAdjust} onChange={toggleSpanAdjust} /> Span Adjust
+      </label>
+      {localLine.showSpanAdjust && (
+        <>
+          <SpanAdjust heads={localLine.heads} updateHeadWeight={(i, field, value) => updateHeadWeight(i, field, value)} />
+          <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
+            <button type="button" onClick={clearSpanCurrentWeights} className="btn btn-sm btn-outline-warning">
+              Clear Current Weights
+            </button>
+            <div className="input-group input-group-sm" style={{ width: 'auto' }}>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="e.g. 200"
+                value={spanAllValue}
+                onChange={(e) => setSpanAllValue(e.target.value)}
+                style={{ maxWidth: '90px' }}
+              />
+              <span className="input-group-text">g</span>
+              <button type="button" onClick={applyAllSpanWeights} className="btn btn-outline-primary">
+                Set All Span Weights
+              </button>
+            </div>
+          </div>
+          <button onClick={() => setShowSpanPreview(true)} className="btn btn-primary" style={{ marginTop: '10px' }}>
+            Span Calibration PDF…
+          </button>
 
+          <SpanAdjustLog
+            workspaceId={userId}
+            customerId={customerId}
+            line={localLine}
+            performedByName={performedByName}
+            role={logRole}
+            visitId={visitId}
+          />
+        </>
+      )}
+      {showSpanPreview && (
+        <SpanCalPreview
+          line={localLine}
+          globalData={globalData}
+          buildPdf={buildSpanCalibrationPDF}
+          onClose={() => setShowSpanPreview(false)}
+          onSave={(merged) => { setLocalLine(merged); updateLine(merged); }}
+        />
+      )}
+
+      <label>
+        <input type="checkbox" name="showAudit" checked={!!localLine.showAudit} onChange={handleCheckbox} /> Audit
+      </label>
+      {localLine.showAudit && (
+        <Audit
+          audit={localLine.audit}
+          onChange={updateAudit}
+          notes={localLine.auditNotes || ''}
+          onNotesChange={updateAuditNotes}
+        />
+      )}
       <div className="notes-container">
         <label><strong>Notes:</strong></label>
         <textarea name="notes" rows="4" value={localLine.notes} onChange={handleChange} />
@@ -797,6 +963,22 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         photoPathBase={photoPathBase}
         visitDocPath={visitDocPath}
       />
+
+      {pendingAction && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople}
+          title="Who is making this change?"
+          message="Taking a head offline or marking it fixed is recorded against you."
+          onVerified={(p) => {
+            rememberActor(p);
+            const run = pendingAction;
+            setPendingAction(null);
+            run(p.name);
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
       {dialog.DialogComponent}
     </div>
   );

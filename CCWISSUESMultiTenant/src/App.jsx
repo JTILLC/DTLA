@@ -4042,6 +4042,7 @@ const AppContent = () => {
         <Tab eventKey="crew" title="Crew">
           <div className="tab-content p-3">
             <CrewPage
+              isJti={isAdmin}
               workspaceId={WORKSPACE_UID}
               customerId={currentCustomer?.id}
               customerName={currentCustomer?.name}
