@@ -161,7 +161,7 @@ export default function SpanAdjustPage({
         model: line?.model || '',
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
-        ...crewStamp(lineCrew.forLine(selected)),
+        ...crewStamp(lineCrew.forLine(selected), lineCrew.shiftId),
         notes: notes.trim(),
         heads,
         confirmed: false,

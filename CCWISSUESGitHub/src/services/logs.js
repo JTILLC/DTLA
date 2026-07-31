@@ -25,6 +25,7 @@ import 'firebase/compat/firestore';
 export const LOG_SPAN = 'spanLog';
 export const LOG_BOARD = 'boardLog';
 export const LOG_PM = 'pmLog';
+export const LOG_CREW = 'crewLog';
 export const PM_TEMPLATE = 'pmTemplate';
 export const CONFIG = 'config';
 
@@ -204,7 +205,7 @@ export function subscribeLineCrew(workspaceId, customerId, cb) {
   );
 }
 
-export async function saveLineCrew(workspaceId, customerId, lines) {
+export async function saveLineCrew(workspaceId, customerId, lines, changedBy = '') {
   const cleaned = {};
   for (const [title, c] of Object.entries(lines || {})) {
     const entry = {
@@ -214,10 +215,28 @@ export async function saveLineCrew(workspaceId, customerId, lines) {
     };
     if (entry.operator || entry.tech || entry.supervisor) cleaned[title] = entry;
   }
+
+  // The config doc holds only the CURRENT crewing, so each change used to erase
+  // the last. Every change is now also appended to crewLog, and the config doc
+  // records which log entry it came from — that id is the shiftId stamped on
+  // work logged while this crewing stands.
+  //
+  // Without this, "who was on Tuesday nights" was unanswerable the moment
+  // Wednesday's crew was set, even though entries logged on Tuesday kept their
+  // names. This makes the crewing itself reconstructable, not just its effects.
+  const logged = await addLogEntry(workspaceId, customerId, LOG_CREW, {
+    lines: cleaned,
+    changedBy,
+  });
+  const shiftId = logged.id;
+
   await configDoc(workspaceId, customerId, 'lineCrew').set({
     lines: cleaned,
+    shiftId,
     updatedAt: new Date().toISOString(),
   });
+
+  return shiftId;
 }
 
 // ---- Parts-manual bindings -------------------------------------------------

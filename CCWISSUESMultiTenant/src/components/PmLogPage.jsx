@@ -135,7 +135,7 @@ export default function PmLogPage({
       await addLogEntry(workspaceId, customerId, LOG_PM, {
         lineTitle: lineTitle || null,
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
-        ...crewStamp(lineCrew.forLine(lineTitle)),
+        ...crewStamp(lineCrew.forLine(lineTitle), lineCrew.shiftId),
         role,
         notes: notes.trim(),
         items,

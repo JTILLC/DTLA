@@ -182,7 +182,7 @@ export default function BoardReplacementPage({
         notes: form.notes.trim(),
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
-        ...crewStamp(lineCrew.forLine(form.lineTitle)),
+        ...crewStamp(lineCrew.forLine(form.lineTitle), lineCrew.shiftId),
       });
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
       setPickedPart(null);

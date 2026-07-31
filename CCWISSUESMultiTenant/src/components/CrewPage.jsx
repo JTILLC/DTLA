@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users, Plus, Trash2, Check, AlertTriangle, Save, KeyRound, ShieldCheck } from 'lucide-react';
 import {
-  subscribeCrew, saveCrew, subscribeLineCrew, saveLineCrew,
+  subscribeCrew, saveCrew, subscribeLineCrew, saveLineCrew, subscribeLog, LOG_CREW,
 } from '../services/logs.js';
 import { crewAge } from '../utils/useLineCrew.js';
 import { useToast } from './Toast.jsx';
@@ -50,6 +50,8 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
   const [draftPeople, setDraftPeople] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savingRoster, setSavingRoster] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -105,6 +107,11 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
+    return subscribeLog(workspaceId, customerId, LOG_CREW, setHistory, 50);
+  }, [workspaceId, customerId]);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
     return subscribeLineCrew(workspaceId, customerId, (d) => {
       setLineCrew(d);
       setDraftLines(null);            // remote wins until the user edits again
@@ -141,7 +148,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
   const commitLines = async () => {
     setSaving(true);
     try {
-      await saveLineCrew(workspaceId, customerId, current);
+      await saveLineCrew(workspaceId, customerId, current, isJti ? 'JTI' : '');
       setDraftLines(null);
       toast.success('Line crewing saved');
     } catch (err) {
@@ -280,6 +287,52 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
           {dirty && (
             <div className="form-text mt-2">Unsaved changes — press Save crewing.</div>
           )}
+
+          {/* Every change is kept, so "who was on Tuesday nights" stays
+              answerable after Wednesday's crew is set. */}
+          <div className="border-top mt-3 pt-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-link p-0"
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              {showHistory ? 'Hide' : `Crewing history (${history.length})`}
+            </button>
+            {showHistory && (
+              history.length === 0 ? (
+                <div className="text-muted small mt-2">No changes recorded yet.</div>
+              ) : (
+                <div className="d-flex flex-column gap-2 mt-2">
+                  {history.map((h) => (
+                    <div key={h.id} className="border rounded p-2">
+                      <div className="small fw-semibold">
+                        {new Date(h.performedAt).toLocaleString([], {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })}
+                        {h.changedBy ? ` · ${h.changedBy}` : ''}
+                      </div>
+                      {Object.keys(h.lines || {}).length === 0 ? (
+                        <div className="small text-muted">Everyone cleared</div>
+                      ) : (
+                        <ul className="small text-muted mb-0 ps-3">
+                          {Object.entries(h.lines).map(([title, c]) => (
+                            <li key={title}>
+                              <strong>{title}</strong>{' — '}
+                              {[
+                                c.operator && `Operator ${c.operator}`,
+                                c.tech && `Maintenance ${c.tech}`,
+                                c.supervisor && `Supervisor ${c.supervisor}`,
+                              ].filter(Boolean).join(' · ')}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
         </div>
       </div>
 

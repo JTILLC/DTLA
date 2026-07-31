@@ -58,7 +58,8 @@ import SpanAdjustPage from './components/SpanAdjustPage.jsx';
 import BoardReplacementPage from './components/BoardReplacementPage.jsx';
 import PmLogPage from './components/PmLogPage.jsx';
 import CrewPage from './components/CrewPage.jsx';
-import { useLineCrew } from './utils/useLineCrew.js';
+import ActivityPage from './components/ActivityPage.jsx';
+import { useLineCrew, crewAge } from './utils/useLineCrew.js';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
 import { lineStatusKey } from './utils/headHelpers.js';
@@ -4055,6 +4056,17 @@ const AppContent = () => {
           </div>
         </Tab>
 
+        <Tab eventKey="activity" title="Activity">
+          <div className="tab-content p-3">
+            <ActivityPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
+            />
+          </div>
+        </Tab>
+
         <Tab eventKey="history" title="Issue History">
           <div className="tab-content p-3">
             <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} lockedCustomerId={scopedCustomerId} />
@@ -4291,9 +4303,13 @@ const AppContent = () => {
                             {(() => {
                               const c = appLineCrew.forLine(line.title);
                               const who = [c.operator, c.tech].filter(Boolean).join(' · ');
-                              return who
-                                ? <span style={{ fontSize: '0.75em', color: 'rgba(255,255,255,0.9)' }}>{who}</span>
-                                : null;
+                              if (!who) return null;
+                              const age = crewAge(appLineCrew.updatedAt);
+                              return (
+                                <span style={{ fontSize: '0.75em', color: 'rgba(255,255,255,0.9)' }}>
+                                  {who}{age.stale ? ` ⚠ ${age.label}` : ''}
+                                </span>
+                              );
                             })()}
                           </span>
                           <span>
