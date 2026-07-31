@@ -9,6 +9,7 @@ import { getDatabase, ref, set, get, update } from 'firebase/database';
 import { app } from '../firebaseConfig';
 import { HEADS_PER_LINE } from '../constants';
 import { partLines } from '@shared/utils/partLines.js';
+import { fetchThumbs, thumbKey } from '../services/photoThumbs';
 import { useDates as useDatesContext } from '../context/DatesContext';
 import { useToast } from '../context/ToastContext';
 import { sortAsc, formatDayLabel } from '../utils/stintDays';
@@ -815,8 +816,13 @@ export default function MainLogger({ data, setData }) {
       // Each photo carries where it came from, so a failure can be named rather
       // than counted.
       const photoUrls = [];
+      // Read once for the whole report rather than per photo.
+      const thumbBank = await fetchThumbs();
       const addPhotos = (list, label) => (list || []).forEach((ph) => {
-        if (ph?.url) photoUrls.push({ url: ph.url, label });
+        // A stored thumbnail means the export needs no network for this photo.
+        if (ph?.url) {
+          photoUrls.push({ url: ph.url, label, thumb: thumbBank[thumbKey(ph.path)] || '' });
+        }
       });
       let offline = 0;
       let fixedCt = 0;
@@ -943,7 +949,11 @@ export default function MainLogger({ data, setData }) {
         let y = (doc.lastAutoTable?.finalY || 44) + 10;
         if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 20; }
         doc.setFontSize(13);
-        doc.text('Photos', 14, y);
+        // The count is here because its absence cost several rounds of
+        // diagnosis: every theory about why ONE photo failed assumed the others
+        // succeeded, and that was never actually established. "3 of 4" settles
+        // it on the page instead of in someone's memory.
+        doc.text(`Photos — ${thumbs.length} of ${unique.length} included`, 14, y);
         y += 4;
         if (thumbs.length) y = drawThumbRow(doc, thumbs, y);
         // Say what is missing rather than quietly showing fewer photos than

@@ -17,6 +17,7 @@ import React, { useRef, useState } from 'react';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { app } from '../../firebaseConfig';
 import { useToast } from '../../context/ToastContext';
+import { saveThumb } from '../../services/photoThumbs';
 
 // Matches how the rest of this codebase gets its Firebase services
 // (each module calls getDatabase(app) / getAuth(app) locally).
@@ -44,6 +45,32 @@ const compressImage = (file) =>
       URL.revokeObjectURL(url);   // most often HEIC outside Safari
       resolve(null);
     };
+    img.src = url;
+  });
+
+// A tiny copy of the photo for the daily PDF, made here because the bytes are
+// already in memory. Stored in its own database node rather than on the entry —
+// see services/photoThumbs for why. Small on purpose: ~10KB, against the 1600px
+// original in Storage that remains the source of truth for viewing.
+const THUMB_DIM = 320;
+const THUMB_QUALITY = 0.7;
+
+const makeThumb = (blob) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    const done = (v) => { URL.revokeObjectURL(url); resolve(v); };
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, THUMB_DIM / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        done(canvas.toDataURL('image/jpeg', THUMB_QUALITY));
+      } catch { done(''); }        // never block an upload over a thumbnail
+    };
+    img.onerror = () => done('');
     img.src = url;
   });
 
@@ -95,6 +122,9 @@ export default function Photos({ photos, onChange, pathPrefix, disabled, label =
         await uploadBytes(sRef, blob, { contentType: 'image/jpeg' });
         // eslint-disable-next-line no-await-in-loop
         const url = await getDownloadURL(sRef);
+        // Kept in its own node, not on the entry: see services/photoThumbs.
+        // eslint-disable-next-line no-await-in-loop
+        await saveThumb(path, await makeThumb(blob));
         added.push({ url, path });
       }
       if (added.length) {

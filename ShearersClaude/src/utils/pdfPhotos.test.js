@@ -208,6 +208,27 @@ describe('loadThumbs', () => {
     expect(failedLabels).toEqual(['Line 1 · head 2 · WDU (file no longer in storage)']);
   });
 
+  it('uses a thumbnail stored with the entry and never touches the network', async () => {
+    // The point of storing it: no fetch means no CORS, no cache, no reliance on
+    // the original object still existing.
+    const fetchSpy = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    vi.stubGlobal('fetch', fetchSpy);
+    const { thumbs, failed } = await loadThumbs([
+      { url: URL_OK, label: 'has a thumb', thumb: 'data:image/jpeg;base64,AAAA' },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(failed).toBe(0);
+    expect(thumbs).toHaveLength(1);
+  });
+
+  it('still downloads for photos saved before thumbnails existed', async () => {
+    const fetchSpy = vi.fn(async () => okResponse());
+    vi.stubGlobal('fetch', fetchSpy);
+    const { thumbs } = await loadThumbs([{ url: URL_OK, label: 'old photo' }]);
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(thumbs).toHaveLength(1);
+  });
+
   it('reports what it refused to embed instead of silently shortening the report', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => okResponse()));
     const refs = Array.from({ length: 45 }, (_, i) => ({ url: URL_OK, label: `p${i}` }));
