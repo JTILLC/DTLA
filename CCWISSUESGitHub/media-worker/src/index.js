@@ -42,7 +42,9 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage } from './parts.js';
+import {
+  catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
+} from './parts.js';
 
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8' };
 const JSON_CT = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -428,6 +430,19 @@ export default {
           // so typing in the part field isn't a request per keystroke.
           headers.set('Cache-Control', 'private, max-age=300');
           return new Response(JSON.stringify({ customer, folder, parts }), { headers });
+        }
+
+        // The drawings that make up one machine's manual.
+        if (url.pathname === '/parts/diagrams') {
+          const customer = (url.searchParams.get('customer') || '').trim();
+          const folder = (url.searchParams.get('folder') || '').trim();
+          if (!customer || !folder) {
+            return deny(400, 'Missing customer or folder.', origin, allowed);
+          }
+          const diagrams = await diagramsForFolder(env, token, customer, folder);
+          const headers = new Headers({ ...JSON_CT, ...corsHeaders(origin, allowed) });
+          headers.set('Cache-Control', 'private, max-age=300');
+          return new Response(JSON.stringify({ customer, folder, diagrams }), { headers });
         }
 
         // One diagram's hotspots, for highlighting the replaced part.
