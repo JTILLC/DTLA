@@ -20,10 +20,16 @@ ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,
 # CCW-specific.
 SCAN_PROJECT_IDS = "downtimelogger-a96fb,shearers-4c4b4"
 
+# The Parts Viewer catalog lives in its own Firebase project. A folder there is
+# one machine, which is what a CCW line gets bound to.
+PARTS_PROJECT_ID = "jobs-data-17ee4"
+
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
 #   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON
 #   npx wrangler secret put ANTHROPIC_API_KEY    # /scan-weights only; without it that route returns 503
+#   npx wrangler secret put PARTS_SA_EMAIL       # /parts/* only; service account on the PARTS project
+#   npx wrangler secret put PARTS_SA_PRIVATE_KEY # same; without both, /parts/* returns 503
 #
 # Deploy:
 #   cd media-worker && npx wrangler deploy
