@@ -51,6 +51,7 @@ export default function LineActivity({
   boardLog = [],
   pmLog = [],
   crewLog = [],
+  headLog = [],
   visits = [],
   limit = 60,
 }) {
@@ -99,12 +100,30 @@ export default function LineActivity({
       });
     });
 
-    // Head state, from the visits that define it.
+    // Head events proper, once they started being logged.
+    const loggedKeys = new Set();
+    headLog.filter((e) => e.lineTitle === lineTitle).forEach((e) => {
+      loggedKeys.add(`${e.headNumber}-${e.performedAt}`);
+      out.push({
+        id: `hl-${e.id}`,
+        kind: e.action === 'fixed' ? 'fixed' : e.action === 'active' ? 'online' : 'offline',
+        at: e.performedAt,
+        title: e.action === 'fixed'
+          ? `Head ${e.headNumber} · ${e.issueType || 'issue'} marked ${e.fixedState === 'fixed' ? 'fixed' : e.fixedState === 'active_with_issues' ? 'active with issues' : 'not fixed'}`
+          : `Head ${e.headNumber} ${e.action === 'active' ? 'back online' : 'taken offline'}`,
+        detail: '',
+        who: e.by || '',
+      });
+    });
+
+    // Head state from the visits, for anything stopped BEFORE the head log
+    // existed. Deduped on head + timestamp so a logged event is not shown
+    // twice — the head document and the log carry the same instant.
     visits.forEach((v) => {
       (v.lines || []).filter((l) => l?.title === lineTitle).forEach((l) => {
         (l.heads || []).forEach((h, i) => {
           const num = h.id || i + 1;
-          if (h.statusAt) {
+          if (h.statusAt && !loggedKeys.has(`${num}-${h.statusAt}`)) {
             out.push({
               id: `head-${v.id}-${num}-${h.statusAt}`,
               kind: h.statusAction === 'active' ? 'online' : 'offline',
@@ -115,7 +134,7 @@ export default function LineActivity({
             });
           }
           (h.issues || []).forEach((iss, j) => {
-            if (!iss.fixedAt) return;
+            if (!iss.fixedAt || loggedKeys.has(`${num}-${iss.fixedAt}`)) return;
             out.push({
               id: `fix-${v.id}-${num}-${j}-${iss.fixedAt}`,
               kind: 'fixed', at: iss.fixedAt,
@@ -132,7 +151,7 @@ export default function LineActivity({
       .filter((e) => e.at)
       .sort((a, b) => when(b.at) - when(a.at))
       .slice(0, limit);
-  }, [lineTitle, spanLog, boardLog, pmLog, crewLog, visits, limit]);
+  }, [lineTitle, spanLog, boardLog, pmLog, crewLog, headLog, visits, limit]);
 
   const shown = kinds ? events.filter((e) => kinds.has(e.kind)) : events;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeCrew } from '../services/logs.js';
+import { subscribeCrew, addHeadEvent } from '../services/logs.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import PinPrompt from './PinPrompt.jsx';
 import SpanAdjust from './SpanAdjust.jsx';
@@ -112,6 +112,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
+    if (field === 'status') {
+      addHeadEvent(userId, customerId, {
+        lineTitle: localLine.title,
+        headNumber: index + 1,
+        action: value,
+        by: who || '',
+        visitId: visitId || null,
+      });
+    }
   };
 
   // Merge several fields onto one head at once (used by RedZone sync so a single
@@ -198,6 +207,13 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
+    addHeadEvent(userId, customerId, {
+      lineTitle: localLine.title,
+      headNumber: index + 1,
+      action: isOffline ? 'offline' : 'active',
+      by: who,
+      visitId: visitId || null,
+    });
   });
 
   // Which head the issue modal is showing (index into localLine.heads), or null.
@@ -290,6 +306,16 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
+    const issue = (updatedHeads[headIndex]?.issues || [])[issueIndex] || {};
+    addHeadEvent(userId, customerId, {
+      lineTitle: localLine.title,
+      headNumber: headIndex + 1,
+      action: 'fixed',
+      fixedState: issue.fixed || '',
+      issueType: issue.type || '',
+      by: whoFixed,
+      visitId: visitId || null,
+    });
   });
 
   // Get label for fixed status
