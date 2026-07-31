@@ -811,9 +811,11 @@ export default function MainLogger({ data, setData }) {
       const machineRows = [];
       // Photos are collected as we walk the day rather than fetched per row:
       // one batched download beats dozens of sequential ones on a phone.
+      // Each photo carries where it came from, so a failure can be named rather
+      // than counted.
       const photoUrls = [];
-      const addPhotos = (list) => (list || []).forEach((ph) => {
-        if (ph?.url) photoUrls.push(ph.url);
+      const addPhotos = (list, label) => (list || []).forEach((ph) => {
+        if (ph?.url) photoUrls.push({ url: ph.url, label });
       });
       let offline = 0;
       let fixedCt = 0;
@@ -825,15 +827,15 @@ export default function MainLogger({ data, setData }) {
           const issues = h.issues || [];
           const allFixed = issues.length > 0 && issues.every((iss) => iss.repaired === 'Fixed');
           if (allFixed) fixedCt += 1;
-          issues.forEach((iss) => addPhotos(iss.photos));
-          addPhotos(h.photos);
+          issues.forEach((iss) => addPhotos(iss.photos, `${line} · head ${h.head} · ${iss.type || 'issue'}`));
+          addPhotos(h.photos, `${line} · head ${h.head}`);
           const issueText = issues.length
             ? issues.map((iss) => `${iss.type}${iss.replacementReason ? ` (${iss.replacementReason})` : ''} — ${iss.repaired || 'Not Fixed'}`).join('\n')
             : 'Undetermined';
           headRows.push([line, String(h.head), allFixed ? 'Fixed' : 'Not Fixed', issueText, h.notes || '']);
         });
         if ((entry.machineNotes || '').trim()) machineRows.push([line, entry.machineNotes.trim()]);
-        addPhotos(entry.notePhotos);
+        addPhotos(entry.notePhotos, `${line} · machine notes`);
       });
 
       // Parts replaced on this date. Read once here rather than subscribed —
@@ -845,7 +847,11 @@ export default function MainLogger({ data, setData }) {
           .filter((e) => (e.performedAt || '').slice(0, 10) === date)
           .sort((a, b) => new Date(a.performedAt) - new Date(b.performedAt))
           .map((e) => {
-            addPhotos(e.photos);
+            addPhotos(
+              e.photos,
+              [e.line, e.head != null ? `head ${e.head}` : 'machine', e.boardType]
+                .filter(Boolean).join(' · ')
+            );
             // Every part on the entry, one per line. Summarising the rest as
             // "+2 more" told a reader that parts existed while withholding
             // which — the report has to say what was actually fitted.
@@ -913,8 +919,14 @@ export default function MainLogger({ data, setData }) {
       }
 
       if (photoUrls.length) {
-        const unique = [...new Set(photoUrls)];
-        const { thumbs, failed, skipped } = await loadThumbs(unique);
+        // Dedupe by URL, keeping the first label seen for each.
+        const seen = new Set();
+        const unique = photoUrls.filter((r) => {
+          if (seen.has(r.url)) return false;
+          seen.add(r.url);
+          return true;
+        });
+        const { thumbs, failed, failedLabels, skipped } = await loadThumbs(unique);
         let y = (doc.lastAutoTable?.finalY || 44) + 10;
         if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 20; }
         doc.setFontSize(13);
@@ -924,7 +936,10 @@ export default function MainLogger({ data, setData }) {
         // Say what is missing rather than quietly showing fewer photos than
         // the day actually has.
         const notes = [
-          failed ? `${failed} photo${failed === 1 ? '' : 's'} could not be loaded` : '',
+          failed
+            ? `${failed} photo${failed === 1 ? '' : 's'} could not be loaded`
+              + (failedLabels.length ? `: ${failedLabels.join('; ')}` : '')
+            : '',
           skipped ? `${skipped} more not included (limit reached)` : '',
         ].filter(Boolean);
         if (notes.length) {

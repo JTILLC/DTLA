@@ -129,3 +129,16 @@ body {
    that is only ~48px tall to begin with. */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Keep the fixed bottom bar clear of the iPhone home indicator. Sitting in that
+   strip is not just tight — iOS reserves it for its own swipes, so the bar
+   swallows scrolling. */
+.nav-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Page clearance = bar height + that same inset, so the last row of content is
+   never parked under the bar. */
+.pb-nav { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+
+/* The nav strip scrolls sideways only. Without this a vertical drag starting on
+   the bar is claimed by the strip and the page does not move. */
+.nav-strip { touch-action: pan-x; overscroll-behavior-x: contain; }

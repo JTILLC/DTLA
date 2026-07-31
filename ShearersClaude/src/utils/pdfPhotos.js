@@ -69,13 +69,18 @@ export async function photoToThumb(url, attempt = 0) {
 // Fetch a batch concurrently, preserving order. `cap` bounds how many photos a
 // single report will embed at all — without it one busy day could produce a
 // hundred-megabyte file.
-export async function loadThumbs(urls, cap = 40) {
-  const wanted = urls.slice(0, cap);
-  const thumbs = await Promise.all(wanted.map(photoToThumb));
+//
+// Takes { url, label } so a failure can be NAMED in the report. "1 photo could
+// not be loaded" is true and useless; "Line 4 · head 7 · drive unit" is
+// something you can go and look at.
+export async function loadThumbs(refs, cap = 40) {
+  const wanted = refs.slice(0, cap);
+  const results = await Promise.all(wanted.map((r) => photoToThumb(r.url)));
   return {
-    thumbs: thumbs.filter(Boolean),
-    failed: thumbs.filter((t) => !t).length,
-    skipped: Math.max(0, urls.length - wanted.length),
+    thumbs: results.filter(Boolean),
+    failedLabels: wanted.filter((_, i) => !results[i]).map((r) => r.label).filter(Boolean),
+    failed: results.filter((t) => !t).length,
+    skipped: Math.max(0, refs.length - wanted.length),
   };
 }
 

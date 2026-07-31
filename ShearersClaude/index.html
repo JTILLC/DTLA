@@ -8,7 +8,10 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#3b82f6" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+       numbers. Without it the insets are always 0 and a fixed bottom bar sits
+       underneath the iPhone home indicator, where iOS eats the swipes. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Downtime Logger</title>
 </head>
 <body class="bg-gray-100">
