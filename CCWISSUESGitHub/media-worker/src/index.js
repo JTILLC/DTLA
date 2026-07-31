@@ -44,6 +44,7 @@
 import { scanWeights, mayScan } from './weights.js';
 import {
   catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
+  foldersForCustomers,
 } from './parts.js';
 
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8' };
@@ -430,6 +431,19 @@ export default {
           // so typing in the part field isn't a request per keystroke.
           headers.set('Cache-Control', 'private, max-age=300');
           return new Response(JSON.stringify({ customer, folder, parts }), { headers });
+        }
+
+        // Which machines a named plant has. Non-admin, unlike /parts/catalog:
+        // it answers only for the customers the caller names, so it cannot be
+        // used to enumerate the catalog.
+        if (url.pathname === '/parts/folders') {
+          const names = (url.searchParams.get('customers') || '')
+            .split(',').map((s) => s.trim()).filter(Boolean).slice(0, 8);
+          if (names.length === 0) return deny(400, 'Missing customers.', origin, allowed);
+          const data = await foldersForCustomers(env, token, names);
+          const headers = new Headers({ ...JSON_CT, ...corsHeaders(origin, allowed) });
+          headers.set('Cache-Control', 'private, max-age=300');
+          return new Response(JSON.stringify({ customers: data }), { headers });
         }
 
         // The drawings that make up one machine's manual.

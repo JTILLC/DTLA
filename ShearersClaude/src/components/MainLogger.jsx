@@ -799,14 +799,22 @@ export default function MainLogger({ data, setData }) {
   // its issues/fix status/notes, plus machine notes — for one date.
   const exportDailyReport = async (date) => {
     try {
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-        import('jspdf'),
-        import('jspdf-autotable'),
-      ]);
+      const [{ default: jsPDF }, { default: autoTable }, { loadThumbs, drawThumbRow }] =
+        await Promise.all([
+          import('jspdf'),
+          import('jspdf-autotable'),
+          import('../utils/pdfPhotos'),
+        ]);
       const dayData = getDayData(date);
       const lineNum = (l) => parseInt(String(l).replace('Line ', ''), 10) || 0;
       const headRows = [];
       const machineRows = [];
+      // Photos are collected as we walk the day rather than fetched per row:
+      // one batched download beats dozens of sequential ones on a phone.
+      const photoUrls = [];
+      const addPhotos = (list) => (list || []).forEach((ph) => {
+        if (ph?.url) photoUrls.push(ph.url);
+      });
       let offline = 0;
       let fixedCt = 0;
       Object.keys(dayData).sort((a, b) => lineNum(a) - lineNum(b)).forEach((line) => {
@@ -817,13 +825,41 @@ export default function MainLogger({ data, setData }) {
           const issues = h.issues || [];
           const allFixed = issues.length > 0 && issues.every((iss) => iss.repaired === 'Fixed');
           if (allFixed) fixedCt += 1;
+          issues.forEach((iss) => addPhotos(iss.photos));
+          addPhotos(h.photos);
           const issueText = issues.length
             ? issues.map((iss) => `${iss.type}${iss.replacementReason ? ` (${iss.replacementReason})` : ''} — ${iss.repaired || 'Not Fixed'}`).join('\n')
             : 'Undetermined';
           headRows.push([line, String(h.head), allFixed ? 'Fixed' : 'Not Fixed', issueText, h.notes || '']);
         });
         if ((entry.machineNotes || '').trim()) machineRows.push([line, entry.machineNotes.trim()]);
+        addPhotos(entry.notePhotos);
       });
+
+      // Parts replaced on this date. Read once here rather than subscribed —
+      // the report is a snapshot of a day that is already over.
+      let partRows = [];
+      try {
+        const snap = await get(ref(database, 'jti-downtime/parts-log'));
+        partRows = Object.values(snap.val() || {})
+          .filter((e) => (e.performedAt || '').slice(0, 10) === date)
+          .sort((a, b) => new Date(a.performedAt) - new Date(b.performedAt))
+          .map((e) => {
+            addPhotos(e.photos);
+            const extra = Array.isArray(e.parts) && e.parts.length > 1
+              ? ` (+${e.parts.length - 1} more)` : '';
+            return [
+              e.line || '',
+              e.head != null ? String(e.head) : 'machine',
+              e.boardType || '',
+              [e.partNumber, e.partName].filter(Boolean).join(' — ') + extra
+                + (e.partNumber ? (e.partVerified ? '  [manual]' : '  [unverified]') : ''),
+              [e.reason, e.notes].filter(Boolean).join(' · '),
+            ];
+          });
+      } catch (err) {
+        console.warn('parts for daily report unavailable:', err?.message || err);
+      }
 
       const doc = new jsPDF();
       doc.setFontSize(16);
@@ -855,6 +891,41 @@ export default function MainLogger({ data, setData }) {
           headStyles: { fillColor: [66, 66, 66] },
         });
       }
+      if (partRows.length) {
+        const y = (doc.lastAutoTable?.finalY || 44) + 10;
+        doc.setFontSize(13);
+        doc.text('Parts / boards replaced', 14, y);
+        autoTable(doc, {
+          startY: y + 4,
+          head: [['Line', 'Head', 'Replaced', 'Part', 'Reason / notes']],
+          body: partRows,
+          styles: { fontSize: 9, cellPadding: 2 },
+          headStyles: { fillColor: [66, 66, 66] },
+          columnStyles: { 3: { cellWidth: 55 }, 4: { cellWidth: 45 } },
+        });
+      }
+
+      if (photoUrls.length) {
+        const unique = [...new Set(photoUrls)];
+        const { thumbs, failed, skipped } = await loadThumbs(unique);
+        let y = (doc.lastAutoTable?.finalY || 44) + 10;
+        if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 20; }
+        doc.setFontSize(13);
+        doc.text('Photos', 14, y);
+        y += 4;
+        if (thumbs.length) y = drawThumbRow(doc, thumbs, y);
+        // Say what is missing rather than quietly showing fewer photos than
+        // the day actually has.
+        const notes = [
+          failed ? `${failed} photo${failed === 1 ? '' : 's'} could not be loaded` : '',
+          skipped ? `${skipped} more not included (limit reached)` : '',
+        ].filter(Boolean);
+        if (notes.length) {
+          doc.setFontSize(9);
+          doc.text(notes.join('; '), 14, Math.min(y + 2, doc.internal.pageSize.getHeight() - 10));
+        }
+      }
+
       doc.save(`daily-report-${date}.pdf`);
       toast.success(`Daily report exported — ${offline} offline head${offline === 1 ? '' : 's'}`);
     } catch (e) {

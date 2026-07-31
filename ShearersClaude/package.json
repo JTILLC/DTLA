@@ -16,6 +16,7 @@
     "heic-to": "^1.5.2",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^1.28.0",
     "netlify-cli": "^23.12.3",
     "react": "^19.2.1",
     "react-chartjs-2": "^5.3.1",
