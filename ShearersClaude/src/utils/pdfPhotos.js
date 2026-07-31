@@ -258,7 +258,11 @@ export async function loadThumbs(refs, cap = 40) {
 
   const ok = (r) => r && !r.failed;
   return {
-    thumbs: results.filter(ok),
+    // The label travels WITH the thumbnail. A photo of a cracked hopper is
+    // evidence; the same photo with no line or head against it is a picture.
+    thumbs: results
+      .map((r, i) => (ok(r) ? { ...r, label: wanted[i].label || '' } : null))
+      .filter(Boolean),
     // Name AND reason: "Line 1 · head 2 · WDU (file no longer in storage)"
     // tells you what to do; a bare count does not.
     failedLabels: wanted

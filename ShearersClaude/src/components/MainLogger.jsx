@@ -955,7 +955,27 @@ export default function MainLogger({ data, setData }) {
         // it on the page instead of in someone's memory.
         doc.text(`Photos — ${thumbs.length} of ${unique.length} included`, 14, y);
         y += 4;
-        if (thumbs.length) y = drawThumbRow(doc, thumbs, y);
+        // Grouped under the line and head they belong to. Photos of one issue
+        // share a label, so a heading per group reads better than the same
+        // caption repeated under every thumbnail — and a photo with nothing
+        // written against it tells a reader nothing at all.
+        if (thumbs.length) {
+          const groups = new Map();
+          thumbs.forEach((t) => {
+            const key = t.label || 'Unlabelled';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(t);
+          });
+          const pageH = doc.internal.pageSize.getHeight();
+          groups.forEach((list, label) => {
+            // Keep a heading with its photos rather than stranding it at the
+            // foot of a page.
+            if (y + 46 > pageH - 12) { doc.addPage(); y = 20; }
+            doc.setFontSize(9);
+            doc.text(label, 14, y);
+            y = drawThumbRow(doc, list, y + 2) + 1;
+          });
+        }
         // Say what is missing rather than quietly showing fewer photos than
         // the day actually has.
         const notes = [
