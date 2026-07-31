@@ -123,7 +123,9 @@ export default function PartDiagramViewer({
       <div
         style={{
           flex: 1, minHeight: 0, position: 'relative',
-          overflow: zoom ? 'auto' : 'hidden',
+          // Always scrollable. Hiding the overflow at Fit meant a drawing taller
+          // than the window was clipped with no way to reach the rest of it.
+          overflow: 'auto',
           display: zoom ? 'block' : 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
@@ -144,7 +146,17 @@ export default function PartDiagramViewer({
               alt={meta?.name || 'Parts diagram'}
               style={zoom
                 ? { display: 'block', width: '100%', height: 'auto', maxWidth: 'none' }
-                : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+                : {
+                    maxWidth: '100%',
+                    // Viewport units, not a percentage: the wrapper that keeps
+                    // the markers aligned is inline-block with auto height, and
+                    // a percentage height against an auto-height parent
+                    // resolves to nothing — which is what let the drawing
+                    // overflow and get cut off. 96px is the header plus footer.
+                    maxHeight: 'calc(100vh - 96px)',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
             />
             {spots.map((h) => (
               <span

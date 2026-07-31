@@ -292,7 +292,16 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                   alt={current?.name || 'Parts diagram'}
                   style={zoom
                     ? { display: 'block', width: '100%', height: 'auto', maxWidth: 'none' }
-                    : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+                    : {
+                        maxWidth: '100%',
+                        // See PartDiagramViewer: a percentage height against the
+                        // auto-height marker wrapper resolves to nothing, so the
+                        // cap has to be in viewport units. Allows for the header,
+                        // search box and footer.
+                        maxHeight: 'calc(100vh - 200px)',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
                 />
 
                 {/* Balloons sit inside the image's own box, offset by percent, so
