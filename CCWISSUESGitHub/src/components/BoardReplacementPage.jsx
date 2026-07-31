@@ -22,6 +22,7 @@ import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import PartLookupField from './PartLookupField.jsx';
 import PartsManualBinding from './PartsManualBinding.jsx';
+import PartDiagramViewer from './PartDiagramViewer.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
 const BLANK = {
@@ -63,6 +64,8 @@ export default function BoardReplacementPage({
   const [editingBindings, setEditingBindings] = useState(false);
   // The manual entry confirmed for the part currently typed, if any.
   const [pickedPart, setPickedPart] = useState(null);
+  // A past entry whose drawing is being viewed.
+  const [diagramEntry, setDiagramEntry] = useState(null);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -249,6 +252,15 @@ export default function BoardReplacementPage({
           )}
         </div>
       </div>
+
+      {diagramEntry && (
+        <PartDiagramViewer
+          diagramId={diagramEntry.partDiagramId}
+          partItemNo={diagramEntry.partItemNo}
+          partLabel={diagramEntry.partNumber}
+          onClose={() => setDiagramEntry(null)}
+        />
+      )}
 
       {editingBindings && (
         <PartsManualBinding
@@ -494,6 +506,15 @@ export default function BoardReplacementPage({
                           {e.partVerified
                             ? <span className="badge bg-success ms-1" title={e.partName || 'Confirmed against the parts manual'}>✓ manual</span>
                             : <span className="badge bg-secondary ms-1" title="Typed in, not checked against a parts manual">unverified</span>}
+                          {e.partDiagramId && (
+                            <button
+                              type="button"
+                              className="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                              onClick={() => setDiagramEntry(e)}
+                            >
+                              drawing
+                            </button>
+                          )}
                           {' '}
                         </>
                       )}

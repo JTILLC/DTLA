@@ -42,7 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { catalog, partsForFolder, partsConfigured } from './parts.js';
+import { catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage } from './parts.js';
 
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8' };
 const JSON_CT = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -167,8 +167,14 @@ async function mintToken(email, privateKey, scope) {
 const getAccessToken = (env) =>
   mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, 'https://www.googleapis.com/auth/devstorage.read_only');
 
+// Both scopes: Firestore for the catalog, Storage for the drawings. The cache
+// is keyed by (account, scope), so this is one entry rather than two.
 const getPartsToken = (env) =>
-  mintToken(env.PARTS_SA_EMAIL, env.PARTS_SA_PRIVATE_KEY, 'https://www.googleapis.com/auth/datastore');
+  mintToken(
+    env.PARTS_SA_EMAIL,
+    env.PARTS_SA_PRIVATE_KEY,
+    'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_only'
+  );
 
 // --- Share validation -------------------------------------------------------
 // Unauthenticated read: the Firestore rule enforces expiry for us, so an
@@ -422,6 +428,37 @@ export default {
           // so typing in the part field isn't a request per keystroke.
           headers.set('Cache-Control', 'private, max-age=300');
           return new Response(JSON.stringify({ customer, folder, parts }), { headers });
+        }
+
+        // One diagram's hotspots, for highlighting the replaced part.
+        if (url.pathname === '/parts/diagram') {
+          const id = (url.searchParams.get('id') || '').trim();
+          if (!id) return deny(400, 'Missing diagram id.', origin, allowed);
+          const d = await diagramMeta(env, token, id);
+          if (!d) return deny(404, 'That diagram no longer exists.', origin, allowed);
+          const headers = new Headers({ ...JSON_CT, ...corsHeaders(origin, allowed) });
+          headers.set('Cache-Control', 'private, max-age=300');
+          return new Response(JSON.stringify(d), { headers });
+        }
+
+        // The drawing itself, streamed from the parts bucket so the browser
+        // never holds a durable public URL to it.
+        if (url.pathname === '/parts/diagram-image') {
+          const id = (url.searchParams.get('id') || '').trim();
+          if (!id) return deny(400, 'Missing diagram id.', origin, allowed);
+          const upstream = await diagramImage(env, token, id);
+          if (!upstream) return deny(404, 'That diagram no longer exists.', origin, allowed);
+          if (!upstream.ok) {
+            return deny(upstream.status === 404 ? 404 : 502, 'Drawing not available.', origin, allowed);
+          }
+          const headers = new Headers(corsHeaders(origin, allowed));
+          for (const h of ['Content-Type', 'Content-Length', 'ETag']) {
+            const v = upstream.headers.get(h);
+            if (v) headers.set(h, v);
+          }
+          headers.set('Cache-Control', 'private, max-age=600');
+          headers.set('X-Content-Type-Options', 'nosniff');
+          return new Response(upstream.body, { status: 200, headers });
         }
 
         return deny(404, 'Not found', origin, allowed);

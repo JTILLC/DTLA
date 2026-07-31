@@ -151,3 +151,60 @@ export async function partsForFolder(env, token, customer, folder) {
   );
   return out;
 }
+
+// One diagram: its hotspots and where its image lives.
+//
+// Hotspot x/y are PERCENTAGES of the image, which is what makes highlighting
+// work at any render size without knowing the source dimensions.
+async function getDiagram(env, token, diagramId) {
+  // Resolved by id, never by a path from the client — a caller-supplied storage
+  // path would be an arbitrary-object read of the parts bucket.
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${env.PARTS_PROJECT_ID}` +
+    `/databases/(default)/documents/${COLLECTION}/${encodeURIComponent(diagramId)}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = new Error(`diagram fetch failed: ${res.status}`);
+    err.status = 502;
+    throw err;
+  }
+  const doc = await res.json();
+  const f = doc.fields || {};
+  const spots = f.hotspots?.mapValue?.fields || {};
+
+  return {
+    id: diagramId,
+    name: str(f.name) || 'Untitled',
+    customer: str(f.customer),
+    folder: str(f.folder),
+    // Fall back to the convention the Parts Viewer uses when the field is
+    // absent on older docs.
+    imagePath: str(f.pdfStoragePath) || `diagram-images/${diagramId}.jpg`,
+    hotspots: Object.entries(spots).map(([id, v]) => {
+      const hf = v?.mapValue?.fields || {};
+      return {
+        id,
+        partNumber: scalar(hf.partNumber),
+        x: Number(scalar(hf.x)),
+        y: Number(scalar(hf.y)),
+      };
+    }).filter((h) => h.partNumber && Number.isFinite(h.x) && Number.isFinite(h.y)),
+  };
+}
+
+export async function diagramMeta(env, token, diagramId) {
+  return getDiagram(env, token, diagramId);
+}
+
+// Stream the drawing itself out of the parts project's bucket. Same reasoning
+// as the media broker: the browser never gets a durable public URL, and the
+// credential stays in the Worker.
+export async function diagramImage(env, token, diagramId) {
+  const d = await getDiagram(env, token, diagramId);
+  if (!d) return null;
+  const objUrl =
+    `https://storage.googleapis.com/storage/v1/b/${env.PARTS_BUCKET}` +
+    `/o/${encodeURIComponent(d.imagePath)}?alt=media`;
+  return fetch(objUrl, { headers: { Authorization: `Bearer ${token}` } });
+}
