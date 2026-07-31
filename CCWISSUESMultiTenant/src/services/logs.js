@@ -147,6 +147,30 @@ export async function saveBoardTypes(workspaceId, customerId, types) {
   });
 }
 
+// ---- Parts-manual bindings -------------------------------------------------
+// Which machine in the Parts Viewer catalog a line's parts come from, keyed by
+// line title (the same key the span and board logs use).
+//
+// Shape: { bindings: { [lineTitle]: { partsCustomer, folder, allowOthers } } }
+//
+// A binding rather than matching on model/serial: the catalog carries neither,
+// and a string compare would fail SILENTLY on a typo and offer parts from the
+// wrong machine. An unbound line simply says so.
+export function subscribePartsBindings(workspaceId, customerId, cb) {
+  if (!workspaceId || !customerId) return () => {};
+  return configDoc(workspaceId, customerId, 'partsBindings').onSnapshot(
+    (snap) => cb(snap.exists ? (snap.data().bindings || {}) : {}),
+    (err) => { console.error('parts bindings subscription failed:', err); cb({}); }
+  );
+}
+
+export async function savePartsBindings(workspaceId, customerId, bindings) {
+  await configDoc(workspaceId, customerId, 'partsBindings').set({
+    bindings: bindings || {},
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // ---- PM checklist template -------------------------------------------------
 // Defined by JTI, filled in by the plant. Stored per customer alongside the
 // board types, for the same reason: what needs checking differs between sites.

@@ -38,9 +38,11 @@
 //   GCP_SA_EMAIL        service account email
 //   GCP_SA_PRIVATE_KEY  its PEM private key (literal \n escapes are handled)
 //   ANTHROPIC_API_KEY   for /scan-weights only
+//   PARTS_SA_EMAIL / PARTS_SA_PRIVATE_KEY  for /parts/* only (parts project)
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+import { catalog, partsForFolder, partsConfigured } from './parts.js';
 
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8' };
 const JSON_CT = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -86,7 +88,6 @@ const deny = (status, message, origin, allowed) =>
 // Mint an OAuth access token from the service account (RS256 JWT bearer flow).
 // Cached in module scope for the token's lifetime minus a safety margin, so a
 // warm isolate signs at most once an hour rather than once per image.
-let tokenCache = { value: null, expiresAt: 0 };
 
 const b64url = (buf) => {
   const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
@@ -107,16 +108,23 @@ const pemToPkcs8 = (pem) => {
   return out.buffer;
 };
 
-async function getAccessToken(env) {
+// Cache per (account, scope). The parts catalog lives in a different GCP
+// project with its own service account, so one shared slot would have the two
+// evicting each other on every alternating request.
+const tokenCaches = new Map();
+
+async function mintToken(email, privateKey, scope) {
+  const cacheKey = `${email}|${scope}`;
   const now = Math.floor(Date.now() / 1000);
-  if (tokenCache.value && now < tokenCache.expiresAt) return tokenCache.value;
+  const hit = tokenCaches.get(cacheKey);
+  if (hit && now < hit.expiresAt) return hit.value;
 
   const header = b64url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
   const claim = b64url(
     new TextEncoder().encode(
       JSON.stringify({
-        iss: env.GCP_SA_EMAIL,
-        scope: 'https://www.googleapis.com/auth/devstorage.read_only',
+        iss: email,
+        scope,
         aud: 'https://oauth2.googleapis.com/token',
         iat: now,
         exp: now + 3600,
@@ -126,7 +134,7 @@ async function getAccessToken(env) {
 
   const key = await crypto.subtle.importKey(
     'pkcs8',
-    pemToPkcs8(env.GCP_SA_PRIVATE_KEY),
+    pemToPkcs8(privateKey),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign']
@@ -149,9 +157,18 @@ async function getAccessToken(env) {
   if (!res.ok) throw new Error(`token exchange failed: ${res.status} ${await res.text()}`);
 
   const data = await res.json();
-  tokenCache = { value: data.access_token, expiresAt: now + (data.expires_in || 3600) - 120 };
-  return tokenCache.value;
+  tokenCaches.set(cacheKey, {
+    value: data.access_token,
+    expiresAt: now + (data.expires_in || 3600) - 120,
+  });
+  return data.access_token;
 }
+
+const getAccessToken = (env) =>
+  mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, 'https://www.googleapis.com/auth/devstorage.read_only');
+
+const getPartsToken = (env) =>
+  mintToken(env.PARTS_SA_EMAIL, env.PARTS_SA_PRIVATE_KEY, 'https://www.googleapis.com/auth/datastore');
 
 // --- Share validation -------------------------------------------------------
 // Unauthenticated read: the Firestore rule enforces expiry for us, so an
@@ -346,6 +363,71 @@ export default {
         // the operator — log it, or the real reason is lost.
         if (status >= 500) console.error('scan-weights error', err?.message, err?.cause || err);
         return deny(status, err?.message || 'Screen reading failed.', origin, allowed);
+      }
+    }
+
+    // --- GET /parts/*: the machine's parts manual ----------------------------
+    if (url.pathname.startsWith('/parts/')) {
+      if (request.method !== 'GET') return deny(405, 'Method not allowed', origin, allowed);
+      if (!partsConfigured(env)) {
+        return deny(503, 'Parts lookup is not configured yet.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      const scanProjects = (env.SCAN_PROJECT_IDS || env.FIREBASE_PROJECT_ID)
+        .split(',').map((s) => s.trim()).filter(Boolean);
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, scanProjects);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (claims.firebase?.sign_in_provider === 'anonymous') {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
+
+      try {
+        const token = await getPartsToken(env);
+
+        // The whole customer -> folder tree is the JTI binding screen. It names
+        // every customer in the parts catalog, so it stays admin-only — a plant
+        // login has no business enumerating other plants.
+        if (url.pathname === '/parts/catalog') {
+          if (claims.admin !== true) {
+            return deny(403, 'Not permitted for this account.', origin, allowed);
+          }
+          const data = await catalog(env, token);
+          return new Response(JSON.stringify({ customers: data }), {
+            headers: { ...JSON_CT, ...corsHeaders(origin, allowed) },
+          });
+        }
+
+        // Parts for one bound machine. Part numbers themselves are not
+        // sensitive — the risk is picking one off the WRONG machine, which the
+        // caller's binding prevents by only ever asking for its own folder.
+        if (url.pathname === '/parts/parts') {
+          const customer = (url.searchParams.get('customer') || '').trim();
+          const folder = (url.searchParams.get('folder') || '').trim();
+          if (!customer || !folder) {
+            return deny(400, 'Missing customer or folder.', origin, allowed);
+          }
+          const parts = await partsForFolder(env, token, customer, folder);
+          const headers = new Headers({ ...JSON_CT, ...corsHeaders(origin, allowed) });
+          // A manual changes rarely; let the browser keep it for a few minutes
+          // so typing in the part field isn't a request per keystroke.
+          headers.set('Cache-Control', 'private, max-age=300');
+          return new Response(JSON.stringify({ customer, folder, parts }), { headers });
+        }
+
+        return deny(404, 'Not found', origin, allowed);
+      } catch (err) {
+        console.error('parts lookup error', err?.message || err);
+        return deny(err?.status || 502, 'Could not read the parts manual.', origin, allowed);
       }
     }
 

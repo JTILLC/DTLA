@@ -12,14 +12,16 @@
 // machine-level (main control, power supply), so the head number is optional
 // rather than assumed.
 import { useEffect, useMemo, useState } from 'react';
-import { Cpu, ChevronLeft, Trash2, Plus, Settings, X } from 'lucide-react';
+import { Cpu, ChevronLeft, Trash2, Plus, Settings, X, Link2 } from 'lucide-react';
 import {
   LOG_BOARD, subscribeLog, addLogEntry, deleteLogEntry, sinceLabel,
-  subscribeBoardTypes, saveBoardTypes,
+  subscribeBoardTypes, saveBoardTypes, subscribePartsBindings,
 } from '../services/logs.js';
 import { BOARD_TYPES } from '../config/constants';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
+import PartLookupField from './PartLookupField.jsx';
+import PartsManualBinding from './PartsManualBinding.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
 const BLANK = {
@@ -56,10 +58,20 @@ export default function BoardReplacementPage({
   const [editingTypes, setEditingTypes] = useState(false);
   const [draftTypes, setDraftTypes] = useState([]);
   const [savingTypes, setSavingTypes] = useState(false);
+  // Which machine's manual each line's parts come from, keyed by line title.
+  const [bindings, setBindings] = useState({});
+  const [editingBindings, setEditingBindings] = useState(false);
+  // The manual entry confirmed for the part currently typed, if any.
+  const [pickedPart, setPickedPart] = useState(null);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
     return subscribeLog(workspaceId, customerId, LOG_BOARD, setEntries);
+  }, [workspaceId, customerId]);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribePartsBindings(workspaceId, customerId, setBindings);
   }, [workspaceId, customerId]);
 
   useEffect(() => {
@@ -77,9 +89,18 @@ export default function BoardReplacementPage({
     [...visits]
       .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
       .forEach((v) => (v.lines || []).forEach((l) => {
-        if (l?.title && !seen.has(l.title)) seen.set(l.title, (l.heads || []).length);
+        // Model and serial ride along for the parts-manual screen: they are
+        // shown so whoever links a line can see WHICH machine they are binding.
+        // They are not the matching key — the catalog stores neither.
+        if (l?.title && !seen.has(l.title)) {
+          seen.set(l.title, {
+            heads: (l.heads || []).length,
+            model: l.model || '',
+            serialNumber: l.serialNumber || '',
+          });
+        }
       }));
-    return [...seen.entries()].map(([title, heads]) => ({ title, heads }));
+    return [...seen.entries()].map(([title, meta]) => ({ title, ...meta }));
   }, [visits]);
 
   const headCount = lines.find((l) => l.title === form.lineTitle)?.heads || 0;
@@ -110,6 +131,7 @@ export default function BoardReplacementPage({
           partNumber: last.partNumber || '',
         }
       : BLANK);
+    setPickedPart(null);
     setAdding(true);
   };
 
@@ -144,6 +166,13 @@ export default function BoardReplacementPage({
         headNumber: form.headNumber === '' ? null : Number(form.headNumber),
         boardType: form.boardType,
         partNumber: form.partNumber.trim(),
+        // Provenance, not decoration: the log has to distinguish a number
+        // checked against the machine's manual from one someone typed.
+        partName: pickedPart?.partName || '',
+        partItemNo: pickedPart?.itemNo || '',
+        partDiagramId: pickedPart?.diagramId || '',
+        partDiagramName: pickedPart?.diagramName || '',
+        partVerified: !!pickedPart,
         serialRemoved: form.serialRemoved.trim(),
         serialInstalled: form.serialInstalled.trim(),
         reason: form.reason.trim(),
@@ -152,6 +181,7 @@ export default function BoardReplacementPage({
         role,
       });
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
+      setPickedPart(null);
       setAdding(false);
       toast.success('Board replacement logged');
     } catch (err) {
@@ -199,6 +229,15 @@ export default function BoardReplacementPage({
         </h5>
         <div className="d-flex align-items-center gap-2">
           {canEditTypes && !editingTypes && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => setEditingBindings(true)}
+            >
+              <Link2 size={14} /> Parts manuals
+            </button>
+          )}
+          {canEditTypes && !editingTypes && (
             <button type="button" className="btn btn-outline-secondary btn-sm" onClick={openTypeEditor}>
               <Settings size={16} /> Board types
             </button>
@@ -210,6 +249,16 @@ export default function BoardReplacementPage({
           )}
         </div>
       </div>
+
+      {editingBindings && (
+        <PartsManualBinding
+          workspaceId={workspaceId}
+          customerId={customerId}
+          lines={lines}
+          bindings={bindings}
+          onClose={() => setEditingBindings(false)}
+        />
+      )}
 
       {editingTypes && (
         <div className="card mb-3">
@@ -323,13 +372,12 @@ export default function BoardReplacementPage({
 
             <div>
               <label className="form-label" htmlFor="board-part">Part number</label>
-              <input
-                id="board-part"
-                type="text"
-                className="form-control"
+              <PartLookupField
+                binding={bindings[form.lineTitle] || null}
                 value={form.partNumber}
-                onChange={(e) => set('partNumber', e.target.value)}
-                placeholder="e.g. AC-3401"
+                onChange={(v) => set('partNumber', v)}
+                onPick={setPickedPart}
+                picked={pickedPart}
               />
             </div>
 
@@ -440,7 +488,15 @@ export default function BoardReplacementPage({
                     </div>
 
                     <div className="small mt-1">
-                      {e.partNumber && <>Part <strong>{e.partNumber}</strong>{' '}</>}
+                      {e.partNumber && (
+                        <>
+                          Part <strong>{e.partNumber}</strong>
+                          {e.partVerified
+                            ? <span className="badge bg-success ms-1" title={e.partName || 'Confirmed against the parts manual'}>✓ manual</span>
+                            : <span className="badge bg-secondary ms-1" title="Typed in, not checked against a parts manual">unverified</span>}
+                          {' '}
+                        </>
+                      )}
                       {e.serialRemoved && <>· out <code>{e.serialRemoved}</code>{' '}</>}
                       {e.serialInstalled && (
                         <>
