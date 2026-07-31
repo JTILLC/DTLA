@@ -204,6 +204,9 @@ describe('loadThumbs', () => {
     ];
     const { thumbs, failed, failedLabels } = await loadThumbs(refs);
     expect(thumbs).toHaveLength(2);
+    // The label must survive to the page, or a photo says nothing about where
+    // it came from.
+    expect(thumbs.map((t) => t.label)).toEqual(['good one', 'another good one']);
     expect(failed).toBe(1);
     expect(failedLabels).toEqual(['Line 1 · head 2 · WDU (file no longer in storage)']);
   });
