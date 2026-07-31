@@ -228,7 +228,7 @@ export default function SpanAdjustPage({
 
     return (
       <div>
-        <CrewBar workspaceId={workspaceId} customerId={customerId} canEditRoster={role !== 'customer'} />
+        <CrewBar workspaceId={workspaceId} customerId={customerId} />
         <h5 className="d-flex align-items-center gap-2 mb-3">
           <ClipboardCheck size={18} /> Span Adjustments{customerName ? ` — ${customerName}` : ''}
         </h5>

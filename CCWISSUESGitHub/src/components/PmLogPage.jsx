@@ -453,7 +453,7 @@ export default function PmLogPage({
   // ---- Home: status + history --------------------------------------------
   return (
     <div>
-      <CrewBar workspaceId={workspaceId} customerId={customerId} canEditRoster={canEditTemplate} />
+      <CrewBar workspaceId={workspaceId} customerId={customerId} />
 
       <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h5 className="d-flex align-items-center gap-2 mb-0">

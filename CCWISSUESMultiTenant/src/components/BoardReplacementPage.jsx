@@ -227,7 +227,7 @@ export default function BoardReplacementPage({
 
   return (
     <div>
-      <CrewBar workspaceId={workspaceId} customerId={customerId} canEditRoster={canEditTypes} />
+      <CrewBar workspaceId={workspaceId} customerId={customerId} />
 
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h5 className="d-flex align-items-center gap-2 mb-0">
