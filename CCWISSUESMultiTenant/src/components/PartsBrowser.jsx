@@ -316,6 +316,53 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
         )}
       </div>
 
+      {/* Parts on this drawing. A sibling of the tray in the same column rather
+          than an overlay: as an overlay pinned to the bottom the two fought for
+          the same space and the tray won, so the list button did nothing once
+          anything was picked. */}
+      {showList && current && query.trim().length < 2 && (
+        <div className="bg-body border-top" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+          <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom sticky-top bg-body">
+            <strong>Parts on {current?.name || 'this drawing'}</strong>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => setShowList(false)}
+              aria-label="Hide the parts list"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {listHere.length === 0 ? (
+            <div className="text-muted p-3">No parts listed for this drawing.</div>
+          ) : (
+            <div className="list-group list-group-flush">
+              {listHere.map((p) => (
+                <button
+                  key={`${p.itemNo}-${p.partCode}`}
+                  type="button"
+                  className="list-group-item list-group-item-action py-2"
+                  onClick={() => toggle(p)}
+                >
+                  <div className="d-flex gap-2">
+                    <span
+                      className={'badge flex-shrink-0 ' + (isPicked(p) ? 'bg-success' : 'bg-secondary')}
+                      style={{ minWidth: '2.2rem' }}
+                    >
+                      {isPicked(p) ? '✓' : p.itemNo}
+                    </span>
+                    <span>
+                      <span className="fw-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
+                      {p.partName && <span className="d-block small text-muted">{p.partName}</span>}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* The tray. Always visible once something is picked, so the button that
           finishes the job is in one place regardless of how you got here. */}
       {picked.length > 0 && (

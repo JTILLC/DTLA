@@ -19,7 +19,13 @@ import { useEffect, useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { fetchDiagram, fetchDiagramImage } from '../config/parts.js';
 
-export default function PartDiagramViewer({ diagramId, partItemNo, partLabel, onClose }) {
+export default function PartDiagramViewer({
+  diagramId,
+  partItemNo,          // the primary part's balloon number
+  partItemNos,         // every part from this replacement, when there is more than one
+  partLabel,
+  onClose,
+}) {
   const [meta, setMeta] = useState(null);
   const [src, setSrc] = useState('');
   const [error, setError] = useState('');
@@ -51,11 +57,18 @@ export default function PartDiagramViewer({ diagramId, partItemNo, partLabel, on
     };
   }, [diagramId]);
 
-  // Every hotspot for this part. A part can be balloned more than once on one
-  // drawing, so ring them all rather than picking arbitrarily.
-  const spots = (meta?.hotspots || []).filter(
-    (h) => String(h.partNumber) === String(partItemNo)
+  // Every hotspot for every part on this replacement. A repair is often several
+  // parts, and ringing only the first left the rest invisible on the drawing
+  // they were picked from.
+  //
+  // A part can also be balloned more than once on one drawing, so all of its
+  // hotspots are ringed rather than an arbitrary first.
+  const wanted = new Set(
+    (partItemNos && partItemNos.length ? partItemNos : [partItemNo])
+      .filter((n) => n !== undefined && n !== null && n !== '')
+      .map(String)
   );
+  const spots = (meta?.hotspots || []).filter((h) => wanted.has(String(h.partNumber)));
 
   return (
     <div
@@ -128,7 +141,7 @@ export default function PartDiagramViewer({ diagramId, partItemNo, partLabel, on
       <div className="text-center text-white-50 small py-2 px-3">
         {spots.length === 0 && meta
           ? 'This part isn’t balloned on this drawing — showing the full view.'
-          : `Ringed in red${spots.length > 1 ? ` (${spots.length} places)` : ''}.`}
+          : `Ringed in red${spots.length > 1 ? ` — ${spots.length} marked` : ''}.`}
       </div>
     </div>
   );

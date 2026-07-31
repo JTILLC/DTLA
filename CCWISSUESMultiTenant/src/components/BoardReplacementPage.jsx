@@ -295,7 +295,15 @@ export default function BoardReplacementPage({
         <PartDiagramViewer
           diagramId={diagramEntry.partDiagramId}
           partItemNo={diagramEntry.partItemNo}
-          partLabel={diagramEntry.partNumber}
+          // A past entry can hold several parts; ring the ones on this drawing.
+          partItemNos={(diagramEntry.parts || [])
+            .filter((p) => p.diagramId === diagramEntry.partDiagramId)
+            .map((p) => p.itemNo)}
+          partLabel={
+            (diagramEntry.parts || []).length > 1
+              ? `${diagramEntry.partNumber} + ${diagramEntry.parts.length - 1} more`
+              : diagramEntry.partNumber
+          }
           onClose={() => setDiagramEntry(null)}
         />
       )}
