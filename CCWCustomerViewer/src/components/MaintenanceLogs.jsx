@@ -203,6 +203,10 @@ export default function MaintenanceLogs({ shareData }) {
                             {/* The number identifies it; the name is what the
                                 customer actually recognises on their own log. */}
                             {e.partName ? ` (${e.partName})` : ''}
+                            {/* Further parts replaced in the same job. */}
+                            {Array.isArray(e.parts) && e.parts.length > 1
+                              ? ` + ${e.parts.length - 1} more part${e.parts.length - 1 === 1 ? '' : 's'}`
+                              : ''}
                             {e.serialRemoved ? ` · out ${e.serialRemoved}` : ''}
                             {e.serialInstalled ? ` · in ${e.serialInstalled}` : ''}
                           </div>

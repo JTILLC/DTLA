@@ -13,18 +13,22 @@
 // Two ways to land on a part, because operators arrive from both directions:
 // pick a drawing and tap a balloon, or search the parts list and jump to where
 // that part sits on its drawing.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff, List } from 'lucide-react';
 import { fetchDiagrams, fetchDiagram, fetchDiagramImage, searchParts } from '../config/parts.js';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
+  // A repair is rarely one part — a board comes with its gasket and its screws.
+  // Picks accumulate in a tray so the whole job is captured in one trip through
+  // the manual instead of reopening it per part.
+  const [picked, setPicked] = useState([]);
   const [diagrams, setDiagrams] = useState(null);
   const [error, setError] = useState('');
   const [current, setCurrent] = useState(null);      // { id, name }
   const [meta, setMeta] = useState(null);            // hotspots
   const [src, setSrc] = useState('');
   const [zoom, setZoom] = useState(false);
-  const [box, setBox] = useState(null);
+
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(null);  // itemNo arrived at via search
   // Balloons cover the very detail you are trying to read. Hiding them is the
@@ -33,7 +37,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   // Some parts are easier to find by reading the list than by hunting a balloon
   // on a dense assembly — especially the ones drawn small or overlapping.
   const [showList, setShowList] = useState(false);
-  const imgRef = useRef(null);
+
 
   // Drawings for this machine.
   useEffect(() => {
@@ -75,24 +79,6 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
     };
   }, [current?.id]);
 
-  // `object-fit: contain` letterboxes, so the marker layer has to follow the
-  // rendered image rect rather than its container.
-  const measure = () => {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth) return;
-    const r = img.getBoundingClientRect();
-    const scale = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
-    const w = img.naturalWidth * scale;
-    const h = img.naturalHeight * scale;
-    setBox({ left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h });
-  };
-
-  useEffect(() => {
-    if (!src) return undefined;
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [src, zoom]);
-
   // Parts on THIS drawing, keyed by the balloon number the hotspot carries.
   const partsHere = useMemo(() => {
     const m = new Map();
@@ -120,8 +106,21 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
     setCurrent(d || { id: p.diagramId, name: p.diagramName || 'Drawing' });
   };
 
-  const take = (p) => {
-    onPick(p);
+  const keyOf = (p) => `${p.diagramId}|${p.itemNo}|${p.partCode}`;
+  const isPicked = (p) => picked.some((x) => keyOf(x) === keyOf(p));
+
+  const toggle = (p) => setPicked((prev) => (
+    prev.some((x) => keyOf(x) === keyOf(p))
+      ? prev.filter((x) => keyOf(x) !== keyOf(p))
+      : [...prev, p]
+  ));
+
+  // One part is still one tap plus Use. Keeping the tray for the single case as
+  // well means the button is always in the same place, rather than the first
+  // tap doing something different depending on how many you end up needing.
+  const commit = () => {
+    if (picked.length === 0) return;
+    onPick(picked);
     onClose();
   };
 
@@ -221,8 +220,12 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                 <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => jumpTo(p)}>
                   Show
                 </button>
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => take(p)}>
-                  Use
+                <button
+                  type="button"
+                  className={'btn btn-sm ' + (isPicked(p) ? 'btn-success' : 'btn-primary')}
+                  onClick={() => toggle(p)}
+                >
+                  {isPicked(p) ? 'Added' : 'Add'}
                 </button>
               </div>
             ))}
@@ -259,111 +262,97 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           >
             {!src && !error && <div className="text-white-50 p-3">Loading the drawing…</div>}
             {src && (
-              <img
-                ref={imgRef}
-                src={src}
-                alt={current?.name || 'Parts diagram'}
-                onLoad={measure}
-                style={zoom
-                  ? { display: 'block', maxWidth: 'none', width: 'auto' }
-                  : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
-              />
-            )}
+              <span style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+                <img
+                  src={src}
+                  alt={current?.name || 'Parts diagram'}
+                  style={zoom
+                    ? { display: 'block', maxWidth: 'none', width: 'auto' }
+                    : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+                />
 
-            {/* Tappable balloons. 44px targets — this is used on a phone at a
-                machine, not with a mouse. */}
-            {/* Parts on this drawing. Slides over the image rather than beside
-                it — on a phone there is no room for two columns, and the list
-                is a way to FIND the part, not to compare against the drawing. */}
-            {showList && (
-              <div
-                className="position-fixed bg-body border-top shadow-lg"
-                style={{ left: 0, right: 0, bottom: 0, maxHeight: '55vh', overflowY: 'auto', zIndex: 3210 }}
-              >
-                <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom sticky-top bg-body">
-                  <strong>Parts on {current?.name || 'this drawing'}</strong>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-secondary"
-                    onClick={() => setShowList(false)}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-                {listHere.length === 0 ? (
-                  <div className="text-muted p-3">No parts listed for this drawing.</div>
-                ) : (
-                  <div className="list-group list-group-flush">
-                    {listHere.map((p) => (
-                      <button
-                        key={`${p.itemNo}-${p.partCode}`}
-                        type="button"
-                        className="list-group-item list-group-item-action py-2"
-                        onClick={() => take(p)}
-                      >
-                        <div className="d-flex gap-2">
-                          <span className="badge bg-secondary flex-shrink-0" style={{ minWidth: '2.2rem' }}>
-                            {p.itemNo}
-                          </span>
-                          <span>
-                            <span className="fw-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
-                            {p.partName && <span className="d-block small text-muted">{p.partName}</span>}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                {/* Balloons sit inside the image's own box, offset by percent, so
+                    they track it through letterboxing, resize, zoom and scroll.
+                    They were previously positioned against the viewport, which
+                    left them behind the moment the drawing scrolled. */}
+                {showSpots && (meta?.hotspots || []).map((h) => {
+                  const p = partsHere.get(String(h.partNumber));
+                  const isHit = highlight && String(h.partNumber) === highlight;
+                  const chosen = p && isPicked(p);
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      title={p ? `${p.partCode || ''} ${p.partName || ''}`.trim() : `Item ${h.partNumber}`}
+                      onClick={() => (p ? toggle(p) : null)}
+                      disabled={!p}
+                      style={{
+                        position: 'absolute',
+                        left: `${h.x}%`,
+                        top: `${h.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '44px', height: '44px',
+                        borderRadius: '50%',
+                        border: chosen
+                          ? '3px solid #198754'
+                          : isHit ? '3px solid #ff3b30' : '2px solid rgba(13,110,253,0.9)',
+                        background: chosen
+                          ? 'rgba(25,135,84,0.35)'
+                          : isHit ? 'rgba(255,59,48,0.25)' : 'rgba(13,110,253,0.18)',
+                        boxShadow: isHit ? '0 0 0 3px rgba(255,255,255,0.85)' : 'none',
+                        cursor: p ? 'pointer' : 'default',
+                        padding: 0,
+                      }}
+                    >
+                      <span className="visually-hidden">
+                        {p ? `${chosen ? 'Remove' : 'Add'} ${p.partCode || p.partName}` : `Item ${h.partNumber}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </span>
             )}
-
-            {src && box && !zoom && (meta?.hotspots || []).map((h) => {
-              const p = partsHere.get(String(h.partNumber));
-              const isHit = highlight && String(h.partNumber) === highlight;
-              // Hiding keeps the one part you searched for ringed — that is the
-              // thing you opened the drawing to find.
-              if (!showSpots && !isHit) return null;
-              return (
-                <button
-                  key={h.id}
-                  type="button"
-                  title={p ? `${p.partCode || ''} ${p.partName || ''}`.trim() : `Item ${h.partNumber}`}
-                  onClick={() => (p ? take(p) : null)}
-                  disabled={!p}
-                  style={{
-                    position: 'fixed',
-                    left: box.left + (h.x / 100) * box.width,
-                    top: box.top + (h.y / 100) * box.height,
-                    width: '44px', height: '44px', marginLeft: '-22px', marginTop: '-22px',
-                    borderRadius: '50%',
-                    border: isHit ? '3px solid #ff3b30' : '2px solid rgba(13,110,253,0.9)',
-                    background: isHit ? 'rgba(255,59,48,0.25)' : 'rgba(13,110,253,0.18)',
-                    boxShadow: isHit ? '0 0 0 3px rgba(255,255,255,0.85)' : 'none',
-                    cursor: p ? 'pointer' : 'default',
-                    padding: 0,
-                  }}
-                >
-                  <span className="visually-hidden">
-                    {p ? `Use ${p.partCode || p.partName}` : `Item ${h.partNumber}`}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         )}
       </div>
 
+      {/* The tray. Always visible once something is picked, so the button that
+          finishes the job is in one place regardless of how you got here. */}
+      {picked.length > 0 && (
+        <div className="bg-body border-top px-3 py-2">
+          <div className="d-flex flex-wrap gap-1 mb-2" style={{ maxHeight: '90px', overflowY: 'auto' }}>
+            {picked.map((p) => (
+              <button
+                key={keyOf(p)}
+                type="button"
+                className="badge bg-success border-0"
+                onClick={() => toggle(p)}
+                title="Remove"
+              >
+                {p.partCode || `Item ${p.itemNo}`} ✕
+              </button>
+            ))}
+          </div>
+          <div className="d-flex gap-2">
+            <button type="button" className="btn btn-sm btn-primary" onClick={commit}>
+              Use {picked.length} part{picked.length === 1 ? '' : 's'}
+            </button>
+            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setPicked([])}>
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="text-center text-white-50 small py-2 px-3">
         {query.trim().length >= 2
-          ? 'Use adds the part to the entry. Show opens it on its drawing.'
+          ? 'Add collects parts. Show opens one on its drawing.'
           : listOfDrawings
-          ? 'Pick a drawing, then tap the part you replaced.'
-          : zoom
-          ? 'Scroll to move around. Tap the zoom button to fit and tap parts.'
+          ? 'Pick a drawing, then tap the parts you replaced.'
           : showList
-          ? 'Tap a part to use it.'
+          ? 'Tap parts to collect them, then Use.'
           : showSpots
-          ? 'Tap a marked part to use it, or the list button to pick from a list.'
+          ? 'Tap marked parts to collect them — more than one is fine.'
           : 'Markers hidden — tap the eye button to bring them back.'}
       </div>
     </div>

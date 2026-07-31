@@ -87,6 +87,8 @@ export default function BoardReplacementPage({
   const [editingBindings, setEditingBindings] = useState(false);
   // The manual entry confirmed for the part currently typed, if any.
   const [pickedPart, setPickedPart] = useState(null);
+  // Further parts on the same replacement — a board plus its gasket and screws.
+  const [extraParts, setExtraParts] = useState([]);
   // A past entry whose drawing is being viewed.
   const [diagramEntry, setDiagramEntry] = useState(null);
 
@@ -158,6 +160,7 @@ export default function BoardReplacementPage({
         }
       : BLANK);
     setPickedPart(null);
+    setExtraParts([]);
     setAdding(true);
   };
 
@@ -199,6 +202,15 @@ export default function BoardReplacementPage({
         partDiagramId: pickedPart?.diagramId || '',
         partDiagramName: pickedPart?.diagramName || '',
         partVerified: !!pickedPart,
+        // Everything replaced in this one job. The single fields above stay the
+        // primary part so existing screens and exports keep working unchanged.
+        parts: [pickedPart, ...extraParts].filter(Boolean).map((p) => ({
+          partNumber: p.partCode || String(p.itemNo || ''),
+          partName: p.partName || '',
+          itemNo: p.itemNo || '',
+          diagramId: p.diagramId || '',
+          diagramName: p.diagramName || '',
+        })),
         reason: form.reason.trim(),
         notes: form.notes.trim(),
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
@@ -210,6 +222,7 @@ export default function BoardReplacementPage({
       });
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
       setPickedPart(null);
+      setExtraParts([]);
       setAdding(false);
       toast.success('Board replacement logged');
     } catch (err) {
@@ -415,6 +428,8 @@ export default function BoardReplacementPage({
                 onChange={(v) => set('partNumber', v)}
                 onPick={setPickedPart}
                 picked={pickedPart}
+                extras={extraParts}
+                onExtras={setExtraParts}
               />
             </div>
 
@@ -508,6 +523,9 @@ export default function BoardReplacementPage({
                           {/* The number identifies it; the name is what anyone
                               reading the log a month later actually recognises. */}
                           {e.partName && <> — {e.partName}</>}
+                          {Array.isArray(e.parts) && e.parts.length > 1 && (
+                            <> + {e.parts.length - 1} more</>
+                          )}
                           {e.partVerified
                             ? <span className="badge bg-success ms-1" title={e.partName || 'Confirmed against the parts manual'}>✓ manual</span>
                             : <span className="badge bg-secondary ms-1" title="Typed in, not checked against a parts manual">unverified</span>}
