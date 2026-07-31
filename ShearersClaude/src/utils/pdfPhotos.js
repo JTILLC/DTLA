@@ -10,7 +10,14 @@
 //
 // Failures are non-fatal by design. A photo that has been deleted from Storage,
 // or a phone that drops signal mid-export, must not cost you the whole report —
-// the missing ones are counted and stated in the PDF instead.
+// the missing ones are counted and NAMED in the PDF instead, with the reason.
+//
+// There are two independent ways to get the pixels, and this tries both:
+// fetch() then draw, and failing that an <img> pointed straight at the URL.
+// They fail differently — fetch can be blocked by a proxy, an extension or a
+// content blocker that an ordinary image load sails past, and a large photo
+// that stalls one may still stream through the other. Trying only the first
+// meant a photo that the phone could display was still missing from the report.
 
 const THUMB_MAX = 320;          // px on the long edge
 const JPEG_QUALITY = 0.7;
@@ -22,6 +29,9 @@ const JPEG_QUALITY = 0.7;
 // slower and far more likely to finish.
 const CONCURRENCY = 4;
 const ATTEMPTS = 3;
+// Long enough for a big photo on plant wifi, short enough that one bad file
+// cannot hold the whole report hostage.
+const TIMEOUT_MS = 20000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -41,66 +51,107 @@ function linkProblem(url) {
   return null;
 }
 
-// Fetch → downscale → data URL. Returns { failed, why } if the photo can't be had.
+// A loaded image → a downscaled JPEG data URL.
+// Throws only if the canvas is tainted, which means the pixels are readable on
+// screen but not extractable — a CORS failure by another name.
+function drawThumb(img) {
+  const scale = Math.min(1, THUMB_MAX / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  return { dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY), w: canvas.width, h: canvas.height };
+}
+
+const decode = (src, { crossOrigin } = {}) => new Promise((resolve) => {
+  const img = new Image();
+  if (crossOrigin) img.crossOrigin = 'anonymous';
+  let timer;
+  const finish = (v) => { clearTimeout(timer); img.onload = null; img.onerror = null; resolve(v); };
+  timer = setTimeout(() => finish({ failed: true, why: 'timed out decoding' }), TIMEOUT_MS);
+  img.onload = () => {
+    try { finish(drawThumb(img)); }
+    catch { finish({ failed: true, why: 'blocked by the browser (CORS)' }); }
+  };
+  img.onerror = () => finish({ failed: true, why: 'not a readable image' });
+  img.src = src;
+});
+
+// Route one: download the bytes, then decode them.
+async function viaFetch(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, { mode: 'cors', signal: ctrl.signal });
+  } catch (err) {
+    clearTimeout(timer);
+    // An abort is a stall, not a refusal, and a huge old photo on a weak
+    // connection is the likeliest cause — worth saying so rather than blaming
+    // the network in general.
+    const why = err?.name === 'AbortError'
+      ? `too slow to download in ${TIMEOUT_MS / 1000}s`
+      : `no response from ${hostOf(url)}`;
+    return { failed: true, why, retryable: true };
+  }
+  if (!res.ok) {
+    clearTimeout(timer);
+    // 404 means the file is gone from Storage while the log still points at it;
+    // 403 means it is there but the link no longer authorises. Different
+    // problems, so the report says which rather than "could not be loaded".
+    return {
+      failed: true,
+      why: res.status === 404 ? 'file no longer in storage' : `refused (${res.status})`,
+      retryable: res.status >= 500,
+    };
+  }
+  let blob;
+  try {
+    blob = await res.blob();
+  } catch {
+    clearTimeout(timer);
+    // The server answered and then the body failed. That is a different fault
+    // from never connecting — it points at a truncated or corrupt object.
+    return { failed: true, why: 'download started but did not finish', retryable: true };
+  }
+  clearTimeout(timer);
+  if (!blob.size) return { failed: true, why: 'the stored file is empty' };
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    return await decode(objectUrl);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+// Fetch → downscale → data URL, with an image load as a second route.
 //
-// Retries with a growing pause rather than immediately: the failure this guards
-// against is a congested network, and an instant retry rejoins the same burst
-// that just failed. The reason is reported so "1 photo could not be loaded" can
-// be chased down instead of remaining a mystery in the footer.
+// Retries with a growing pause rather than immediately: an instant retry
+// rejoins the same congestion that just failed.
 export async function photoToThumb(url, attempt = 0) {
   const bad = linkProblem(url);
   if (bad) return { failed: true, why: bad };      // no point retrying a bad link
-  try {
-    const res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) {
-      if (res.status >= 500 && attempt < ATTEMPTS - 1) {
-        await sleep(400 * (attempt + 1));
-        return photoToThumb(url, attempt + 1);
-      }
-      console.warn(`[pdf] photo unavailable (${res.status}):`, url);
-      // 404 means the file is gone from Storage while the log still points at
-      // it; 403 means it is there but the link no longer authorises. Different
-      // problems, so the report says which rather than "could not be loaded".
-      return { failed: true, why: res.status === 404 ? 'file no longer in storage' : `refused (${res.status})` };
-    }
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(blob);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const scale = Math.min(1, THUMB_MAX / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        try {
-          resolve({
-            dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY),
-            w: canvas.width,
-            h: canvas.height,
-          });
-        } catch {
-          resolve({ failed: true, why: 'blocked by the browser (CORS)' });
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        console.warn('[pdf] photo downloaded but could not be decoded:', url);
-        resolve({ failed: true, why: 'downloaded but not a readable image' });
-      };
-      img.src = objectUrl;
-    });
-  } catch (err) {
-    if (attempt < ATTEMPTS - 1) {
-      await sleep(400 * (attempt + 1));             // let the network settle
-      return photoToThumb(url, attempt + 1);
-    }
-    console.warn('[pdf] photo could not be fetched:', url, err?.message || err);
-    // Naming the host distinguishes "the network dropped it" from "this link
-    // points somewhere unexpected", which the reason alone cannot.
-    return { failed: true, why: `network dropped it after ${ATTEMPTS} tries (${hostOf(url)})` };
+
+  const first = await viaFetch(url);
+  if (!first.failed) return first;
+
+  if (first.retryable && attempt < ATTEMPTS - 1) {
+    await sleep(400 * (attempt + 1));
+    return photoToThumb(url, attempt + 1);
   }
+
+  // Second route. No fetch involved, so it is not subject to whatever stopped
+  // the first — and when it works, the photo makes the report instead of an
+  // apology. Only worth trying for a fault that could be transport-specific.
+  if (first.retryable) {
+    const second = await decode(url, { crossOrigin: true });
+    if (!second.failed) return second;
+    console.warn('[pdf] both routes failed:', url, first.why, '/', second.why);
+    return { failed: true, why: `${first.why}; image load also failed (${second.why})` };
+  }
+
+  console.warn('[pdf] photo unavailable:', url, first.why);
+  return { failed: true, why: first.why };
 }
 
 // Fetch a batch concurrently, preserving order. `cap` bounds how many photos a
