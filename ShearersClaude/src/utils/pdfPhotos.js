@@ -16,10 +16,19 @@ const THUMB_MAX = 320;          // px on the long edge
 const JPEG_QUALITY = 0.7;
 
 // Fetch → downscale → data URL. Returns null if the photo can't be had.
-export async function photoToThumb(url) {
+//
+// One retry, because the common failure on a plant network is a single dropped
+// request rather than a genuinely missing file. The URL is logged when it does
+// fail, so "1 photo could not be loaded" can actually be chased down instead of
+// remaining a mystery in the footer.
+export async function photoToThumb(url, attempt = 0) {
   try {
     const res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status >= 500 && attempt === 0) return photoToThumb(url, 1);
+      console.warn(`[pdf] photo unavailable (${res.status}):`, url);
+      return null;
+    }
     const blob = await res.blob();
     return await new Promise((resolve) => {
       const img = new Image();
@@ -41,10 +50,18 @@ export async function photoToThumb(url) {
           resolve(null);        // tainted canvas — treat as unavailable
         }
       };
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        // Fetched fine but won't decode — a HEIC that slipped through, or a
+        // truncated upload. Retrying will not help, so say which one.
+        console.warn('[pdf] photo downloaded but could not be decoded:', url);
+        resolve(null);
+      };
       img.src = objectUrl;
     });
-  } catch {
+  } catch (err) {
+    if (attempt === 0) return photoToThumb(url, 1);   // transient network blip
+    console.warn('[pdf] photo could not be fetched:', url, err?.message || err);
     return null;
   }
 }

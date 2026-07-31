@@ -167,25 +167,28 @@ export default function Navigation({ children, onLogout }) {
 
       {/* ----- MAIN CONTENT ----- */}
       <main className="flex-1 overflow-y-auto lg:ml-64">
-        {/* Extra bottom padding on mobile so the fixed bottom nav bar doesn't
-            cover page content when scrolled to the bottom. */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6">
+        {/* Clearance for the fixed bottom bar. Trimmed with it: pb-24 was sized
+            for the two-row bar the 7th item forced. */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-6">
           {children}
         </div>
       </main>
 
       {/* ----- MOBILE BOTTOM BAR ----- */}
+      {/* A fixed 6-column grid with 7 destinations wrapped onto a second row and
+          doubled the bar's height. A scrolling strip holds one row at any count:
+          swipe sideways for the rest, and adding an eighth page costs nothing. */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40">
-        <div className="grid grid-cols-6">
+        <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory">
           {navItems.map(item => (
             <Link
               key={item.to}
               to={item.to}
-              className={`flex flex-col items-center py-2 text-xs font-medium transition-colors ${
+              className={`flex flex-col items-center shrink-0 snap-start basis-1/5 py-1.5 text-[11px] leading-tight font-medium transition-colors ${
                 location.pathname === item.to ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'
               }`}
             >
-              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {item.icon === 'home' && <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />}
                 {item.icon === 'list' && <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />}
                 {item.icon === 'chart-bar' && <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0v-6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 9v-2a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2zm10 0v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2z" />}
