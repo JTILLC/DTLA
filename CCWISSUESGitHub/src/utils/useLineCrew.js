@@ -21,17 +21,22 @@ export function useLineCrew(workspaceId, customerId) {
   return {
     lines: doc.lines || {},
     updatedAt: doc.updatedAt || null,
+    // Which crewLog entry this crewing came from. Stamped on work logged while
+    // it stands, so an entry can be traced back to the whole shift's crewing,
+    // not just the three names copied onto it.
+    shiftId: doc.shiftId || null,
     forLine: (title) => ({ ...EMPTY, ...((doc.lines || {})[title] || {}) }),
   };
 }
 
-// shiftId is reserved: entries are stamped with names now, and grouping them
-// into shift records later must not require rewriting anything already logged.
-export const crewStamp = (crew) => ({
+// Names AND the crewing they came from. The names make an entry readable on its
+// own; the shiftId lets it be traced back to the crewing in force at the time,
+// which survives the next shift overwriting it.
+export const crewStamp = (crew, shiftId = null) => ({
   operator: crew?.operator || '',
   tech: crew?.tech || '',
   supervisor: crew?.supervisor || '',
-  shiftId: null,
+  shiftId,
 });
 
 // A crew set two days ago is probably last shift's. Say so rather than stamping

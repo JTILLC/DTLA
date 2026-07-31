@@ -9,12 +9,18 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
   // read-only and a customer looking at yesterday's visit does not need the
   // roster to update under them.
   const [lineCrew, setLineCrew] = useState({});
+  const [crewUpdatedAt, setCrewUpdatedAt] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!shareData?.userId || !shareData?.customerId) return undefined;
     getDoc(doc(db, 'user_files', shareData.userId, 'customers', shareData.customerId, 'config', 'lineCrew'))
-      .then((snap) => { if (!cancelled) setLineCrew(snap.exists() ? (snap.data().lines || {}) : {}); })
+      .then((snap) => {
+        if (cancelled) return;
+        const d = snap.exists() ? snap.data() : {};
+        setLineCrew(d.lines || {});
+        setCrewUpdatedAt(d.updatedAt || null);
+      })
       .catch((err) => { console.warn('line crew load failed:', err?.message || err); });
     return () => { cancelled = true; };
   }, [shareData?.userId, shareData?.customerId]);
@@ -109,7 +115,16 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
         <div key={`${visitName}-${line.id}`} className="mb-4">
           <h6 className="text-primary mb-1">{line.title}</h6>
           {crewFor(line.title) && (
-            <div className="small text-muted mb-2">Running: {crewFor(line.title)}</div>
+            <div className="small text-muted mb-2">
+              Running: {crewFor(line.title)}
+              {/* A crewing older than a shift is probably last shift's. Showing
+                  it as current would be a confident lie. */}
+              {crewUpdatedAt && (Date.now() - new Date(crewUpdatedAt).getTime()) > 16 * 3600000 && (
+                <span className="text-warning-emphasis">
+                  {' '}⚠ crewing last set {new Date(crewUpdatedAt).toLocaleDateString()}
+                </span>
+              )}
+            </div>
           )}
           {line.notes && (
             <p className="text-muted small mb-2">
