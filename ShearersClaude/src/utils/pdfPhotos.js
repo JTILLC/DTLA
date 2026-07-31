@@ -102,13 +102,30 @@ const decode = (src, { crossOrigin } = {}) => new Promise((resolve) => {
   img.src = src;
 });
 
+// A URL the browser cannot possibly have cached under a different set of rules.
+//
+// This is the fix for the failure that took four rounds to find. The app
+// displays photos with a plain <img>, which caches an OPAQUE response — one
+// with no CORS headers, because a plain image load never needed them. When the
+// export later asks for the same URL with CORS, the browser can answer from
+// that cached opaque copy, and the CORS check fails against a response that
+// never carried the header. The photo you had just looked at was the one that
+// would not embed, while photos you had not opened fetched cleanly.
+//
+// Extra query parameters are ignored by Firebase Storage, which keys on the
+// path and token, so this changes the cache entry and nothing else.
+const bust = (url) => `${url}${url.includes('?') ? '&' : '?'}_pdf=${Date.now()}`;
+
 // Route one: download the bytes, then decode them.
 async function viaFetch(url) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(url, { mode: 'cors', signal: ctrl.signal });
+    // `reload` refuses the cache outright and goes to the network, which is
+    // belt and braces alongside the busted URL: either alone fixes the opaque
+    // hit, and neither costs anything on a photo that was never cached.
+    res = await fetch(url, { mode: 'cors', cache: 'reload', signal: ctrl.signal });
   } catch (err) {
     clearTimeout(timer);
     // An abort is a stall, not a refusal, and a huge old photo on a weak
@@ -157,8 +174,17 @@ export async function photoToThumb(url, attempt = 0) {
   const bad = linkProblem(url);
   if (bad) return { failed: true, why: bad };      // no point retrying a bad link
 
-  const first = await viaFetch(url);
+  let first = await viaFetch(url);
   if (!first.failed) return first;
+
+  // Same request, under a URL the cache has never seen. `cache: 'reload'`
+  // should already have prevented an opaque hit, but a cached entry is not the
+  // only thing keyed by URL — this also sidesteps a stale negative result.
+  if (first.retryable) {
+    const retried = await viaFetch(bust(url));
+    if (!retried.failed) return retried;
+    first = retried;
+  }
 
   if (first.retryable && attempt < ATTEMPTS - 1) {
     await sleep(400 * (attempt + 1));
@@ -169,7 +195,10 @@ export async function photoToThumb(url, attempt = 0) {
   // the first — and when it works, the photo makes the report instead of an
   // apology. Only worth trying for a fault that could be transport-specific.
   if (first.retryable) {
-    const second = await decode(url, { crossOrigin: true });
+    // Busted here too: a crossOrigin <img> reads the same cache a plain <img>
+    // wrote, so pointing it at the original URL would hit the same opaque entry
+    // that just defeated fetch.
+    const second = await decode(bust(url), { crossOrigin: true });
     if (!second.failed) return second;
 
     // Both routes are gone, and both of them need CORS. A plain <img> does not
