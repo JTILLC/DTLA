@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff, List } from 'lucide-react';
 import { partsApi, searchParts } from './partsApi.js';
+import { manualQty } from '../../utils/partLines.js';
 import './parts-ui.css';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
@@ -249,6 +250,10 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                   <div className="pui-small pui-text-muted">
                     {p.partName || 'Unnamed part'}
                     {p.itemNo ? ` · item ${p.itemNo}` : ''}
+                    {/* How many the drawing carries. Worth knowing BEFORE
+                        adding a part: it is the difference between one screw
+                        and the ten that hold the same cover on. */}
+                    {manualQty(p) ? ` · qty ${manualQty(p)}` : ''}
                     {p.diagramName ? ` · ${p.diagramName}` : ''}
                   </div>
                 </div>
@@ -452,7 +457,16 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                     </span>
                     <span>
                       <span className="pui-fw-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
-                      {p.partName && <span className="pui-d-block pui-small pui-text-muted">{p.partName}</span>}
+                      {/* The drawing's count, on the same line as the name:
+                          this is the list people pick from, so it is where
+                          "there are ten of these" needs to be said. */}
+                      {(p.partName || manualQty(p)) && (
+                        <span className="pui-d-block pui-small pui-text-muted">
+                          {p.partName || ''}
+                          {p.partName && manualQty(p) ? ' · ' : ''}
+                          {manualQty(p) ? `qty ${manualQty(p)}` : ''}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </button>
