@@ -57,6 +57,7 @@ import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
 import SpanAdjustPage from './components/SpanAdjustPage.jsx';
 import BoardReplacementPage from './components/BoardReplacementPage.jsx';
 import PmLogPage from './components/PmLogPage.jsx';
+import CrewPage from './components/CrewPage.jsx';
 import { lineStatusKey, scaffoldLinesFrom } from './utils/headHelpers.js';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
@@ -3612,6 +3613,17 @@ const AppContent = () => {
               role="jti"
               canEditTemplate
               canSubmit={false}
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="crew" title="Crew">
+          <div className="tab-content p-3">
+            <CrewPage
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
             />
           </div>
         </Tab>

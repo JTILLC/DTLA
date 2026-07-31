@@ -22,9 +22,9 @@ import {
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import WeightScanner from './WeightScanner.jsx';
-import CrewBar from './CrewBar.jsx';
 import CrewLine from './CrewLine.jsx';
-import { useShiftCrew, crewStamp } from '../utils/useShiftCrew.js';
+import CrewChip from './CrewChip.jsx';
+import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 const LAST_LINE_KEY = 'ccw-span-last-line';
@@ -39,7 +39,7 @@ export default function SpanAdjustPage({
 }) {
   const toast = useToast();
   const dialog = useDialog();
-  const { crew } = useShiftCrew(customerId);
+  const lineCrew = useLineCrew(workspaceId, customerId);
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);   // line title
   const [rows, setRows] = useState([]);             // [{head, currentWeight, spanWeight}]
@@ -161,7 +161,7 @@ export default function SpanAdjustPage({
         model: line?.model || '',
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
-        ...crewStamp(crew),
+        ...crewStamp(lineCrew.forLine(selected)),
         notes: notes.trim(),
         heads,
         confirmed: false,
@@ -228,7 +228,6 @@ export default function SpanAdjustPage({
 
     return (
       <div>
-        <CrewBar workspaceId={workspaceId} customerId={customerId} />
         <h5 className="d-flex align-items-center gap-2 mb-3">
           <ClipboardCheck size={18} /> Span Adjustments{customerName ? ` — ${customerName}` : ''}
         </h5>
@@ -416,6 +415,7 @@ export default function SpanAdjustPage({
               </span>
             )}
           </div>
+          <CrewChip lineCrew={lineCrew} lineTitle={selected} />
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : `Log span adjustment for ${selected}`}
           </button>

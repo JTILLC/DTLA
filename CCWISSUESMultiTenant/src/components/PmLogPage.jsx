@@ -23,9 +23,9 @@ import {
 import ReferenceImage from './ReferenceImage.jsx';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
-import CrewBar from './CrewBar.jsx';
 import CrewLine from './CrewLine.jsx';
-import { useShiftCrew, crewStamp } from '../utils/useShiftCrew.js';
+import CrewChip from './CrewChip.jsx';
+import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 
 const RESULTS = [
@@ -69,7 +69,7 @@ export default function PmLogPage({
   canSubmit = true,
 }) {
   const toast = useToast();
-  const { crew } = useShiftCrew(customerId);
+  const lineCrew = useLineCrew(workspaceId, customerId);
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [template, setTemplate] = useState(null);
@@ -135,7 +135,7 @@ export default function PmLogPage({
       await addLogEntry(workspaceId, customerId, LOG_PM, {
         lineTitle: lineTitle || null,
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
-        ...crewStamp(crew),
+        ...crewStamp(lineCrew.forLine(lineTitle)),
         role,
         notes: notes.trim(),
         items,
@@ -441,6 +441,7 @@ export default function PmLogPage({
                 <span className="input-group-text">days</span>
               </div>
             </div>
+            <CrewChip lineCrew={lineCrew} lineTitle={lineTitle} />
             <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
               {saving ? 'Submitting…' : 'Submit PM check'}
             </button>
@@ -453,8 +454,6 @@ export default function PmLogPage({
   // ---- Home: status + history --------------------------------------------
   return (
     <div>
-      <CrewBar workspaceId={workspaceId} customerId={customerId} />
-
       <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h5 className="d-flex align-items-center gap-2 mb-0">
           <ClipboardList size={18} /> Preventative Maintenance{customerName ? ` — ${customerName}` : ''}

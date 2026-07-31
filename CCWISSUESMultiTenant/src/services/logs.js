@@ -177,6 +177,41 @@ export async function saveCrew(workspaceId, customerId, people) {
   });
 }
 
+// ---- Line crewing ----------------------------------------------------------
+// Who is on which line this shift. Stored per customer rather than per device:
+// designating a line is a statement about the plant, not about the tablet you
+// happen to be holding, and a supervisor setting it once should reach every
+// device on the floor.
+//
+// Shape: { lines: { [lineTitle]: { operator, tech, supervisor } }, updatedAt }
+//
+// Names are copied onto each log entry at the moment it is saved. Re-crewing a
+// line therefore never rewrites what was already logged — the entry keeps the
+// crew that was on when the work was done.
+export function subscribeLineCrew(workspaceId, customerId, cb) {
+  if (!workspaceId || !customerId) return () => {};
+  return configDoc(workspaceId, customerId, 'lineCrew').onSnapshot(
+    (snap) => cb(snap.exists ? (snap.data() || { lines: {} }) : { lines: {} }),
+    (err) => { console.error('line crew subscription failed:', err); cb({ lines: {} }); }
+  );
+}
+
+export async function saveLineCrew(workspaceId, customerId, lines) {
+  const cleaned = {};
+  for (const [title, c] of Object.entries(lines || {})) {
+    const entry = {
+      operator: (c?.operator || '').trim(),
+      tech: (c?.tech || '').trim(),
+      supervisor: (c?.supervisor || '').trim(),
+    };
+    if (entry.operator || entry.tech || entry.supervisor) cleaned[title] = entry;
+  }
+  await configDoc(workspaceId, customerId, 'lineCrew').set({
+    lines: cleaned,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // ---- Parts-manual bindings -------------------------------------------------
 // Which machine in the Parts Viewer catalog a line's parts come from, keyed by
 // line title (the same key the span and board logs use).
