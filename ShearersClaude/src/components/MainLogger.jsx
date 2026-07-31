@@ -870,8 +870,8 @@ export default function MainLogger({ data, setData }) {
                       ? `Qty ${p.qty} of ${p.manualQty}`
                       : `Qty ${p.qty}`,
                   ].filter(Boolean).join('\n'))
-                  .join('\n\n')
-                + (e.partNumber ? (e.partVerified ? '\n\n[checked against manual]' : '\n\n[unverified]') : '')
+                  .join('\n')
+                + (e.partNumber ? (e.partVerified ? '\n[checked against manual]' : '\n[unverified]') : '')
               : '—';
             return [
               e.line || '',

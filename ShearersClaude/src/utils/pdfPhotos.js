@@ -39,6 +39,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // something unexpected without printing a signed URL into the report.
 const hostOf = (url) => { try { return new URL(url).host; } catch { return 'bad link'; } };
 
+// The object's own path, without the access token. Enough to identify the file
+// in Storage and to see a malformed name; not enough to hand anyone the photo.
+function objectPathOf(url) {
+  try {
+    const after = new URL(url).pathname.split('/o/')[1];
+    return after ? decodeURIComponent(after) : '';
+  } catch { return ''; }
+}
+
 // Catch a broken link before blaming the network for it. fetch() throws the
 // same TypeError for "the phone dropped the request" and "this string was never
 // a web address", and those need opposite responses from whoever reads the PDF.
@@ -70,10 +79,13 @@ const decode = (src, { crossOrigin } = {}) => new Promise((resolve) => {
   const finish = (v) => { clearTimeout(timer); img.onload = null; img.onerror = null; resolve(v); };
   timer = setTimeout(() => finish({ failed: true, why: 'timed out decoding' }), TIMEOUT_MS);
   img.onload = () => {
-    try { finish(drawThumb(img)); }
-    catch { finish({ failed: true, why: 'blocked by the browser (CORS)' }); }
+    // `loaded` records that the pixels arrived, which is not the same as being
+    // allowed to read them: an image fetched without CORS displays perfectly
+    // and taints the canvas. Callers need to tell those apart.
+    try { finish({ ...drawThumb(img), loaded: true }); }
+    catch { finish({ failed: true, loaded: true, why: 'blocked by the browser (CORS)' }); }
   };
-  img.onerror = () => finish({ failed: true, why: 'not a readable image' });
+  img.onerror = () => finish({ failed: true, loaded: false, why: 'not a readable image' });
   img.src = src;
 });
 
@@ -146,8 +158,23 @@ export async function photoToThumb(url, attempt = 0) {
   if (first.retryable) {
     const second = await decode(url, { crossOrigin: true });
     if (!second.failed) return second;
+
+    // Both routes are gone, and both of them need CORS. A plain <img> does not
+    // — it can display a photo it is not allowed to hand to a canvas. So this
+    // last probe cannot rescue the photo, only say WHY it was lost: a file the
+    // browser can still display is a permissions problem, and a file it cannot
+    // is a missing or unreachable one. Those have nothing to do with each other
+    // and the report should not present them as the same failure.
+    const displayable = await decode(url, { crossOrigin: false });
+    const where = objectPathOf(url);
+    const suffix = where ? ` — ${where}` : '';
     console.warn('[pdf] both routes failed:', url, first.why, '/', second.why);
-    return { failed: true, why: `${first.why}; image load also failed (${second.why})` };
+    return {
+      failed: true,
+      why: displayable.loaded
+        ? `the photo opens but cannot be embedded — the server is not allowing it (CORS)${suffix}`
+        : `the file could not be reached at all (${first.why})${suffix}`,
+    };
   }
 
   console.warn('[pdf] photo unavailable:', url, first.why);
