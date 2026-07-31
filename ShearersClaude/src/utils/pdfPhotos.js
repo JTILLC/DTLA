@@ -27,7 +27,10 @@ export async function photoToThumb(url, attempt = 0) {
     if (!res.ok) {
       if (res.status >= 500 && attempt === 0) return photoToThumb(url, 1);
       console.warn(`[pdf] photo unavailable (${res.status}):`, url);
-      return null;
+      // 404 means the file is gone from Storage while the log still points at
+      // it; 403 means it is there but the link no longer authorises. Different
+      // problems, so the report says which rather than "could not be loaded".
+      return { failed: true, why: res.status === 404 ? 'file no longer in storage' : `refused (${res.status})` };
     }
     const blob = await res.blob();
     return await new Promise((resolve) => {
@@ -47,22 +50,20 @@ export async function photoToThumb(url, attempt = 0) {
             h: canvas.height,
           });
         } catch {
-          resolve(null);        // tainted canvas — treat as unavailable
+          resolve({ failed: true, why: 'blocked by the browser (CORS)' });
         }
       };
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        // Fetched fine but won't decode — a HEIC that slipped through, or a
-        // truncated upload. Retrying will not help, so say which one.
         console.warn('[pdf] photo downloaded but could not be decoded:', url);
-        resolve(null);
+        resolve({ failed: true, why: 'downloaded but not a readable image' });
       };
       img.src = objectUrl;
     });
   } catch (err) {
     if (attempt === 0) return photoToThumb(url, 1);   // transient network blip
     console.warn('[pdf] photo could not be fetched:', url, err?.message || err);
-    return null;
+    return { failed: true, why: 'could not be reached (network or CORS)' };
   }
 }
 
@@ -76,10 +77,15 @@ export async function photoToThumb(url, attempt = 0) {
 export async function loadThumbs(refs, cap = 40) {
   const wanted = refs.slice(0, cap);
   const results = await Promise.all(wanted.map((r) => photoToThumb(r.url)));
+  const ok = (r) => r && !r.failed;
   return {
-    thumbs: results.filter(Boolean),
-    failedLabels: wanted.filter((_, i) => !results[i]).map((r) => r.label).filter(Boolean),
-    failed: results.filter((t) => !t).length,
+    thumbs: results.filter(ok),
+    // Name AND reason: "Line 1 · head 2 · WDU (file no longer in storage)"
+    // tells you what to do; a bare count does not.
+    failedLabels: wanted
+      .map((r, i) => (ok(results[i]) ? null : `${r.label || 'photo'} (${results[i]?.why || 'unknown'})`))
+      .filter(Boolean),
+    failed: results.filter((r) => !ok(r)).length,
     skipped: Math.max(0, refs.length - wanted.length),
   };
 }
@@ -91,7 +97,7 @@ export function drawThumbRow(doc, thumbs, startY, { x = 14, maxWidth = 180, gap 
   let cy = startY;
   const pageH = doc.internal.pageSize.getHeight();
 
-  thumbs.forEach((t) => {
+  thumbs.filter((t) => t && t.dataUrl).forEach((t) => {
     const w = Math.max(10, Math.round(height * (t.w / t.h)));
     if (cx + w > x + maxWidth) { cx = x; cy += height + gap; }
     if (cy + height > pageH - 15) { doc.addPage(); cy = 20; cx = x; }
