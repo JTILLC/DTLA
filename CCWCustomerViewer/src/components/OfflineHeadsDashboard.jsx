@@ -94,6 +94,7 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
               <thead className="table-primary">
                 <tr>
                   <th style={{ width: '80px' }}>Head #</th>
+                  <th style={{ width: '15%' }}>Taken off by</th>
                   <th>Issues</th>
                   <th style={{ width: '30%' }}>Head Notes</th>
                 </tr>
@@ -111,6 +112,25 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
                     <tr className={getHeadRowClass(head)}>
                       <td className="cell-head-no" data-label="Head" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
                         {head.index}
+                      </td>
+                      {/* Who stopped this head, and when. Blank for anything
+                          logged before attribution existed — a dash is honest,
+                          a guessed name would not be. */}
+                      <td data-label="Taken off by">
+                        {head.statusBy ? (
+                          <span style={{ fontSize: '0.85em' }}>
+                            {head.statusBy}
+                            {head.statusAt && (
+                              <span style={{ display: 'block', opacity: 0.7 }}>
+                                {new Date(head.statusAt).toLocaleString([], {
+                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                                })}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span style={{ opacity: 0.6 }}>—</span>
+                        )}
                       </td>
                       <td data-label="Issues">
                         {hasOldFormat ? (

@@ -17,12 +17,15 @@
 // should reach every tablet on the floor. Names are copied onto entries as they
 // are saved, so re-crewing a line never rewrites what was already logged.
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Trash2, Check, AlertTriangle, Save } from 'lucide-react';
+import { Users, Plus, Trash2, Check, AlertTriangle, Save, KeyRound, ShieldCheck } from 'lucide-react';
 import {
   subscribeCrew, saveCrew, subscribeLineCrew, saveLineCrew,
 } from '../services/logs.js';
 import { crewAge } from '../utils/useLineCrew.js';
 import { useToast } from './Toast.jsx';
+import { useDialog } from './DialogSystem.jsx';
+import PinPrompt from './PinPrompt.jsx';
+import { hashPin, hasPin, pinProblem } from '../utils/pin.js';
 
 const ROLES = [
   { key: 'operator', label: 'Operator' },
@@ -32,8 +35,14 @@ const ROLES = [
 
 const newId = () => `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-export default function CrewPage({ workspaceId, customerId, customerName, visits = [] }) {
+export default function CrewPage({ workspaceId, customerId, customerName, visits = [], isJti = false }) {
   const toast = useToast();
+  const dialog = useDialog();
+  // A JTI login is already an admin by its Firebase claim, so it never needs a
+  // plant PIN. A plant admin proves themselves once per visit to this page.
+  const [adminOk, setAdminOk] = useState(isJti);
+  const [askAdmin, setAskAdmin] = useState(null);   // () => void, run once verified
+  const [pinFor, setPinFor] = useState(null);       // person having a PIN set
   const [people, setPeople] = useState([]);
   const [lineCrew, setLineCrew] = useState({ lines: {} });
   const [draftLines, setDraftLines] = useState(null);   // null = in sync with saved
@@ -46,6 +55,53 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
     if (!workspaceId || !customerId) return undefined;
     return subscribeCrew(workspaceId, customerId, setPeople);
   }, [workspaceId, customerId]);
+
+  useEffect(() => { setAdminOk(isJti); }, [isJti, customerId]);
+
+  // Gate an admin action: JTI passes straight through, a plant admin is asked
+  // for their PIN once and then trusted for the rest of this page visit.
+  const asAdmin = (run) => {
+    if (adminOk) return run();
+    setAskAdmin(() => run);
+  };
+
+  // The very first admin cannot prove themselves — nobody has a PIN yet. JTI
+  // sets that one, which is why the flag is meaningless without a JTI login to
+  // bootstrap it.
+  const anyPlantAdmin = people.some((p) => p.admin && hasPin(p));
+
+  const setPersonPin = async (person, pin) => {
+    const problem = pinProblem(pin);
+    if (problem) { toast.error(problem); return false; }
+    const pinHash = await hashPin(customerId, person.id, pin);
+    const next = people.map((p) => (
+      p.id === person.id ? { ...p, pinHash, pinSetAt: new Date().toISOString() } : p
+    ));
+    await saveCrew(workspaceId, customerId, next);
+    toast.success(`PIN set for ${person.name}`);
+    return true;
+  };
+
+  const clearPersonPin = async (person) => {
+    const ok = await dialog.confirm(
+      `Clear ${person.name}'s PIN? They won't be able to identify themselves until a new one is set.`,
+      { title: 'Clear PIN', confirmText: 'Clear', variant: 'danger' }
+    );
+    if (!ok) return;
+    const next = people.map((p) => {
+      if (p.id !== person.id) return p;
+      const { pinHash, pinSetAt, ...rest } = p;   // eslint-disable-line no-unused-vars
+      return rest;
+    });
+    await saveCrew(workspaceId, customerId, next);
+    toast.success(`PIN cleared for ${person.name}`);
+  };
+
+  const toggleAdmin = async (person) => {
+    const next = people.map((p) => (p.id === person.id ? { ...p, admin: !p.admin } : p));
+    await saveCrew(workspaceId, customerId, next);
+    toast.success(`${person.name} is ${!person.admin ? 'now' : 'no longer'} a plant admin`);
+  };
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -247,15 +303,65 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                 No one on the list yet — press Edit to add the people who work here.
               </div>
             ) : (
-              <div className="d-flex flex-wrap gap-2">
-                {people.map((p) => (
-                  <span key={p.id} className="badge bg-secondary">
-                    {p.name}
-                    <span className="ms-1 opacity-75">
-                      {(p.roles || []).map((r) => ROLES.find((x) => x.key === r)?.label).filter(Boolean).join(', ')}
-                    </span>
-                  </span>
-                ))}
+              <div className="table-responsive">
+                <table className="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr><th>Name</th><th>Roles</th><th>PIN</th><th>Admin</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {people.map((p) => (
+                      <tr key={p.id}>
+                        <td data-label="Name"><strong>{p.name}</strong></td>
+                        <td data-label="Roles" className="small text-muted">
+                          {(p.roles || []).map((r) => ROLES.find((x) => x.key === r)?.label).filter(Boolean).join(', ')}
+                        </td>
+                        <td data-label="PIN">
+                          {hasPin(p)
+                            ? <span className="badge bg-success">set</span>
+                            : <span className="badge bg-secondary">none</span>}
+                        </td>
+                        <td data-label="Admin">
+                          {p.admin
+                            ? <span className="badge bg-primary"><ShieldCheck size={11} /> admin</span>
+                            : <span className="text-muted small">—</span>}
+                        </td>
+                        <td className="text-end">
+                          <div className="d-flex gap-1 justify-content-end flex-wrap">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => asAdmin(() => setPinFor(p))}
+                            >
+                              <KeyRound size={13} /> {hasPin(p) ? 'Reset PIN' : 'Set PIN'}
+                            </button>
+                            {hasPin(p) && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => asAdmin(() => clearPersonPin(p))}
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => asAdmin(() => toggleAdmin(p))}
+                            >
+                              {p.admin ? 'Remove admin' : 'Make admin'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!anyPlantAdmin && (
+                  <div className="form-text mt-2">
+                    No plant admin with a PIN yet — JTI sets the first one, then
+                    that person can manage the rest.
+                  </div>
+                )}
               </div>
             )
           ) : (
@@ -326,6 +432,85 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
           )}
         </div>
       </div>
+
+      {askAdmin && (
+        <PinPrompt
+          customerId={customerId}
+          people={people}
+          requireAdmin
+          title="Supervisor PIN"
+          message="Setting or clearing someone's PIN needs an admin."
+          onVerified={() => {
+            const run = askAdmin;
+            setAskAdmin(null);
+            setAdminOk(true);
+            run();
+          }}
+          onCancel={() => setAskAdmin(null)}
+        />
+      )}
+
+      {pinFor && (
+        <SetPinDialog
+          person={pinFor}
+          onCancel={() => setPinFor(null)}
+          onSave={async (pin) => {
+            const ok = await setPersonPin(pinFor, pin);
+            if (ok) setPinFor(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Chosen by the supervisor with the person present, rather than generated: a
+// PIN someone picks is a PIN they remember, and the failure mode of a forgotten
+// one is another trip to a supervisor.
+function SetPinDialog({ person, onSave, onCancel }) {
+  const [pin, setPin] = useState('');
+  const [again, setAgain] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (pin !== again) return setError('The two PINs do not match');
+    const problem = pinProblem(pin);
+    if (problem) return setError(problem);
+    onSave(pin);
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 3400, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
+      }}
+    >
+      <form className="card shadow" style={{ width: '100%', maxWidth: '420px' }} onSubmit={submit}>
+        <div className="card-header"><strong>PIN for {person.name}</strong></div>
+        <div className="card-body d-flex flex-column gap-2">
+          <div className="small text-muted">
+            4 to 6 digits. Have {person.name} type it themselves — it identifies
+            their work.
+          </div>
+          <input
+            type="password" inputMode="numeric" autoComplete="off" className="form-control"
+            placeholder="New PIN" value={pin}
+            onChange={(e) => { setPin(e.target.value); setError(''); }}
+          />
+          <input
+            type="password" inputMode="numeric" autoComplete="off" className="form-control"
+            placeholder="Again" value={again}
+            onChange={(e) => { setAgain(e.target.value); setError(''); }}
+          />
+          {error && <div className="small text-danger">{error}</div>}
+          <div className="d-flex gap-2">
+            <button type="submit" className="btn btn-primary btn-sm">Save PIN</button>
+            <button type="button" className="btn btn-link btn-sm" onClick={onCancel}>Cancel</button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }

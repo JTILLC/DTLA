@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { subscribeCrew } from '../services/logs.js';
+import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
+import PinPrompt from './PinPrompt.jsx';
 import SpanAdjust from './SpanAdjust.jsx';
 import SpanCalPreview from './SpanCalPreview.jsx';
 import Audit from './Audit.jsx';
@@ -27,6 +30,26 @@ const migrateHead = (head) => {
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
 const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti' }) => {
+  // Who is at this device, proven once with a PIN. Taking a head offline is the
+  // action most worth attributing: it stops product, and "who turned this off?"
+  // is the first question asked the next morning.
+  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const [crewPeople, setCrewPeople] = useState([]);
+  const [pendingAction, setPendingAction] = useState(null);   // () => void
+
+  useEffect(() => {
+    if (!userId || !customerId) return undefined;
+    return subscribeCrew(userId, customerId, setCrewPeople);
+  }, [userId, customerId]);
+
+  // Run an attributable action, asking who is here if we do not already know.
+  // A plant with no PINs set keeps working unattributed rather than being
+  // locked out of its own machines — the feature must not become a gate.
+  const attributed = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (actor || !anyPin) return run(actor?.name || '');
+    setPendingAction(() => run);
+  };
   const dialog = useDialog();
   const photosDisabled = !userId || !customerId || !visitId;
   const photoPathBase = (headId) =>
@@ -74,8 +97,18 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  const handleHeadChange = (index, field, value) => {
-    const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, [field]: value } : h);
+  const handleHeadChange = (index, field, value, who) => {
+    const updatedHeads = localLine.heads.map((h, j) => j === index
+      ? {
+          ...h,
+          [field]: value,
+          // Only a status change is attributed — notes and issue text are edits,
+          // not the act of stopping or restarting a head.
+          ...(field === 'status'
+            ? { statusBy: who || '', statusAt: new Date().toISOString(), statusAction: value }
+            : {}),
+        }
+      : h);
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
@@ -147,14 +180,25 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     setIsEditingTitle(!isEditingTitle);
   };
 
-  const quickToggleHead = (index, isOffline) => {
+  const quickToggleHead = (index, isOffline) => attributed((who) => {
+    const at = new Date().toISOString();
     const updatedHeads = localLine.heads.map((h, j) =>
-      j === index ? { ...h, status: isOffline ? 'offline' : 'active' } : h
+      j === index
+        ? {
+            ...h,
+            status: isOffline ? 'offline' : 'active',
+            // Stamped on the head, not in a side log: whoever opens this line
+            // next sees who took it off without going looking.
+            statusBy: who,
+            statusAt: at,
+            statusAction: isOffline ? 'offline' : 'active',
+          }
+        : h
     );
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Which head the issue modal is showing (index into localLine.heads), or null.
   const [issueModalHead, setIssueModalHead] = useState(null);
@@ -225,7 +269,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   };
 
   // Toggle fixed status: not_fixed -> fixed -> active_with_issues -> not_fixed
-  const toggleFixedStatus = (headIndex, issueIndex) => {
+  const toggleFixedStatus = (headIndex, issueIndex) => attributed((whoFixed) => {
     const statusOrder = ['not_fixed', 'fixed', 'active_with_issues'];
     const updatedHeads = localLine.heads.map((h, j) => {
       if (j === headIndex) {
@@ -233,7 +277,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         const currentStatus = issues[issueIndex].fixed;
         const currentIdx = statusOrder.indexOf(currentStatus);
         const nextIdx = (currentIdx + 1) % statusOrder.length;
-        issues[issueIndex] = { ...issues[issueIndex], fixed: statusOrder[nextIdx] };
+        issues[issueIndex] = {
+          ...issues[issueIndex],
+          fixed: statusOrder[nextIdx],
+          fixedBy: whoFixed,
+          fixedAt: new Date().toISOString(),
+        };
         return { ...h, issues };
       }
       return h;
@@ -241,7 +290,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Get label for fixed status
   const getFixedLabel = (status) => {
@@ -450,6 +499,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
             <thead>
               <tr>
                 <th>Head #</th>
+                <th>Taken off by</th>
                 <th>Status</th>
                 <th>Issues</th>
                 <th>Head Notes</th>
@@ -474,8 +524,24 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     }
                   >
                     <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                    <td data-label="Taken off by" style={{ verticalAlign: 'top' }}>
+                      {head.statusBy ? (
+                        <span className="small">
+                          {head.statusBy}
+                          {head.statusAt && (
+                            <span className="d-block text-muted">
+                              {new Date(head.statusAt).toLocaleString([], {
+                                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="small text-muted">—</span>
+                      )}
+                    </td>
                     <td data-label="Status" style={{ verticalAlign: 'top' }}>
-                      <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                      <select value={head.status} onChange={(e) => attributed((who) => handleHeadChange(head.index, 'status', e.target.value, who))}>
                         <option value="active">Active</option>
                         <option value="offline">Offline</option>
                       </select>
@@ -652,7 +718,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     <tr className={hasIssuesOrNotes ? 'head-row--attn' : 'head-row--ok'}>
                       <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
                       <td data-label="Status" style={{ verticalAlign: 'top' }}>
-                        <select value={head.status} onChange={(e) => handleHeadChange(head.index, 'status', e.target.value)}>
+                        <select value={head.status} onChange={(e) => attributed((who) => handleHeadChange(head.index, 'status', e.target.value, who))}>
                           <option value="active">Active</option>
                           <option value="offline">Offline</option>
                         </select>
@@ -897,6 +963,22 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         photoPathBase={photoPathBase}
         visitDocPath={visitDocPath}
       />
+
+      {pendingAction && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople}
+          title="Who is making this change?"
+          message="Taking a head offline or marking it fixed is recorded against you."
+          onVerified={(p) => {
+            rememberActor(p);
+            const run = pendingAction;
+            setPendingAction(null);
+            run(p.name);
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
       {dialog.DialogComponent}
     </div>
   );
