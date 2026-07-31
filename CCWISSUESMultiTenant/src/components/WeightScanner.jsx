@@ -31,7 +31,7 @@
 // that path decodes HEIC via a lazily-imported decoder — 2.6MB that must not
 // land in the main bundle, hence the dynamic import.
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, X, Camera, Image as ImageIcon } from 'lucide-react';
+import { AlertTriangle, Check, X, Camera, Image as ImageIcon, Maximize2 } from 'lucide-react';
 import { scanWeigherScreen } from '../config/media.js';
 import { useToast } from './Toast.jsx';
 
@@ -96,6 +96,12 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
   const [camera, setCamera] = useState(false);
   const [result, setResult] = useState(null);     // { heads, unit, notes }
   const [preview, setPreview] = useState('');
+  // The photo outlives the fill. Checking a filled value against the screen is
+  // the whole point of not auto-saving, and that is impossible if applying the
+  // reading discards the evidence.
+  const [applied, setApplied] = useState(false);
+  const [viewer, setViewer] = useState(false);
+  const [zoom, setZoom] = useState(false);        // fit-to-screen vs 1:1
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -121,6 +127,9 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
 
   const reset = () => {
     setResult(null);
+    setApplied(false);
+    setViewer(false);
+    setZoom(false);
     setPreview((p) => { if (p) URL.revokeObjectURL(p); return ''; });
   };
 
@@ -226,7 +235,9 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
     if (!usable.length) return toast.error('Nothing here can be applied — enter the weights manually.');
     onApply(new Map(usable.map((h) => [h.head, h.weight])));
     toast.success(`Filled ${usable.length} current weight${usable.length === 1 ? '' : 's'} — check them before logging.`);
-    reset();
+    // Deliberately NOT reset(): the photo stays available so the filled values
+    // can be checked against the screen they came from.
+    setApplied(true);
   };
 
   return (
@@ -250,6 +261,32 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
       {!result && !busy && (
         <div className="form-text mt-1">
           Photograph the weigher screen to fill the current weights. You still check and log them.
+        </div>
+      )}
+
+      {/* Reading takes several seconds. Without this the operator is staring at
+          a page that looks like it ignored them, and taps again. */}
+      {busy && (
+        <div className="card mt-2">
+          <div className="card-body d-flex align-items-center gap-3">
+            <div className="spinner-border spinner-border-sm text-primary" role="status">
+              <span className="visually-hidden">Reading…</span>
+            </div>
+            <div>
+              <div className="fw-semibold">Reading the screen…</div>
+              <div className="small text-muted">
+                Matching each head number to the weight in its own hopper. Usually 5–15 seconds.
+              </div>
+            </div>
+          </div>
+          {preview && (
+            <img
+              src={preview}
+              alt="Photo being read"
+              className="rounded-bottom"
+              style={{ width: '100%', maxHeight: '160px', objectFit: 'cover', display: 'block', opacity: 0.6 }}
+            />
+          )}
         </div>
       )}
 
@@ -296,19 +333,29 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
       {result && (
         <div className="card mt-2">
           <div className="card-header d-flex justify-content-between align-items-center">
-            <strong>Read from photo</strong>
+            <strong>{applied ? 'Filled from this photo' : 'Read from photo'}</strong>
             <button type="button" className="btn btn-sm btn-outline-secondary" onClick={reset} aria-label="Discard scan">
-              <X size={14} /> Discard
+              <X size={14} /> {applied ? 'Done' : 'Discard'}
             </button>
           </div>
           <div className="card-body">
             {preview && (
-              <img
-                src={preview}
-                alt="Scanned weigher screen"
-                className="mb-2 rounded border"
-                style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block' }}
-              />
+              <button
+                type="button"
+                onClick={() => { setZoom(false); setViewer(true); }}
+                className="btn p-0 border-0 bg-transparent w-100 mb-2 text-start"
+                title="Tap to view full screen"
+              >
+                <img
+                  src={preview}
+                  alt="Scanned weigher screen — tap to enlarge"
+                  className="rounded border"
+                  style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block' }}
+                />
+                <span className="small text-muted d-inline-flex align-items-center gap-1 mt-1">
+                  <Maximize2 size={12} /> Tap the photo to check the numbers
+                </span>
+              </button>
             )}
 
             {heads.length > 0 && (
@@ -350,14 +397,60 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
               </ul>
             )}
 
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={apply}
-              disabled={heads.length === 0}
-            >
-              <Check size={14} /> Fill current weights
-            </button>
+            {applied ? (
+              <div className="small text-success-emphasis d-flex align-items-center gap-1">
+                <Check size={14} /> Weights filled in — the photo stays here until you press Done.
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={apply}
+                disabled={heads.length === 0}
+              >
+                <Check size={14} /> Fill current weights
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen check. Tapping the image toggles fit-to-screen and 1:1, so
+          a small digit can actually be read on a phone. Closing returns to the
+          form with everything intact — this never touches the scan state. */}
+      {viewer && preview && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.94)',
+            overflow: zoom ? 'auto' : 'hidden',
+            display: zoom ? 'block' : 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <img
+            src={preview}
+            alt="Scanned weigher screen"
+            onClick={() => setZoom((z) => !z)}
+            style={zoom
+              ? { display: 'block', maxWidth: 'none', width: 'auto', cursor: 'zoom-out' }
+              : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'zoom-in' }}
+          />
+          <button
+            type="button"
+            onClick={() => { setViewer(false); setZoom(false); }}
+            aria-label="Close photo"
+            style={{
+              position: 'fixed', top: '14px', right: '14px', width: '44px', height: '44px',
+              borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.9)',
+              color: '#111', fontSize: '20px', fontWeight: 'bold', cursor: 'pointer', zIndex: 3001,
+            }}
+          >✕</button>
+          <div
+            style={{
+              position: 'fixed', bottom: '14px', left: 0, right: 0, textAlign: 'center',
+              color: 'rgba(255,255,255,0.85)', fontSize: '0.8rem', pointerEvents: 'none',
+            }}
+          >
+            {zoom ? 'Tap the photo to fit to screen' : 'Tap the photo to zoom in'}
           </div>
         </div>
       )}

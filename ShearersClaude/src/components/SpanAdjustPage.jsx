@@ -11,7 +11,7 @@
 // `auth != null` rule with no public-read carve-out, so unlike the logger data
 // it is NOT visible in the customer's shared view — which matches "just me for
 // now".
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getDatabase, ref, onValue, update, remove as rtdbRemove } from 'firebase/database';
 import { app } from '../firebaseConfig';
 import { HEADS_PER_LINE, SECTIONS } from '../constants';
@@ -63,6 +63,10 @@ export default function SpanAdjustPage() {
   // Marked in the list so an operator knows which to sanity-check, and
   // cleared the moment one is typed over.
   const [scanned, setScanned] = useState(() => new Set());
+  // Bumped after each successful log. Together with the line title it keys the
+  // scanner, so the retained photo is dropped once it has served its purpose
+  // rather than following you to the next line.
+  const [logSeq, setLogSeq] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
@@ -78,8 +82,13 @@ export default function SpanAdjustPage() {
 
   const latestFor = (line) => entries.find((e) => e.lineTitle === line) || null;
 
+  // Runs at most ONCE. Without the ref guard, pressing "All lines" (which sets
+  // selected to null) re-runs this and immediately re-selects the saved line,
+  // making the overview unreachable.
+  const restoredRef = useRef(false);
   useEffect(() => {
-    if (selected) return;
+    if (restoredRef.current || selected) return;
+    restoredRef.current = true;
     try {
       const saved = localStorage.getItem(LAST_LINE_KEY);
       if (saved && ALL_LINES.includes(saved)) setSelected(saved);
@@ -149,6 +158,7 @@ export default function SpanAdjustPage() {
         },
       });
       clearCurrent();
+      setLogSeq((n) => n + 1);
       setNotes('');
       toast.success(`Span adjustment logged for ${selected}`);
     } catch (err) {
@@ -277,7 +287,7 @@ export default function SpanAdjustPage() {
       <h2 className="text-xl font-bold dark:text-gray-100">{selected}</h2>
 
       <div className="card p-4">
-        <WeightScanner expectedHeads={rows.length} onApply={applyScan} />
+        <WeightScanner key={`${selected}-${logSeq}`} expectedHeads={rows.length} onApply={applyScan} />
 
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <input
