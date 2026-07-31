@@ -8,9 +8,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity } from 'lucide-react';
 import {
-  subscribeLog, LOG_SPAN, LOG_BOARD, LOG_PM, LOG_CREW,
+  subscribeLog, LOG_SPAN, LOG_BOARD, LOG_PM, LOG_CREW, LOG_HEAD,
 } from '../services/logs.js';
 import LineActivity from './LineActivity.jsx';
+import {
+  useHeadAlerts, enableAlerts, disableAlerts, alertsEnabled, alertsSupported,
+} from '../utils/useHeadAlerts.js';
 
 const LAST_LINE_KEY = 'ccw-activity-last-line';
 
@@ -19,7 +22,9 @@ export default function ActivityPage({ workspaceId, customerId, customerName, vi
   const [boardLog, setBoardLog] = useState([]);
   const [pmLog, setPmLog] = useState([]);
   const [crewLog, setCrewLog] = useState([]);
+  const [headLog, setHeadLog] = useState([]);
   const [selected, setSelected] = useState('');
+  const [alerts, setAlerts] = useState(alertsEnabled());
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -28,9 +33,14 @@ export default function ActivityPage({ workspaceId, customerId, customerName, vi
       subscribeLog(workspaceId, customerId, LOG_BOARD, setBoardLog),
       subscribeLog(workspaceId, customerId, LOG_PM, setPmLog),
       subscribeLog(workspaceId, customerId, LOG_CREW, setCrewLog, 100),
+      subscribeLog(workspaceId, customerId, LOG_HEAD, setHeadLog, 300),
     ];
     return () => unsubs.forEach((u) => u && u());
   }, [workspaceId, customerId]);
+
+  // Watches every line, not just the one on screen: a head stopping on the line
+  // you are not looking at is exactly the one you want to hear about.
+  useHeadAlerts(headLog, { customerName });
 
   const lines = useMemo(() => {
     const seen = new Set();
@@ -63,6 +73,21 @@ export default function ActivityPage({ workspaceId, customerId, customerName, vi
         <h5 className="d-flex align-items-center gap-2 mb-0">
           <Activity size={18} /> Line activity{customerName ? ` — ${customerName}` : ''}
         </h5>
+        <div className="d-flex align-items-center gap-2">
+        {alertsSupported() && (
+          <button
+            type="button"
+            className={'btn btn-sm ' + (alerts ? 'btn-success' : 'btn-outline-secondary')}
+            onClick={async () => {
+              if (alerts) { disableAlerts(); setAlerts(false); return; }
+              const ok = await enableAlerts();
+              setAlerts(ok);
+            }}
+            title="Notify this device when a head goes offline"
+          >
+            {alerts ? 'Alerts on' : 'Alert me'}
+          </button>
+        )}
         <select
           className="form-select form-select-sm"
           style={{ width: 'auto', minWidth: '180px' }}
@@ -73,7 +98,16 @@ export default function ActivityPage({ workspaceId, customerId, customerName, vi
           {lines.length === 0 && <option value="">No lines yet</option>}
           {lines.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
+        </div>
       </div>
+
+      {alerts && (
+        <div className="form-text mb-2">
+          This device will be notified when a head goes offline — while this app
+          is open, including in a background tab. It cannot reach a closed app or
+          a locked phone.
+        </div>
+      )}
 
       <LineActivity
         lineTitle={selected}
@@ -81,6 +115,7 @@ export default function ActivityPage({ workspaceId, customerId, customerName, vi
         boardLog={boardLog}
         pmLog={pmLog}
         crewLog={crewLog}
+        headLog={headLog}
         visits={visits}
       />
     </div>

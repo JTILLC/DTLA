@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Settings, Plus, X, Trash2, ChevronLeft } from 'lucide-react';
 import {
-  LOG_PM, subscribeLog, addLogEntry, deleteLogEntry,
+  LOG_PM, subscribeLog, addLogEntry, deleteLogEntry, updateLogEntry,
   subscribePmTemplate, savePmTemplate, DEFAULT_PM_SECTIONS,
   sinceLabel, dueStatus, addDays,
 } from '../services/logs.js';
@@ -25,6 +25,9 @@ import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import PinPrompt from './PinPrompt.jsx';
+import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
+import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 
@@ -70,6 +73,28 @@ export default function PmLogPage({
 }) {
   const toast = useToast();
   const lineCrew = useLineCrew(workspaceId, customerId);
+  // Crewing says who was ON the line; this says who actually filed the entry.
+  // An entry logged at 2am otherwise inherits whoever was crewed at 6am.
+  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const [crewPeople, setCrewPeople] = useState([]);
+  const [pendingSave, setPendingSave] = useState(null);
+  // A PM check is the record most likely to be questioned later, so signing one
+  // off is the one action here that must be an attestation rather than a name
+  // picked from a list. A supervisor proves it with their own PIN.
+  const [signingEntry, setSigningEntry] = useState(null);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeCrew(workspaceId, customerId, setCrewPeople);
+  }, [workspaceId, customerId]);
+
+  // A plant that has not set PINs keeps logging, unattributed. This records who
+  // filed something; it must never become a lock on recording work at all.
+  const withActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (actor || !anyPin) return run(actor?.name || '');
+    setPendingSave(() => run);
+  };
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [template, setTemplate] = useState(null);
@@ -109,7 +134,7 @@ export default function PmLogPage({
     setAnswers((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), ...patch } }));
 
   // ---- Submit -------------------------------------------------------------
-  const submit = async () => {
+  const submit = () => withActor(async (filedBy) => {
     const items = [];
     sections.forEach((sec) =>
       (sec.items || []).forEach((it) => {
@@ -136,6 +161,9 @@ export default function PmLogPage({
         lineTitle: lineTitle || null,
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         ...crewStamp(lineCrew.forLine(lineTitle), lineCrew.shiftId),
+        // Who filed it, proven — distinct from the crew, which is context.
+        actionBy: filedBy,
+        actionByVerified: !!filedBy,
         role,
         notes: notes.trim(),
         items,
@@ -153,6 +181,19 @@ export default function PmLogPage({
       toast.error('Could not submit: ' + (err?.message || 'unknown error'));
     } finally {
       setSaving(false);
+    }
+  });
+
+  const signOff = async (entry, supervisor) => {
+    try {
+      await updateLogEntry(workspaceId, customerId, LOG_PM, entry.id, {
+        supervisorSignedBy: supervisor.name,
+        supervisorSignedAt: new Date().toISOString(),
+      });
+      toast.success(`Signed off by ${supervisor.name}`);
+    } catch (err) {
+      console.error('PM sign-off failed:', err);
+      toast.error('Could not sign off: ' + (err?.message || 'unknown error'));
     }
   };
 
@@ -520,6 +561,22 @@ export default function PmLogPage({
                         by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
                       </div>
                       <CrewLine entry={e} />
+                      {e.supervisorSignedBy ? (
+                        <div className="small text-success-emphasis">
+                          ✓ Signed off by {e.supervisorSignedBy}
+                          {e.supervisorSignedAt
+                            ? ` · ${new Date(e.supervisorSignedAt).toLocaleDateString()}`
+                            : ''}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-success mt-1"
+                          onClick={() => setSigningEntry(e)}
+                        >
+                          Supervisor sign-off
+                        </button>
+                      )}
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       {e.issueCount > 0 ? (
@@ -554,6 +611,37 @@ export default function PmLogPage({
           )}
         </div>
       </div>
+      {signingEntry && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople.filter((p) => (p.roles || []).includes('supervisor') || p.admin)}
+          title="Supervisor sign-off"
+          message="Signing confirms these checks were carried out. It is recorded against you and cannot be undone here."
+          onVerified={(p) => {
+            const entry = signingEntry;
+            setSigningEntry(null);
+            signOff(entry, p);
+          }}
+          onCancel={() => setSigningEntry(null)}
+        />
+      )}
+
+      {pendingSave && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople}
+          title="Who is logging this?"
+          message="The entry is recorded against you."
+          onVerified={(p) => {
+            rememberActor(p);
+            const run = pendingSave;
+            setPendingSave(null);
+            run(p.name);
+          }}
+          onCancel={() => setPendingSave(null)}
+        />
+      )}
+
     </div>
   );
 }

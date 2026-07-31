@@ -26,6 +26,7 @@ export const LOG_SPAN = 'spanLog';
 export const LOG_BOARD = 'boardLog';
 export const LOG_PM = 'pmLog';
 export const LOG_CREW = 'crewLog';
+export const LOG_HEAD = 'headLog';
 export const PM_TEMPLATE = 'pmTemplate';
 export const CONFIG = 'config';
 
@@ -72,6 +73,23 @@ export async function addLogEntry(workspaceId, customerId, name, entry) {
   };
   await col(workspaceId, customerId, name).doc(id).set(payload);
   return { id, ...payload };
+}
+
+// A head carries only its LATEST status change, so the head document alone can
+// never answer "how often has this one been stopped this month". Every stop,
+// restart and fix is therefore also appended here — the head keeps the current
+// state for the screens that render it, and this keeps the history.
+//
+// Best-effort by design: a failure to write the history must not stop an
+// operator taking a head offline. The machine matters more than the audit.
+export async function addHeadEvent(workspaceId, customerId, event) {
+  if (!workspaceId || !customerId) return null;
+  try {
+    return await addLogEntry(workspaceId, customerId, LOG_HEAD, event);
+  } catch (err) {
+    console.warn('head event not recorded:', err?.message || err);
+    return null;
+  }
 }
 
 export async function updateLogEntry(workspaceId, customerId, name, id, patch) {

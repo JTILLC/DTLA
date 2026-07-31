@@ -25,6 +25,9 @@ import PartsManualBinding from './PartsManualBinding.jsx';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import PinPrompt from './PinPrompt.jsx';
+import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
+import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 
@@ -49,6 +52,24 @@ export default function BoardReplacementPage({
 }) {
   const toast = useToast();
   const lineCrew = useLineCrew(workspaceId, customerId);
+  // Crewing says who was ON the line; this says who actually filed the entry.
+  // An entry logged at 2am otherwise inherits whoever was crewed at 6am.
+  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const [crewPeople, setCrewPeople] = useState([]);
+  const [pendingSave, setPendingSave] = useState(null);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeCrew(workspaceId, customerId, setCrewPeople);
+  }, [workspaceId, customerId]);
+
+  // A plant that has not set PINs keeps logging, unattributed. This records who
+  // filed something; it must never become a lock on recording work at all.
+  const withActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (actor || !anyPin) return run(actor?.name || '');
+    setPendingSave(() => run);
+  };
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [form, setForm] = useState(BLANK);
@@ -160,7 +181,7 @@ export default function BoardReplacementPage({
     }
   };
 
-  const save = async () => {
+  const save = () => withActor(async (filedBy) => {
     if (!form.lineTitle) return toast.error('Pick a line');
     if (!form.boardType) return toast.error('Pick a board type');
     setSaving(true);
@@ -183,6 +204,9 @@ export default function BoardReplacementPage({
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
         ...crewStamp(lineCrew.forLine(form.lineTitle), lineCrew.shiftId),
+        // Who filed it, proven — distinct from the crew, which is context.
+        actionBy: filedBy,
+        actionByVerified: !!filedBy,
       });
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
       setPickedPart(null);
@@ -194,7 +218,7 @@ export default function BoardReplacementPage({
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   const remove = async (entry) => {
     const ok = await dialog.confirm(
@@ -521,6 +545,22 @@ export default function BoardReplacementPage({
           )}
         </div>
       </div>
+      {pendingSave && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople}
+          title="Who is logging this?"
+          message="The entry is recorded against you."
+          onVerified={(p) => {
+            rememberActor(p);
+            const run = pendingSave;
+            setPendingSave(null);
+            run(p.name);
+          }}
+          onCancel={() => setPendingSave(null)}
+        />
+      )}
+
     </div>
   );
 }

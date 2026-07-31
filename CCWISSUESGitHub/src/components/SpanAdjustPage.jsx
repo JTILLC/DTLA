@@ -24,6 +24,9 @@ import { useDialog } from './DialogSystem.jsx';
 import WeightScanner from './WeightScanner.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import PinPrompt from './PinPrompt.jsx';
+import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
+import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
@@ -40,6 +43,24 @@ export default function SpanAdjustPage({
   const toast = useToast();
   const dialog = useDialog();
   const lineCrew = useLineCrew(workspaceId, customerId);
+  // Crewing says who was ON the line; this says who actually filed the entry.
+  // An entry logged at 2am otherwise inherits whoever was crewed at 6am.
+  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const [crewPeople, setCrewPeople] = useState([]);
+  const [pendingSave, setPendingSave] = useState(null);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeCrew(workspaceId, customerId, setCrewPeople);
+  }, [workspaceId, customerId]);
+
+  // A plant that has not set PINs keeps logging, unattributed. This records who
+  // filed something; it must never become a lock on recording work at all.
+  const withActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (actor || !anyPin) return run(actor?.name || '');
+    setPendingSave(() => run);
+  };
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);   // line title
   const [rows, setRows] = useState([]);             // [{head, currentWeight, spanWeight}]
@@ -142,7 +163,7 @@ export default function SpanAdjustPage({
     setScanned(new Set(byHead.keys()));
   };
 
-  const save = async () => {
+  const save = () => withActor(async (filedBy) => {
     if (!selected) return toast.error('Pick a line first');
     const measured = rows.filter((r) => String(r.currentWeight).trim() !== '');
     if (measured.length === 0) {
@@ -162,6 +183,9 @@ export default function SpanAdjustPage({
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
         ...crewStamp(lineCrew.forLine(selected), lineCrew.shiftId),
+        // Who filed it, proven — distinct from the crew, which is context.
+        actionBy: filedBy,
+        actionByVerified: !!filedBy,
         notes: notes.trim(),
         heads,
         confirmed: false,
@@ -178,7 +202,7 @@ export default function SpanAdjustPage({
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   const confirmEntry = async (entry) => {
     try {
@@ -501,6 +525,22 @@ export default function SpanAdjustPage({
           </div>
         )}
       </div>
+      {pendingSave && (
+        <PinPrompt
+          customerId={customerId}
+          people={crewPeople}
+          title="Who is logging this?"
+          message="The entry is recorded against you."
+          onVerified={(p) => {
+            rememberActor(p);
+            const run = pendingSave;
+            setPendingSave(null);
+            run(p.name);
+          }}
+          onCancel={() => setPendingSave(null)}
+        />
+      )}
+
     </div>
   );
 }
