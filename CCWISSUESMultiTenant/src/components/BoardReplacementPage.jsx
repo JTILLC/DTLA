@@ -587,6 +587,7 @@ export default function BoardReplacementPage({
         />
       )}
 
+      {dialog.DialogComponent}
     </div>
   );
 }

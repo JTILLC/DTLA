@@ -84,6 +84,7 @@ export default function CopyConfigFrom({
       >
         <Copy size={14} /> {busy ? 'Loading…' : 'Load'}
       </button>
+      {dialog.DialogComponent}
     </div>
   );
 }
