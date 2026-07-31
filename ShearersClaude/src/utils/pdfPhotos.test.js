@@ -149,6 +149,39 @@ describe('the second route', () => {
   });
 });
 
+describe('a cached opaque response poisoning the CORS request', () => {
+  // The real bug: the app displays a photo with a plain <img>, the browser
+  // caches an opaque response with no CORS headers, and the export's CORS
+  // request is then answered from that cached copy and fails. Only the photo
+  // that had just been viewed failed; the rest fetched cleanly.
+  it('gets the photo anyway by asking under a URL the cache has not seen', async () => {
+    const seen = [];
+    vi.stubGlobal('fetch', vi.fn(async (u, opts) => {
+      seen.push({ u: String(u), cache: opts?.cache });
+      if (!String(u).includes('_pdf=')) throw new TypeError('Failed to fetch');  // opaque hit
+      return okResponse();
+    }));
+    const r = await photoToThumb(URL_OK);
+    expect(r.failed).toBeUndefined();
+    expect(r.dataUrl).toMatch(/^data:image\/jpeg/);
+    expect(seen[0].cache).toBe('reload');          // refuses the cache outright
+    expect(seen[1].u).toMatch(/_pdf=\d+/);         // and then sidesteps the URL
+  });
+
+  it('keeps the original query string intact when busting', async () => {
+    const seen = [];
+    vi.stubGlobal('fetch', vi.fn(async (u) => {
+      seen.push(String(u));
+      if (seen.length === 1) throw new TypeError('Failed to fetch');
+      return okResponse();
+    }));
+    await photoToThumb(URL_OK);
+    expect(seen[1]).toContain('alt=media');
+    expect(seen[1]).toContain('token=t');
+    expect(seen[1]).toMatch(/&_pdf=/);              // appended, not replacing
+  });
+});
+
 describe('a stalled request', () => {
   it('is named as slow rather than blamed on the network', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
