@@ -169,7 +169,7 @@ export default function Navigation({ children, onLogout }) {
       <main className="flex-1 overflow-y-auto lg:ml-64">
         {/* Clearance for the fixed bottom bar. Trimmed with it: pb-24 was sized
             for the two-row bar the 7th item forced. */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-nav lg:!pb-6">
           {children}
         </div>
       </main>
@@ -178,8 +178,8 @@ export default function Navigation({ children, onLogout }) {
       {/* A fixed 6-column grid with 7 destinations wrapped onto a second row and
           doubled the bar's height. A scrolling strip holds one row at any count:
           swipe sideways for the rest, and adding an eighth page costs nothing. */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40">
-        <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 nav-safe">
+        <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory nav-strip">
           {navItems.map(item => (
             <Link
               key={item.to}
