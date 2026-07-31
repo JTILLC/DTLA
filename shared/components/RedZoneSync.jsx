@@ -9,7 +9,7 @@
 // that the integration isn't live yet and offers a payload preview.
 import { useState } from 'react';
 import { Send, CheckCircle2, Loader, ExternalLink } from 'lucide-react';
-import { REDZONE_CONFIG } from '../config/constants.js';
+import { REDZONE_CONFIG } from '@app/config/constants.js';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 

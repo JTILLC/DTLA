@@ -1,4 +1,4 @@
-import { AUDIT_SECTIONS } from '../config/constants';
+import { AUDIT_SECTIONS } from '@app/config/constants';
 
 // On-screen machine audit checklist. Each item is Good / Bad / N-A (mutually
 // exclusive — click the active one again to clear) plus a free-text note.
