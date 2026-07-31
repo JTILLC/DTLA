@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://jti-shearers.pages.dev",
+      "https://jti-shearers-viewer.pages.dev",
+      "http://localhost:5173"
+    ],
+    "method": ["GET"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
