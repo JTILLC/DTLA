@@ -24,6 +24,8 @@ import { useDialog } from './DialogSystem.jsx';
 import WeightScanner from './WeightScanner.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import EditedNote from './EditedNote.jsx';
+import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
@@ -61,6 +63,16 @@ export default function SpanAdjustPage({
     if (actor || !anyPin) return run(actor?.name || '');
     setPendingSave(() => run);
   };
+  // An edit REWRITES a record that already exists, so it always asks. Having
+  // proved who you are earlier in the shift is not the same as confirming this
+  // particular change — that confirmation is what makes the trail mean
+  // anything. A plant with no PINs still edits, unattributed, as everywhere.
+  const withFreshActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (!anyPin) return run('');
+    setPendingSave(() => run);
+  };
+
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);   // line title
   const [rows, setRows] = useState([]);             // [{head, currentWeight, spanWeight}]
@@ -68,6 +80,8 @@ export default function SpanAdjustPage({
   const [intervalDays, setIntervalDays] = useState('30');
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // A saved entry opened for correction: { id, heads:[...], notes }.
+  const [editing, setEditing] = useState(null);
   // Heads whose current weight came from a photo rather than a keypress. Marked
   // in the table so an operator knows which numbers to sanity-check, and cleared
   // the moment one is typed over.
@@ -201,6 +215,37 @@ export default function SpanAdjustPage({
       toast.error('Could not save: ' + (err?.message || 'unknown error'));
     } finally {
       setSaving(false);
+    }
+  });
+
+  // Weights get mistyped, and re-logging to fix one would lose when the work
+  // was actually done and who did it. Editing keeps both and records the change.
+  const openEdit = (entry) => setEditing({
+    id: entry.id,
+    entry,
+    notes: entry.notes || '',
+    heads: (entry.heads || []).map((h) => ({
+      head: h.head,
+      currentWeight: h.currentWeight ?? '',
+      spanWeight: h.spanWeight ?? '',
+    })),
+  });
+
+  const saveEdit = () => withFreshActor(async (filedBy) => {
+    if (!editing) return;
+    try {
+      const heads = editing.heads.map((r) => {
+        const cw = Number(r.currentWeight) || 0;
+        const sw = Number(r.spanWeight) || 0;
+        return { head: r.head, currentWeight: cw, spanWeight: sw, difference: round1(sw - cw) };
+      });
+      await updateLogEntry(workspaceId, customerId, LOG_SPAN, editing.id,
+        withEditStamp({ heads, notes: editing.notes.trim() }, editing.entry, filedBy));
+      toast.success('Entry updated');
+      setEditing(null);
+    } catch (err) {
+      console.error('Span log edit failed:', err);
+      toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
   });
 
@@ -473,6 +518,7 @@ export default function SpanAdjustPage({
                           by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
                         </div>
                         <CrewLine entry={e} />
+                        <EditedNote entry={e} />
                       </div>
                       <div className="d-flex align-items-center gap-2">
                         {e.confirmed ? (
@@ -482,11 +528,77 @@ export default function SpanAdjustPage({
                             <Check size={14} /> Confirm
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={() => openEdit(e)}
+                        >
+                          Edit
+                        </button>
                         <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => removeEntry(e)} aria-label="Delete entry">
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
+                    {editing?.id === e.id && (
+                      <div className="border rounded p-2 mt-2">
+                        <div className="small text-muted mb-2">
+                          Correcting this entry. The time it was logged and who
+                          logged it are kept; the change is recorded separately.
+                        </div>
+                        <div className="table-responsive">
+                          <table className="table table-sm mb-2">
+                            <thead>
+                              <tr><th>Head</th><th>Current</th><th>Span</th></tr>
+                            </thead>
+                            <tbody>
+                              {editing.heads.map((r, i) => (
+                                <tr key={r.head}>
+                                  <td><strong>{r.head}</strong></td>
+                                  <td>
+                                    <input
+                                      type="number" step="any" inputMode="decimal"
+                                      className="form-control form-control-sm"
+                                      value={r.currentWeight}
+                                      onChange={(ev) => setEditing((d) => ({
+                                        ...d,
+                                        heads: d.heads.map((x, j) => (j === i ? { ...x, currentWeight: ev.target.value } : x)),
+                                      }))}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number" step="any" inputMode="decimal"
+                                      className="form-control form-control-sm"
+                                      value={r.spanWeight}
+                                      onChange={(ev) => setEditing((d) => ({
+                                        ...d,
+                                        heads: d.heads.map((x, j) => (j === i ? { ...x, spanWeight: ev.target.value } : x)),
+                                      }))}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm mb-2"
+                          placeholder="Notes"
+                          value={editing.notes}
+                          onChange={(ev) => setEditing((d) => ({ ...d, notes: ev.target.value }))}
+                        />
+                        <div className="d-flex gap-2">
+                          <button type="button" className="btn btn-sm btn-primary" onClick={saveEdit}>
+                            Save changes
+                          </button>
+                          <button type="button" className="btn btn-sm btn-link" onClick={() => setEditing(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {e.notes && <div className="small mt-1">{e.notes}</div>}
                     {e.nextDueAt && (
                       <div className="small text-muted mt-1">

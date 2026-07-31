@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Cpu, ChevronLeft, Trash2, Plus, Settings, X, Link2 } from 'lucide-react';
 import {
   LOG_BOARD, subscribeLog, addLogEntry, deleteLogEntry, sinceLabel,
-  subscribeBoardTypes, saveBoardTypes, subscribePartsBindings,
+  subscribeBoardTypes, saveBoardTypes, subscribePartsBindings, updateLogEntry,
 } from '../services/logs.js';
 import { BOARD_TYPES } from '@app/config/constants';
 import { useToast } from './Toast.jsx';
@@ -25,6 +25,8 @@ import PartsManualBinding from './PartsManualBinding.jsx';
 import PartDiagramViewer from './parts/PartDiagramViewer.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import EditedNote from './EditedNote.jsx';
+import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
@@ -70,6 +72,16 @@ export default function BoardReplacementPage({
     if (actor || !anyPin) return run(actor?.name || '');
     setPendingSave(() => run);
   };
+  // An edit REWRITES a record that already exists, so it always asks. Having
+  // proved who you are earlier in the shift is not the same as confirming this
+  // particular change — that confirmation is what makes the trail mean
+  // anything. A plant with no PINs still edits, unattributed, as everywhere.
+  const withFreshActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (!anyPin) return run('');
+    setPendingSave(() => run);
+  };
+
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [form, setForm] = useState(BLANK);
@@ -89,6 +101,10 @@ export default function BoardReplacementPage({
   const [pickedPart, setPickedPart] = useState(null);
   // Further parts on the same replacement — a board plus its gasket and screws.
   const [extraParts, setExtraParts] = useState([]);
+  // The entry being edited, or null when logging a new one. The form is the
+  // same either way — an edit that used a different screen would drift from the
+  // one people actually know.
+  const [editing, setEditing] = useState(null);
   // A past entry whose drawing is being viewed.
   const [diagramEntry, setDiagramEntry] = useState(null);
 
@@ -183,6 +199,77 @@ export default function BoardReplacementPage({
       setSavingTypes(false);
     }
   };
+
+  // Reopen a saved entry. The parts list is rebuilt into the same shape the
+  // picker produces, so adding and removing parts works exactly as it does on a
+  // new entry rather than being a second, weaker editor.
+  const openEdit = (entry) => {
+    const asPicked = (p) => ({
+      partCode: p.partNumber, partName: p.partName, itemNo: p.itemNo,
+      diagramId: p.diagramId, diagramName: p.diagramName,
+    });
+    const list = Array.isArray(entry.parts) && entry.parts.length
+      ? entry.parts
+      : (entry.partNumber ? [{
+          partNumber: entry.partNumber, partName: entry.partName,
+          itemNo: entry.partItemNo, diagramId: entry.partDiagramId,
+          diagramName: entry.partDiagramName,
+        }] : []);
+    setForm({
+      lineTitle: entry.lineTitle || '',
+      headNumber: entry.headNumber == null ? '' : String(entry.headNumber),
+      boardType: entry.boardType || '',
+      partNumber: entry.partNumber || '',
+      reason: entry.reason || '',
+      notes: entry.notes || '',
+    });
+    setPickedPart(list.length && entry.partVerified ? asPicked(list[0]) : null);
+    setExtraParts(list.slice(1).map(asPicked));
+    setEditing(entry);
+    setAdding(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setAdding(false);
+    setPickedPart(null);
+    setExtraParts([]);
+  };
+
+  const saveEdit = () => withFreshActor(async (filedBy) => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      const parts = [pickedPart, ...extraParts].filter(Boolean).map((p) => ({
+        partNumber: p.partCode || String(p.itemNo || ''),
+        partName: p.partName || '',
+        itemNo: p.itemNo || '',
+        diagramId: p.diagramId || '',
+        diagramName: p.diagramName || '',
+      }));
+      await updateLogEntry(workspaceId, customerId, LOG_BOARD, editing.id, withEditStamp({
+        lineTitle: form.lineTitle,
+        headNumber: form.headNumber === '' ? null : Number(form.headNumber),
+        boardType: form.boardType,
+        partNumber: form.partNumber.trim(),
+        partName: pickedPart?.partName || '',
+        partItemNo: pickedPart?.itemNo || '',
+        partDiagramId: pickedPart?.diagramId || '',
+        partDiagramName: pickedPart?.diagramName || '',
+        partVerified: !!pickedPart,
+        parts,
+        reason: form.reason.trim(),
+        notes: form.notes.trim(),
+      }, editing, filedBy));
+      toast.success('Entry updated');
+      cancelEdit();
+    } catch (err) {
+      console.error('Board log edit failed:', err);
+      toast.error('Could not update: ' + (err?.message || 'unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  });
 
   const save = () => withActor(async (filedBy) => {
     if (!form.lineTitle) return toast.error('Pick a line');
@@ -383,7 +470,7 @@ export default function BoardReplacementPage({
         <div className="card mb-3">
           <div className="card-header d-flex justify-content-between align-items-center">
             <strong>New board replacement</strong>
-            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setAdding(false)}>
+            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={cancelEdit}>
               <ChevronLeft size={16} /> Cancel
             </button>
           </div>
@@ -466,8 +553,13 @@ export default function BoardReplacementPage({
             </div>
 
             <CrewChip lineCrew={lineCrew} lineTitle={form.lineTitle} />
-            <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? 'Saving…' : 'Log board replacement'}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={editing ? saveEdit : save}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : editing ? 'Save changes' : 'Log board replacement'}
             </button>
           </div>
         </div>
@@ -513,7 +605,15 @@ export default function BoardReplacementPage({
                           {' · '}by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
                         </div>
                         <CrewLine entry={e} />
+                        <EditedNote entry={e} />
                       </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => openEdit(e)}
+                      >
+                        Edit
+                      </button>
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-danger"

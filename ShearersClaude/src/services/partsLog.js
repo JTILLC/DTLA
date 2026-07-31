@@ -60,6 +60,12 @@ export async function addPartsEntry(entry) {
   return id;
 }
 
+// Correcting a saved entry rather than deleting and re-logging it, which would
+// lose when the work was actually done.
+export async function updatePartsEntry(id, patch) {
+  await update(ref(db, `${LOG_PATH}/${id}`), patch);
+}
+
 export async function deletePartsEntry(id) {
   await remove(ref(db, `${LOG_PATH}/${id}`));
 }
@@ -103,7 +109,7 @@ export async function saveBindings(bindings) {
 }
 
 export default {
-  subscribePartsLog, addPartsEntry, deletePartsEntry,
+  subscribePartsLog, addPartsEntry, updatePartsEntry, deletePartsEntry,
   subscribeBoardTypes, saveBoardTypes, DEFAULT_BOARD_TYPES,
   subscribeBindings, saveBindings,
 };

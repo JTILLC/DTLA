@@ -16,6 +16,8 @@ import { getDatabase, ref, onValue, update, remove as rtdbRemove } from 'firebas
 import { app } from '../firebaseConfig';
 import { HEADS_PER_LINE, SECTIONS } from '../constants';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { withEditStamp, editSummary } from '@shared/utils/editTrail.js';
 import WeightScanner from './WeightScanner';
 
 const database = getDatabase(app);
@@ -53,12 +55,15 @@ const ALL_LINES = SECTIONS.flatMap((s) => s.lines);
 
 export default function SpanAdjustPage() {
   const toast = useToast();
+  // The login is the identity here — each person signs in as themselves.
+  const { user } = useAuth();
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);
   const [rows, setRows] = useState([]);
   const [notes, setNotes] = useState('');
   const [intervalDays, setIntervalDays] = useState('30');
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
   // Heads whose current weight came from a photo rather than a keypress.
   // Marked in the list so an operator knows which to sanity-check, and
   // cleared the moment one is typed over.
@@ -166,6 +171,37 @@ export default function SpanAdjustPage() {
       toast.error('Could not save: ' + (err?.message || 'unknown error'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Weights get mistyped. Correcting one keeps when the adjustment was actually
+  // performed; deleting and re-logging would not.
+  const openEdit = (entry) => setEditing({
+    id: entry.id,
+    entry,
+    notes: entry.notes || '',
+    heads: (entry.heads || []).map((h) => ({
+      head: h.head, currentWeight: h.currentWeight ?? '', spanWeight: h.spanWeight ?? '',
+    })),
+  });
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!window.confirm('Save changes to this entry? The change is recorded against you.')) return;
+    try {
+      const heads = editing.heads.map((r) => {
+        const cw = Number(r.currentWeight) || 0;
+        const sw = Number(r.spanWeight) || 0;
+        return { head: r.head, currentWeight: cw, spanWeight: sw, difference: round1(sw - cw) };
+      });
+      await update(ref(database, `${SPAN_PATH}/${editing.id}`), withEditStamp(
+        { heads, notes: editing.notes.trim() }, editing.entry, user?.email || ''
+      ));
+      toast.success('Entry updated');
+      setEditing(null);
+    } catch (err) {
+      console.error('span edit failed:', err);
+      toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
   };
 
@@ -408,10 +444,58 @@ export default function SpanAdjustPage() {
                         </div>
                       )}
                     </div>
-                    <button type="button" className="btn-danger !px-3 !py-1.5" onClick={() => removeEntry(e)}>
-                      Delete
-                    </button>
+                    <div className="flex gap-2 shrink-0">
+                      <button type="button" className="btn-secondary" onClick={() => openEdit(e)}>Edit</button>
+                      <button type="button" className="btn-danger !px-3 !py-1.5" onClick={() => removeEntry(e)}>
+                        Delete
+                      </button>
+                    </div>
                   </div>
+                  {editSummary(e) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">✎ {editSummary(e)}</p>
+                  )}
+                  {editing?.id === e.id && (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded p-2 mt-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        Correcting this entry. When it was performed is kept; the
+                        change is recorded separately.
+                      </p>
+                      <div className="space-y-1 max-h-64 overflow-y-auto">
+                        {editing.heads.map((r, i) => (
+                          <div key={r.head} className="flex items-center gap-2">
+                            <span className="w-8 shrink-0 text-sm dark:text-gray-100">{r.head}</span>
+                            <input
+                              type="number" step="any" inputMode="decimal"
+                              className="field flex-1 min-w-0" placeholder="current"
+                              value={r.currentWeight}
+                              onChange={(ev) => setEditing((d) => ({
+                                ...d,
+                                heads: d.heads.map((x, j) => (j === i ? { ...x, currentWeight: ev.target.value } : x)),
+                              }))}
+                            />
+                            <input
+                              type="number" step="any" inputMode="decimal"
+                              className="field flex-1 min-w-0" placeholder="span"
+                              value={r.spanWeight}
+                              onChange={(ev) => setEditing((d) => ({
+                                ...d,
+                                heads: d.heads.map((x, j) => (j === i ? { ...x, spanWeight: ev.target.value } : x)),
+                              }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <input
+                        type="text" className="field w-full mt-2" placeholder="Notes"
+                        value={editing.notes}
+                        onChange={(ev) => setEditing((d) => ({ ...d, notes: ev.target.value }))}
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" className="btn-primary" onClick={saveEdit}>Save changes</button>
+                        <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                   {e.notes && <p className="text-sm mt-1 dark:text-gray-200">{e.notes}</p>}
                   <details className="mt-2">
                     <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
