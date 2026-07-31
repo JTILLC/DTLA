@@ -17,7 +17,8 @@
 // under them.
 import { useEffect, useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
-import { fetchDiagram, fetchDiagramImage } from '../config/parts.js';
+import { partsApi, searchParts } from './partsApi.js';
+import './parts-ui.css';
 
 export default function PartDiagramViewer({
   diagramId,
@@ -44,7 +45,7 @@ export default function PartDiagramViewer({
     setMeta(null);
     setSrc('');
 
-    Promise.all([fetchDiagram(diagramId), fetchDiagramImage(diagramId)])
+    Promise.all([partsApi().fetchDiagram(diagramId), partsApi().fetchDiagramImage(diagramId)])
       .then(([m, url]) => {
         if (cancelled) { URL.revokeObjectURL(url); return; }
         objectUrl = url;
@@ -78,34 +79,35 @@ export default function PartDiagramViewer({
 
   return (
     <div
+      className="pui-scope"
       style={{
         position: 'fixed', inset: 0, zIndex: 3200, background: 'rgba(0,0,0,0.95)',
         display: 'flex', flexDirection: 'column',
       }}
     >
-      <div className="d-flex align-items-center justify-content-between px-3 py-2 text-white">
-        <div className="small text-truncate">
+      <div className="pui-d-flex pui-align-center pui-justify-between pui-px-3 pui-py-2 pui-text-white">
+        <div className="pui-small pui-text-truncate">
           <strong>{partLabel || 'Part'}</strong>
           {meta?.name ? ` · ${meta.name}` : ''}
         </div>
-        <div className="d-flex align-items-center gap-2">
+        <div className="pui-d-flex pui-align-center pui-gap-2">
           {src && (
             <>
               <button
                 type="button"
-                className="btn btn-sm btn-outline-light"
+                className="pui-btn pui-btn-outline-light"
                 onClick={() => setZoomStep((z) => Math.max(0, z - 1))}
                 disabled={zoomStep === 0}
                 aria-label="Zoom out"
               >
                 <ZoomOut size={16} />
               </button>
-              <span className="small text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
+              <span className="pui-small pui-text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
                 {zoomStep === 0 ? 'Fit' : `${ZOOM_STEPS[zoomStep]}×`}
               </span>
               <button
                 type="button"
-                className="btn btn-sm btn-outline-light"
+                className="pui-btn pui-btn-outline-light"
                 onClick={() => setZoomStep((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
                 disabled={zoomStep === ZOOM_STEPS.length - 1}
                 aria-label="Zoom in"
@@ -114,7 +116,7 @@ export default function PartDiagramViewer({
               </button>
             </>
           )}
-          <button type="button" className="btn btn-sm btn-light" onClick={onClose} aria-label="Close">
+          <button type="button" className="pui-btn pui-btn-light" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -129,8 +131,8 @@ export default function PartDiagramViewer({
           display: zoom ? 'block' : 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
-        {error && <div className="text-warning p-3">{error}</div>}
-        {!error && !src && <div className="text-white-50 p-3">Loading the drawing…</div>}
+        {error && <div className="pui-text-warning pui-p-3">{error}</div>}
+        {!error && !src && <div className="pui-text-white-50 pui-p-3">Loading the drawing…</div>}
         {src && (
           <span
             style={{
@@ -179,7 +181,7 @@ export default function PartDiagramViewer({
         )}
       </div>
 
-      <div className="text-center text-white-50 small py-2 px-3">
+      <div className="pui-text-center pui-text-white-50 pui-small pui-py-2 pui-px-3">
         {spots.length === 0 && meta
           ? 'This part isn’t balloned on this drawing — showing the full view.'
           : `Ringed in red${spots.length > 1 ? ` — ${spots.length} marked` : ''}.${zoom ? ' Drag or scroll to move around.' : ''}`}

@@ -1,6 +1,4 @@
-// src/components/parts/PartLookupField.jsx
-//
-// Shearers copy of the CCW field — same behaviour, Tailwind styling.
+// src/components/PartLookupField.jsx
 //
 // The part-number field on a board/parts replacement, backed by the machine's
 // own parts manual instead of taking free text on trust.
@@ -18,7 +16,8 @@
 // the manual" from "someone typed it".
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Search, AlertTriangle, Image as ImageIcon, BookOpen } from 'lucide-react';
-import { fetchPartsForMachine, searchParts } from '../../config/parts.js';
+import { partsApi, searchParts } from './partsApi.js';
+import './parts-ui.css';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
 import PartsBrowser from './PartsBrowser.jsx';
 
@@ -50,7 +49,7 @@ export default function PartLookupField({
     setError('');
     if (!binding?.partsCustomer || !binding?.folder) return undefined;
     setLoading(true);
-    fetchPartsForMachine(binding.partsCustomer, binding.folder)
+    partsApi().fetchPartsForMachine(binding.partsCustomer, binding.folder)
       .then((data) => { if (!cancelled) setParts(data.parts || []); })
       .catch((err) => {
         if (cancelled) return;
@@ -87,12 +86,12 @@ export default function PartLookupField({
   };
 
   return (
-    <div ref={boxRef} className="relative">
-      <div className="flex items-center gap-2">
-        <span className="text-gray-500"><Search size={14} /></span>
+    <div ref={boxRef} className="pui-scope pui-position-relative">
+      <div className="pui-input-group">
+        <span className="pui-input-group-text"><Search size={14} /></span>
         <input
           type="text"
-          className="field flex-1 min-w-0"
+          className="pui-form-control"
           placeholder={binding ? 'Part number or name' : 'Part number (no manual linked)'}
           value={value}
           disabled={disabled}
@@ -106,7 +105,7 @@ export default function PartLookupField({
         {binding && (
           <button
             type="button"
-            className="btn-secondary shrink-0"
+            className="pui-btn pui-btn-outline-secondary"
             onClick={() => setBrowsing(true)}
             disabled={disabled || !parts}
             title="Browse this machine's drawings and tap the part"
@@ -117,8 +116,8 @@ export default function PartLookupField({
       </div>
 
       {picked ? (
-        <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-start gap-1">
-          <Check size={14} className="shrink-0 mt-0.5" />
+        <div className="pui-small pui-text-success-emphasis pui-mt-1 pui-d-flex pui-align-start pui-gap-1">
+          <Check size={14} className="pui-flex-shrink-0 pui-mt-1" />
           <span>
             {picked.partName || 'Confirmed'}
             {picked.itemNo ? ` · item ${picked.itemNo}` : ''}
@@ -126,7 +125,7 @@ export default function PartLookupField({
             {picked.diagramId && (
               <button
                 type="button"
-                className="ml-2 text-indigo-600 dark:text-indigo-400 underline text-xs"
+                className="pui-btn pui-btn-link pui-p-0 pui-ms-2 pui-align-baseline"
                 onClick={() => setShowDiagram(true)}
               >
                 <ImageIcon size={12} /> View on drawing
@@ -135,19 +134,19 @@ export default function PartLookupField({
           </span>
         </div>
       ) : value.trim() && parts && matches.length === 0 ? (
-        <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1">
-          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+        <div className="pui-small pui-text-warning-emphasis pui-mt-1 pui-d-flex pui-align-start pui-gap-1">
+          <AlertTriangle size={14} className="pui-flex-shrink-0 pui-mt-1" />
           <span>Not in this machine&apos;s manual — it will be logged as typed.</span>
         </div>
       ) : null}
 
       {extras.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="pui-d-flex pui-flex-wrap pui-gap-1 pui-mt-1">
           {extras.map((p) => (
             <button
               key={`${p.diagramId}-${p.itemNo}-${p.partCode}`}
               type="button"
-              className="text-xs px-2 py-0.5 rounded bg-gray-500 text-white"
+              className="pui-badge pui-bg-secondary"
               title={`${p.partName || ''} — remove`}
               onClick={() => onExtras?.(extras.filter((x) => x !== p))}
             >
@@ -158,12 +157,12 @@ export default function PartLookupField({
       )}
 
       {!binding && (
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <div className="pui-form-text">
           No parts manual linked to this line, so numbers can&apos;t be checked.
         </div>
       )}
-      {loading && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Loading the parts manual…</div>}
-      {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
+      {loading && <div className="pui-form-text">Loading the parts manual…</div>}
+      {error && <div className="pui-form-text pui-text-danger">{error}</div>}
 
       {browsing && (
         <PartsBrowser
@@ -200,18 +199,18 @@ export default function PartLookupField({
 
       {open && matches.length > 0 && (
         <div
-          className="absolute w-full shadow-lg rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+          className="pui-list-group pui-position-absolute pui-w-100 pui-shadow"
           style={{ zIndex: 1050, maxHeight: '240px', overflowY: 'auto' }}
         >
           {matches.map((p) => (
             <button
               key={`${p.diagramId}-${p.itemNo}-${p.partCode}`}
               type="button"
-              className="block w-full text-left p-2 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="pui-list-group-item pui-py-2"
               onClick={() => choose(p)}
             >
-              <div className="font-semibold">{p.partCode || `Item ${p.itemNo}`}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="pui-fw-semibold">{p.partCode || `Item ${p.itemNo}`}</div>
+              <div className="pui-small pui-text-muted">
                 {p.partName || 'Unnamed part'}
                 {p.itemNo ? ` · item ${p.itemNo}` : ''}
                 {p.diagramName ? ` · ${p.diagramName}` : ''}

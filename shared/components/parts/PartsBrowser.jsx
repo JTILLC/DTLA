@@ -1,8 +1,4 @@
-// src/components/parts/PartsBrowser.jsx
-//
-// Shearers copy of the CCW browser — same behaviour, Tailwind instead of
-// Bootstrap. Kept as a copy rather than shared because the two apps have no
-// build relationship; changing one means changing the other by hand.
+// src/components/PartsBrowser.jsx
 //
 // Browse the machine's manual and tap the part you replaced.
 //
@@ -19,7 +15,8 @@
 // that part sits on its drawing.
 import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff, List } from 'lucide-react';
-import { fetchDiagrams, fetchDiagram, fetchDiagramImage, searchParts } from '../../config/parts.js';
+import { partsApi, searchParts } from './partsApi.js';
+import './parts-ui.css';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   // A repair is rarely one part — a board comes with its gasket and its screws.
@@ -51,7 +48,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   useEffect(() => {
     let cancelled = false;
     if (!binding?.partsCustomer || !binding?.folder) return undefined;
-    fetchDiagrams(binding.partsCustomer, binding.folder)
+    partsApi().fetchDiagrams(binding.partsCustomer, binding.folder)
       .then((d) => { if (!cancelled) setDiagrams(d.diagrams || []); })
       .catch((err) => {
         if (cancelled) return;
@@ -69,7 +66,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
     setSrc('');
     setZoomStep(0);
     if (!current?.id) return undefined;
-    Promise.all([fetchDiagram(current.id), fetchDiagramImage(current.id)])
+    Promise.all([partsApi().fetchDiagram(current.id), partsApi().fetchDiagramImage(current.id)])
       .then(([m, url]) => {
         if (cancelled) { URL.revokeObjectURL(url); return; }
         objectUrl = url;
@@ -136,28 +133,29 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
 
   return (
     <div
+      className="pui-scope"
       style={{
         position: 'fixed', inset: 0, zIndex: 3200, background: '#111',
         display: 'flex', flexDirection: 'column',
       }}
     >
-      <div className="flex items-center gap-2 px-3 py-2 text-white">
+      <div className="pui-d-flex pui-align-center pui-gap-2 pui-px-3 pui-py-2 pui-text-white">
         {current ? (
           <button
             type="button"
-            className="px-2 py-1 text-sm rounded border border-white/60 text-white"
+            className="pui-btn pui-btn-outline-light"
             onClick={() => { setCurrent(null); setHighlight(null); }}
           >
             <ChevronLeft size={16} /> Drawings
           </button>
         ) : (
-          <strong className="truncate">{binding?.folder || 'Parts manual'}</strong>
+          <strong className="pui-text-truncate">{binding?.folder || 'Parts manual'}</strong>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="pui-ms-auto pui-d-flex pui-align-center pui-gap-2">
           {src && (
             <button
               type="button"
-              className={'px-2 py-1 text-sm rounded ' + (showList ? 'bg-white text-gray-900' : 'border border-white/60 text-white')}
+              className={'pui-btn ' + (showList ? 'btn-light' : 'btn-outline-light')}
               onClick={() => setShowList((v) => !v)}
               aria-label={showList ? 'Hide the parts list' : 'Show the parts list for this drawing'}
               title={showList ? 'Hide the parts list' : 'Parts on this drawing'}
@@ -168,7 +166,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           {src && (
             <button
               type="button"
-              className={'px-2 py-1 text-sm rounded ' + (showSpots ? 'border border-white/60 text-white' : 'bg-white text-gray-900')}
+              className={'pui-btn ' + (showSpots ? 'btn-outline-light' : 'btn-light')}
               onClick={() => setShowSpots((v) => !v)}
               aria-label={showSpots ? 'Hide part markers' : 'Show part markers'}
               title={showSpots ? 'Hide the markers to read the drawing' : 'Show part markers'}
@@ -180,19 +178,19 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
             <>
               <button
                 type="button"
-                className="px-2 py-1 text-sm rounded border border-white/60 text-white"
+                className="pui-btn pui-btn-outline-light"
                 onClick={() => setZoomStep((z) => Math.max(0, z - 1))}
                 disabled={zoomStep === 0}
                 aria-label="Zoom out"
               >
                 <ZoomOut size={16} />
               </button>
-              <span className="small text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
+              <span className="pui-small pui-text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
                 {zoomStep === 0 ? 'Fit' : `${ZOOM_STEPS[zoomStep]}×`}
               </span>
               <button
                 type="button"
-                className="px-2 py-1 text-sm rounded border border-white/60 text-white"
+                className="pui-btn pui-btn-outline-light"
                 onClick={() => setZoomStep((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
                 disabled={zoomStep === ZOOM_STEPS.length - 1}
                 aria-label="Zoom in"
@@ -201,7 +199,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
               </button>
             </>
           )}
-          <button type="button" className="px-2 py-1 text-sm rounded bg-white text-gray-900" onClick={onClose} aria-label="Close">
+          <button type="button" className="pui-btn pui-btn-light" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -209,12 +207,12 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
 
       {/* Search runs across the whole machine, so a part can be reached without
           knowing which drawing it lives on. */}
-      <div className="px-3 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-white/70"><Search size={14} /></span>
+      <div className="pui-px-3 pui-pb-2">
+        <div className="pui-input-group">
+          <span className="pui-input-group-text"><Search size={14} /></span>
           <input
             type="text"
-            className="field flex-1 min-w-0"
+            className="pui-form-control"
             placeholder="Search this machine by part number or name…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -223,29 +221,29 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', position: 'relative' }}>
-        {error && <div className="m-3 p-2 rounded bg-amber-100 text-amber-900 text-sm">{error}</div>}
+        {error && <div className="pui-alert-warning pui-m-3">{error}</div>}
 
         {query.trim().length >= 2 ? (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="pui-list-group">
             {results.length === 0 && (
-              <div className="text-white/70 p-3">Nothing matching “{query}” on this machine.</div>
+              <div className="pui-text-white-50 pui-p-3">Nothing matching “{query}” on this machine.</div>
             )}
             {results.map((p) => (
-              <div key={`${p.diagramId}-${p.itemNo}-${p.partCode}`} className="flex gap-2 items-center p-2 bg-white dark:bg-gray-800">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold">{p.partCode || `Item ${p.itemNo}`}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div key={`${p.diagramId}-${p.itemNo}-${p.partCode}`} className="pui-list-group-item pui-d-flex pui-gap-2 pui-align-center">
+                <div className="pui-flex-grow">
+                  <div className="pui-fw-semibold">{p.partCode || `Item ${p.itemNo}`}</div>
+                  <div className="pui-small pui-text-muted">
                     {p.partName || 'Unnamed part'}
                     {p.itemNo ? ` · item ${p.itemNo}` : ''}
                     {p.diagramName ? ` · ${p.diagramName}` : ''}
                   </div>
                 </div>
-                <button type="button" className="btn-secondary" onClick={() => jumpTo(p)}>
+                <button type="button" className="pui-btn pui-btn-outline-secondary" onClick={() => jumpTo(p)}>
                   Show
                 </button>
                 <button
                   type="button"
-                  className={'px-2 py-1 text-sm rounded text-white ' + (isPicked(p) ? 'bg-emerald-600' : 'bg-indigo-600')}
+                  className={'pui-btn ' + (isPicked(p) ? 'btn-success' : 'btn-primary')}
                   onClick={() => toggle(p)}
                 >
                   {isPicked(p) ? 'Added' : 'Add'}
@@ -254,21 +252,21 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
             ))}
           </div>
         ) : listOfDrawings ? (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {!diagrams && !error && <div className="text-white/70 p-3">Loading the manual…</div>}
+          <div className="pui-list-group">
+            {!diagrams && !error && <div className="pui-text-white-50 pui-p-3">Loading the manual…</div>}
             {diagrams?.length === 0 && (
-              <div className="text-white/70 p-3">This machine has no drawings in the catalog.</div>
+              <div className="pui-text-white-50 pui-p-3">This machine has no drawings in the catalog.</div>
             )}
             {(diagrams || []).map((d) => (
               <button
                 key={d.id}
                 type="button"
-                className="block w-full text-left p-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="pui-list-group-item"
                 onClick={() => { setHighlight(null); setCurrent(d); }}
               >
-                <div className="font-semibold">{d.name}</div>
+                <div className="pui-fw-semibold">{d.name}</div>
                 {(d.number || d.itemNo) && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="pui-small pui-text-muted">
                     {d.number ? `Drawing ${d.number}` : ''}{d.number && d.itemNo ? ' · ' : ''}{d.itemNo || ''}
                   </div>
                 )}
@@ -283,7 +281,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            {!src && !error && <div className="text-white/70 p-3">Loading the drawing…</div>}
+            {!src && !error && <div className="pui-text-white-50 pui-p-3">Loading the drawing…</div>}
             {src && (
               <span
                 style={{
@@ -341,7 +339,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                         padding: 0,
                       }}
                     >
-                      <span className="visually-hidden">
+                      <span className="pui-visually-hidden">
                         {p ? `${chosen ? 'Remove' : 'Add'} ${p.partCode || p.partName}` : `Item ${h.partNumber}`}
                       </span>
                     </button>
@@ -358,12 +356,12 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           the same space and the tray won, so the list button did nothing once
           anything was picked. */}
       {showList && current && query.trim().length < 2 && (
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
-          <div className="flex justify-between items-center px-3 py-2 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800">
+        <div className="pui-bg-body pui-border-top" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+          <div className="pui-d-flex pui-justify-between pui-align-center pui-px-3 pui-py-2 pui-border-bottom pui-sticky-top pui-bg-body">
             <strong>Parts on {current?.name || 'this drawing'}</strong>
             <button
               type="button"
-              className="btn-secondary"
+              className="pui-btn pui-btn-outline-secondary"
               onClick={() => setShowList(false)}
               aria-label="Hide the parts list"
             >
@@ -371,26 +369,26 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
             </button>
           </div>
           {listHere.length === 0 ? (
-            <div className="text-gray-500 p-3">No parts listed for this drawing.</div>
+            <div className="pui-text-muted pui-p-3">No parts listed for this drawing.</div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="pui-list-group">
               {listHere.map((p) => (
                 <button
                   key={`${p.itemNo}-${p.partCode}`}
                   type="button"
-                  className="block w-full text-left p-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="pui-list-group-item pui-py-2"
                   onClick={() => toggle(p)}
                 >
-                  <div className="flex gap-2">
+                  <div className="pui-d-flex pui-gap-2">
                     <span
-                      className={'text-xs px-2 py-0.5 rounded text-white shrink-0 ' + (isPicked(p) ? 'bg-emerald-600' : 'bg-gray-500')}
+                      className={'pui-badge pui-flex-shrink-0 ' + (isPicked(p) ? 'bg-success' : 'bg-secondary')}
                       style={{ minWidth: '2.2rem' }}
                     >
                       {isPicked(p) ? '✓' : p.itemNo}
                     </span>
                     <span>
-                      <span className="font-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
-                      {p.partName && <span className="block text-xs text-gray-500 dark:text-gray-400">{p.partName}</span>}
+                      <span className="pui-fw-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
+                      {p.partName && <span className="pui-d-block pui-small pui-text-muted">{p.partName}</span>}
                     </span>
                   </div>
                 </button>
@@ -403,13 +401,13 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
       {/* The tray. Always visible once something is picked, so the button that
           finishes the job is in one place regardless of how you got here. */}
       {picked.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-3 py-2">
-          <div className="flex flex-wrap gap-1 mb-2" style={{ maxHeight: '90px', overflowY: 'auto' }}>
+        <div className="pui-bg-body pui-border-top pui-px-3 pui-py-2">
+          <div className="pui-d-flex pui-flex-wrap pui-gap-1 pui-mb-2" style={{ maxHeight: '90px', overflowY: 'auto' }}>
             {picked.map((p) => (
               <button
                 key={keyOf(p)}
                 type="button"
-                className="text-xs px-2 py-0.5 rounded bg-emerald-600 text-white"
+                className="pui-badge pui-bg-success"
                 onClick={() => toggle(p)}
                 title="Remove"
               >
@@ -417,18 +415,18 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
               </button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn-primary" onClick={commit}>
+          <div className="pui-d-flex pui-gap-2">
+            <button type="button" className="pui-btn pui-btn-primary" onClick={commit}>
               Use {picked.length} part{picked.length === 1 ? '' : 's'}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setPicked([])}>
+            <button type="button" className="pui-btn pui-btn-outline-secondary" onClick={() => setPicked([])}>
               Clear
             </button>
           </div>
         </div>
       )}
 
-      <div className="text-center text-white/70 text-xs py-2 px-3">
+      <div className="pui-text-center pui-text-white-50 pui-small pui-py-2 pui-px-3">
         {query.trim().length >= 2
           ? 'Add collects parts. Show opens one on its drawing.'
           : listOfDrawings
