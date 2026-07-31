@@ -12,7 +12,7 @@ import { db } from '../services/firebase';
 
 const SECTIONS = [
   { key: 'spanLog', title: 'Span Adjustments', empty: 'No span adjustments recorded yet.' },
-  { key: 'boardLog', title: 'Board Replacements', empty: 'No board replacements recorded yet.' },
+  { key: 'boardLog', title: 'Parts / Board Replacements', empty: 'No board replacements recorded yet.' },
   { key: 'pmLog', title: 'Preventative Maintenance', empty: 'No PM checks submitted yet.' },
 ];
 

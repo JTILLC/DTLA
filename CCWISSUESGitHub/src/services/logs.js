@@ -120,6 +120,18 @@ const configDoc = (workspaceId, customerId, key) =>
     .collection(CONFIG)
     .doc(key);
 
+// One-off read of ANOTHER customer's config, for the copy-from-customer flows.
+// Setting up a second plant shouldn't mean retyping a checklist or a board list
+// that already exists a few customers over.
+//
+// Reads within the same workspace only — every path is
+// user_files/{workspaceId}/..., so this can't reach another JTI account's data.
+export async function fetchConfig(workspaceId, customerId, key) {
+  if (!workspaceId || !customerId) return null;
+  const snap = await configDoc(workspaceId, customerId, key).get();
+  return snap.exists ? snap.data() : null;
+}
+
 export function subscribeBoardTypes(workspaceId, customerId, cb) {
   if (!workspaceId || !customerId) return () => {};
   return configDoc(workspaceId, customerId, 'boardTypes').onSnapshot(

@@ -19,6 +19,7 @@ import {
 } from '../services/logs.js';
 import { BOARD_TYPES } from '../config/constants';
 import { useToast } from './Toast.jsx';
+import CopyConfigFrom from './CopyConfigFrom.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
 const BLANK = {
@@ -33,6 +34,7 @@ const BLANK = {
 };
 
 export default function BoardReplacementPage({
+  customers = [],
   workspaceId,
   customerId,
   customerName,
@@ -91,6 +93,25 @@ export default function BoardReplacementPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardTypes.join('|')]);
+
+
+  // Start a new entry from the last replacement. Board swaps repeat: same line,
+  // same head, same board type, often the same part. Serials never carry over —
+  // they identify the individual board and are the one thing that MUST be read
+  // off the hardware each time.
+  const openAdd = () => {
+    const last = entries[0];
+    setForm(last
+      ? {
+          ...BLANK,
+          lineTitle: last.lineTitle || '',
+          headNumber: last.headNumber || '',
+          boardType: last.boardType || BLANK.boardType,
+          partNumber: last.partNumber || '',
+        }
+      : BLANK);
+    setAdding(true);
+  };
 
   const openTypeEditor = () => {
     setDraftTypes([...boardTypes]);
@@ -174,7 +195,7 @@ export default function BoardReplacementPage({
     <div>
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h5 className="d-flex align-items-center gap-2 mb-0">
-          <Cpu size={18} /> Board Replacements{customerName ? ` — ${customerName}` : ''}
+          <Cpu size={18} /> Parts / Board Replacements{customerName ? ` — ${customerName}` : ''}
         </h5>
         <div className="d-flex align-items-center gap-2">
           {canEditTypes && !editingTypes && (
@@ -183,7 +204,7 @@ export default function BoardReplacementPage({
             </button>
           )}
           {!adding && (
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={openAdd}>
               <Plus size={16} /> Log a replacement
             </button>
           )}
@@ -197,6 +218,20 @@ export default function BoardReplacementPage({
             <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setEditingTypes(false)}>
               Cancel
             </button>
+          </div>
+          <div className="card-body pb-0">
+            <CopyConfigFrom
+              workspaceId={workspaceId}
+              customers={customers}
+              currentCustomerId={customerId}
+              configKey="boardTypes"
+              label="board types"
+              describe={(d) => {
+                const t = (d?.types || []).filter(Boolean);
+                return t.length ? `${t.length} board type${t.length === 1 ? '' : 's'}` : null;
+              }}
+              onCopy={(d) => setDraftTypes([...(d?.types || [])])}
+            />
           </div>
           <div className="card-body d-flex flex-column gap-2">
             <small className="text-muted">
