@@ -33,6 +33,13 @@ export const fetchPartsForMachine = (partsCustomer, folder) =>
     `/parts/parts?customer=${encodeURIComponent(partsCustomer)}&folder=${encodeURIComponent(folder)}`
   );
 
+// The drawings that make up one machine's manual, for browsing to a part
+// instead of knowing its number.
+export const fetchDiagrams = (partsCustomer, folder) =>
+  authedJson(
+    `/parts/diagrams?customer=${encodeURIComponent(partsCustomer)}&folder=${encodeURIComponent(folder)}`
+  );
+
 // One diagram's hotspots, for ringing the replaced part on the drawing.
 export const fetchDiagram = (diagramId) =>
   authedJson(`/parts/diagram?id=${encodeURIComponent(diagramId)}`);
@@ -80,5 +87,6 @@ export function searchParts(parts, query, limit = 8) {
 }
 
 export default {
-  fetchPartsCatalog, fetchPartsForMachine, fetchDiagram, fetchDiagramImage, searchParts,
+  fetchPartsCatalog, fetchPartsForMachine, fetchDiagrams, fetchDiagram, fetchDiagramImage,
+  searchParts,
 };

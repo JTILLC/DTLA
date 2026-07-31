@@ -152,6 +152,38 @@ export async function partsForFolder(env, token, customer, folder) {
   return out;
 }
 
+// The drawings that make up one machine's manual, for browsing to a part
+// rather than knowing its number. Metadata only — `select` keeps partsData out.
+export async function diagramsForFolder(env, token, customer, folder) {
+  const docs = await runQuery(env, token, {
+    from: [{ collectionId: COLLECTION }],
+    where: {
+      compositeFilter: {
+        op: 'AND',
+        filters: [
+          { fieldFilter: { field: { fieldPath: 'customer' }, op: 'EQUAL', value: { stringValue: customer } } },
+          { fieldFilter: { field: { fieldPath: 'folder' }, op: 'EQUAL', value: { stringValue: folder } } },
+        ],
+      },
+    },
+    select: {
+      fields: [{ fieldPath: 'name' }, { fieldPath: 'number' }, { fieldPath: 'itemNo' }],
+    },
+  });
+
+  return docs
+    .map((d) => ({
+      id: (d.name || '').split('/').pop(),
+      name: tidy(d.fields?.name) || 'Untitled',
+      number: str(d.fields?.number).trim(),
+      itemNo: str(d.fields?.itemNo).trim(),
+    }))
+    // Manuals are ordered by drawing number; fall back to name where absent.
+    .sort((a, b) =>
+      (a.number || a.name).localeCompare(b.number || b.name, undefined, { numeric: true })
+    );
+}
+
 // One diagram: its hotspots and where its image lives.
 //
 // Hotspot x/y are PERCENTAGES of the image, which is what makes highlighting

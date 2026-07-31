@@ -15,9 +15,10 @@
 // typed and flagged as unverified, so the log distinguishes "checked against
 // the manual" from "someone typed it".
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Search, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { Check, Search, AlertTriangle, Image as ImageIcon, BookOpen } from 'lucide-react';
 import { fetchPartsForMachine, searchParts } from '../config/parts.js';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
+import PartsBrowser from './PartsBrowser.jsx';
 
 export default function PartLookupField({
   binding,            // { partsCustomer, folder } | null
@@ -33,6 +34,7 @@ export default function PartLookupField({
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
   const [showDiagram, setShowDiagram] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
 
   const key = binding ? `${binding.partsCustomer}||${binding.folder}` : '';
 
@@ -87,7 +89,7 @@ export default function PartLookupField({
         <input
           type="text"
           className="form-control"
-          placeholder={binding ? 'Part number' : 'Part number (no manual linked)'}
+          placeholder={binding ? 'Part number or name' : 'Part number (no manual linked)'}
           value={value}
           disabled={disabled}
           onChange={(e) => {
@@ -97,6 +99,17 @@ export default function PartLookupField({
           }}
           onFocus={() => setOpen(true)}
         />
+        {binding && (
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => setBrowsing(true)}
+            disabled={disabled || !parts}
+            title="Browse this machine's drawings and tap the part"
+          >
+            <BookOpen size={14} /> Browse
+          </button>
+        )}
       </div>
 
       {picked ? (
@@ -131,6 +144,15 @@ export default function PartLookupField({
       )}
       {loading && <div className="form-text">Loading the parts manual…</div>}
       {error && <div className="form-text text-danger">{error}</div>}
+
+      {browsing && (
+        <PartsBrowser
+          binding={binding}
+          parts={parts || []}
+          onPick={choose}
+          onClose={() => setBrowsing(false)}
+        />
+      )}
 
       {showDiagram && picked?.diagramId && (
         <PartDiagramViewer
