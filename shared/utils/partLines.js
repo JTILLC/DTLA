@@ -9,9 +9,11 @@
 // Two different numbers are involved and conflating them causes real errors:
 //
 //   manualQty — how many of that part the drawing shows. A fact about the
-//               machine, read from the parts manual. It is the ceiling.
+//               machine, read from the parts manual. Guidance and a starting
+//               point, NOT a limit: manuals are wrong sometimes, and one can
+//               describe a single assembly where several were worked on.
 //   qty       — how many were replaced. A fact about the job, entered by
-//               whoever did it, and never more than manualQty.
+//               whoever did it, and never overruled by the manual.
 //
 // The catalog calls its number `qty`, and a stored part calls the replaced
 // count `qty` too. That collision is why conversion happens here, at the
@@ -38,7 +40,8 @@ export function manualQty(catalogPart) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-// Clamp a replaced count into what the drawing allows.
+// Force a count to be a whole number of at least one. `max` is optional and
+// used only where a ceiling genuinely applies; the drawing count is not one.
 export function clampQty(n, max) {
   const v = Math.floor(Number(n));
   if (!Number.isFinite(v) || v < 1) return 1;
@@ -64,7 +67,10 @@ export function toStored(p) {
     itemNo: p.itemNo || '',
     diagramId: p.diagramId || '',
     diagramName: p.diagramName || '',
-    qty: clampQty(p.qty, max),
+    // NOT clamped to the drawing count. What someone says they replaced is the
+    // record; the manual is a reference, and quietly rewriting the number they
+    // entered would make the log lie about the job.
+    qty: clampQty(p.qty, null),
     // Kept so a reader can see "2 of the 10 on the drawing" long after the
     // fact, without having to open the manual again.
     manualQty: max || '',
@@ -81,7 +87,7 @@ export function fromStored(p) {
     diagramId: p.diagramId,
     diagramName: p.diagramName,
     manualQty: max,
-    qty: clampQty(p.qty, max),
+    qty: clampQty(p.qty, null),
   };
 }
 

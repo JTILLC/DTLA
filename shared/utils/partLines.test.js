@@ -109,9 +109,18 @@ describe('round trip', () => {
     expect(fromStored(stored)).toMatchObject({ partCode: 'PC-1', qty: 4, manualQty: 10 });
   });
 
-  it('clamps a stored count to the drawing rather than trusting the form', () => {
+  it('records what was replaced even when it exceeds the drawing', () => {
+    // The drawing count is guidance, not a limit. Clamping it silently
+    // rewrote the number someone entered, which makes the log lie about the
+    // job — and made every part the manual lists once un-editable.
     const stored = toStored({ partCode: 'PC-1', qty: 99, manualQty: 10 });
-    expect(stored.qty).toBe(10);
+    expect(stored.qty).toBe(99);
+    expect(stored.manualQty).toBe(10);   // still recorded, for context
+  });
+
+  it('keeps an over-count when the entry is reopened', () => {
+    expect(fromStored({ partNumber: 'PC-1', qty: 4, manualQty: 1 }))
+      .toMatchObject({ qty: 4, manualQty: 1 });
   });
 
   it('falls back to the item number when a part has no code', () => {
