@@ -245,7 +245,13 @@ export async function loadThumbs(refs, cap = 40) {
   const worker = async () => {
     while (next < wanted.length) {
       const i = next++;
-      results[i] = await photoToThumb(wanted[i].url);
+      const ref = wanted[i];
+      // A thumbnail stored with the entry needs no network, no CORS and no
+      // surviving Storage object — it is already the bytes. Photos uploaded
+      // before this existed still take the download path below.
+      results[i] = ref.thumb
+        ? await decode(ref.thumb)
+        : await photoToThumb(ref.url);
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, wanted.length) }, worker));
