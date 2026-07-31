@@ -57,6 +57,7 @@ import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
 import SpanAdjustPage from './components/SpanAdjustPage.jsx';
 import BoardReplacementPage from './components/BoardReplacementPage.jsx';
 import PmLogPage from './components/PmLogPage.jsx';
+import CrewPage from './components/CrewPage.jsx';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
 import { lineStatusKey } from './utils/headHelpers.js';
@@ -4034,6 +4035,17 @@ const AppContent = () => {
               performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
               role={isAdmin ? 'jti' : 'customer'}
               canEditTemplate={isAdmin}
+            />
+          </div>
+        </Tab>
+
+        <Tab eventKey="crew" title="Crew">
+          <div className="tab-content p-3">
+            <CrewPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              visits={visits}
             />
           </div>
         </Tab>
