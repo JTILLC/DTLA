@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+// Teaches the shared parts UI how this app talks to the broker.
+import '@shared/config/partsRegister.js';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {

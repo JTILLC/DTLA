@@ -25,8 +25,8 @@ import {
 import { fetchOurMachines } from '../config/parts';
 import { SECTIONS, HEADS_PER_LINE } from '../constants';
 import { useToast } from '../context/ToastContext';
-import PartLookupField from './parts/PartLookupField';
-import PartDiagramViewer from './parts/PartDiagramViewer';
+import PartLookupField from '@shared/components/parts/PartLookupField.jsx';
+import PartDiagramViewer from '@shared/components/parts/PartDiagramViewer.jsx';
 import Photos from './logger/Photos';
 import PhotoThumbs from './PhotoThumbs';
 

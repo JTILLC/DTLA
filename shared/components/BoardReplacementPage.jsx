@@ -20,9 +20,9 @@ import {
 import { BOARD_TYPES } from '@app/config/constants';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
-import PartLookupField from './PartLookupField.jsx';
+import PartLookupField from './parts/PartLookupField.jsx';
 import PartsManualBinding from './PartsManualBinding.jsx';
-import PartDiagramViewer from './PartDiagramViewer.jsx';
+import PartDiagramViewer from './parts/PartDiagramViewer.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
 import PinPrompt from './PinPrompt.jsx';
