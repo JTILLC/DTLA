@@ -19,8 +19,12 @@
 // that stalls one may still stream through the other. Trying only the first
 // meant a photo that the phone could display was still missing from the report.
 
-const THUMB_MAX = 320;          // px on the long edge
-const JPEG_QUALITY = 0.7;
+// Photos are embedded in full colour. These bound the file size, not the
+// palette: every phone photo at full resolution produces a report nobody can
+// email. 480px at 0.8 is legible enough to see a cracked hopper or a burnt
+// track on a board, which is the whole reason the photo is in the report.
+const THUMB_MAX = 480;          // px on the long edge
+const JPEG_QUALITY = 0.8;
 
 // How many photos are in flight at once. A day with twenty photos used to open
 // twenty simultaneous connections from a phone on plant wifi; enough of them
@@ -39,12 +43,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // something unexpected without printing a signed URL into the report.
 const hostOf = (url) => { try { return new URL(url).host; } catch { return 'bad link'; } };
 
-// The object's own path, without the access token. Enough to identify the file
-// in Storage and to see a malformed name; not enough to hand anyone the photo.
+// Which bucket, and which object in it — without the access token. Enough to
+// find the file in Storage and to see a malformed name; not enough to hand
+// anyone the photo.
+//
+// The bucket is included because CORS is configured per bucket, so a photo that
+// fails CORS while its neighbours pass is almost certainly not in the same one.
+// Reporting only the object path would have hidden the one field that explains
+// the difference.
 function objectPathOf(url) {
   try {
-    const after = new URL(url).pathname.split('/o/')[1];
-    return after ? decodeURIComponent(after) : '';
+    const { pathname } = new URL(url);
+    const bucket = pathname.split('/b/')[1]?.split('/')[0] || '';
+    const object = pathname.split('/o/')[1] || '';
+    return [bucket && decodeURIComponent(bucket), object && decodeURIComponent(object)]
+      .filter(Boolean).join(' / ');
   } catch { return ''; }
 }
 
@@ -171,8 +184,13 @@ export async function photoToThumb(url, attempt = 0) {
     console.warn('[pdf] both routes failed:', url, first.why, '/', second.why);
     return {
       failed: true,
+      // The photo is present and readable — only permission to copy its pixels
+      // is missing. On a plain internet connection that would point at the
+      // bucket's CORS settings; behind a filtering proxy it usually means the
+      // network stripped the header that grants it, which is why the advice is
+      // to retry off the work wifi before anyone changes a bucket setting.
       why: displayable.loaded
-        ? `the photo opens but cannot be embedded — the server is not allowing it (CORS)${suffix}`
+        ? `the photo opens but this network won't allow it to be copied into the PDF — try again off work wifi${suffix}`
         : `the file could not be reached at all (${first.why})${suffix}`,
     };
   }
@@ -218,7 +236,7 @@ export async function loadThumbs(refs, cap = 40) {
 
 // Lay thumbnails out in a row, wrapping and paginating as needed.
 // Returns the y position after the last row.
-export function drawThumbRow(doc, thumbs, startY, { x = 14, maxWidth = 180, gap = 3, height = 26 } = {}) {
+export function drawThumbRow(doc, thumbs, startY, { x = 14, maxWidth = 180, gap = 3, height = 38 } = {}) {
   let cx = x;
   let cy = startY;
   const pageH = doc.internal.pageSize.getHeight();

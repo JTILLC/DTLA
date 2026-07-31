@@ -104,6 +104,7 @@ describe('the second route', () => {
     expect(r.why).toMatch(/could not be reached at all/);
     expect(r.why).toMatch(/no response from firebasestorage\.googleapis\.com/);
     expect(r.why).toMatch(/p\.jpg/);            // the object path, not the token
+    expect(r.why).toMatch(/\bb\b/);              // and the bucket it lives in
     expect(r.why).not.toMatch(/token/);
   });
 
@@ -134,8 +135,8 @@ describe('the second route', () => {
 
     const r = await photoToThumb(URL_OK);
     expect(call).toBeGreaterThan(1);
-    expect(r.why).toMatch(/opens but cannot be embedded/);
-    expect(r.why).toMatch(/CORS/);
+    expect(r.why).toMatch(/won't allow it to be copied into the PDF/);
+    expect(r.why).toMatch(/off work wifi/);
   });
 
   it('is not attempted for a file that is genuinely gone', async () => {
