@@ -575,10 +575,17 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                   color: '#000',
                                   minWidth: '110px'
                                 }}
-                                title="Click to toggle status"
+                                title={issue.fixedBy
+                                  ? `${getFixedLabel(issue.fixed)} — marked by ${issue.fixedBy}${issue.fixedAt ? ' on ' + new Date(issue.fixedAt).toLocaleString() : ''}`
+                                  : 'Click to toggle status'}
                               >
                                 {getFixedLabel(issue.fixed)}
                               </button>
+                              {issue.fixedBy && (
+                                <div className="small text-muted mt-1">
+                                  by {issue.fixedBy}
+                                </div>
+                              )}
                               <button
                                 onClick={() => removeIssue(head.index, issIdx)}
                                 className="btn btn-sm btn-danger"
