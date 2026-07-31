@@ -135,8 +135,9 @@ describe('the second route', () => {
 
     const r = await photoToThumb(URL_OK);
     expect(call).toBeGreaterThan(1);
-    expect(r.why).toMatch(/won't allow it to be copied into the PDF/);
-    expect(r.why).toMatch(/off work wifi/);
+    expect(r.why).toMatch(/no permission to copy it \(CORS\)/);
+    expect(r.why).toMatch(/\bb\b/);              // names the bucket
+    expect(r.why).toMatch(/p\.jpg/);              // and the object
   });
 
   it('is not attempted for a file that is genuinely gone', async () => {

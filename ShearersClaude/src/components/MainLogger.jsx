@@ -949,15 +949,29 @@ export default function MainLogger({ data, setData }) {
         // Say what is missing rather than quietly showing fewer photos than
         // the day actually has.
         const notes = [
-          failed
-            ? `${failed} photo${failed === 1 ? '' : 's'} could not be loaded`
-              + (failedLabels.length ? `: ${failedLabels.join('; ')}` : '')
-            : '',
+          failed ? `${failed} photo${failed === 1 ? '' : 's'} could not be loaded:` : '',
+          // One per line. Run together they became a wall of text in which the
+          // reason for any single failure was impossible to pick out.
+          ...failedLabels.map((l) => `  • ${l}`),
           skipped ? `${skipped} more not included (limit reached)` : '',
         ].filter(Boolean);
         if (notes.length) {
           doc.setFontSize(9);
-          doc.text(notes.join('; '), 14, Math.min(y + 2, doc.internal.pageSize.getHeight() - 10));
+          // Wrapped, and one note per line. doc.text() does NOT wrap: a long
+          // line runs off the right edge and is silently clipped, which is
+          // exactly what happened to the reason a photo failed — the useful
+          // half of the message was printed past the page margin where nobody
+          // could read it. A diagnostic that cannot be read is not one.
+          const pageW = doc.internal.pageSize.getWidth();
+          const pageH = doc.internal.pageSize.getHeight();
+          let ny = y + 2;
+          notes.forEach((note) => {
+            doc.splitTextToSize(note, pageW - 28).forEach((line) => {
+              if (ny > pageH - 12) { doc.addPage(); ny = 20; }
+              doc.text(line, 14, ny);
+              ny += 4.5;
+            });
+          });
         }
       }
 
