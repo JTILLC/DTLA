@@ -24,45 +24,48 @@ import PartsBrowser from './PartsBrowser.jsx';
 
 // One selected part, with how many of it were replaced.
 //
-// The quantity is only asked for when it is genuinely a question. A drawing
-// showing one of a part admits no other answer, so that row states "Qty 1"
-// rather than offering a control whose every other setting would be wrong.
-// Where the drawing shows ten, the count is capped at ten and says so — you
-// cannot replace more of a part than the machine has.
+// The drawing's count is shown as guidance — "of 10" — and used as the starting
+// point, but it does not lock the field.
+//
+// It was a hard cap, which meant every part the manual lists once rendered as a
+// fixed "Qty 1" with no control at all. That reads as broken, and it is wrong
+// often enough to matter: a manual can be inaccurate, it can describe one
+// assembly where several were worked on, and no manual should be able to stop
+// someone recording what they actually replaced. Going above what the drawing
+// shows is allowed and simply says so.
 function PickedPart({ part, primary, disabled, onQty, onRemove }) {
   const max = manualQty(part);
-  const qty = clampQty(part.qty, max);
-  const fixed = max === 1;
+  const qty = clampQty(part.qty, null);
+  const over = max && qty > max;
 
   return (
     <div className="pui-picked-row">
       <div className="pui-picked-main">
         <span className="pui-fw-semibold">{part.partCode || `Item ${part.itemNo}`}</span>
         {part.partName && <span className="pui-small pui-text-muted"> — {part.partName}</span>}
+        {over && (
+          <span className="pui-small pui-text-warning-emphasis">
+            {' '}· more than the {max} on the drawing
+          </span>
+        )}
       </div>
 
       <div className="pui-qty">
-        {fixed ? (
-          <span className="pui-small pui-text-muted">Qty 1</span>
-        ) : (
-          <>
-            <button
-              type="button" className="pui-qty-btn" disabled={disabled || qty <= 1}
-              onClick={() => onQty(qty - 1)} aria-label="One fewer"
-            >−</button>
-            <input
-              type="number" className="pui-qty-input" inputMode="numeric"
-              min={1} max={max || undefined} value={qty} disabled={disabled}
-              onChange={(e) => onQty(clampQty(e.target.value, max))}
-              aria-label="Quantity replaced"
-            />
-            <button
-              type="button" className="pui-qty-btn" disabled={disabled || (max ? qty >= max : false)}
-              onClick={() => onQty(clampQty(qty + 1, max))} aria-label="One more"
-            >+</button>
-            {max > 1 && <span className="pui-small pui-text-muted">of {max}</span>}
-          </>
-        )}
+        <button
+          type="button" className="pui-qty-btn" disabled={disabled || qty <= 1}
+          onClick={() => onQty(qty - 1)} aria-label="One fewer"
+        >−</button>
+        <input
+          type="number" className="pui-qty-input" inputMode="numeric"
+          min={1} value={qty} disabled={disabled}
+          onChange={(e) => onQty(clampQty(e.target.value, null))}
+          aria-label="Quantity replaced"
+        />
+        <button
+          type="button" className="pui-qty-btn" disabled={disabled}
+          onClick={() => onQty(qty + 1)} aria-label="One more"
+        >+</button>
+        {max ? <span className="pui-small pui-text-muted">of {max}</span> : null}
         {onRemove && (
           <button
             type="button" className="pui-qty-btn pui-qty-remove" disabled={disabled}

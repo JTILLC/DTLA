@@ -18,6 +18,13 @@
  */
 
 .pui-scope {
+  /* Applied, not just defined. Without this the scope only declares a text
+     colour and never uses it, so anything without an explicit colour inherits
+     the host page's — which in a Tailwind dark shell meant near-black part
+     numbers on a near-black panel. Names stayed readable only because they set
+     var(--pui-muted) directly, which is what made it look like a font problem
+     rather than a missing declaration. */
+  color: var(--pui-fg);
   --pui-fg: #212529;
   --pui-muted: #6c757d;
   --pui-bg: #fff;
