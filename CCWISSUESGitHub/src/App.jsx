@@ -3584,9 +3584,10 @@ const AppContent = () => {
           </div>
         </Tab>
 
-        <Tab eventKey="boards" title="Boards">
+        <Tab eventKey="boards" title="Parts/Boards">
           <div className="tab-content p-3">
             <BoardReplacementPage
+              customers={customers}
               workspaceId={user?.uid}
               customerId={currentCustomer?.id}
               customerName={currentCustomer?.name}
@@ -3602,6 +3603,7 @@ const AppContent = () => {
           <div className="tab-content p-3">
             {/* Setup + read only here: the plant fills these in, not JTI. */}
             <PmLogPage
+              customers={customers}
               workspaceId={user?.uid}
               customerId={currentCustomer?.id}
               customerName={currentCustomer?.name}

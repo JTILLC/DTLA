@@ -22,6 +22,7 @@ import {
 } from '../services/logs.js';
 import ReferenceImage from './ReferenceImage.jsx';
 import { useToast } from './Toast.jsx';
+import CopyConfigFrom from './CopyConfigFrom.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
 const RESULTS = [
@@ -32,7 +33,29 @@ const RESULTS = [
 
 const newId = () => Math.random().toString(36).slice(2, 9);
 
+
+// A copied checklist takes the WORDING, not the identity or the photos.
+//
+// New ids because item ids key answers while filling in — sharing them across
+// customers would let one plant's in-progress check bleed into another's.
+//
+// Reference images are dropped: they live at pm-images/{ws}/{sourceCustomer}/
+// and both storage.rules and the media broker authorise per customer, so a
+// copied path would simply 403 for the new customer's operators. Better an
+// obviously missing photo than a broken one.
+const copiedSections = (sections) =>
+  (sections || []).map((sec, si) => ({
+    id: `sec_${Date.now()}_${si}`,
+    title: sec.title || '',
+    items: (sec.items || []).map((it, ii) => ({
+      id: `item_${Date.now()}_${si}_${ii}`,
+      label: it.label || '',
+      type: it.type || 'check',
+    })),
+  }));
+
 export default function PmLogPage({
+  customers = [],
   workspaceId,
   customerId,
   customerName,
@@ -198,6 +221,21 @@ export default function PmLogPage({
           checks already submitted — each submission keeps the wording it was
           signed off with.
         </small>
+
+        <CopyConfigFrom
+          workspaceId={workspaceId}
+          customers={customers}
+          currentCustomerId={customerId}
+          configKey="pmTemplate"
+          label="checklist"
+          describe={(d) => {
+            const secs = d?.sections || [];
+            const items = secs.reduce((n, s) => n + (s.items || []).length, 0);
+            if (!secs.length || !items) return null;
+            return `${secs.length} section${secs.length === 1 ? '' : 's'} and ${items} item${items === 1 ? '' : 's'}`;
+          }}
+          onCopy={(d) => setDraft(copiedSections(d?.sections))}
+        />
 
         {draft.map((sec, si) => (
           <div className="card mb-3" key={sec.id || si}>

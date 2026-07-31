@@ -4008,9 +4008,10 @@ const AppContent = () => {
           </div>
         </Tab>
 
-        <Tab eventKey="boards" title="Boards">
+        <Tab eventKey="boards" title="Parts/Boards">
           <div className="tab-content p-3">
             <BoardReplacementPage
+              customers={isAdmin ? customers : []}
               workspaceId={WORKSPACE_UID}
               customerId={currentCustomer?.id}
               customerName={currentCustomer?.name}
@@ -4025,6 +4026,7 @@ const AppContent = () => {
         <Tab eventKey="pm" title="PM Log">
           <div className="tab-content p-3">
             <PmLogPage
+              customers={isAdmin ? customers : []}
               workspaceId={WORKSPACE_UID}
               customerId={currentCustomer?.id}
               customerName={currentCustomer?.name}
