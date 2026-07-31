@@ -33,6 +33,27 @@ export const fetchPartsForMachine = (partsCustomer, folder) =>
     `/parts/parts?customer=${encodeURIComponent(partsCustomer)}&folder=${encodeURIComponent(folder)}`
   );
 
+// One diagram's hotspots, for ringing the replaced part on the drawing.
+export const fetchDiagram = (diagramId) =>
+  authedJson(`/parts/diagram?id=${encodeURIComponent(diagramId)}`);
+
+// The drawing itself. Returns an object URL the caller MUST revoke — an <img>
+// can't send an Authorization header, same as every other brokered image here.
+export async function fetchDiagramImage(diagramId) {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error('not signed in');
+  const idToken = await user.getIdToken();
+  const res = await fetch(
+    `${MEDIA_BROKER_BASE}/parts/diagram-image?id=${encodeURIComponent(diagramId)}`,
+    { headers: { Authorization: `Bearer ${idToken}` } }
+  );
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => '')).trim();
+    throw new Error(detail || `Drawing unavailable (${res.status})`);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 // Rank matches so an exact part number wins over an incidental substring in a
 // description. Operators type the number far more often than the name.
 export function searchParts(parts, query, limit = 8) {
@@ -58,4 +79,6 @@ export function searchParts(parts, query, limit = 8) {
   return scored.slice(0, limit).map((s) => s.p);
 }
 
-export default { fetchPartsCatalog, fetchPartsForMachine, searchParts };
+export default {
+  fetchPartsCatalog, fetchPartsForMachine, fetchDiagram, fetchDiagramImage, searchParts,
+};

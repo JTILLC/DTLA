@@ -15,8 +15,9 @@
 // typed and flagged as unverified, so the log distinguishes "checked against
 // the manual" from "someone typed it".
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Search, AlertTriangle } from 'lucide-react';
+import { Check, Search, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { fetchPartsForMachine, searchParts } from '../config/parts.js';
+import PartDiagramViewer from './PartDiagramViewer.jsx';
 
 export default function PartLookupField({
   binding,            // { partsCustomer, folder } | null
@@ -31,6 +32,7 @@ export default function PartLookupField({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
+  const [showDiagram, setShowDiagram] = useState(false);
 
   const key = binding ? `${binding.partsCustomer}||${binding.folder}` : '';
 
@@ -104,6 +106,15 @@ export default function PartLookupField({
             {picked.partName || 'Confirmed'}
             {picked.itemNo ? ` · item ${picked.itemNo}` : ''}
             {picked.diagramName ? ` · ${picked.diagramName}` : ''}
+            {picked.diagramId && (
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                onClick={() => setShowDiagram(true)}
+              >
+                <ImageIcon size={12} /> View on drawing
+              </button>
+            )}
           </span>
         </div>
       ) : value.trim() && parts && matches.length === 0 ? (
@@ -120,6 +131,15 @@ export default function PartLookupField({
       )}
       {loading && <div className="form-text">Loading the parts manual…</div>}
       {error && <div className="form-text text-danger">{error}</div>}
+
+      {showDiagram && picked?.diagramId && (
+        <PartDiagramViewer
+          diagramId={picked.diagramId}
+          partItemNo={picked.itemNo}
+          partLabel={picked.partCode || `Item ${picked.itemNo}`}
+          onClose={() => setShowDiagram(false)}
+        />
+      )}
 
       {open && matches.length > 0 && (
         <div

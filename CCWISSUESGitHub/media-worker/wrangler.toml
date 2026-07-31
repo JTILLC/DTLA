@@ -23,6 +23,7 @@ SCAN_PROJECT_IDS = "downtimelogger-a96fb,shearers-4c4b4"
 # The Parts Viewer catalog lives in its own Firebase project. A folder there is
 # one machine, which is what a CCW line gets bound to.
 PARTS_PROJECT_ID = "jobs-data-17ee4"
+PARTS_BUCKET     = "jobs-data-17ee4.firebasestorage.app"
 
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
