@@ -1,8 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { buildHeadIssueHistory } from '../utils/headHistory';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import PhotoStrip from './PhotoStrip';
 
-const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsForHistory, currentVisitId }) => {
+const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsForHistory, currentVisitId, shareData }) => {
+  // Who is crewed on each line. Read once rather than subscribed: this view is
+  // read-only and a customer looking at yesterday's visit does not need the
+  // roster to update under them.
+  const [lineCrew, setLineCrew] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!shareData?.userId || !shareData?.customerId) return undefined;
+    getDoc(doc(db, 'user_files', shareData.userId, 'customers', shareData.customerId, 'config', 'lineCrew'))
+      .then((snap) => { if (!cancelled) setLineCrew(snap.exists() ? (snap.data().lines || {}) : {}); })
+      .catch((err) => { console.warn('line crew load failed:', err?.message || err); });
+    return () => { cancelled = true; };
+  }, [shareData?.userId, shareData?.customerId]);
+
+  // Who is running a line right now — distinct from who took a head off, which
+  // is stamped on the head itself.
+  const crewFor = (title) => {
+    const c = lineCrew[title] || {};
+    return [
+      c.operator && `Operator ${c.operator}`,
+      c.tech && `Maintenance ${c.tech}`,
+      c.supervisor && `Supervisor ${c.supervisor}`,
+    ].filter(Boolean).join(' · ');
+  };
+
   const [expandedHistory, setExpandedHistory] = useState({});
   // Migrate old single-error format to new multi-issue format
   const migrateHeadData = (head) => {
@@ -80,7 +107,10 @@ const OfflineHeadsDashboard = ({ lines, allVisits, currentVisitName, allVisitsFo
 
       return (
         <div key={`${visitName}-${line.id}`} className="mb-4">
-          <h6 className="text-primary">{line.title}</h6>
+          <h6 className="text-primary mb-1">{line.title}</h6>
+          {crewFor(line.title) && (
+            <div className="small text-muted mb-2">Running: {crewFor(line.title)}</div>
+          )}
           {line.notes && (
             <p className="text-muted small mb-2">
               <strong>Line Notes:</strong> {line.notes}

@@ -502,6 +502,7 @@ const CustomerViewer = () => {
             />
           ) : viewMode === 'dashboard' ? (
             <OfflineHeadsDashboard
+              shareData={shareData}
               lines={visit?.lines || []}
               allVisits={showAllVisits ? allVisits : null}
               currentVisitName={visit?.name}

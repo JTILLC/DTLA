@@ -58,6 +58,7 @@ import SpanAdjustPage from './components/SpanAdjustPage.jsx';
 import BoardReplacementPage from './components/BoardReplacementPage.jsx';
 import PmLogPage from './components/PmLogPage.jsx';
 import CrewPage from './components/CrewPage.jsx';
+import { useLineCrew } from './utils/useLineCrew.js';
 import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
 import { lineStatusKey } from './utils/headHelpers.js';
@@ -1099,6 +1100,9 @@ const AppContent = () => {
 
   const [customers, setCustomers] = useState([]);
   const [currentCustomer, setCurrentCustomer] = useState(null);
+  // Who is crewed on each line, for the line list — the dashboard answers
+  // "who is running this" as well as "what is broken".
+  const appLineCrew = useLineCrew(WORKSPACE_UID, currentCustomer?.id);
   const [visits, setVisits] = useState([]);
   // Visits across ALL customers — used only by Issue History (which lets you pick
   // any customer). Kept separate from `visits` (the current customer's live list)
@@ -4282,7 +4286,16 @@ const AppContent = () => {
                             ...btnStyle
                           }}
                         >
-                          <span style={{ fontWeight: 'bold', color: 'white', textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{line.title}</span>
+                          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                            <span style={{ fontWeight: 'bold', color: 'white', textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>{line.title}</span>
+                            {(() => {
+                              const c = appLineCrew.forLine(line.title);
+                              const who = [c.operator, c.tech].filter(Boolean).join(' · ');
+                              return who
+                                ? <span style={{ fontSize: '0.75em', color: 'rgba(255,255,255,0.9)' }}>{who}</span>
+                                : null;
+                            })()}
+                          </span>
                           <span>
                             {repairedCount > 0 && (
                               <span className="badge bg-warning text-dark me-1">{repairedCount} repaired</span>
