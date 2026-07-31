@@ -14,13 +14,15 @@
 // 2. Submissions are immutable once made. To correct one you submit again; the
 //    log is a record of checks performed, not a document to revise.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Settings, Plus, X, Trash2, ChevronLeft } from 'lucide-react';
+import { ClipboardList, Settings, Plus, X, Trash2, ChevronLeft, BookOpen } from 'lucide-react';
 import {
   LOG_PM, subscribeLog, addLogEntry, deleteLogEntry, updateLogEntry,
   subscribePmTemplate, savePmTemplate, DEFAULT_PM_SECTIONS,
   sinceLabel, dueStatus, addDays,
 } from '../services/logs.js';
 import ReferenceImage from './ReferenceImage.jsx';
+import ManualFigure from './ManualFigure.jsx';
+import { PM_PRESETS, presetSections } from '../config/pmPresets.js';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import CrewLine from './CrewLine.jsx';
@@ -45,10 +47,13 @@ const newId = () => Math.random().toString(36).slice(2, 9);
 // New ids because item ids key answers while filling in — sharing them across
 // customers would let one plant's in-progress check bleed into another's.
 //
-// Reference images are dropped: they live at pm-images/{ws}/{sourceCustomer}/
-// and both storage.rules and the media broker authorise per customer, so a
-// copied path would simply 403 for the new customer's operators. Better an
-// obviously missing photo than a broken one.
+// Uploaded reference photos are dropped: they live at
+// pm-images/{ws}/{sourceCustomer}/ and both storage.rules and the media broker
+// authorise per customer, so a copied path would simply 403 for the new
+// customer's operators. Better an obviously missing photo than a broken one.
+//
+// Manual FIGURES are kept. They ship with the app at a fixed URL and are the
+// same drawing for every CCW-R, so there is nothing customer-scoped to break.
 const copiedSections = (sections) =>
   (sections || []).map((sec, si) => ({
     id: `sec_${Date.now()}_${si}`,
@@ -57,6 +62,7 @@ const copiedSections = (sections) =>
       id: `item_${Date.now()}_${si}_${ii}`,
       label: it.label || '',
       type: it.type || 'check',
+      ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
     })),
   }));
 
@@ -142,6 +148,7 @@ export default function PmLogPage({
         items.push({
           section: sec.title,
           label: it.label,          // copied, not referenced — see header note
+          ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
           type: it.type || 'check',
           result: it.type === 'value' ? '' : (a.result || ''),
           value: it.type === 'value' ? (a.value || '') : '',
@@ -212,6 +219,30 @@ export default function PmLogPage({
   };
 
   // ---- Template editing ---------------------------------------------------
+  // ADDS the manual's sections rather than replacing the checklist. A plant's
+  // own items exist because something bit them once; a preset must never be
+  // able to wipe that. Sections already present by title are skipped, so
+  // pressing it twice does not duplicate the manual.
+  const addPreset = async (preset) => {
+    const have = new Set(draft.map((s) => (s.title || '').trim().toLowerCase()));
+    const incoming = presetSections(preset).filter(
+      (s) => !have.has((s.title || '').trim().toLowerCase())
+    );
+    if (incoming.length === 0) {
+      return toast.error('Those sections are already on this checklist.');
+    }
+    const skipped = preset.sections.length - incoming.length;
+    const ok = await dialog.confirm(
+      `Add ${incoming.length} section${incoming.length === 1 ? '' : 's'} from ${preset.name}?` +
+      (skipped ? ` (${skipped} already present, and will be left alone.)` : '') +
+      ' Nothing is saved until you press save.',
+      { title: 'Add manual checklist', confirmText: 'Add' }
+    );
+    if (!ok) return;
+    setDraft((d) => [...d, ...incoming]);
+    toast.success('Added — review it, then save.');
+  };
+
   const openTemplate = () => {
     setDraft(JSON.parse(JSON.stringify(sections)));
     setMode('template');
@@ -267,6 +298,20 @@ export default function PmLogPage({
           checks already submitted — each submission keeps the wording it was
           signed off with.
         </small>
+
+        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <span className="small text-muted">Add from the equipment manual</span>
+          {PM_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => addPreset(preset)}
+            >
+              <BookOpen size={14} /> {preset.name}
+            </button>
+          ))}
+        </div>
 
         <CopyConfigFrom
           workspaceId={workspaceId}
@@ -335,6 +380,11 @@ export default function PmLogPage({
                   >
                     <X size={16} />
                   </button>
+                  {it.imageUrl && (
+                    <span className="input-group-text p-1">
+                      <ManualFigure src={it.imageUrl} label={it.label} size={40} />
+                    </span>
+                  )}
                   <span className="input-group-text p-1">
                     <ReferenceImage
                       image={it.image}
@@ -407,6 +457,9 @@ export default function PmLogPage({
                   <div key={it.id}>
                     <div className="d-flex align-items-center gap-2 mb-1">
                       <div className="fw-semibold flex-grow-1">{it.label}</div>
+                      {/* The manual's own drawing of the part, where the item
+                          came from the manual preset. */}
+                      <ManualFigure src={it.imageUrl} label={it.label} size={44} />
                       {/* Reference photo, if the checklist has one — shows the
                           operator what they're looking at. */}
                       <ReferenceImage
