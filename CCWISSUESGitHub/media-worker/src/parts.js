@@ -190,6 +190,20 @@ export async function diagramsForFolder(env, token, customer, folder) {
     );
 }
 
+// Folders for a NAMED set of customers.
+//
+// Exists because /parts/catalog lists every customer in the parts catalog and
+// is therefore admin-only — a plant has no business reading a list of the other
+// plants. This answers the narrower question "which machines does THIS plant
+// have?", so a non-admin app can offer its own machines without ever seeing
+// another's name.
+export async function foldersForCustomers(env, token, names) {
+  const wanted = new Set(names.map((n) => n.trim()).filter(Boolean));
+  if (wanted.size === 0) return [];
+  const all = await catalog(env, token);
+  return all.filter((c) => wanted.has(c.customer));
+}
+
 // One diagram: its hotspots and where its image lives.
 //
 // Hotspot x/y are PERCENTAGES of the image, which is what makes highlighting
