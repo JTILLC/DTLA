@@ -8,6 +8,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { getDatabase, ref, set, get, update } from 'firebase/database';
 import { app } from '../firebaseConfig';
 import { HEADS_PER_LINE } from '../constants';
+import { partLines } from '@shared/utils/partLines.js';
 import { useDates as useDatesContext } from '../context/DatesContext';
 import { useToast } from '../context/ToastContext';
 import { sortAsc, formatDayLabel } from '../utils/stintDays';
@@ -855,12 +856,22 @@ export default function MainLogger({ data, setData }) {
             // Every part on the entry, one per line. Summarising the rest as
             // "+2 more" told a reader that parts existed while withholding
             // which — the report has to say what was actually fitted.
-            const list = Array.isArray(e.parts) && e.parts.length
-              ? e.parts
-              : (e.partNumber ? [{ partNumber: e.partNumber, partName: e.partName }] : []);
+            // Stacked rather than run together: number, then name, then how
+            // many, with a blank line between parts. A cell reading
+            // "PC-1 — Screw ×4, PC-2 — Gasket" is a wall of text at 9pt; the
+            // same information down the page is read at a glance.
+            const list = partLines(e);
             const partCell = list.length
-              ? list.map((p) => [p.partNumber, p.partName].filter(Boolean).join(' — ')).join('\n')
-                + (e.partNumber ? (e.partVerified ? '\n[checked against manual]' : '\n[unverified]') : '')
+              ? list
+                  .map((p) => [
+                    p.partNumber,
+                    p.partName,
+                    p.manualQty && p.manualQty > 1
+                      ? `Qty ${p.qty} of ${p.manualQty}`
+                      : `Qty ${p.qty}`,
+                  ].filter(Boolean).join('\n'))
+                  .join('\n\n')
+                + (e.partNumber ? (e.partVerified ? '\n\n[checked against manual]' : '\n\n[unverified]') : '')
               : '—';
             return [
               e.line || '',
@@ -912,9 +923,11 @@ export default function MainLogger({ data, setData }) {
           startY: y + 4,
           head: [['Line', 'Head', 'Replaced', 'Part', 'Reason / notes']],
           body: partRows,
-          styles: { fontSize: 9, cellPadding: 2 },
+          // Roomier than the other tables: the part cell is now several lines
+          // per part, and cramping it undoes the point of stacking it.
+          styles: { fontSize: 9, cellPadding: 3, valign: 'top' },
           headStyles: { fillColor: [66, 66, 66] },
-          columnStyles: { 3: { cellWidth: 55 }, 4: { cellWidth: 45 } },
+          columnStyles: { 3: { cellWidth: 60 }, 4: { cellWidth: 45 } },
         });
       }
 

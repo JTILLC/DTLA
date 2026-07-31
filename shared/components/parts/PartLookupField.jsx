@@ -17,9 +17,62 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Search, AlertTriangle, Image as ImageIcon, BookOpen } from 'lucide-react';
 import { partsApi, searchParts } from './partsApi.js';
+import { asPicked, clampQty, manualQty } from '../../utils/partLines.js';
 import './parts-ui.css';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
 import PartsBrowser from './PartsBrowser.jsx';
+
+// One selected part, with how many of it were replaced.
+//
+// The quantity is only asked for when it is genuinely a question. A drawing
+// showing one of a part admits no other answer, so that row states "Qty 1"
+// rather than offering a control whose every other setting would be wrong.
+// Where the drawing shows ten, the count is capped at ten and says so — you
+// cannot replace more of a part than the machine has.
+function PickedPart({ part, primary, disabled, onQty, onRemove }) {
+  const max = manualQty(part);
+  const qty = clampQty(part.qty, max);
+  const fixed = max === 1;
+
+  return (
+    <div className="pui-picked-row">
+      <div className="pui-picked-main">
+        <span className="pui-fw-semibold">{part.partCode || `Item ${part.itemNo}`}</span>
+        {part.partName && <span className="pui-small pui-text-muted"> — {part.partName}</span>}
+      </div>
+
+      <div className="pui-qty">
+        {fixed ? (
+          <span className="pui-small pui-text-muted">Qty 1</span>
+        ) : (
+          <>
+            <button
+              type="button" className="pui-qty-btn" disabled={disabled || qty <= 1}
+              onClick={() => onQty(qty - 1)} aria-label="One fewer"
+            >−</button>
+            <input
+              type="number" className="pui-qty-input" inputMode="numeric"
+              min={1} max={max || undefined} value={qty} disabled={disabled}
+              onChange={(e) => onQty(clampQty(e.target.value, max))}
+              aria-label="Quantity replaced"
+            />
+            <button
+              type="button" className="pui-qty-btn" disabled={disabled || (max ? qty >= max : false)}
+              onClick={() => onQty(clampQty(qty + 1, max))} aria-label="One more"
+            >+</button>
+            {max > 1 && <span className="pui-small pui-text-muted">of {max}</span>}
+          </>
+        )}
+        {onRemove && (
+          <button
+            type="button" className="pui-qty-btn pui-qty-remove" disabled={disabled}
+            onClick={onRemove} title="Remove this part" aria-label="Remove this part"
+          >✕</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function PartLookupField({
   binding,            // { partsCustomer, folder } | null
@@ -29,6 +82,8 @@ export default function PartLookupField({
   picked,             // the primary confirmed part, if any
   extras = [],        // further parts on the same replacement
   onExtras,           // (parts[]) => void
+  typedQty,           // count for a part typed rather than picked, if supported
+  onTypedQty,         // (n) => void — omit and no count is offered for free text
   disabled = false,
 }) {
   const [parts, setParts] = useState(null);     // null = not loaded yet
@@ -81,7 +136,7 @@ export default function PartLookupField({
 
   const choose = (p) => {
     onChange(p.partCode || String(p.itemNo));
-    onPick(p);
+    onPick(asPicked(p));      // carries the drawing's count and a replaced count of 1
     setOpen(false);
   };
 
@@ -119,7 +174,10 @@ export default function PartLookupField({
         <div className="pui-small pui-text-success-emphasis pui-mt-1 pui-d-flex pui-align-start pui-gap-1">
           <Check size={14} className="pui-flex-shrink-0 pui-mt-1" />
           <span>
-            {picked.partName || 'Confirmed'}
+            {/* The name is on the part's own row below, with its count — no
+                need to say it twice. This line is provenance: checked against
+                the manual, on this drawing, at this item number. */}
+            Confirmed
             {picked.itemNo ? ` · item ${picked.itemNo}` : ''}
             {picked.diagramName ? ` · ${picked.diagramName}` : ''}
             {picked.diagramId && (
@@ -140,19 +198,49 @@ export default function PartLookupField({
         </div>
       ) : null}
 
-      {extras.length > 0 && (
-        <div className="pui-d-flex pui-flex-wrap pui-gap-1 pui-mt-1">
-          {extras.map((p) => (
-            <button
-              key={`${p.diagramId}-${p.itemNo}-${p.partCode}`}
-              type="button"
-              className="pui-badge pui-bg-secondary"
-              title={`${p.partName || ''} — remove`}
-              onClick={() => onExtras?.(extras.filter((x) => x !== p))}
-            >
-              + {p.partCode || `Item ${p.itemNo}`} ✕
-            </button>
-          ))}
+      {/* A part typed rather than picked still has a count. There is no drawing
+          to cap it against, so it is uncapped — but leaving it out entirely
+          would mean an off-manual part could only ever be logged as one. */}
+      {!picked && value.trim() && onTypedQty && (
+        <div className="pui-picked-list pui-mt-1">
+          <div className="pui-picked-row">
+            <div className="pui-picked-main pui-small pui-text-muted">How many replaced</div>
+            <div className="pui-qty">
+              <button
+                type="button" className="pui-qty-btn"
+                disabled={disabled || clampQty(typedQty, null) <= 1}
+                onClick={() => onTypedQty(clampQty(typedQty, null) - 1)} aria-label="One fewer"
+              >−</button>
+              <input
+                type="number" className="pui-qty-input" inputMode="numeric" min={1}
+                value={clampQty(typedQty, null)} disabled={disabled}
+                onChange={(e) => onTypedQty(clampQty(e.target.value, null))}
+                aria-label="Quantity replaced"
+              />
+              <button
+                type="button" className="pui-qty-btn" disabled={disabled}
+                onClick={() => onTypedQty(clampQty(typedQty, null) + 1)} aria-label="One more"
+              >+</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(picked || extras.length > 0) && (
+        <div className="pui-picked-list pui-mt-1">
+          {[...(picked ? [{ p: picked, primary: true }] : []),
+            ...extras.map((p) => ({ p, primary: false }))].map(({ p, primary }) => (
+              <PickedPart
+                key={`${primary ? 'p' : 'x'}-${p.diagramId}-${p.itemNo}-${p.partCode}`}
+                part={p}
+                primary={primary}
+                disabled={disabled}
+                onQty={(qty) => (primary
+                  ? onPick({ ...p, qty })
+                  : onExtras?.(extras.map((x) => (x === p ? { ...x, qty } : x))))}
+                onRemove={primary ? null : () => onExtras?.(extras.filter((x) => x !== p))}
+              />
+            ))}
         </div>
       )}
 
@@ -173,7 +261,7 @@ export default function PartLookupField({
             // A board and its gasket are one replacement, not two.
             const [first, ...rest] = list;
             if (first) choose(first);
-            onExtras?.(rest);
+            onExtras?.(rest.map(asPicked));
           }}
           onClose={() => setBrowsing(false)}
         />

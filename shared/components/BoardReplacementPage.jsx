@@ -21,6 +21,7 @@ import { BOARD_TYPES } from '@app/config/constants';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import PartLookupField from './parts/PartLookupField.jsx';
+import { toStored, fromStored, partLines, qtyLabel } from '../utils/partLines.js';
 import PartsManualBinding from './PartsManualBinding.jsx';
 import PartDiagramViewer from './parts/PartDiagramViewer.jsx';
 import CrewLine from './CrewLine.jsx';
@@ -101,6 +102,8 @@ export default function BoardReplacementPage({
   const [pickedPart, setPickedPart] = useState(null);
   // Further parts on the same replacement — a board plus its gasket and screws.
   const [extraParts, setExtraParts] = useState([]);
+  // Count for a part typed rather than picked from the manual.
+  const [typedQty, setTypedQty] = useState(1);
   // The entry being edited, or null when logging a new one. The form is the
   // same either way — an edit that used a different screen would drift from the
   // one people actually know.
@@ -151,6 +154,16 @@ export default function BoardReplacementPage({
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
+  // Everything replaced in this one job, in the shape the log stores.
+  // A part typed rather than picked is still a part: it is recorded with its
+  // count so an off-manual replacement isn't silently logged as one.
+  const partsForSave = () => {
+    const chosen = [pickedPart, ...extraParts].filter(Boolean);
+    if (chosen.length) return chosen.map(toStored);
+    const typed = form.partNumber.trim();
+    return typed ? [toStored({ partCode: typed, qty: typedQty })] : [];
+  };
+
   // Keep the selected board type valid if the list changes underneath.
   useEffect(() => {
     if (boardTypes.length && !boardTypes.includes(form.boardType)) {
@@ -177,6 +190,7 @@ export default function BoardReplacementPage({
       : BLANK);
     setPickedPart(null);
     setExtraParts([]);
+    setTypedQty(1);
     setAdding(true);
   };
 
@@ -204,10 +218,6 @@ export default function BoardReplacementPage({
   // picker produces, so adding and removing parts works exactly as it does on a
   // new entry rather than being a second, weaker editor.
   const openEdit = (entry) => {
-    const asPicked = (p) => ({
-      partCode: p.partNumber, partName: p.partName, itemNo: p.itemNo,
-      diagramId: p.diagramId, diagramName: p.diagramName,
-    });
     const list = Array.isArray(entry.parts) && entry.parts.length
       ? entry.parts
       : (entry.partNumber ? [{
@@ -223,8 +233,10 @@ export default function BoardReplacementPage({
       reason: entry.reason || '',
       notes: entry.notes || '',
     });
-    setPickedPart(list.length && entry.partVerified ? asPicked(list[0]) : null);
-    setExtraParts(list.slice(1).map(asPicked));
+    setPickedPart(list.length && entry.partVerified ? fromStored(list[0]) : null);
+    setExtraParts(list.slice(1).map(fromStored));
+    // An unverified entry's count lives on its single typed part.
+    setTypedQty(!entry.partVerified && list.length ? fromStored(list[0]).qty : 1);
     setEditing(entry);
     setAdding(true);
   };
@@ -234,19 +246,14 @@ export default function BoardReplacementPage({
     setAdding(false);
     setPickedPart(null);
     setExtraParts([]);
+    setTypedQty(1);
   };
 
   const saveEdit = () => withFreshActor(async (filedBy) => {
     if (!editing) return;
     setSaving(true);
     try {
-      const parts = [pickedPart, ...extraParts].filter(Boolean).map((p) => ({
-        partNumber: p.partCode || String(p.itemNo || ''),
-        partName: p.partName || '',
-        itemNo: p.itemNo || '',
-        diagramId: p.diagramId || '',
-        diagramName: p.diagramName || '',
-      }));
+      const parts = partsForSave();
       await updateLogEntry(workspaceId, customerId, LOG_BOARD, editing.id, withEditStamp({
         lineTitle: form.lineTitle,
         headNumber: form.headNumber === '' ? null : Number(form.headNumber),
@@ -291,13 +298,7 @@ export default function BoardReplacementPage({
         partVerified: !!pickedPart,
         // Everything replaced in this one job. The single fields above stay the
         // primary part so existing screens and exports keep working unchanged.
-        parts: [pickedPart, ...extraParts].filter(Boolean).map((p) => ({
-          partNumber: p.partCode || String(p.itemNo || ''),
-          partName: p.partName || '',
-          itemNo: p.itemNo || '',
-          diagramId: p.diagramId || '',
-          diagramName: p.diagramName || '',
-        })),
+        parts: partsForSave(),
         reason: form.reason.trim(),
         notes: form.notes.trim(),
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
@@ -310,6 +311,7 @@ export default function BoardReplacementPage({
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
       setPickedPart(null);
       setExtraParts([]);
+      setTypedQty(1);
       setAdding(false);
       toast.success('Board replacement logged');
     } catch (err) {
@@ -525,6 +527,8 @@ export default function BoardReplacementPage({
                 picked={pickedPart}
                 extras={extraParts}
                 onExtras={setExtraParts}
+                typedQty={typedQty}
+                onTypedQty={setTypedQty}
               />
             </div>
 
@@ -627,13 +631,23 @@ export default function BoardReplacementPage({
                     <div className="small mt-1">
                       {e.partNumber && (
                         <>
-                          Part <strong>{e.partNumber}</strong>
-                          {/* The number identifies it; the name is what anyone
-                              reading the log a month later actually recognises. */}
-                          {e.partName && <> — {e.partName}</>}
-                          {Array.isArray(e.parts) && e.parts.length > 1 && (
-                            <> + {e.parts.length - 1} more</>
-                          )}
+                          {/* Every part, each on its own line with its count.
+                              The number identifies it; the name is what anyone
+                              reading the log a month later actually recognises;
+                              the count is the difference between replacing two
+                              of a set of ten and replacing all ten. */}
+                          {partLines(e).map((p, i) => (
+                            <span key={`${p.partNumber}-${i}`} className="d-block">
+                              {i === 0 ? 'Part ' : '+ '}
+                              <strong>{p.partNumber}</strong>
+                              {p.partName && <> — {p.partName}</>}
+                              {qtyLabel(p.qty) && (
+                                <span className="badge bg-dark ms-1" title={
+                                  p.manualQty ? `${p.qty} of ${p.manualQty} on the drawing` : `${p.qty} replaced`
+                                }>{qtyLabel(p.qty)}</span>
+                              )}
+                            </span>
+                          ))}
                           {e.partVerified
                             ? <span className="badge bg-success ms-1" title={e.partName || 'Confirmed against the parts manual'}>✓ manual</span>
                             : <span className="badge bg-secondary ms-1" title="Typed in, not checked against a parts manual">unverified</span>}
