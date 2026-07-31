@@ -18,13 +18,15 @@
 // be able to record it — the entry is simply marked unverified.
 import { useEffect, useMemo, useState } from 'react';
 import {
-  subscribePartsLog, addPartsEntry, deletePartsEntry,
+  subscribePartsLog, addPartsEntry, updatePartsEntry, deletePartsEntry,
   subscribeBoardTypes, saveBoardTypes,
   subscribeBindings, saveBindings,
 } from '../services/partsLog';
 import { fetchOurMachines } from '../config/parts';
 import { SECTIONS, HEADS_PER_LINE } from '../constants';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { withEditStamp, editSummary } from '@shared/utils/editTrail.js';
 import PartLookupField from '@shared/components/parts/PartLookupField.jsx';
 import PartDiagramViewer from '@shared/components/parts/PartDiagramViewer.jsx';
 import Photos from './logger/Photos';
@@ -49,6 +51,10 @@ const fmt = (iso) =>
 
 export default function PartsPage() {
   const toast = useToast();
+  // Everyone here signs in as themselves, so the login already says who edited.
+  // The CCW apps need a PIN because a plant tablet is shared; adding one here
+  // would only re-prove an identity the login has already proved.
+  const { user } = useAuth();
   const [entries, setEntries] = useState([]);
   const [boardTypes, setBoardTypes] = useState([]);
   const [bindings, setBindings] = useState({});
@@ -60,6 +66,7 @@ export default function PartsPage() {
   const [filterLine, setFilterLine] = useState('');
   const [diagramEntry, setDiagramEntry] = useState(null);
   const [showBindings, setShowBindings] = useState(false);
+  const [editing, setEditing] = useState(null);   // the saved entry being corrected
 
   useEffect(() => subscribePartsLog(setEntries), []);
   useEffect(() => subscribeBoardTypes(setBoardTypes), []);
@@ -77,6 +84,78 @@ export default function PartsPage() {
     setPicked(null);
     setExtras([]);
     setAdding(true);
+  };
+
+  // Reopen a saved entry in the same form, so adding or removing a part works
+  // exactly as it does on a new one.
+  const openEdit = (entry) => {
+    const asPicked = (p) => ({
+      partCode: p.partNumber, partName: p.partName, itemNo: p.itemNo,
+      diagramId: p.diagramId, diagramName: p.diagramName,
+    });
+    const list = Array.isArray(entry.parts) && entry.parts.length
+      ? entry.parts
+      : (entry.partNumber ? [{
+          partNumber: entry.partNumber, partName: entry.partName,
+          itemNo: entry.partItemNo, diagramId: entry.partDiagramId,
+          diagramName: entry.partDiagramName,
+        }] : []);
+    setForm({
+      line: entry.line || '',
+      head: entry.head == null ? '' : String(entry.head),
+      boardType: entry.boardType || '',
+      partNumber: entry.partNumber || '',
+      reason: entry.reason || '',
+      notes: entry.notes || '',
+      photos: entry.photos || [],
+    });
+    setPicked(list.length && entry.partVerified ? asPicked(list[0]) : null);
+    setExtras(list.slice(1).map(asPicked));
+    setEditing(entry);
+    setAdding(true);
+  };
+
+  const cancel = () => {
+    setAdding(false);
+    setEditing(null);
+    setPicked(null);
+    setExtras([]);
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!window.confirm('Save changes to this entry? The change is recorded against you.')) return;
+    setSaving(true);
+    try {
+      await updatePartsEntry(editing.id, withEditStamp({
+        line: form.line,
+        head: form.head === '' ? null : Number(form.head),
+        boardType: form.boardType,
+        partNumber: form.partNumber.trim(),
+        partName: picked?.partName || '',
+        partItemNo: picked?.itemNo || '',
+        partDiagramId: picked?.diagramId || '',
+        partDiagramName: picked?.diagramName || '',
+        partVerified: !!picked,
+        parts: [picked, ...extras].filter(Boolean).map((p) => ({
+          partNumber: p.partCode || String(p.itemNo || ''),
+          partName: p.partName || '',
+          itemNo: p.itemNo || '',
+          diagramId: p.diagramId || '',
+          diagramName: p.diagramName || '',
+        })),
+        reason: form.reason.trim(),
+        notes: form.notes.trim(),
+        photos: form.photos || [],
+      }, editing, user?.email || ''));
+      toast.success('Entry updated');
+      cancel();
+    } catch (err) {
+      console.error('parts edit failed:', err);
+      toast.error('Could not update: ' + (err?.message || 'unknown error'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const save = async () => {
@@ -221,10 +300,15 @@ export default function PartsPage() {
           </div>
 
           <div className="flex gap-2">
-            <button type="button" className="btn-primary" onClick={save} disabled={saving}>
-              {saving ? 'Saving…' : 'Log replacement'}
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={editing ? saveEdit : save}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : editing ? 'Save changes' : 'Log replacement'}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setAdding(false)}>Cancel</button>
+            <button type="button" className="btn-secondary" onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
@@ -255,6 +339,9 @@ export default function PartsPage() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {e.line} · {fmt(e.performedAt)}
                     </div>
+                    {editSummary(e) && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">✎ {editSummary(e)}</div>
+                    )}
                     {e.partNumber && (
                       <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
                         Part <strong>{e.partNumber}</strong>
@@ -280,7 +367,10 @@ export default function PartsPage() {
                     {e.reason && <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{e.reason}</div>}
                     {e.notes && <div className="text-xs text-gray-500 dark:text-gray-400">{e.notes}</div>}
                   </div>
-                  <button type="button" className="btn-secondary" onClick={() => remove(e)}>Delete</button>
+                  <div className="flex gap-2 shrink-0">
+                    <button type="button" className="btn-secondary" onClick={() => openEdit(e)}>Edit</button>
+                    <button type="button" className="btn-secondary" onClick={() => remove(e)}>Delete</button>
+                  </div>
                 </div>
                 {Array.isArray(e.photos) && e.photos.length > 0 && (
                   <div className="mt-2">

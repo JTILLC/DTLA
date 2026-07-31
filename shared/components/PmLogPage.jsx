@@ -27,6 +27,8 @@ import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
+import EditedNote from './EditedNote.jsx';
+import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
@@ -88,6 +90,9 @@ export default function PmLogPage({
   // off is the one action here that must be an attestation rather than a name
   // picked from a list. A supervisor proves it with their own PIN.
   const [signingEntry, setSigningEntry] = useState(null);
+  // A submitted check reopened for correction. Items keep the wording they were
+  // signed off with; only the answers and notes are editable.
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -101,6 +106,16 @@ export default function PmLogPage({
     if (actor || !anyPin) return run(actor?.name || '');
     setPendingSave(() => run);
   };
+  // An edit REWRITES a record that already exists, so it always asks. Having
+  // proved who you are earlier in the shift is not the same as confirming this
+  // particular change — that confirmation is what makes the trail mean
+  // anything. A plant with no PINs still edits, unattributed, as everywhere.
+  const withFreshActor = (run) => {
+    const anyPin = crewPeople.some((p) => p.pinHash);
+    if (!anyPin) return run('');
+    setPendingSave(() => run);
+  };
+
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [template, setTemplate] = useState(null);
@@ -188,6 +203,30 @@ export default function PmLogPage({
       toast.error('Could not submit: ' + (err?.message || 'unknown error'));
     } finally {
       setSaving(false);
+    }
+  });
+
+  const openEdit = (entry) => setEditing({
+    id: entry.id,
+    entry,
+    notes: entry.notes || '',
+    items: (entry.items || []).map((it) => ({ ...it })),
+  });
+
+  const saveEdit = () => withFreshActor(async (filedBy) => {
+    if (!editing) return;
+    try {
+      const issueCount = editing.items.filter((it) => it.result === 'issue').length;
+      await updateLogEntry(workspaceId, customerId, LOG_PM, editing.id, withEditStamp({
+        items: editing.items,
+        notes: editing.notes.trim(),
+        issueCount,
+      }, editing.entry, filedBy));
+      toast.success('Check updated');
+      setEditing(null);
+    } catch (err) {
+      console.error('PM edit failed:', err);
+      toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
   });
 
@@ -616,6 +655,7 @@ export default function PmLogPage({
                         by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
                       </div>
                       <CrewLine entry={e} />
+                      <EditedNote entry={e} />
                       {e.supervisorSignedBy ? (
                         <div className="small text-success-emphasis">
                           ✓ Signed off by {e.supervisorSignedBy}
@@ -632,6 +672,15 @@ export default function PmLogPage({
                           Supervisor sign-off
                         </button>
                       )}
+                      {editing?.id !== e.id && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary mt-1 ms-1"
+                          onClick={() => openEdit(e)}
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       {e.issueCount > 0 ? (
@@ -646,6 +695,73 @@ export default function PmLogPage({
                       )}
                     </div>
                   </div>
+                  {editing?.id === e.id && (
+                    <div className="border rounded p-2 mt-2">
+                      <div className="small text-muted mb-2">
+                        Correcting this check. Item wording is fixed — it is what
+                        was signed off with — so only the answers change.
+                      </div>
+                      {editing.items.map((it, i) => (
+                        <div key={i} className="mb-2">
+                          <div className="small fw-semibold">{it.label}</div>
+                          {it.type === 'value' ? (
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              value={it.value || ''}
+                              onChange={(ev) => setEditing((d) => ({
+                                ...d,
+                                items: d.items.map((x, j) => (j === i ? { ...x, value: ev.target.value } : x)),
+                              }))}
+                            />
+                          ) : (
+                            <div className="btn-group btn-group-sm" role="group">
+                              {['ok', 'issue', 'na'].map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  className={'btn btn-sm ' + (it.result === r
+                                    ? (r === 'issue' ? 'btn-danger' : r === 'ok' ? 'btn-success' : 'btn-secondary')
+                                    : 'btn-outline-secondary')}
+                                  onClick={() => setEditing((d) => ({
+                                    ...d,
+                                    items: d.items.map((x, j) => (j === i ? { ...x, result: r } : x)),
+                                  }))}
+                                >
+                                  {r === 'ok' ? 'OK' : r === 'issue' ? 'Issue' : 'N/A'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <input
+                            type="text"
+                            className="form-control form-control-sm mt-1"
+                            placeholder="Note"
+                            value={it.note || ''}
+                            onChange={(ev) => setEditing((d) => ({
+                              ...d,
+                              items: d.items.map((x, j) => (j === i ? { ...x, note: ev.target.value } : x)),
+                            }))}
+                          />
+                        </div>
+                      ))}
+                      <input
+                        type="text"
+                        className="form-control form-control-sm mb-2"
+                        placeholder="Notes for the check"
+                        value={editing.notes}
+                        onChange={(ev) => setEditing((d) => ({ ...d, notes: ev.target.value }))}
+                      />
+                      <div className="d-flex gap-2">
+                        <button type="button" className="btn btn-sm btn-primary" onClick={saveEdit}>
+                          Save changes
+                        </button>
+                        <button type="button" className="btn btn-sm btn-link" onClick={() => setEditing(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {e.notes && <div className="small mt-1">{e.notes}</div>}
                   <details className="mt-2">
                     <summary className="small text-muted" style={{ cursor: 'pointer' }}>

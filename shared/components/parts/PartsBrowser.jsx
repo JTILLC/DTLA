@@ -42,6 +42,9 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   // Some parts are easier to find by reading the list than by hunting a balloon
   // on a dense assembly — especially the ones drawn small or overlapping.
   const [showList, setShowList] = useState(false);
+  // The number strip is on by default: it is the fastest route to a part and
+  // costs nothing when unused.
+  const [showStrip, setShowStrip] = useState(true);
 
 
   // Drawings for this machine.
@@ -155,7 +158,18 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           {src && (
             <button
               type="button"
-              className={'pui-btn ' + (showList ? 'btn-light' : 'btn-outline-light')}
+              className={'pui-btn ' + (showStrip ? 'pui-btn-light' : 'pui-btn-outline-light')}
+              onClick={() => setShowStrip((v) => !v)}
+              aria-label={showStrip ? 'Hide the number strip' : 'Show the number strip'}
+              title={showStrip ? 'Hide the number strip' : 'Part numbers down the side'}
+            >
+              123
+            </button>
+          )}
+          {src && (
+            <button
+              type="button"
+              className={'pui-btn ' + (showList ? 'pui-btn-light' : 'pui-btn-outline-light')}
               onClick={() => setShowList((v) => !v)}
               aria-label={showList ? 'Hide the parts list' : 'Show the parts list for this drawing'}
               title={showList ? 'Hide the parts list' : 'Parts on this drawing'}
@@ -166,7 +180,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           {src && (
             <button
               type="button"
-              className={'pui-btn ' + (showSpots ? 'btn-outline-light' : 'btn-light')}
+              className={'pui-btn ' + (showSpots ? 'pui-btn-outline-light' : 'pui-btn-light')}
               onClick={() => setShowSpots((v) => !v)}
               aria-label={showSpots ? 'Hide part markers' : 'Show part markers'}
               title={showSpots ? 'Hide the markers to read the drawing' : 'Show part markers'}
@@ -243,7 +257,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                 </button>
                 <button
                   type="button"
-                  className={'pui-btn ' + (isPicked(p) ? 'btn-success' : 'btn-primary')}
+                  className={'pui-btn ' + (isPicked(p) ? 'pui-btn-success' : 'pui-btn-primary')}
                   onClick={() => toggle(p)}
                 >
                   {isPicked(p) ? 'Added' : 'Add'}
@@ -328,13 +342,17 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                         transform: 'translate(-50%, -50%)',
                         width: '44px', height: '44px',
                         borderRadius: '50%',
+                        // Selected is RED and filled. On a dense assembly the
+                        // question is "where is the one I just picked", and a
+                        // solid red spot answers it at a glance. The search
+                        // jump moved to amber so the two never mean the same.
                         border: chosen
-                          ? '3px solid #198754'
-                          : isHit ? '3px solid #ff3b30' : '2px solid rgba(13,110,253,0.9)',
+                          ? '3px solid #ff3b30'
+                          : isHit ? '3px solid #f59e0b' : '2px solid rgba(13,110,253,0.9)',
                         background: chosen
-                          ? 'rgba(25,135,84,0.35)'
-                          : isHit ? 'rgba(255,59,48,0.25)' : 'rgba(13,110,253,0.18)',
-                        boxShadow: isHit ? '0 0 0 3px rgba(255,255,255,0.85)' : 'none',
+                          ? 'rgba(255,59,48,0.55)'
+                          : isHit ? 'rgba(245,158,11,0.25)' : 'rgba(13,110,253,0.18)',
+                        boxShadow: chosen || isHit ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none',
                         cursor: p ? 'pointer' : 'default',
                         padding: 0,
                       }}
@@ -350,6 +368,52 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           </div>
         )}
       </div>
+
+      {/* Every balloon on this drawing, down the side, as in the Interactive
+          Parts Manual. It is how you reach a part you cannot spot on a busy
+          assembly: tap the number and its red marker says where it lives.
+
+          Absolutely positioned against the modal rather than placed in the
+          scrolling area, so it stays put while the drawing is panned — the
+          strip is a fixed index, not part of the picture. */}
+      {showStrip && current && !zoom && query.trim().length < 2 && listHere.length > 0 && (
+        <div
+          style={{
+            position: 'absolute', top: 96, right: 8, bottom: 72, width: 58,
+            background: 'rgba(255,255,255,0.94)', borderRadius: 8,
+            border: '1px solid rgba(0,0,0,0.15)', padding: 6,
+            overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
+            zIndex: 5,
+          }}
+        >
+          {listHere.map((p) => {
+            const chosen = isPicked(p);
+            const onDrawing = (meta?.hotspots || []).some(
+              (h) => String(h.partNumber) === String(p.itemNo)
+            );
+            return (
+              <button
+                key={`strip-${p.itemNo}-${p.partCode}`}
+                type="button"
+                onClick={() => toggle(p)}
+                title={`${p.partCode || ''} ${p.partName || ''}`.trim() || `Item ${p.itemNo}`}
+                style={{
+                  minHeight: 34, padding: '4px 2px', width: '100%',
+                  fontSize: 13, fontWeight: 700, lineHeight: 1,
+                  color: '#fff', cursor: 'pointer', borderRadius: 5,
+                  background: chosen ? '#198754' : '#0d6efd',
+                  // A ballooned part can be found on the drawing; one without a
+                  // hotspot can only be picked from here, and saying so beats
+                  // letting someone hunt for a marker that does not exist.
+                  border: onDrawing ? '2px solid #ffd60a' : '2px solid transparent',
+                }}
+              >
+                {p.itemNo}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Parts on this drawing. A sibling of the tray in the same column rather
           than an overlay: as an overlay pinned to the bottom the two fought for
@@ -381,7 +445,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
                 >
                   <div className="pui-d-flex pui-gap-2">
                     <span
-                      className={'pui-badge pui-flex-shrink-0 ' + (isPicked(p) ? 'bg-success' : 'bg-secondary')}
+                      className={'pui-badge pui-flex-shrink-0 ' + (isPicked(p) ? 'pui-bg-success' : 'pui-bg-secondary')}
                       style={{ minWidth: '2.2rem' }}
                     >
                       {isPicked(p) ? '✓' : p.itemNo}
