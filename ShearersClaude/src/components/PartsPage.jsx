@@ -354,6 +354,7 @@ export default function PartsPage() {
                           <span key={`${p.partNumber}-${i}`} className="block">
                             {i === 0 ? 'Part ' : '+ '}
                             <strong>{p.partNumber}</strong>
+                            {p.itemNo ? ` · item ${p.itemNo}` : ''}
                             {p.partName ? ` — ${p.partName}` : ''}
                             {qtyLabel(p.qty) && (
                               <span

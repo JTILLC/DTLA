@@ -105,10 +105,26 @@ export function partLines(entry) {
   return list.map((p) => ({
     partNumber: p.partNumber || '',
     partName: p.partName || '',
+    // The balloon number on the drawing. Shown in the log, where someone may be
+    // holding the manual open; deliberately left off the exported PDF, which
+    // goes to readers who have no drawing in front of them.
+    itemNo: p.itemNo == null ? '' : String(p.itemNo),
     qty: clampQty(p.qty, null),
     manualQty: manualQty(p),
   }));
 }
+
+// The whole unit a drawing depicts, rather than a part on it.
+//
+// The manuals carry it as an item numbered "*" — "UNIT NAME DRIVE WEIGH UNIT::
+// DRAW NO. 4D-44711" is the assembly, not something anyone fits. It must never
+// be offered as a replaceable part: logging it says the entire unit was
+// changed, and because "*" sorts ahead of every number it lands at the top of
+// the list where it is the easiest row to tap by accident.
+export const isAssembly = (p) => {
+  const item = String(p?.itemNo ?? '').trim();
+  return item === '*' || item === '';
+};
 
 // Identity of a part on a replacement: the same item, on the same drawing.
 // Two different bolts can share a code across drawings, so the drawing is part
@@ -145,5 +161,5 @@ export function qtyLabel(qty) {
 
 export default {
   manualQty, clampQty, asPicked, toStored, fromStored,
-  partLines, qtyLabel, partKey, mergeParts,
+  partLines, qtyLabel, partKey, mergeParts, isAssembly,
 };

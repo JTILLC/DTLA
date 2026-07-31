@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   manualQty, clampQty, asPicked, toStored, fromStored,
-  partLines, qtyLabel, mergeParts,
+  partLines, qtyLabel, mergeParts, isAssembly,
 } from './partLines.js';
 
 describe('manualQty', () => {
@@ -140,7 +140,7 @@ describe('partLines', () => {
 
   it('still reads an entry written before multi-part support', () => {
     expect(partLines({ partNumber: 'OLD-1', partName: 'Load cell' }))
-      .toEqual([{ partNumber: 'OLD-1', partName: 'Load cell', qty: 1, manualQty: null }]);
+      .toEqual([{ partNumber: 'OLD-1', partName: 'Load cell', itemNo: '', qty: 1, manualQty: null }]);
   });
 
   it('counts a part written before quantities existed as one', () => {
@@ -158,5 +158,32 @@ describe('qtyLabel', () => {
     expect(qtyLabel(1)).toBe('');
     expect(qtyLabel(undefined)).toBe('');
     expect(qtyLabel(4)).toBe('×4');
+  });
+});
+
+describe('isAssembly', () => {
+  it('recognises the drawing-level unit row', () => {
+    expect(isAssembly({ itemNo: '*' })).toBe(true);
+    expect(isAssembly({ itemNo: ' * ' })).toBe(true);
+    expect(isAssembly({ itemNo: '' })).toBe(true);      // no balloon number at all
+    expect(isAssembly({})).toBe(true);
+  });
+
+  it('does not mistake a real part for one', () => {
+    expect(isAssembly({ itemNo: '1' })).toBe(false);
+    expect(isAssembly({ itemNo: 61 })).toBe(false);
+    expect(isAssembly({ itemNo: '10A' })).toBe(false);
+  });
+});
+
+describe('partLines item numbers', () => {
+  it('carries the balloon number through for the log', () => {
+    const [line] = partLines({ parts: [{ partNumber: 'A', itemNo: 61, qty: 2 }] });
+    expect(line).toMatchObject({ partNumber: 'A', itemNo: '61', qty: 2 });
+  });
+
+  it('is blank rather than "undefined" when a part has no item number', () => {
+    expect(partLines({ parts: [{ partNumber: 'A' }] })[0].itemNo).toBe('');
+    expect(partLines({ partNumber: 'OLD' })[0].itemNo).toBe('');
   });
 });

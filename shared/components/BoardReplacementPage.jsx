@@ -645,6 +645,7 @@ export default function BoardReplacementPage({
                             <span key={`${p.partNumber}-${i}`} className="d-block">
                               {i === 0 ? 'Part ' : '+ '}
                               <strong>{p.partNumber}</strong>
+                              {p.itemNo && <span className="text-muted"> · item {p.itemNo}</span>}
                               {p.partName && <> — {p.partName}</>}
                               {qtyLabel(p.qty) && (
                                 <span className="badge bg-dark ms-1" title={

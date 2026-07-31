@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff, List } from 'lucide-react';
 import { partsApi, searchParts } from './partsApi.js';
-import { manualQty } from '../../utils/partLines.js';
+import { manualQty, isAssembly } from '../../utils/partLines.js';
 import './parts-ui.css';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
@@ -101,10 +101,19 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
 
   // Ordered by balloon number, which is how the drawing itself is numbered —
   // reading down the list matches walking round the assembly.
+  //
+  // The assembly row is held back: it names the whole unit rather than anything
+  // fitted to it, and "*" sorts above 1, so it sat at the top of the list as
+  // the easiest row to tap by mistake. It is shown as a heading instead.
   const listHere = useMemo(
-    () => [...partsHere.values()].sort(
-      (a, b) => String(a.itemNo).localeCompare(String(b.itemNo), undefined, { numeric: true })
-    ),
+    () => [...partsHere.values()]
+      .filter((p) => !isAssembly(p))
+      .sort((a, b) => String(a.itemNo).localeCompare(String(b.itemNo), undefined, { numeric: true })),
+    [partsHere]
+  );
+
+  const assemblyHere = useMemo(
+    () => [...partsHere.values()].find(isAssembly) || null,
     [partsHere]
   );
 
@@ -118,11 +127,17 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   const keyOf = (p) => `${p.diagramId}|${p.itemNo}|${p.partCode}`;
   const isPicked = (p) => picked.some((x) => keyOf(x) === keyOf(p));
 
-  const toggle = (p) => setPicked((prev) => (
-    prev.some((x) => keyOf(x) === keyOf(p))
-      ? prev.filter((x) => keyOf(x) !== keyOf(p))
-      : [...prev, p]
-  ));
+  // Guarded here rather than in each list, because a part can be reached from
+  // four directions — the list, the number strip, a balloon on the drawing, and
+  // search — and the assembly must be unpickable from all of them.
+  const toggle = (p) => {
+    if (isAssembly(p)) return;
+    setPicked((prev) => (
+      prev.some((x) => keyOf(x) === keyOf(p))
+        ? prev.filter((x) => keyOf(x) !== keyOf(p))
+        : [...prev, p]
+    ));
+  };
 
   // One part is still one tap plus Use. Keeping the tray for the single case as
   // well means the button is always in the same place, rather than the first
@@ -437,6 +452,15 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
               <X size={14} />
             </button>
           </div>
+          {/* The unit this drawing depicts. Shown for context, deliberately not
+              selectable — replacing "the drive weigh unit" is not what anyone
+              means when they pick a part off its own drawing. */}
+          {assemblyHere && (
+            <div className="pui-px-3 pui-py-2 pui-small pui-text-muted pui-border-bottom">
+              Assembly: <span className="pui-fw-semibold">{assemblyHere.partCode}</span>
+              {assemblyHere.partName ? ` — ${assemblyHere.partName}` : ''}
+            </div>
+          )}
           {listHere.length === 0 ? (
             <div className="pui-text-muted pui-p-3">No parts listed for this drawing.</div>
           ) : (
