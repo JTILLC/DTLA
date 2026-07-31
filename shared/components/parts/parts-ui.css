@@ -153,3 +153,36 @@ button.pui-list-group-item:hover { background: var(--pui-hover); }
 }
 .pui-bg-secondary { background: var(--pui-muted); }
 .pui-bg-success { background: var(--pui-success); }
+
+/* selected parts, with quantities ------------------------------------------
+ *
+ * A row per part rather than a row of badges: a quantity needs a control and a
+ * label beside the part it belongs to, which a badge has no room for.
+ * The controls are sized for a thumb on a plant floor, not a mouse. */
+.pui-picked-list {
+  display: flex; flex-direction: column; gap: .25rem;
+  border: 1px solid var(--pui-border); border-radius: .25rem; padding: .375rem;
+}
+.pui-picked-row {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.pui-picked-main { flex: 1 1 10rem; min-width: 0; }
+.pui-qty { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
+.pui-qty-btn {
+  min-width: 2rem; height: 2rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; cursor: pointer;
+  color: var(--pui-fg); background: var(--pui-bg);
+  border: 1px solid var(--pui-border); border-radius: .25rem;
+}
+.pui-qty-btn:hover:not(:disabled) { background: var(--pui-hover); }
+.pui-qty-btn:disabled { opacity: .4; cursor: default; }
+.pui-qty-remove { color: var(--pui-muted); }
+.pui-qty-input {
+  width: 3.25rem; height: 2rem; text-align: center;
+  color: var(--pui-fg); background: var(--pui-bg);
+  border: 1px solid var(--pui-border); border-radius: .25rem;
+  /* 16px on mobile: anything smaller makes iOS zoom the page on focus. */
+  font-size: 16px;
+}
+@media (min-width: 768px) { .pui-qty-input { font-size: .875rem; } }

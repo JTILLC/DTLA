@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { partLines, qtyLabel } from '@shared/utils/partLines.js';
 
 const SECTIONS = [
   { key: 'spanLog', title: 'Span Adjustments', empty: 'No span adjustments recorded yet.' },
@@ -199,14 +200,18 @@ export default function MaintenanceLogs({ shareData }) {
                           <div className="small mt-1">
                             <strong>{e.boardType}</strong>
                             {e.headNumber != null ? ` · Head ${e.headNumber}` : ' · machine board'}
-                            {e.partNumber ? ` · part ${e.partNumber}` : ''}
-                            {/* The number identifies it; the name is what the
-                                customer actually recognises on their own log. */}
-                            {e.partName ? ` (${e.partName})` : ''}
-                            {/* Further parts replaced in the same job. */}
-                            {Array.isArray(e.parts) && e.parts.length > 1
-                              ? ` + ${e.parts.length - 1} more part${e.parts.length - 1 === 1 ? '' : 's'}`
-                              : ''}
+                            {/* Every part replaced in this job, each with how
+                                many. The number identifies it; the name is what
+                                the customer actually recognises on their own
+                                log; the count is what they are being told was
+                                fitted. "+2 more parts" answered none of that. */}
+                            {partLines(e).map((p, i) => (
+                              <span key={`${p.partNumber}-${i}`} className="d-block ms-3">
+                                · part <strong>{p.partNumber}</strong>
+                                {p.partName ? ` (${p.partName})` : ''}
+                                {qtyLabel(p.qty) ? ` ${qtyLabel(p.qty)}` : ''}
+                              </span>
+                            ))}
                             {e.serialRemoved ? ` · out ${e.serialRemoved}` : ''}
                             {e.serialInstalled ? ` · in ${e.serialInstalled}` : ''}
                           </div>

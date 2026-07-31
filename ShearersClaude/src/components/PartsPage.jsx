@@ -30,6 +30,7 @@ import { withEditStamp, editSummary } from '@shared/utils/editTrail.js';
 import PartLookupField from '@shared/components/parts/PartLookupField.jsx';
 import PartDiagramViewer from '@shared/components/parts/PartDiagramViewer.jsx';
 import Photos from './logger/Photos';
+import { toStored, fromStored, partLines, qtyLabel } from '@shared/utils/partLines.js';
 import PhotoThumbs from './PhotoThumbs';
 
 const ALL_LINES = SECTIONS.flatMap((s) => s.lines);
@@ -61,6 +62,8 @@ export default function PartsPage() {
   const [form, setForm] = useState(BLANK);
   const [picked, setPicked] = useState(null);
   const [extras, setExtras] = useState([]);
+  // Count for a part typed rather than picked from the manual.
+  const [typedQty, setTypedQty] = useState(1);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filterLine, setFilterLine] = useState('');
@@ -74,6 +77,16 @@ export default function PartsPage() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Everything replaced in this one job, in the shape the log stores.
+  // A part typed rather than picked is still a part: it is recorded with its
+  // count so an off-manual replacement isn't silently logged as one.
+  const partsForSave = () => {
+    const chosen = [picked, ...extras].filter(Boolean);
+    if (chosen.length) return chosen.map(toStored);
+    const typed = form.partNumber.trim();
+    return typed ? [toStored({ partCode: typed, qty: typedQty })] : [];
+  };
+
   // Start from the last replacement: swaps repeat on the same line and head,
   // often the same part. Nothing identifying an individual board carries over.
   const openAdd = () => {
@@ -83,16 +96,13 @@ export default function PartsPage() {
       : { ...BLANK, boardType: boardTypes[0] || '' });
     setPicked(null);
     setExtras([]);
+    setTypedQty(1);
     setAdding(true);
   };
 
   // Reopen a saved entry in the same form, so adding or removing a part works
   // exactly as it does on a new one.
   const openEdit = (entry) => {
-    const asPicked = (p) => ({
-      partCode: p.partNumber, partName: p.partName, itemNo: p.itemNo,
-      diagramId: p.diagramId, diagramName: p.diagramName,
-    });
     const list = Array.isArray(entry.parts) && entry.parts.length
       ? entry.parts
       : (entry.partNumber ? [{
@@ -109,8 +119,10 @@ export default function PartsPage() {
       notes: entry.notes || '',
       photos: entry.photos || [],
     });
-    setPicked(list.length && entry.partVerified ? asPicked(list[0]) : null);
-    setExtras(list.slice(1).map(asPicked));
+    setPicked(list.length && entry.partVerified ? fromStored(list[0]) : null);
+    setExtras(list.slice(1).map(fromStored));
+    // An unverified entry's count lives on its single typed part.
+    setTypedQty(!entry.partVerified && list.length ? fromStored(list[0]).qty : 1);
     setEditing(entry);
     setAdding(true);
   };
@@ -120,6 +132,7 @@ export default function PartsPage() {
     setEditing(null);
     setPicked(null);
     setExtras([]);
+    setTypedQty(1);
   };
 
   const saveEdit = async () => {
@@ -137,13 +150,7 @@ export default function PartsPage() {
         partDiagramId: picked?.diagramId || '',
         partDiagramName: picked?.diagramName || '',
         partVerified: !!picked,
-        parts: [picked, ...extras].filter(Boolean).map((p) => ({
-          partNumber: p.partCode || String(p.itemNo || ''),
-          partName: p.partName || '',
-          itemNo: p.itemNo || '',
-          diagramId: p.diagramId || '',
-          diagramName: p.diagramName || '',
-        })),
+        parts: partsForSave(),
         reason: form.reason.trim(),
         notes: form.notes.trim(),
         photos: form.photos || [],
@@ -176,13 +183,7 @@ export default function PartsPage() {
         partVerified: !!picked,
         // Everything replaced in this one job — a board and its gasket are one
         // replacement, not two.
-        parts: [picked, ...extras].filter(Boolean).map((p) => ({
-          partNumber: p.partCode || String(p.itemNo || ''),
-          partName: p.partName || '',
-          itemNo: p.itemNo || '',
-          diagramId: p.diagramId || '',
-          diagramName: p.diagramName || '',
-        })),
+        parts: partsForSave(),
         reason: form.reason.trim(),
         notes: form.notes.trim(),
         photos: form.photos || [],
@@ -190,6 +191,7 @@ export default function PartsPage() {
       setForm({ ...BLANK, line: form.line });
       setPicked(null);
       setExtras([]);
+      setTypedQty(1);
       setAdding(false);
       toast.success('Replacement logged');
     } catch (err) {
@@ -274,6 +276,8 @@ export default function PartsPage() {
               picked={picked}
               extras={extras}
               onExtras={setExtras}
+              typedQty={typedQty}
+              onTypedQty={setTypedQty}
             />
           </div>
 
@@ -344,9 +348,21 @@ export default function PartsPage() {
                     )}
                     {e.partNumber && (
                       <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
-                        Part <strong>{e.partNumber}</strong>
-                        {e.partName ? ` — ${e.partName}` : ''}
-                        {Array.isArray(e.parts) && e.parts.length > 1 ? ` + ${e.parts.length - 1} more` : ''}
+                        {/* Every part with its count, not the first and a
+                            promise that others exist. */}
+                        {partLines(e).map((p, i) => (
+                          <span key={`${p.partNumber}-${i}`} className="block">
+                            {i === 0 ? 'Part ' : '+ '}
+                            <strong>{p.partNumber}</strong>
+                            {p.partName ? ` — ${p.partName}` : ''}
+                            {qtyLabel(p.qty) && (
+                              <span
+                                className="ml-1 px-1.5 py-0.5 rounded bg-gray-700 text-white"
+                                title={p.manualQty ? `${p.qty} of ${p.manualQty} on the drawing` : `${p.qty} replaced`}
+                              >{qtyLabel(p.qty)}</span>
+                            )}
+                          </span>
+                        ))}
                         <span
                           className={'ml-1 px-1.5 py-0.5 rounded text-white ' +
                             (e.partVerified ? 'bg-emerald-600' : 'bg-gray-500')}
