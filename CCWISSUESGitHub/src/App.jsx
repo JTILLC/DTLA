@@ -1064,7 +1064,12 @@ const AppContent = () => {
   const [currentCustomer, setCurrentCustomer] = useState(null);
   // Who is crewed on each line, for the line list — the dashboard answers
   // "who is running this" as well as "what is broken".
-  const appLineCrew = useLineCrew(user?.uid, currentCustomer?.id);
+  //
+  // `session`, NOT `user`: `const user = session` is declared far below this
+  // line, so naming `user` here hits its temporal dead zone on every render and
+  // takes the whole app down with "Cannot access 'user' before initialization".
+  // They are the same value; only this one exists yet.
+  const appLineCrew = useLineCrew(session?.uid, currentCustomer?.id);
   const [visits, setVisits] = useState([]);
   // Visits across ALL customers — used only by Issue History (which lets you pick
   // any customer). Kept separate from `visits` (the current customer's live list)
