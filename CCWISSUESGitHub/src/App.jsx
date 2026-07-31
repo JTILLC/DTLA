@@ -3343,6 +3343,7 @@ const AppContent = () => {
               <li>Everything <strong>saves to the cloud automatically</strong> as you work — the status chip (top-right) shows <em>Saving… / ✓ Saved</em>. There's no Save button to remember, and switching visits never loses work.</li>
               <li>Attach the signed service report (PDF) from the <strong>report bar</strong> pinned at the top — View / Replace / Delete it there anytime.</li>
               <li>Export to PDF or JSON from the <strong>Export</strong> menu.</li>
+              <li>The maintenance tabs — <strong>Span Adjust</strong>, <strong>Parts/Boards</strong>, <strong>PM Log</strong>, <strong>Crew</strong>, <strong>Activity</strong> — are scoped to the <em>customer and line</em>, not to a visit, so they carry across service calls.</li>
             </ol>
           </div>
 
@@ -3419,6 +3420,66 @@ const AppContent = () => {
               <li><strong>Show/Hide Details</strong> — toggle model, serial, and job number fields.</li>
               <li><strong>Rename</strong>, <strong>Export Line PDF</strong>, <strong>Reset Line</strong>, <strong>Remove Line</strong> — per-line controls.</li>
               <li>Quick Head toggles flip a head between Active / Offline / Fixed colors (green / red / orange).</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Span Adjust</strong></h6>
+            <ul className="small">
+              <li>Its own tab, scoped to a <strong>line</strong> rather than a visit — a span adjustment runs on its own ~30-day clock, whoever is on shift.</li>
+              <li>The overview lists every line with <strong>overdue first</strong>. Span (target) weights carry forward from last time; current weights always start blank so a stale reading can't be re-logged by accident.</li>
+              <li><strong>Scan screen</strong> — photograph the Ishida panel and the current weights fill in. It reads the circled head number and the weight in that same hopper, so it doesn't matter where head 1 sits on the ring.</li>
+              <li>Scanned values land in editable fields with a <strong>blue border</strong>; the photo stays on screen so you can check them, and nothing is saved until you press Log.</li>
+              <li>Heads it couldn't read are listed rather than guessed. Duplicates or numbers not on the line are shown but not filled in.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Parts / Boards</strong></h6>
+            <ul className="small">
+              <li>Logs part and circuit-board replacements per line. New entries pre-fill from the last one — line, head, board type, part — but <strong>never serials</strong>.</li>
+              <li><strong>Parts manuals</strong> (JTI) links each line to one machine in the Parts Viewer catalog. Part suggestions then come only from that machine's manual.</li>
+              <li>Type a part number <em>or name</em>, or press <strong>Browse</strong> to page through the drawings and tap the part on the exploded view. The eye button clears the markers so you can read the drawing; the list button picks from a list instead.</li>
+              <li>Entries show <strong>✓ manual</strong> or <strong>unverified</strong>, so the log distinguishes a part checked against the manual from one typed in. Typing is never blocked.</li>
+              <li><strong>Board types</strong> set here are what the customer app offers. Both board types and PM checklists can be copied from another customer.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>PM Log</strong></h6>
+            <ul className="small">
+              <li>The checklist JTI defines and the plant fills in. Editing it never changes checks already submitted — each submission keeps the wording it was signed off with.</li>
+              <li>Items can carry a <strong>reference photo</strong> showing what to look at.</li>
+              <li>A submitted check can be <strong>signed off by a supervisor</strong> with their own PIN — the one record here that is a real attestation rather than a name picked from a list.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Crew</strong></h6>
+            <ul className="small">
+              <li>The plant's own people, and who is on which line this shift. Plants manage their own list; JTI always has access.</li>
+              <li>Every span, board and PM entry records the crew for <strong>its</strong> line. Names are copied at save time, so re-crewing later never rewrites what was already logged.</li>
+              <li>Crewing older than 16 hours is flagged as probably last shift's — on this page and on the line list.</li>
+              <li><strong>PINs</strong> identify a person on a shared tablet. Set or reset by a plant admin (a supervisor ticked as admin) or by JTI. <em>JTI must set the first one</em> — nobody can prove themselves before any PIN exists.</li>
+              <li>A plant with no PINs keeps working, unattributed. This records who did something; it is not a lock.</li>
+              <li><strong>Crewing history</strong> keeps every change, so "who was on Tuesday nights" stays answerable.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Activity</strong></h6>
+            <ul className="small">
+              <li>One time-ordered feed per line: span adjustments, part/board swaps, PM checks, heads stopped and restarted, issues fixed, and crewing changes — each with who did it. Filter by kind with the chips.</li>
+              <li><strong>Alert me</strong> notifies this device when a head goes offline, on any line. It works while the app is open, including a background tab — it <em>cannot</em> reach a closed app or a locked phone.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Who did what</strong></h6>
+            <ul className="small">
+              <li>Taking a head offline, putting it back, or marking an issue fixed records the person — asked once per device with a PIN and remembered for 10 hours.</li>
+              <li>Shown in the offline-heads table, on the customer's dashboard, and in Activity.</li>
+              <li>Two different questions, answered from two places: who is <em>running</em> the line comes from the crewing; who <em>pressed the button</em> comes from the PIN.</li>
             </ul>
           </div>
 

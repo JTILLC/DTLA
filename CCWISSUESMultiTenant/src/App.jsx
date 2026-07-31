@@ -3813,6 +3813,53 @@ const AppContent = () => {
               accidental changes. Your supervisor (or JTI) has it — resetting a line does not need it, and can be recovered.
             </p>
           </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Crew — who's working</strong></h6>
+            <ul className="small">
+              <li>The <strong>Crew</strong> tab holds your people and who is on which line this shift. You manage this yourselves; JTI can also see it.</li>
+              <li>Set the line crewing at the start of a shift. Every span adjustment, part replacement and PM check logged afterwards records the crew for <strong>that line</strong>.</li>
+              <li>If crewing hasn't been changed in over 16 hours you'll see a warning — it's probably last shift's.</li>
+              <li><strong>PINs</strong> tell people apart on a shared tablet. A supervisor marked as <em>admin</em> can set and reset them; JTI sets the first one.</li>
+              <li>No PINs set? Everything still works — entries are just recorded without a name.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Span Adjust</strong></h6>
+            <ul className="small">
+              <li>Each line has its own ~30-day clock. The list puts <strong>overdue first</strong>.</li>
+              <li>Target (span) weights carry over from last time. Current weights always start blank, so an old reading can't be logged again by mistake.</li>
+              <li><strong>Scan screen</strong> — take a photo of the weigher panel and the current weights fill themselves in. It finds each circled head number and reads the weight in that hopper, so it doesn't matter which way the ring is turned.</li>
+              <li>Filled-in values have a <strong>blue border</strong> and the photo stays on screen — tap it to zoom in and check. Nothing is saved until you press Log.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Parts &amp; boards</strong></h6>
+            <ul className="small">
+              <li>Record what was replaced. A new entry starts from the last one — same line, head and part — but never the serials.</li>
+              <li>Type a part number <em>or</em> name, or tap <strong>Browse</strong> to page through your machine's drawings and tap the part on the exploded view.</li>
+              <li>The eye button hides the markers so you can read the drawing; the list button lets you pick from a list instead.</li>
+              <li>Parts come only from <em>your</em> machine's manual. You can still type anything — it's just marked <strong>unverified</strong>.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Who turned a head off</strong></h6>
+            <ul className="small">
+              <li>Taking a head offline, putting it back, or marking an issue fixed asks who you are — once per device, then it remembers you for 10 hours.</li>
+              <li>The name shows on the offline-heads list and on the dashboard, so the next shift knows who to ask.</li>
+            </ul>
+          </div>
+
+          <div className="mb-4">
+            <h6 className="text-primary mb-2"><strong>Activity</strong></h6>
+            <ul className="small">
+              <li>One list of everything that happened on a line — heads, parts, span adjustments, PM checks, crew changes — newest first, with who did it.</li>
+              <li><strong>Alert me</strong> pops up a notification on this device when a head goes offline on any line. It only works while the app is open (a background tab is fine); it can't reach a closed app or a locked phone.</li>
+            </ul>
+          </div>
         </div>
       )}
 
