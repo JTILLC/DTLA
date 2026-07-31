@@ -1,6 +1,6 @@
 // src/utils/headHelpers.js - Shared head/issue utility functions
 
-import { FIXED_STATUS, FIXED_STATUS_LABELS, FIXED_STATUS_COLORS, DEFAULT_HEAD } from '../config/constants';
+import { FIXED_STATUS, FIXED_STATUS_LABELS, FIXED_STATUS_COLORS, DEFAULT_HEAD } from '@app/config/constants';
 
 /**
  * Migrate legacy head data to new format with issues array

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import FactoryCanvas from './FactoryCanvas';
-import LayoutToolbar from './LayoutToolbar';
-import LineBoxPalette from './LineBoxPalette';
-import { loadLayout, saveDefaultLayout, saveVisitLayout, deleteVisitLayout, DEFAULT_LAYOUT } from './LayoutStorage';
-import { useToast } from '../Toast.jsx';
-import { useDialog } from '../DialogSystem.jsx';
+import FactoryCanvas from '@shared/components/FactoryLayout/FactoryCanvas.jsx';
+import LayoutToolbar from '@shared/components/FactoryLayout/LayoutToolbar.jsx';
+import LineBoxPalette from '@shared/components/FactoryLayout/LineBoxPalette.jsx';
+import { loadLayout, saveDefaultLayout, saveVisitLayout, deleteVisitLayout, DEFAULT_LAYOUT } from '@shared/components/FactoryLayout/LayoutStorage.js';
+import { useToast } from '@shared/components/Toast.jsx';
+import { useDialog } from '@shared/components/DialogSystem.jsx';
 
 const FactoryLayout = ({
   lines,

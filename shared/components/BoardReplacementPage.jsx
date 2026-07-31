@@ -17,7 +17,7 @@ import {
   LOG_BOARD, subscribeLog, addLogEntry, deleteLogEntry, sinceLabel,
   subscribeBoardTypes, saveBoardTypes, subscribePartsBindings,
 } from '../services/logs.js';
-import { BOARD_TYPES } from '../config/constants';
+import { BOARD_TYPES } from '@app/config/constants';
 import { useToast } from './Toast.jsx';
 import CopyConfigFrom from './CopyConfigFrom.jsx';
 import PartLookupField from './PartLookupField.jsx';

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, useSearchParams } from 'react-router-dom';
 
-import GlobalForm from './components/GlobalForm.jsx';
-import Line from './components/Line.jsx';
-import Dashboard from './components/Dashboard.jsx';
+import GlobalForm from '@shared/components/GlobalForm.jsx';
+import Line from '@shared/components/Line.jsx';
+import Dashboard from '@shared/components/Dashboard.jsx';
 // Heavy drag-drop canvas — only loaded when the Factory Layout tab is opened.
 const FactoryLayout = lazy(() => import('./components/FactoryLayout/FactoryLayout.jsx'));
 import { saveAs } from 'file-saver';
@@ -24,12 +24,12 @@ async function ensurePdfLibs() {
 import { Tabs, Tab } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash } from 'lucide-react';
-import ShareModal from './components/ShareModal.jsx';
-import ServiceReportUpload from './components/ServiceReportUpload.jsx';
+import ShareModal from '@shared/components/ShareModal.jsx';
+import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
-import { ToastProvider, AlertShim, useToast } from './components/Toast.jsx';
+import { ToastProvider, AlertShim, useToast } from '@shared/components/Toast.jsx';
 import VisitsSidebar from './components/VisitsSidebar.jsx';
-import BackfillSrModal from './components/BackfillSrModal.jsx';
+import BackfillSrModal from '@shared/components/BackfillSrModal.jsx';
 
 // Shared utilities and constants
 import { FIREBASE_CONFIG, DEFAULT_HEAD_COUNT, PDF_CONFIG, FIXED_STATUS, AUDIT_SECTIONS } from './config/constants';
@@ -41,8 +41,8 @@ import {
   getIssuesText,
   getHeadFixedStatus,
   createDefaultHeads
-} from './utils/headHelpers';
-import { useDialog, AddLineDialog } from './components/DialogSystem.jsx';
+} from '@shared/utils/headHelpers.js';
+import { useDialog, AddLineDialog } from '@shared/components/DialogSystem.jsx';
 
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -50,20 +50,20 @@ import 'firebase/compat/firestore';
 import 'firebase/compat/storage';
 
 // Offline support
-import OfflineIndicator from './components/OfflineIndicator.jsx';
-import offlineQueue from './utils/offlineQueue';
-import syncManager from './utils/syncManager';
-import { useBodyScrollLock } from './utils/useBodyScrollLock.js';
-import SpanAdjustPage from './components/SpanAdjustPage.jsx';
-import BoardReplacementPage from './components/BoardReplacementPage.jsx';
-import PmLogPage from './components/PmLogPage.jsx';
-import CrewPage from './components/CrewPage.jsx';
-import ActivityPage from './components/ActivityPage.jsx';
-import { useLineCrew, crewAge } from './utils/useLineCrew.js';
-import { lineStatusKey, scaffoldLinesFrom } from './utils/headHelpers.js';
-import { startPhotoSync, replacePendingPhoto } from './utils/photoSync.js';
-import { usingBroker, fetchAuthedDataUrl } from './config/media.js';
-import photoQueue from './utils/photoQueue.js';
+import OfflineIndicator from '@shared/components/OfflineIndicator.jsx';
+import offlineQueue from '@shared/utils/offlineQueue.js';
+import syncManager from '@shared/utils/syncManager.js';
+import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
+import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
+import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
+import PmLogPage from '@shared/components/PmLogPage.jsx';
+import CrewPage from '@shared/components/CrewPage.jsx';
+import ActivityPage from '@shared/components/ActivityPage.jsx';
+import { useLineCrew, crewAge } from '@shared/utils/useLineCrew.js';
+import { lineStatusKey, scaffoldLinesFrom } from '@shared/utils/headHelpers.js';
+import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
+import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
+import photoQueue from '@shared/utils/photoQueue.js';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
