@@ -14,6 +14,8 @@
 // through three different App trees is a lot of plumbing for one object that
 // never changes after boot.
 
+import { isAssembly } from '../../utils/partLines.js';
+
 let impl = null;
 
 // Called once per app at startup. Must supply:
@@ -44,6 +46,8 @@ export function searchParts(parts, query, limit = 8) {
   if (q.length < 2) return [];
   const scored = [];
   for (const p of parts) {
+    // The drawing's own assembly row is not a replaceable part.
+    if (isAssembly(p)) continue;
     const code = (p.partCode || '').toLowerCase();
     const item = String(p.itemNo || '').toLowerCase();
     const name = (p.partName || '').toLowerCase();
