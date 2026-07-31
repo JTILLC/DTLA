@@ -29,7 +29,13 @@ export default function PartDiagramViewer({
   const [meta, setMeta] = useState(null);
   const [src, setSrc] = useState('');
   const [error, setError] = useState('');
-  const [zoom, setZoom] = useState(false);
+  // Zoom is a real magnification, not "show at natural size". A scanned drawing
+  // is often smaller than a desktop viewport, so natural size overflowed
+  // nothing and there was nothing to scroll — zoom appeared to do nothing at
+  // all. Steps are multiples of the FITTED width, so each press always enlarges.
+  const [zoomStep, setZoomStep] = useState(0);   // 0 = fit
+  const ZOOM_STEPS = [1, 2, 4];
+  const zoom = zoomStep > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -84,14 +90,29 @@ export default function PartDiagramViewer({
         </div>
         <div className="d-flex align-items-center gap-2">
           {src && (
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-light"
-              onClick={() => setZoom((z) => !z)}
-              aria-label={zoom ? 'Fit to screen' : 'Zoom in'}
-            >
-              {zoom ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                onClick={() => setZoomStep((z) => Math.max(0, z - 1))}
+                disabled={zoomStep === 0}
+                aria-label="Zoom out"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <span className="small text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
+                {zoomStep === 0 ? 'Fit' : `${ZOOM_STEPS[zoomStep]}×`}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                onClick={() => setZoomStep((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
+                disabled={zoomStep === ZOOM_STEPS.length - 1}
+                aria-label="Zoom in"
+              >
+                <ZoomIn size={16} />
+              </button>
+            </>
           )}
           <button type="button" className="btn btn-sm btn-light" onClick={onClose} aria-label="Close">
             <X size={16} />
@@ -109,12 +130,20 @@ export default function PartDiagramViewer({
         {error && <div className="text-warning p-3">{error}</div>}
         {!error && !src && <div className="text-white-50 p-3">Loading the drawing…</div>}
         {src && (
-          <span style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+          <span
+            style={{
+              position: 'relative', display: 'inline-block', lineHeight: 0,
+              // Percentage of the viewport rather than of the image's natural
+              // size: the drawing is always at least as wide as the window at
+              // 2x, so there is always something to pan.
+              width: zoom ? `${ZOOM_STEPS[zoomStep] * 100}%` : 'auto',
+            }}
+          >
             <img
               src={src}
               alt={meta?.name || 'Parts diagram'}
               style={zoom
-                ? { display: 'block', maxWidth: 'none', width: 'auto' }
+                ? { display: 'block', width: '100%', height: 'auto', maxWidth: 'none' }
                 : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
             />
             {spots.map((h) => (
@@ -141,7 +170,7 @@ export default function PartDiagramViewer({
       <div className="text-center text-white-50 small py-2 px-3">
         {spots.length === 0 && meta
           ? 'This part isn’t balloned on this drawing — showing the full view.'
-          : `Ringed in red${spots.length > 1 ? ` — ${spots.length} marked` : ''}.`}
+          : `Ringed in red${spots.length > 1 ? ` — ${spots.length} marked` : ''}.${zoom ? ' Drag or scroll to move around.' : ''}`}
       </div>
     </div>
   );
