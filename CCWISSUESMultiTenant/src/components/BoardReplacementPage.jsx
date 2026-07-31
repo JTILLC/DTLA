@@ -30,8 +30,6 @@ const BLANK = {
   headNumber: '',
   boardType: BOARD_TYPES[0],
   partNumber: '',
-  serialRemoved: '',
-  serialInstalled: '',
   reason: '',
   notes: '',
 };
@@ -176,8 +174,6 @@ export default function BoardReplacementPage({
         partDiagramId: pickedPart?.diagramId || '',
         partDiagramName: pickedPart?.diagramName || '',
         partVerified: !!pickedPart,
-        serialRemoved: form.serialRemoved.trim(),
-        serialInstalled: form.serialInstalled.trim(),
         reason: form.reason.trim(),
         notes: form.notes.trim(),
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
@@ -215,9 +211,9 @@ export default function BoardReplacementPage({
 
   const shown = filterLine ? entries.filter((e) => e.lineTitle === filterLine) : entries;
 
-  // A board serial seen more than once has been swapped before — worth
-  // surfacing, because a repeat failure on the same serial is a different
-  // problem from a one-off.
+  // Serials are no longer collected. Entries logged before that still carry
+  // them and are still displayed, so the repeat-serial badge stays useful for
+  // history rather than being dropped along with the fields.
   const serialCounts = entries.reduce((acc, e) => {
     const s = (e.serialInstalled || '').trim().toLowerCase();
     if (s) acc[s] = (acc[s] || 0) + 1;
@@ -391,31 +387,6 @@ export default function BoardReplacementPage({
                 onPick={setPickedPart}
                 picked={pickedPart}
               />
-            </div>
-
-            <div className="row g-2">
-              <div className="col-12 col-sm-6">
-                <label className="form-label" htmlFor="board-sn-out">Serial removed</label>
-                <input
-                  id="board-sn-out"
-                  type="text"
-                  className="form-control"
-                  value={form.serialRemoved}
-                  onChange={(e) => set('serialRemoved', e.target.value)}
-                  placeholder="old board"
-                />
-              </div>
-              <div className="col-12 col-sm-6">
-                <label className="form-label" htmlFor="board-sn-in">Serial installed</label>
-                <input
-                  id="board-sn-in"
-                  type="text"
-                  className="form-control"
-                  value={form.serialInstalled}
-                  onChange={(e) => set('serialInstalled', e.target.value)}
-                  placeholder="new board"
-                />
-              </div>
             </div>
 
             <div>

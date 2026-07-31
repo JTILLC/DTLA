@@ -14,7 +14,7 @@
 // pick a drawing and tap a balloon, or search the parts list and jump to where
 // that part sits on its drawing.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
+import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff, List } from 'lucide-react';
 import { fetchDiagrams, fetchDiagram, fetchDiagramImage, searchParts } from '../config/parts.js';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
@@ -30,6 +30,9 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   // Balloons cover the very detail you are trying to read. Hiding them is the
   // difference between a usable drawing and a field of blue dots.
   const [showSpots, setShowSpots] = useState(true);
+  // Some parts are easier to find by reading the list than by hunting a balloon
+  // on a dense assembly — especially the ones drawn small or overlapping.
+  const [showList, setShowList] = useState(false);
   const imgRef = useRef(null);
 
   // Drawings for this machine.
@@ -101,6 +104,15 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
 
   const results = useMemo(() => searchParts(parts, query, 40), [parts, query]);
 
+  // Ordered by balloon number, which is how the drawing itself is numbered —
+  // reading down the list matches walking round the assembly.
+  const listHere = useMemo(
+    () => [...partsHere.values()].sort(
+      (a, b) => String(a.itemNo).localeCompare(String(b.itemNo), undefined, { numeric: true })
+    ),
+    [partsHere]
+  );
+
   const jumpTo = (p) => {
     setQuery('');
     setHighlight(String(p.itemNo));
@@ -135,6 +147,17 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           <strong className="text-truncate">{binding?.folder || 'Parts manual'}</strong>
         )}
         <div className="ms-auto d-flex align-items-center gap-2">
+          {src && (
+            <button
+              type="button"
+              className={'btn btn-sm ' + (showList ? 'btn-light' : 'btn-outline-light')}
+              onClick={() => setShowList((v) => !v)}
+              aria-label={showList ? 'Hide the parts list' : 'Show the parts list for this drawing'}
+              title={showList ? 'Hide the parts list' : 'Parts on this drawing'}
+            >
+              <List size={16} />
+            </button>
+          )}
           {src && (
             <button
               type="button"
@@ -249,6 +272,51 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
 
             {/* Tappable balloons. 44px targets — this is used on a phone at a
                 machine, not with a mouse. */}
+            {/* Parts on this drawing. Slides over the image rather than beside
+                it — on a phone there is no room for two columns, and the list
+                is a way to FIND the part, not to compare against the drawing. */}
+            {showList && (
+              <div
+                className="position-fixed bg-body border-top shadow-lg"
+                style={{ left: 0, right: 0, bottom: 0, maxHeight: '55vh', overflowY: 'auto', zIndex: 3210 }}
+              >
+                <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom sticky-top bg-body">
+                  <strong>Parts on {current?.name || 'this drawing'}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setShowList(false)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {listHere.length === 0 ? (
+                  <div className="text-muted p-3">No parts listed for this drawing.</div>
+                ) : (
+                  <div className="list-group list-group-flush">
+                    {listHere.map((p) => (
+                      <button
+                        key={`${p.itemNo}-${p.partCode}`}
+                        type="button"
+                        className="list-group-item list-group-item-action py-2"
+                        onClick={() => take(p)}
+                      >
+                        <div className="d-flex gap-2">
+                          <span className="badge bg-secondary flex-shrink-0" style={{ minWidth: '2.2rem' }}>
+                            {p.itemNo}
+                          </span>
+                          <span>
+                            <span className="fw-semibold">{p.partCode || `Item ${p.itemNo}`}</span>
+                            {p.partName && <span className="d-block small text-muted">{p.partName}</span>}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {src && box && !zoom && (meta?.hotspots || []).map((h) => {
               const p = partsHere.get(String(h.partNumber));
               const isHit = highlight && String(h.partNumber) === highlight;
@@ -292,8 +360,10 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           ? 'Pick a drawing, then tap the part you replaced.'
           : zoom
           ? 'Scroll to move around. Tap the zoom button to fit and tap parts.'
+          : showList
+          ? 'Tap a part to use it.'
           : showSpots
-          ? 'Tap a marked part to use it. Use the eye button to clear the markers.'
+          ? 'Tap a marked part to use it, or the list button to pick from a list.'
           : 'Markers hidden — tap the eye button to bring them back.'}
       </div>
     </div>

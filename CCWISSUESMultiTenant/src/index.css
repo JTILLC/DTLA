@@ -64,6 +64,15 @@ body {
   background-color: var(--bg-card) !important;
 }
 
+/* Bootstrap's *-emphasis colours are deliberately DARK — they are meant for a
+   light background. This app switches themes with [data-theme], not Bootstrap's
+   own [data-bs-theme], so those variables never get remapped and the text ends
+   up dark-on-dark. Map them to the light variants Bootstrap uses in dark mode. */
+[data-theme="dark"] .text-success-emphasis { color: #75b798 !important; }
+[data-theme="dark"] .text-warning-emphasis { color: #ffda6a !important; }
+[data-theme="dark"] .text-danger-emphasis  { color: #ea868f !important; }
+[data-theme="dark"] .text-info-emphasis    { color: #6edff6 !important; }
+
 [data-theme="dark"] .text-muted {
   color: var(--text-secondary) !important;
 }
