@@ -80,6 +80,12 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
   const [camera, setCamera] = useState(false);
   const [result, setResult] = useState(null);
   const [preview, setPreview] = useState('');
+  // The photo outlives the fill. Checking a filled value against the screen is
+  // the whole point of not auto-saving, and that is impossible if applying the
+  // reading discards the evidence.
+  const [applied, setApplied] = useState(false);
+  const [viewer, setViewer] = useState(false);
+  const [zoom, setZoom] = useState(false);        // fit-to-screen vs 1:1
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -103,6 +109,9 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
 
   const reset = () => {
     setResult(null);
+    setApplied(false);
+    setViewer(false);
+    setZoom(false);
     setPreview((p) => { if (p) URL.revokeObjectURL(p); return ''; });
   };
 
@@ -203,7 +212,9 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
     if (!usable.length) return toast.error('Nothing here can be applied — enter the weights manually.');
     onApply(new Map(usable.map((h) => [h.head, h.weight])));
     toast.success(`Filled ${usable.length} current weight${usable.length === 1 ? '' : 's'} — check them before logging.`);
-    reset();
+    // Deliberately NOT reset(): the photo stays available so the filled values
+    // can be checked against the screen they came from.
+    setApplied(true);
   };
 
   return (
@@ -228,6 +239,26 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Photograph the weigher screen to fill the current weights. You still check and log them.
         </p>
+      )}
+
+      {/* Reading takes several seconds. Without this the operator is staring at
+          a page that looks like it ignored them, and taps again. */}
+      {busy && (
+        <div className="card p-3 mt-2">
+          <div className="flex items-center gap-3">
+            <span className="inline-block w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div>
+              <div className="font-semibold dark:text-gray-100">Reading the screen…</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Matching each head number to the weight in its own hopper. Usually 5–15 seconds.
+              </div>
+            </div>
+          </div>
+          {preview && (
+            <img src={preview} alt="Photo being read"
+              className="mt-2 w-full max-h-40 object-cover rounded opacity-60" />
+          )}
+        </div>
       )}
 
       {/* Live viewfinder. Frames come from the video stream, so the phone's
@@ -266,16 +297,26 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
       {result && (
         <div className="card p-3 mt-2">
           <div className="flex justify-between items-center mb-2">
-            <strong className="dark:text-gray-100">Read from photo</strong>
-            <button type="button" className="btn-secondary" onClick={reset}>Discard</button>
+            <strong className="dark:text-gray-100">{applied ? 'Filled from this photo' : 'Read from photo'}</strong>
+            <button type="button" className="btn-secondary" onClick={reset}>{applied ? 'Done' : 'Discard'}</button>
           </div>
 
           {preview && (
-            <img
-              src={preview}
-              alt="Scanned weigher screen"
-              className="mb-2 rounded border border-gray-200 dark:border-gray-700 max-h-56 object-contain"
-            />
+            <button
+              type="button"
+              onClick={() => { setZoom(false); setViewer(true); }}
+              className="block w-full text-left mb-2"
+              title="Tap to view full screen"
+            >
+              <img
+                src={preview}
+                alt="Scanned weigher screen — tap to enlarge"
+                className="rounded border border-gray-200 dark:border-gray-700 max-h-56 object-contain"
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Tap the photo to check the numbers
+              </span>
+            </button>
           )}
 
           {heads.length > 0 && (
@@ -315,9 +356,43 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
             </ul>
           )}
 
-          <button type="button" className="btn-primary" onClick={apply} disabled={heads.length === 0}>
-            Fill current weights
+          {applied ? (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Weights filled in — the photo stays here until you press Done.
+            </p>
+          ) : (
+            <button type="button" className="btn-primary" onClick={apply} disabled={heads.length === 0}>
+              Fill current weights
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Full-screen check. Tapping the image toggles fit-to-screen and 1:1, so
+          a small digit can actually be read on a phone. Closing returns to the
+          form with everything intact — this never touches the scan state. */}
+      {viewer && preview && (
+        <div
+          className={'fixed inset-0 z-50 bg-black/95 ' +
+            (zoom ? 'overflow-auto block' : 'overflow-hidden flex items-center justify-center')}
+        >
+          <img
+            src={preview}
+            alt="Scanned weigher screen"
+            onClick={() => setZoom((z) => !z)}
+            className={zoom ? 'block max-w-none w-auto cursor-zoom-out' : 'max-w-full max-h-full object-contain cursor-zoom-in'}
+          />
+          <button
+            type="button"
+            onClick={() => { setViewer(false); setZoom(false); }}
+            aria-label="Close photo"
+            className="fixed top-3 right-3 w-11 h-11 rounded-full bg-white/90 text-gray-900 text-xl font-bold z-[51]"
+          >
+            ✕
           </button>
+          <p className="fixed bottom-3 inset-x-0 text-center text-xs text-white/85 pointer-events-none">
+            {zoom ? 'Tap the photo to fit to screen' : 'Tap the photo to zoom in'}
+          </p>
         </div>
       )}
     </div>

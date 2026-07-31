@@ -13,7 +13,7 @@
 // This screen keeps weights in local state seeded from the most recent LOG entry
 // for the line, and writes only to the log. The log is therefore the single
 // source of truth for span readings; there is no second copy to disagree with it.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCheck, ChevronLeft, Check, Trash2 } from 'lucide-react';
 import {
   LOG_SPAN, subscribeLog, addLogEntry, updateLogEntry, deleteLogEntry,
@@ -47,6 +47,10 @@ export default function SpanAdjustPage({
   // in the table so an operator knows which numbers to sanity-check, and cleared
   // the moment one is typed over.
   const [scanned, setScanned] = useState(() => new Set());
+  // Bumped after each successful log. Together with the line title it keys the
+  // scanner, so the retained photo is dropped once it has served its purpose
+  // rather than following you to the next line.
+  const [logSeq, setLogSeq] = useState(0);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -74,8 +78,14 @@ export default function SpanAdjustPage({
 
   // Restore the last line worked on — fewer taps on a plant floor. The header
   // always names the selected line so it can't be logged against by accident.
+  // Runs at most ONCE. `selected` has to stay in the deps for the initial
+  // restore to fire after lines load, but without the ref guard, pressing
+  // "All lines" (which sets selected to null) re-runs this and immediately
+  // re-selects the saved line — making the overview unreachable.
+  const restoredRef = useRef(false);
   useEffect(() => {
-    if (selected || lines.length === 0) return;
+    if (restoredRef.current || selected || lines.length === 0) return;
+    restoredRef.current = true;
     try {
       const saved = localStorage.getItem(LAST_LINE_KEY);
       if (saved && lines.some((l) => l.title === saved)) setSelected(saved);
@@ -155,6 +165,7 @@ export default function SpanAdjustPage({
       });
       setNotes('');
       clearCurrent();
+      setLogSeq((n) => n + 1);
       toast.success(`Span adjustment logged for ${selected}`);
     } catch (err) {
       console.error('Span log save failed:', err);
@@ -306,7 +317,7 @@ export default function SpanAdjustPage({
             </button>
           </div>
 
-          <WeightScanner expectedHeads={rows.length} onApply={applyScan} />
+          <WeightScanner key={`${selected}-${logSeq}`} expectedHeads={rows.length} onApply={applyScan} />
 
           <div className="table-responsive">
             <table className="table table-sm mobile-cards mb-0">
