@@ -42,6 +42,12 @@ function PickedPart({ part, primary, disabled, onQty, onRemove }) {
     <div className="pui-picked-row">
       <div className="pui-picked-main">
         <span className="pui-fw-semibold">{part.partCode || `Item ${part.itemNo}`}</span>
+        {/* The balloon number, on every row. The "Confirmed · item 19" line
+            above names only the primary part, so on a multi-part replacement
+            every other row had nothing to match against the drawing. */}
+        {part.partCode && part.itemNo
+          ? <span className="pui-small pui-text-muted"> · item {part.itemNo}</span>
+          : null}
         {part.partName && <span className="pui-small pui-text-muted"> — {part.partName}</span>}
         {over && (
           <span className="pui-small pui-text-warning-emphasis">
