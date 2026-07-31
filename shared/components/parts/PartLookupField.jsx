@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Search, AlertTriangle, Image as ImageIcon, BookOpen } from 'lucide-react';
 import { partsApi, searchParts } from './partsApi.js';
-import { asPicked, clampQty, manualQty } from '../../utils/partLines.js';
+import { asPicked, clampQty, manualQty, mergeParts } from '../../utils/partLines.js';
 import './parts-ui.css';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
 import PartsBrowser from './PartsBrowser.jsx';
@@ -84,6 +84,10 @@ export default function PartLookupField({
   onExtras,           // (parts[]) => void
   typedQty,           // count for a part typed rather than picked, if supported
   onTypedQty,         // (n) => void — omit and no count is offered for free text
+  // Removing a part is destructive and a ✕ sits next to a number stepper, so it
+  // asks first. Injected because each app has its own dialog; the browser's own
+  // is the fallback rather than no confirmation at all.
+  confirm = (message) => Promise.resolve(window.confirm(message)),
   disabled = false,
 }) {
   const [parts, setParts] = useState(null);     // null = not loaded yet
@@ -138,6 +142,31 @@ export default function PartLookupField({
     onChange(p.partCode || String(p.itemNo));
     onPick(asPicked(p));      // carries the drawing's count and a replaced count of 1
     setOpen(false);
+  };
+
+  // Taking a part back off the replacement. Always asks: the ✕ sits beside a
+  // quantity stepper, and a mis-tap that silently drops a part from the record
+  // is not recoverable by undo.
+  //
+  // Removing the primary promotes the next part rather than emptying the list —
+  // the "primary" is an artefact of how the log is stored, not a decision the
+  // person made, and the remaining parts were all genuinely replaced.
+  const removePart = async (part, primary) => {
+    const name = part.partCode || part.partName || `Item ${part.itemNo}`;
+    if (!(await confirm(`Remove ${name} from this replacement?`))) return;
+    if (!primary) {
+      onExtras?.(extras.filter((x) => x !== part));
+      return;
+    }
+    const [next, ...rest] = extras;
+    if (next) {
+      onChange(next.partCode || String(next.itemNo || ''));
+      onPick(next);
+      onExtras?.(rest);
+    } else {
+      onChange('');
+      onPick(null);
+    }
   };
 
   return (
@@ -238,7 +267,7 @@ export default function PartLookupField({
                 onQty={(qty) => (primary
                   ? onPick({ ...p, qty })
                   : onExtras?.(extras.map((x) => (x === p ? { ...x, qty } : x))))}
-                onRemove={primary ? null : () => onExtras?.(extras.filter((x) => x !== p))}
+                onRemove={() => removePart(p, primary)}
               />
             ))}
         </div>
@@ -257,11 +286,19 @@ export default function PartLookupField({
           binding={binding}
           parts={parts || []}
           onPick={(list) => {
-            // First pick fills the field; the rest ride along on the same entry.
-            // A board and its gasket are one replacement, not two.
-            const [first, ...rest] = list;
-            if (first) choose(first);
-            onExtras?.(rest.map(asPicked));
+            // ADDED to what is already chosen, never replacing it. Picking a
+            // second time used to wipe the list, so adding a gasket to a board
+            // silently discarded the board.
+            const incoming = list.map(asPicked);
+            if (picked) {
+              onExtras?.(mergeParts(extras, incoming, picked));
+            } else {
+              // Nothing chosen yet: the first fills the field, the rest ride
+              // along. A board and its gasket are one replacement, not two.
+              const [first, ...rest] = incoming;
+              if (first) choose(first);
+              onExtras?.(mergeParts(extras, rest, first));
+            }
           }}
           onClose={() => setBrowsing(false)}
         />

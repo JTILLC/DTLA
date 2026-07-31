@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { manualQty, clampQty, asPicked, toStored, fromStored, partLines, qtyLabel } from './partLines.js';
+import {
+  manualQty, clampQty, asPicked, toStored, fromStored,
+  partLines, qtyLabel, mergeParts,
+} from './partLines.js';
 
 describe('manualQty', () => {
   it('reads the plain cases the manuals mostly contain', () => {
@@ -21,6 +24,52 @@ describe('manualQty', () => {
 
   it('prefers an explicit manualQty over the catalog field it was derived from', () => {
     expect(manualQty({ manualQty: 3, qty: 99 })).toBe(3);
+  });
+
+  it('never mistakes a REPLACED count for the drawing count', () => {
+    // The bug this guards: on a picked part `qty` is how many were replaced.
+    // Falling through from an empty manualQty to qty read "1 replaced" as "the
+    // drawing shows 1" and locked the quantity control at 1 — which is exactly
+    // what "there is no way to change the quantity" looked like.
+    expect(manualQty({ manualQty: null, qty: 1 })).toBeNull();
+    expect(manualQty({ manualQty: '', qty: 5 })).toBeNull();
+    expect(manualQty({ manualQty: undefined, qty: 3 })).toBeNull();
+  });
+
+  it('still reads a raw catalog part, whose qty IS the drawing count', () => {
+    expect(manualQty({ partCode: 'X', qty: '10' })).toBe(10);   // no manualQty key
+  });
+});
+
+describe('mergeParts', () => {
+  const p = (code, diagram = 'd1', item = '1') => ({ partCode: code, diagramId: diagram, itemNo: item });
+
+  it('adds to the list instead of replacing it', () => {
+    // The reported bug: picking again wiped everything already chosen.
+    const existing = [p('A', 'd1', '1')];
+    expect(mergeParts(existing, [p('B', 'd1', '2')]).map((x) => x.partCode))
+      .toEqual(['A', 'B']);
+  });
+
+  it('does not add a part that is already on the replacement', () => {
+    const existing = [p('A')];
+    expect(mergeParts(existing, [p('A'), p('B', 'd1', '2')]).map((x) => x.partCode))
+      .toEqual(['A', 'B']);
+  });
+
+  it('does not duplicate the primary part into the extras', () => {
+    const primary = p('A');
+    expect(mergeParts([], [p('A'), p('B', 'd1', '2')], primary).map((x) => x.partCode))
+      .toEqual(['B']);
+  });
+
+  it('treats the same code on a different drawing as a different part', () => {
+    expect(mergeParts([p('A', 'd1')], [p('A', 'd2')])).toHaveLength(2);
+  });
+
+  it('survives empty input', () => {
+    expect(mergeParts()).toEqual([]);
+    expect(mergeParts([p('A')], [])).toHaveLength(1);
   });
 });
 

@@ -25,7 +25,14 @@
 // no ceiling rather than a wrong one — better to allow an unusual count than to
 // block a genuine repair because the manual was untidy.
 export function manualQty(catalogPart) {
-  const raw = catalogPart?.manualQty ?? catalogPart?.qty;
+  if (!catalogPart) return null;
+  // Which field to read is decided by whether `manualQty` EXISTS, not by
+  // whether it has a value. A catalog part has no such key and its `qty` IS the
+  // drawing count; a picked or stored part has the key, and its `qty` is the
+  // replaced count. Falling through from an empty manualQty to qty read "1
+  // replaced" as "the drawing shows 1" and silently locked the quantity control
+  // at 1 for every part whose manual quantity could not be read.
+  const raw = 'manualQty' in catalogPart ? catalogPart.manualQty : catalogPart.qty;
   if (raw == null || raw === '') return null;
   const n = Number(String(raw).match(/\d+/)?.[0]);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -97,6 +104,32 @@ export function partLines(entry) {
   }));
 }
 
+// Identity of a part on a replacement: the same item, on the same drawing.
+// Two different bolts can share a code across drawings, so the drawing is part
+// of the identity rather than the code alone.
+export const partKey = (p) =>
+  `${p?.diagramId || ''}|${p?.itemNo || ''}|${p?.partCode || p?.partNumber || ''}`;
+
+// Add parts to the ones already chosen, keeping what is there.
+//
+// Picking a second time used to REPLACE the list, so adding a gasket to a board
+// silently discarded the board. Anything already present — including the
+// primary part, passed separately — is left alone rather than duplicated.
+export function mergeParts(existing = [], incoming = [], primary = null) {
+  const seen = new Set([
+    ...(primary ? [partKey(primary)] : []),
+    ...existing.map(partKey),
+  ]);
+  const added = [];
+  for (const p of incoming) {
+    const k = partKey(p);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    added.push(p);
+  }
+  return [...existing, ...added];
+}
+
 // "×2" for a part fitted more than once, nothing for a single one. A log full
 // of "×1" is noise that hides the one line that says "×4".
 export function qtyLabel(qty) {
@@ -104,4 +137,7 @@ export function qtyLabel(qty) {
   return n > 1 ? `×${n}` : '';
 }
 
-export default { manualQty, clampQty, asPicked, toStored, fromStored, partLines, qtyLabel };
+export default {
+  manualQty, clampQty, asPicked, toStored, fromStored,
+  partLines, qtyLabel, partKey, mergeParts,
+};

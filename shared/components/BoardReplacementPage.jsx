@@ -529,6 +529,11 @@ export default function BoardReplacementPage({
                 onExtras={setExtraParts}
                 typedQty={typedQty}
                 onTypedQty={setTypedQty}
+                // This app has its own dialog; the browser's would look foreign
+                // beside every other confirmation in the page.
+                confirm={(message) => dialog.confirm(message, {
+                  title: 'Remove part', confirmText: 'Remove', variant: 'danger',
+                })}
               />
             </div>
 
