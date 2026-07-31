@@ -1,5 +1,9 @@
 # Storage CORS — why the daily PDF could not include photos
 
+> **Status: applied 2026-07-31.** The bucket now carries the policy in
+> `cors.json` and photos embed in the report. Kept as the record of what was
+> wrong and how it was fixed, and in case the bucket is ever recreated.
+
 ## Symptom
 
 Photos display fine everywhere in the app, but the daily PDF shows
