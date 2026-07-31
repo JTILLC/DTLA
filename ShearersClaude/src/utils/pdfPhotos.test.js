@@ -97,12 +97,45 @@ describe('the second route', () => {
     expect(r.dataUrl).toMatch(/^data:image\/jpeg/);
   });
 
-  it('reports both reasons when it cannot', async () => {
+  it('says the file is unreachable when nothing can load it, and names the object', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
     imageBehaviour = 'error';
     const r = await photoToThumb(URL_OK);
+    expect(r.why).toMatch(/could not be reached at all/);
     expect(r.why).toMatch(/no response from firebasestorage\.googleapis\.com/);
-    expect(r.why).toMatch(/image load also failed/);
+    expect(r.why).toMatch(/p\.jpg/);            // the object path, not the token
+    expect(r.why).not.toMatch(/token/);
+  });
+
+  it('distinguishes a photo that displays but may not be embedded', async () => {
+    // Every CORS-bearing route fails, yet a plain <img> shows the picture: the
+    // file is present and readable, and only the permission to copy its pixels
+    // is missing. Reported as a permissions problem, not a missing file.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    let call = 0;
+    class PickyImage extends FakeImage {
+      set crossOrigin(_v) { this._cors = true; }
+      set src(v) {
+        call += 1;
+        const cors = this._cors;
+        queueMicrotask(() => {
+          if (cors) this.onerror?.();                       // CORS routes fail
+          else { this.width = 800; this.height = 600; this.onload?.(); }  // plain load works
+        });
+        this._src = v;
+      }
+    }
+    vi.stubGlobal('Image', PickyImage);
+    // A tainted canvas is what a real browser does here.
+    vi.stubGlobal('document', { createElement: () => ({
+      width: 0, height: 0, getContext: () => ({ drawImage: () => {} }),
+      toDataURL: () => { throw new Error('tainted'); },
+    }) });
+
+    const r = await photoToThumb(URL_OK);
+    expect(call).toBeGreaterThan(1);
+    expect(r.why).toMatch(/opens but cannot be embedded/);
+    expect(r.why).toMatch(/CORS/);
   });
 
   it('is not attempted for a file that is genuinely gone', async () => {
