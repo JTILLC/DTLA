@@ -27,7 +27,11 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   const [current, setCurrent] = useState(null);      // { id, name }
   const [meta, setMeta] = useState(null);            // hotspots
   const [src, setSrc] = useState('');
-  const [zoom, setZoom] = useState(false);
+  // Same reasoning as the diagram viewer: zoom is a real magnification, so a
+  // drawing smaller than the window still has something to pan.
+  const [zoomStep, setZoomStep] = useState(0);
+  const ZOOM_STEPS = [1, 2, 4];
+  const zoom = zoomStep > 0;
 
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(null);  // itemNo arrived at via search
@@ -59,7 +63,7 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
     let objectUrl = '';
     setMeta(null);
     setSrc('');
-    setZoom(false);
+    setZoomStep(0);
     if (!current?.id) return undefined;
     Promise.all([fetchDiagram(current.id), fetchDiagramImage(current.id)])
       .then(([m, url]) => {
@@ -169,14 +173,29 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
             </button>
           )}
           {src && (
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-light"
-              onClick={() => setZoom((z) => !z)}
-              aria-label={zoom ? 'Fit to screen' : 'Zoom in'}
-            >
-              {zoom ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                onClick={() => setZoomStep((z) => Math.max(0, z - 1))}
+                disabled={zoomStep === 0}
+                aria-label="Zoom out"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <span className="small text-white-50" style={{ minWidth: '3.2rem', textAlign: 'center' }}>
+                {zoomStep === 0 ? 'Fit' : `${ZOOM_STEPS[zoomStep]}×`}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                onClick={() => setZoomStep((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))}
+                disabled={zoomStep === ZOOM_STEPS.length - 1}
+                aria-label="Zoom in"
+              >
+                <ZoomIn size={16} />
+              </button>
+            </>
           )}
           <button type="button" className="btn btn-sm btn-light" onClick={onClose} aria-label="Close">
             <X size={16} />
@@ -262,12 +281,17 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           >
             {!src && !error && <div className="text-white-50 p-3">Loading the drawing…</div>}
             {src && (
-              <span style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+              <span
+                style={{
+                  position: 'relative', display: 'inline-block', lineHeight: 0,
+                  width: zoom ? `${ZOOM_STEPS[zoomStep] * 100}%` : 'auto',
+                }}
+              >
                 <img
                   src={src}
                   alt={current?.name || 'Parts diagram'}
                   style={zoom
-                    ? { display: 'block', maxWidth: 'none', width: 'auto' }
+                    ? { display: 'block', width: '100%', height: 'auto', maxWidth: 'none' }
                     : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                 />
 
@@ -398,6 +422,8 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           ? 'Pick a drawing, then tap the parts you replaced.'
           : showList
           ? 'Tap parts to collect them, then Use.'
+          : zoom
+          ? 'Drag or scroll to move around. Markers stay on their parts.'
           : showSpots
           ? 'Tap marked parts to collect them — more than one is fine.'
           : 'Markers hidden — tap the eye button to bring them back.'}
