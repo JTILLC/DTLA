@@ -124,3 +124,8 @@ body {
   to { opacity: 1; transform: none; }
 }
 .animate-toast-in { animation: toast-in 180ms ease-out; }
+
+/* Horizontal nav strip: swipeable, without a scrollbar eating a row of a bar
+   that is only ~48px tall to begin with. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

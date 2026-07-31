@@ -846,14 +846,21 @@ export default function MainLogger({ data, setData }) {
           .sort((a, b) => new Date(a.performedAt) - new Date(b.performedAt))
           .map((e) => {
             addPhotos(e.photos);
-            const extra = Array.isArray(e.parts) && e.parts.length > 1
-              ? ` (+${e.parts.length - 1} more)` : '';
+            // Every part on the entry, one per line. Summarising the rest as
+            // "+2 more" told a reader that parts existed while withholding
+            // which — the report has to say what was actually fitted.
+            const list = Array.isArray(e.parts) && e.parts.length
+              ? e.parts
+              : (e.partNumber ? [{ partNumber: e.partNumber, partName: e.partName }] : []);
+            const partCell = list.length
+              ? list.map((p) => [p.partNumber, p.partName].filter(Boolean).join(' — ')).join('\n')
+                + (e.partNumber ? (e.partVerified ? '\n[checked against manual]' : '\n[unverified]') : '')
+              : '—';
             return [
               e.line || '',
               e.head != null ? String(e.head) : 'machine',
               e.boardType || '',
-              [e.partNumber, e.partName].filter(Boolean).join(' — ') + extra
-                + (e.partNumber ? (e.partVerified ? '  [manual]' : '  [unverified]') : ''),
+              partCell,
               [e.reason, e.notes].filter(Boolean).join(' · '),
             ];
           });
