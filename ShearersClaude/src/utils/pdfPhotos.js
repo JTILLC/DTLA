@@ -185,12 +185,12 @@ export async function photoToThumb(url, attempt = 0) {
     return {
       failed: true,
       // The photo is present and readable — only permission to copy its pixels
-      // is missing. On a plain internet connection that would point at the
-      // bucket's CORS settings; behind a filtering proxy it usually means the
-      // network stripped the header that grants it, which is why the advice is
-      // to retry off the work wifi before anyone changes a bucket setting.
+      // is missing, i.e. the download arrived without the CORS header that
+      // grants it. A filtering network was the obvious suspect and was ruled
+      // out on cellular, so the message states the fact and names the bucket
+      // and object rather than asserting a cause it cannot know.
       why: displayable.loaded
-        ? `the photo opens but this network won't allow it to be copied into the PDF — try again off work wifi${suffix}`
+        ? `the photo opens but the download carries no permission to copy it (CORS)${suffix}`
         : `the file could not be reached at all (${first.why})${suffix}`,
     };
   }
