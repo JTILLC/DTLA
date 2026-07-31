@@ -147,6 +147,36 @@ export async function saveBoardTypes(workspaceId, customerId, types) {
   });
 }
 
+// ---- Crew roster -----------------------------------------------------------
+// The people who work this plant, so a log entry can say WHO rather than which
+// login. A plant tablet signs in as one shared account, so the account name
+// answers "which customer", never "which person".
+//
+// Shape: { people: [{ id, name, roles: ['operator'|'tech'|'supervisor'] }] }
+//
+// A person may hold several roles — the tech on nights is often the supervisor
+// too — so roles is a list rather than one value.
+export function subscribeCrew(workspaceId, customerId, cb) {
+  if (!workspaceId || !customerId) return () => {};
+  return configDoc(workspaceId, customerId, 'crew').onSnapshot(
+    (snap) => cb(snap.exists ? (snap.data().people || []) : []),
+    (err) => { console.error('crew subscription failed:', err); cb([]); }
+  );
+}
+
+export async function saveCrew(workspaceId, customerId, people) {
+  await configDoc(workspaceId, customerId, 'crew').set({
+    people: (people || [])
+      .map((p) => ({
+        id: p.id,
+        name: String(p.name || '').trim(),
+        roles: Array.isArray(p.roles) ? p.roles : [],
+      }))
+      .filter((p) => p.name && p.roles.length),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // ---- Parts-manual bindings -------------------------------------------------
 // Which machine in the Parts Viewer catalog a line's parts come from, keyed by
 // line title (the same key the span and board logs use).

@@ -23,6 +23,9 @@ import CopyConfigFrom from './CopyConfigFrom.jsx';
 import PartLookupField from './PartLookupField.jsx';
 import PartsManualBinding from './PartsManualBinding.jsx';
 import PartDiagramViewer from './PartDiagramViewer.jsx';
+import CrewBar from './CrewBar.jsx';
+import CrewLine from './CrewLine.jsx';
+import { useShiftCrew, crewStamp } from '../utils/useShiftCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 
 const BLANK = {
@@ -45,6 +48,7 @@ export default function BoardReplacementPage({
   canEditTypes = false,   // the original app sets the list; the customer app uses it
 }) {
   const toast = useToast();
+  const { crew } = useShiftCrew(customerId);
   const dialog = useDialog();
   const [entries, setEntries] = useState([]);
   const [form, setForm] = useState(BLANK);
@@ -178,6 +182,7 @@ export default function BoardReplacementPage({
         notes: form.notes.trim(),
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
+        ...crewStamp(crew),
       });
       setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
       setPickedPart(null);
@@ -222,6 +227,8 @@ export default function BoardReplacementPage({
 
   return (
     <div>
+      <CrewBar workspaceId={workspaceId} customerId={customerId} canEditRoster={canEditTypes} />
+
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h5 className="d-flex align-items-center gap-2 mb-0">
           <Cpu size={18} /> Parts / Board Replacements{customerName ? ` — ${customerName}` : ''}
@@ -459,6 +466,7 @@ export default function BoardReplacementPage({
                           {e.lineTitle} · {new Date(e.performedAt).toLocaleDateString()} ({sinceLabel(e.performedAt)})
                           {' · '}by {e.performedBy || 'Unknown'}{e.role === 'customer' ? ' (plant)' : ' (JTI)'}
                         </div>
+                        <CrewLine entry={e} />
                       </div>
                       <button
                         type="button"

@@ -127,6 +127,21 @@ export default function MaintenanceLogs({ shareData }) {
                               by {e.performedBy || 'Unknown'}
                               {e.role === 'customer' ? ' (plant)' : e.role === 'jti' ? ' (JTI)' : ''}
                             </div>
+                            {/* Only when there is something to say — entries from
+                                before the crew roster carry none of these. */}
+                            {[
+                              e.operator && `Operator ${e.operator}`,
+                              e.tech && `Maintenance ${e.tech}`,
+                              e.supervisor && `Supervisor ${e.supervisor}`,
+                            ].filter(Boolean).length > 0 && (
+                              <div className="small text-muted">
+                                {[
+                                  e.operator && `Operator ${e.operator}`,
+                                  e.tech && `Maintenance ${e.tech}`,
+                                  e.supervisor && `Supervisor ${e.supervisor}`,
+                                ].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             {typeof e.issueCount === 'number' && (
