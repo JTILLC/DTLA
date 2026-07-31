@@ -14,7 +14,7 @@
 // pick a drawing and tap a balloon, or search the parts list and jump to where
 // that part sits on its drawing.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ChevronLeft, Search, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, ChevronLeft, Search, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
 import { fetchDiagrams, fetchDiagram, fetchDiagramImage, searchParts } from '../config/parts.js';
 
 export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
@@ -27,6 +27,9 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
   const [box, setBox] = useState(null);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(null);  // itemNo arrived at via search
+  // Balloons cover the very detail you are trying to read. Hiding them is the
+  // difference between a usable drawing and a field of blue dots.
+  const [showSpots, setShowSpots] = useState(true);
   const imgRef = useRef(null);
 
   // Drawings for this machine.
@@ -135,6 +138,17 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           {src && (
             <button
               type="button"
+              className={'btn btn-sm ' + (showSpots ? 'btn-outline-light' : 'btn-light')}
+              onClick={() => setShowSpots((v) => !v)}
+              aria-label={showSpots ? 'Hide part markers' : 'Show part markers'}
+              title={showSpots ? 'Hide the markers to read the drawing' : 'Show part markers'}
+            >
+              {showSpots ? <Eye size={16} /> : <EyeOff size={16} />}
+            </button>
+          )}
+          {src && (
+            <button
+              type="button"
               className="btn btn-sm btn-outline-light"
               onClick={() => setZoom((z) => !z)}
               aria-label={zoom ? 'Fit to screen' : 'Zoom in'}
@@ -238,6 +252,9 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
             {src && box && !zoom && (meta?.hotspots || []).map((h) => {
               const p = partsHere.get(String(h.partNumber));
               const isHit = highlight && String(h.partNumber) === highlight;
+              // Hiding keeps the one part you searched for ringed — that is the
+              // thing you opened the drawing to find.
+              if (!showSpots && !isHit) return null;
               return (
                 <button
                   key={h.id}
@@ -275,7 +292,9 @@ export default function PartsBrowser({ binding, parts = [], onPick, onClose }) {
           ? 'Pick a drawing, then tap the part you replaced.'
           : zoom
           ? 'Scroll to move around. Tap the zoom button to fit and tap parts.'
-          : 'Tap a marked part to use it.'}
+          : showSpots
+          ? 'Tap a marked part to use it. Use the eye button to clear the markers.'
+          : 'Markers hidden — tap the eye button to bring them back.'}
       </div>
     </div>
   );
