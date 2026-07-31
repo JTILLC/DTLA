@@ -182,7 +182,16 @@ export default function PartLookupField({
         <PartDiagramViewer
           diagramId={picked.diagramId}
           partItemNo={picked.itemNo}
-          partLabel={picked.partCode || `Item ${picked.itemNo}`}
+          // Everything picked that lives on THIS drawing — extras on another
+          // drawing cannot be ringed here and are not pretended to be.
+          partItemNos={[picked, ...extras]
+            .filter((p) => p.diagramId === picked.diagramId)
+            .map((p) => p.itemNo)}
+          partLabel={
+            extras.length
+              ? `${picked.partCode || `Item ${picked.itemNo}`} + ${extras.length} more`
+              : (picked.partCode || `Item ${picked.itemNo}`)
+          }
           onClose={() => setShowDiagram(false)}
         />
       )}
