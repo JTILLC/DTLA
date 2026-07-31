@@ -14,6 +14,17 @@
 // Nothing is enforced. This says who was on, not who can prove they were on —
 // if an entry ever needs to be an attestation, that wants a signature or a PIN,
 // not a dropdown.
+//
+// The plant maintains its own roster. People are hired, moved between shifts and
+// let go by the plant, not by JTI, and routing every new starter through a
+// support request guarantees the list goes stale and entries get logged against
+// whoever is nearest on the dropdown. JTI keeps access too, since it edits the
+// same document.
+//
+// Scoping is enforced where it belongs: the roster lives under
+// user_files/{workspaceId}/customers/{customerId}/config/crew, and the Firestore
+// rules already confine a plant login to its own customer — so "manage your own
+// roster" cannot become "manage someone else's".
 import { useEffect, useState } from 'react';
 import { Users, Plus, Trash2, Check } from 'lucide-react';
 import { subscribeCrew, saveCrew } from '../services/logs.js';
@@ -28,7 +39,7 @@ const ROLES = [
 
 const newId = () => `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-export default function CrewBar({ workspaceId, customerId, canEditRoster = false }) {
+export default function CrewBar({ workspaceId, customerId, canEditRoster = true }) {
   const toast = useToast();
   const { crew, setRole, clear } = useShiftCrew(customerId);
   const [people, setPeople] = useState([]);
