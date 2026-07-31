@@ -218,6 +218,10 @@
   .call.lock .call-h { color: var(--fixed); }
   .call.tip { border-left-color: var(--active); }
   .call.tip .call-h { color: var(--active); }
+  /* For limits worth stating plainly rather than burying — e.g. what the
+     head-offline alert cannot reach. */
+  .call.warn { border-left-color: var(--offline); }
+  .call.warn .call-h { color: var(--offline); }
 
   /* view-only banner mock */
   .mock-banner { display: flex; gap: .6rem; align-items: center; background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); color: var(--ink); border-radius: 9px; padding: .7rem .85rem; font-size: .9rem; max-width: var(--maxread); margin: 1rem 0; }
@@ -273,6 +277,11 @@
       <li><a href="#locked"><span class="n">12</span> Locked actions</a></li>
       <li><a href="#recover"><span class="n">13</span> Undo &amp; recover</a></li>
       <li><a href="#offline"><span class="n">14</span> Working offline</a></li>
+      <li><a href="#crew"><span class="n">15</span> Crew &amp; PINs</a></li>
+      <li><a href="#span"><span class="n">16</span> Span adjustments</a></li>
+      <li><a href="#parts"><span class="n">17</span> Parts &amp; boards</a></li>
+      <li><a href="#pm"><span class="n">18</span> PM checks</a></li>
+      <li><a href="#activity"><span class="n">19</span> Line activity &amp; alerts</a></li>
       <li><a href="#admin" class="admin"><span class="n">＋</span> For JTI admins</a></li>
     </ol>
   </nav>
@@ -445,6 +454,66 @@
 
     <hr class="div" />
 
+    <section id="crew">
+      <div class="sec-head"><span class="sec-num">15</span><h2>Crew &amp; PINs</h2></div>
+      <p>The log used to say which <em>account</em> made an entry, which on a shared tablet meant every entry looked the same. The <span class="ui">Crew</span> tab fixes that.</p>
+      <ol class="steps">
+        <li><p><strong>Crew list</strong> — add the people who work here and tick every role each can fill (Operator, Maintenance, Supervisor). The night tech is often the supervisor too, so more than one is normal. You manage this list yourselves.</p></li>
+        <li><p><strong>On shift by line</strong> — at the start of a shift, set who is on each line and press <span class="ui">Save crewing</span>. It applies to every device on the floor, not just the one you set it on.</p></li>
+        <li><p>Everything logged afterwards records the crew for <em>that line</em>. Change the crewing later and it never rewrites what was already logged.</p></li>
+      </ol>
+      <div class="call tip">
+        <p class="call-h">If it says the crewing is old</p>
+        <p>Crewing not changed in over 16 hours is flagged as probably last shift's — on the Crew page and next to the crew names on the line list. Set it again and the warning clears.</p>
+      </div>
+      <p><strong>PINs</strong> tell people apart on a shared tablet. A supervisor marked as <span class="ui">admin</span> can set and reset them; JTI sets the very first one, because nobody can prove who they are before any PIN exists. Changes are kept in <span class="ui">Crewing history</span>, so "who was on Tuesday nights" stays answerable.</p>
+      <p>If no PINs are set, nothing stops working — entries are simply recorded without a name.</p>
+    </section>
+
+    <section id="span">
+      <div class="sec-head"><span class="sec-num">16</span><h2>Span adjustments</h2></div>
+      <p>Each line runs on its own roughly 30-day clock. The <span class="ui">Span Adjust</span> tab lists every line with <strong>overdue at the top</strong>.</p>
+      <ol class="steps">
+        <li><p>Pick a line. Target (span) weights carry over from last time; <strong>current weights always start blank</strong>, so an old reading can never be logged again by mistake.</p></li>
+        <li><p>Either type the weights, or tap <span class="ui">Scan screen</span> and photograph the weigher panel. It finds each circled head number and reads the weight inside that hopper, so it does not matter which way round the ring is turned.</p></li>
+        <li><p>Scanned values arrive with a <strong>blue border</strong> and the photo stays on screen — tap it to zoom in and check them. Anything it could not read is listed rather than guessed.</p></li>
+        <li><p>Press <span class="ui">Log span adjustment</span>. Nothing is saved before that.</p></li>
+      </ol>
+    </section>
+
+    <section id="parts">
+      <div class="sec-head"><span class="sec-num">17</span><h2>Parts &amp; boards</h2></div>
+      <p>The <span class="ui">Parts/Boards</span> tab records what was replaced. A new entry starts from the last one — same line, head and part — but <strong>never the serials</strong>.</p>
+      <ul class="plain">
+        <li>Type a part number <em>or</em> a part name and pick from the suggestions.</li>
+        <li>Or tap <span class="ui">Browse</span> to page through your machine's own drawings and tap the part on the exploded view.</li>
+        <li>The <span class="ui">eye</span> button hides the markers when they cover the detail you are trying to read; the <span class="ui">list</span> button lets you pick from a list instead of hunting a balloon.</li>
+      </ul>
+      <p>Suggestions come only from <em>your</em> machine's manual, so a number that is right for a different machine cannot be offered by mistake. You can still type anything — it is simply recorded as <span class="ui">unverified</span> rather than <span class="ui">✓ manual</span>.</p>
+    </section>
+
+    <section id="pm">
+      <div class="sec-head"><span class="sec-num">18</span><h2>PM checks</h2></div>
+      <p>The <span class="ui">PM Log</span> tab is the preventative-maintenance checklist JTI sets up for your plant. Some items carry a <strong>reference photo</strong> showing exactly what to look at.</p>
+      <p>Fill it in, submit it, and a supervisor can then <span class="ui">sign off</span> the check with their own PIN. That signature is recorded on the entry with their name and the date.</p>
+      <div class="call tip">
+        <p class="call-h">Why the checklist wording never changes retrospectively</p>
+        <p>Each submission keeps the wording it was signed off with. If JTI later edits the checklist, checks you already submitted still read exactly as they did on the day.</p>
+      </div>
+    </section>
+
+    <section id="activity">
+      <div class="sec-head"><span class="sec-num">19</span><h2>Line activity &amp; alerts</h2></div>
+      <p>The <span class="ui">Activity</span> tab is one list of everything that has happened on a line — heads taken off and put back, issues fixed, parts replaced, span adjustments, PM checks and crew changes — newest first, each with who did it. The chips along the top filter by kind.</p>
+      <p>Taking a head offline, putting it back, or marking an issue fixed asks who you are. It asks once per device and remembers you for 10 hours, and the name then shows on the offline-heads list and on the dashboard — so the next shift knows who to ask.</p>
+      <div class="call warn">
+        <p class="call-h">What "Alert me" can and cannot do</p>
+        <p><span class="ui">Alert me</span> notifies this device when a head goes offline on any line. It works while the app is <strong>open</strong>, including in a background tab. It <strong>cannot</strong> reach a closed app or a locked phone — do not rely on it as your only warning.</p>
+      </div>
+    </section>
+
+    <hr class="div" />
+
     <section id="admin">
       <div class="admin-band">
         <p class="admin-eyebrow">Appendix</p>
@@ -458,6 +527,10 @@
           <div><dt>Service reports</dt><dd>Attach a service report PDF and set its <span class="ui">SR #</span> (<span class="k">YYYY###</span>) on a log.</dd></div>
           <div><dt>JTI Visits</dt><dd>Any log an admin creates without a shift becomes a read-only "JTI Visit" for the customer.</dd></div>
           <div><dt>Import JSON &amp; Delete Options</dt><dd>Bulk data import and customer-level deletion — admin only, in the settings menu.</dd></div>
+          <div><dt>Parts manuals</dt><dd>Parts/Boards → link each line to one machine in the Parts Viewer catalog. A folder there is one machine. Part suggestions then come only from that manual — the line's model and serial are shown so you can see which machine you are binding, but the link itself is what scopes it.</dd></div>
+          <div><dt>Board types &amp; PM checklists</dt><dd>Defined per customer and consumed by the plant's app. Both can be copied from another customer — a copy loads into the editor to adapt, and never overwrites until you save. Reference photos are not copied, because they belong to the other customer's storage.</dd></div>
+          <div><dt>First plant admin</dt><dd>Crew → tick a supervisor as <span class="ui">admin</span> and set their PIN. Only JTI can do this the first time; after that the plant manages its own PINs.</dd></div>
+          <div><dt>Supervisor sign-off</dt><dd>PM entries can be signed off with a supervisor's PIN — the one record here that is an attestation rather than a name from a list.</dd></div>
         </dl>
       </div>
     </section>
