@@ -564,6 +564,7 @@ function SetPinDialog({ person, onSave, onCancel }) {
           </div>
         </div>
       </form>
+      {dialog.DialogComponent}
     </div>
   );
 }

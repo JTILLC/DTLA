@@ -422,6 +422,7 @@ export default function PmLogPage({
             {savingTemplate ? 'Saving…' : 'Save checklist'}
           </button>
         </div>
+        {dialog.DialogComponent}
       </div>
     );
   }
@@ -541,6 +542,7 @@ export default function PmLogPage({
             </button>
           </div>
         </div>
+        {dialog.DialogComponent}
       </div>
     );
   }
@@ -695,6 +697,7 @@ export default function PmLogPage({
         />
       )}
 
+      {dialog.DialogComponent}
     </div>
   );
 }

@@ -541,6 +541,7 @@ export default function SpanAdjustPage({
         />
       )}
 
+      {dialog.DialogComponent}
     </div>
   );
 }

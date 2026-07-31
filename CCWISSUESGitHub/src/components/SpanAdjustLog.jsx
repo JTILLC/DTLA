@@ -295,6 +295,7 @@ export default function SpanAdjustLog({
           )
         )}
       </div>
+      {dialog.DialogComponent}
     </div>
   );
 }
