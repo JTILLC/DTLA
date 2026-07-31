@@ -503,6 +503,9 @@ export default function BoardReplacementPage({
                       {e.partNumber && (
                         <>
                           Part <strong>{e.partNumber}</strong>
+                          {/* The number identifies it; the name is what anyone
+                              reading the log a month later actually recognises. */}
+                          {e.partName && <> — {e.partName}</>}
                           {e.partVerified
                             ? <span className="badge bg-success ms-1" title={e.partName || 'Confirmed against the parts manual'}>✓ manual</span>
                             : <span className="badge bg-secondary ms-1" title="Typed in, not checked against a parts manual">unverified</span>}

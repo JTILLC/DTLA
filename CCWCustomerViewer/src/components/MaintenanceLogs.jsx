@@ -185,6 +185,9 @@ export default function MaintenanceLogs({ shareData }) {
                             <strong>{e.boardType}</strong>
                             {e.headNumber != null ? ` · Head ${e.headNumber}` : ' · machine board'}
                             {e.partNumber ? ` · part ${e.partNumber}` : ''}
+                            {/* The number identifies it; the name is what the
+                                customer actually recognises on their own log. */}
+                            {e.partName ? ` (${e.partName})` : ''}
                             {e.serialRemoved ? ` · out ${e.serialRemoved}` : ''}
                             {e.serialInstalled ? ` · in ${e.serialInstalled}` : ''}
                           </div>

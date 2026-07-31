@@ -42,11 +42,17 @@ const scalar = (f) => {
 // "COVER:MAIN  BODY:". Left alone they read as broken in a suggestion list.
 // Internal colons are kept — they separate name from qualifier and carry
 // meaning; only the empty trailing fields go.
-const tidy = (s) =>
-  String(s || '')
+//
+// Unwraps a raw Firestore value as well as a plain string. Passing the wrapper
+// straight to String() yields "[object Object]" and ships it to the UI with no
+// error anywhere — which is exactly what happened, in two call sites at once.
+const tidy = (s) => {
+  const raw = typeof s === 'string' ? s : scalar(s);
+  return raw
     .replace(/\s+/g, ' ')
     .replace(/:+\s*$/, '')
     .trim();
+};
 
 async function runQuery(env, token, structuredQuery) {
   const url =
