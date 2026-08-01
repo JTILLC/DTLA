@@ -1,21 +1,27 @@
 /* shared/components/app-nav.css
  *
- * Styling for the grouped section bar. Written against Bootstrap's own CSS
- * variables so it inherits each app's theme — including the dark toggle —
- * instead of carrying a second, competing palette.
+ * Styling for the grouped section bar.
+ *
+ * Built on the APP's own theme variables (--text-primary, --bg-card …), not
+ * Bootstrap's --bs-* ones. These apps switch themes with [data-theme] on <html>
+ * rather than Bootstrap's [data-bs-theme], so every --bs-* colour stays at its
+ * light value in dark mode and text lands dark-on-dark. index.css already
+ * carries a comment about that exact trap; this file stays clear of it by
+ * using the variables that actually flip.
  */
 
 .ccw-nav {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--border-color);
   /* One row, always. Wrapping is what turned eight tabs into three stacked
-     rows on a phone and pushed the actual content off the screen. */
+     rows on a phone and pushed the content off the screen. */
   overflow-x: auto;
   flex-wrap: nowrap;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
+  background: var(--bg-card);
 }
 .ccw-nav::-webkit-scrollbar { display: none; }
 
@@ -23,7 +29,7 @@
   display: flex;
   flex-direction: column;
   padding: 4px 12px 0;
-  border-right: 1px solid var(--bs-border-color);
+  border-right: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 .ccw-nav-group:last-child { border-right: 0; }
@@ -33,7 +39,7 @@
   letter-spacing: 0.13em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   padding-left: 2px;
   white-space: nowrap;
 }
@@ -48,23 +54,23 @@
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   border-radius: 4px 4px 0 0;
   scroll-snap-align: start;
 }
 .ccw-tab:hover {
-  color: var(--bs-body-color);
-  background: var(--bs-tertiary-bg);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 .ccw-tab.is-active {
-  color: var(--bs-primary);
-  border-bottom-color: var(--bs-primary);
+  color: var(--brand);
+  border-bottom-color: var(--brand);
   font-weight: 600;
 }
 .ccw-tab:focus-visible {
-  outline: 2px solid var(--bs-primary);
+  outline: 2px solid var(--brand);
   outline-offset: -2px;
 }
 
@@ -76,12 +82,12 @@
   font-size: 0.6875rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
+  background: var(--danger);
+  color: #fff;
 }
 
-/* On a phone the group labels cost a line of height for information that the
-   order already implies, so they go — the dividers still separate the groups. */
+/* On a phone the group labels cost a line of height for information the order
+   already implies, so they go — the dividers still separate the groups. */
 @media (max-width: 575.98px) {
   .ccw-nav-label { display: none; }
   .ccw-nav-group { padding: 0 8px; }

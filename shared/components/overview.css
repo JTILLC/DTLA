@@ -1,27 +1,56 @@
 /* shared/components/overview.css
  *
- * The overview is scanned, not read, so state is carried by shape and colour
- * as well as by number — a severity stripe down the left of each row, and a
- * cell per head. Colours come from Bootstrap's own theme variables so the
- * dark toggle keeps working without a second palette to maintain.
+ * The overview is scanned, not read, so state is carried by shape as well as
+ * by number — a severity stripe down the left of each row, and one cell per
+ * head.
+ *
+ * Colours come from the APP's own theme variables, which flip with
+ * [data-theme]. Bootstrap's --bs-* variables do NOT flip in these apps (they
+ * key off [data-bs-theme], which is never set), so using them here would put
+ * dark text on a dark ground — the trap index.css already documents.
+ *
+ * The four head states need to stay legible on both grounds, so they are
+ * declared once and re-declared for dark rather than being left to inherit.
  */
 
-.ccw-overview { display: flex; flex-direction: column; gap: 12px; }
+.ccw-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-primary);
+
+  /* head-state colours, light ground */
+  --st-active-bg: #d1e7dd;
+  --st-active-bd: #a3cfbb;
+  --st-offline:   #dc3545;
+  --st-fixed:     #f59e0b;
+  --st-issues:    #0aa2c0;
+}
+
+[data-theme="dark"] .ccw-overview {
+  --st-active-bg: #10301f;
+  --st-active-bd: #2c6e4b;
+  --st-offline:   #e5535f;
+  --st-fixed:     #d99406;
+  --st-issues:    #3ab7d4;
+}
 
 .ccw-ov-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
+  color: var(--text-primary);
 }
+.ccw-ov-head .text-secondary { color: var(--text-secondary) !important; }
 
 .ccw-ov-clear {
-  border: 1px solid var(--bs-border-color);
-  border-left: 3px solid var(--bs-success);
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--success);
+  border-radius: 8px;
   padding: 12px 14px;
-  color: var(--bs-secondary-color);
-  background: var(--bs-tertiary-bg);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 
 .ccw-ov-items { display: flex; flex-direction: column; gap: 8px; }
@@ -35,19 +64,19 @@
   padding: 0;
   text-align: left;
   font: inherit;
-  color: inherit;
-  background: var(--bs-tertiary-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
 }
-.ccw-ov-item:hover { border-color: var(--bs-primary); }
-.ccw-ov-item:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+.ccw-ov-item:hover { border-color: var(--brand); }
+.ccw-ov-item:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-.ccw-ov-stripe { align-self: stretch; background: var(--bs-secondary); }
-.ccw-ov-item[data-sev="critical"] .ccw-ov-stripe { background: var(--bs-danger); }
-.ccw-ov-item[data-sev="due"]      .ccw-ov-stripe { background: var(--bs-warning); }
+.ccw-ov-stripe { align-self: stretch; background: var(--text-secondary); }
+.ccw-ov-item[data-sev="critical"] .ccw-ov-stripe { background: var(--danger); }
+.ccw-ov-item[data-sev="due"]      .ccw-ov-stripe { background: var(--warning); }
 
 .ccw-ov-body {
   display: flex;
@@ -56,19 +85,19 @@
   padding: 10px 0;
   min-width: 0;
 }
-.ccw-ov-title { font-weight: 600; font-size: 0.9375rem; }
+.ccw-ov-title { font-weight: 600; font-size: 0.9375rem; color: var(--text-primary); }
 .ccw-ov-detail {
   font-size: 0.8125rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 .ccw-ov-go {
   padding-right: 14px;
   font-size: 0.8125rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
-.ccw-ov-item:hover .ccw-ov-go { color: var(--bs-primary); }
+.ccw-ov-item:hover .ccw-ov-go { color: var(--brand); }
 
 /* per-line head strip */
 .ccw-ov-lines { display: flex; flex-direction: column; gap: 6px; }
@@ -81,14 +110,14 @@
   padding: 6px 8px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   font: inherit;
-  color: inherit;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
 }
-.ccw-ov-line:hover { border-color: var(--bs-border-color); background: var(--bs-tertiary-bg); }
-.ccw-ov-line:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+.ccw-ov-line:hover { border-color: var(--border-color); background: var(--bg-secondary); }
+.ccw-ov-line:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 .ccw-ov-linename { font-size: 0.875rem; font-weight: 600; min-width: 5.5rem; }
 .ccw-ov-heads { display: flex; gap: 3px; flex-wrap: wrap; }
@@ -98,16 +127,16 @@
   height: 14px;
   border-radius: 3px;
   display: inline-block;
-  background: var(--bs-success-bg-subtle);
-  border: 1px solid var(--bs-success-border-subtle);
+  background: var(--st-active-bg);
+  border: 1px solid var(--st-active-bd);
 }
-.ccw-ov-head-cell[data-state="offline"] { background: var(--bs-danger);  border-color: var(--bs-danger); }
-.ccw-ov-head-cell[data-state="fixed"]   { background: var(--bs-warning); border-color: var(--bs-warning); }
-.ccw-ov-head-cell[data-state="issues"]  { background: var(--bs-info);    border-color: var(--bs-info); }
+.ccw-ov-head-cell[data-state="offline"] { background: var(--st-offline); border-color: var(--st-offline); }
+.ccw-ov-head-cell[data-state="fixed"]   { background: var(--st-fixed);   border-color: var(--st-fixed); }
+.ccw-ov-head-cell[data-state="issues"]  { background: var(--st-issues);  border-color: var(--st-issues); }
 
 .ccw-ov-linenote {
   font-size: 0.75rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -116,12 +145,12 @@
   gap: 14px;
   flex-wrap: wrap;
   padding-top: 10px;
-  border-top: 1px solid var(--bs-border-color);
+  border-top: 1px solid var(--border-color);
   font-size: 0.8125rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
 }
 .ccw-ov-strip b {
-  color: var(--bs-body-color);
+  color: var(--text-primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
