@@ -65,6 +65,7 @@ import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
 import photoQueue from '@shared/utils/photoQueue.js';
 import AppNav from '@shared/components/AppNav.jsx';
 import OverviewPage from '@shared/components/OverviewPage.jsx';
+import { sinceLabel } from '@shared/services/logs.js';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -830,8 +831,12 @@ const exportLineHistoryToPDF = async (lineHistory, customerName, lineTitle) => {
   doc.save(`${customerName}-${lineTitle}-history.pdf`);
 };
 
-const IssueHistory = ({ customers, visits, onExportPDF }) => {
-  const [selectedCustomer, setSelectedCustomer] = useState('');
+const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => {
+  // Opens on the customer already chosen in the header. Asking again, directly
+  // below a bar that names the customer, made the app look like it had lost
+  // track of what you were doing. Widening to another customer is still one
+  // change of this dropdown away.
+  const [selectedCustomer, setSelectedCustomer] = useState(currentCustomerId || '');
   const [selectedLine, setSelectedLine] = useState('');
 
   const history = useMemo(() => {
@@ -916,7 +921,7 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
           className="form-select form-select-sm"
           style={{ minWidth: '180px' }}
         >
-          <option value="">-- Select Customer --</option>
+          <option value="">All customers</option>
           {customers.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -3198,18 +3203,27 @@ const AppContent = () => {
         </div>
       </div>
 
-      {/* Context bar: active customer + loaded visit */}
+      {/* Context bar.
+          The customer's NAME is not repeated here — the dropdown directly above
+          already says it, and a chip echoing it answered a question nobody had.
+          What goes here instead is what the dropdown cannot tell you: how big
+          this plant is, when it was last seen, and which visit is loaded. */}
       {(currentCustomer || currentVisitName) && (
         <div className="context-bar">
           {currentCustomer ? (
-            <span className="pill pill-primary pill-dot" title="Active customer">
-              {currentCustomer.name}
+            <span className="pill pill-muted" title="This customer">
+              {lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} · ` : ''}
+              {currentCustomer.headCount} heads
+              {(() => {
+                const last = visits.find((v) => !v.deleted);
+                return last ? ` · last visit ${sinceLabel(last.date)}` : ' · no visits yet';
+              })()}
             </span>
           ) : (
             <span className="pill pill-muted">No customer selected</span>
           )}
           {currentVisitName && (
-            <span className="pill pill-muted" title="Loaded visit">
+            <span className="pill pill-primary pill-dot" title="Loaded visit">
               {currentVisitName}
             </span>
           )}
@@ -3746,7 +3760,8 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
              aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
-            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} />
+            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF}
+              currentCustomerId={currentCustomer?.id} />
           </div>
         </div>
 
