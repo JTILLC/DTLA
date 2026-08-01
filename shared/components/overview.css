@@ -1,0 +1,127 @@
+/* shared/components/overview.css
+ *
+ * The overview is scanned, not read, so state is carried by shape and colour
+ * as well as by number — a severity stripe down the left of each row, and a
+ * cell per head. Colours come from Bootstrap's own theme variables so the
+ * dark toggle keeps working without a second palette to maintain.
+ */
+
+.ccw-overview { display: flex; flex-direction: column; gap: 12px; }
+
+.ccw-ov-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ccw-ov-clear {
+  border: 1px solid var(--bs-border-color);
+  border-left: 3px solid var(--bs-success);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--bs-secondary-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.ccw-ov-items { display: flex; flex-direction: column; gap: 8px; }
+
+.ccw-ov-item {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 14px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.ccw-ov-item:hover { border-color: var(--bs-primary); }
+.ccw-ov-item:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+
+.ccw-ov-stripe { align-self: stretch; background: var(--bs-secondary); }
+.ccw-ov-item[data-sev="critical"] .ccw-ov-stripe { background: var(--bs-danger); }
+.ccw-ov-item[data-sev="due"]      .ccw-ov-stripe { background: var(--bs-warning); }
+
+.ccw-ov-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 0;
+  min-width: 0;
+}
+.ccw-ov-title { font-weight: 600; font-size: 0.9375rem; }
+.ccw-ov-detail {
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+.ccw-ov-go {
+  padding-right: 14px;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+.ccw-ov-item:hover .ccw-ov-go { color: var(--bs-primary); }
+
+/* per-line head strip */
+.ccw-ov-lines { display: flex; flex-direction: column; gap: 6px; }
+.ccw-ov-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ccw-ov-line:hover { border-color: var(--bs-border-color); background: var(--bs-tertiary-bg); }
+.ccw-ov-line:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+
+.ccw-ov-linename { font-size: 0.875rem; font-weight: 600; min-width: 5.5rem; }
+.ccw-ov-heads { display: flex; gap: 3px; flex-wrap: wrap; }
+
+.ccw-ov-head-cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+  background: var(--bs-success-bg-subtle);
+  border: 1px solid var(--bs-success-border-subtle);
+}
+.ccw-ov-head-cell[data-state="offline"] { background: var(--bs-danger);  border-color: var(--bs-danger); }
+.ccw-ov-head-cell[data-state="fixed"]   { background: var(--bs-warning); border-color: var(--bs-warning); }
+.ccw-ov-head-cell[data-state="issues"]  { background: var(--bs-info);    border-color: var(--bs-info); }
+
+.ccw-ov-linenote {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.ccw-ov-strip {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--bs-border-color);
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+}
+.ccw-ov-strip b {
+  color: var(--bs-body-color);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

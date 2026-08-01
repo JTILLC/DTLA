@@ -21,7 +21,6 @@ async function ensurePdfLibs() {
   const fn = autoMod.default;
   autoTable = typeof fn === 'function' ? fn : (fn?.default || fn);
 }
-import { Tabs, Tab } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash } from 'lucide-react';
 import ShareModal from '@shared/components/ShareModal.jsx';
@@ -64,6 +63,8 @@ import { lineStatusKey, scaffoldLinesFrom } from '@shared/utils/headHelpers.js';
 import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
 import photoQueue from '@shared/utils/photoQueue.js';
+import AppNav from '@shared/components/AppNav.jsx';
+import OverviewPage from '@shared/components/OverviewPage.jsx';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -1026,6 +1027,15 @@ const AppContent = () => {
 
   const [globalData, setGlobalData] = useState({ customer: '', address: '', cityState: '', headCount: '14' });
   const [lines, setLines] = useState([]);
+
+  // Heads that are down right now, shown against Current Visit. A badge is only
+  // worth the ink when there is something to answer for, so zero shows nothing.
+  const navCounts = useMemo(() => {
+    const offline = (lines || []).reduce(
+      (n, line) => n + (line.heads || []).filter((h) => h.status === 'offline').length, 0);
+    return { current: offline };
+  }, [lines]);
+
   const [showDashboardView, setShowDashboardView] = useState(false);
   const [activeLineId, setActiveLineId] = useState(null);
   const [session, setSession] = useState(null);
@@ -1115,7 +1125,9 @@ const AppContent = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
   const [showLinesModal, setShowLinesModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('current');
+  // Opens on the overview: the old landing screen was an empty visit-name box,
+  // which is the one screen in the app that knows nothing.
+  const [activeTab, setActiveTab] = useState('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -3532,8 +3544,23 @@ const AppContent = () => {
 
       <div className="workspace-shell workspace-shell--no-sidebar">
         <main className="workspace-main">
-      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-1 border-bottom">
-        <Tab eventKey="current" title="Current Visit">
+      <AppNav active={activeTab} onSelect={setActiveTab} counts={navCounts} />
+      <div className="ccw-panes">
+        <div className="ccw-pane" id="ccw-pane-overview" role="tabpanel"
+             aria-labelledby="ccw-tab-overview" hidden={activeTab !== 'overview'}>
+          <div className="tab-content p-3">
+            <OverviewPage
+              customerName={currentCustomer?.name}
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              lines={lines}
+              visits={visits}
+              onGo={setActiveTab}
+            />
+          </div>
+        </div>
+        <div className="ccw-pane" id="ccw-pane-current" role="tabpanel"
+             aria-labelledby="ccw-tab-current" hidden={activeTab !== 'current'}>
           <div className="tab-content p-3">
             {currentCustomer && (
               <div className="mb-3">
@@ -3641,9 +3668,10 @@ const AppContent = () => {
               </div>
             )}
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="span" title="Span Adjust">
+        <div className="ccw-pane" id="ccw-pane-span" role="tabpanel"
+             aria-labelledby="ccw-tab-span" hidden={activeTab !== 'span'}>
           <div className="tab-content p-3">
             <SpanAdjustPage
               workspaceId={user?.uid}
@@ -3654,9 +3682,10 @@ const AppContent = () => {
               role="jti"
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="boards" title="Parts/Boards">
+        <div className="ccw-pane" id="ccw-pane-boards" role="tabpanel"
+             aria-labelledby="ccw-tab-boards" hidden={activeTab !== 'boards'}>
           <div className="tab-content p-3">
             <BoardReplacementPage
               customers={customers}
@@ -3669,9 +3698,10 @@ const AppContent = () => {
               canEditTypes
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="pm" title="PM Log">
+        <div className="ccw-pane" id="ccw-pane-pm" role="tabpanel"
+             aria-labelledby="ccw-tab-pm" hidden={activeTab !== 'pm'}>
           <div className="tab-content p-3">
             {/* Setup + read only here: the plant fills these in, not JTI. */}
             <PmLogPage
@@ -3686,9 +3716,10 @@ const AppContent = () => {
               canSubmit={false}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="crew" title="Crew">
+        <div className="ccw-pane" id="ccw-pane-crew" role="tabpanel"
+             aria-labelledby="ccw-tab-crew" hidden={activeTab !== 'crew'}>
           <div className="tab-content p-3">
             <CrewPage
               isJti
@@ -3698,9 +3729,10 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="activity" title="Activity">
+        <div className="ccw-pane" id="ccw-pane-activity" role="tabpanel"
+             aria-labelledby="ccw-tab-activity" hidden={activeTab !== 'activity'}>
           <div className="tab-content p-3">
             <ActivityPage
               workspaceId={user?.uid}
@@ -3709,15 +3741,17 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="history" title="Issue History">
+        <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
+             aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
             <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="layout" title={<><Factory size={16} className="me-1" /> Factory Layout</>}>
+        <div className="ccw-pane" id="ccw-pane-layout" role="tabpanel"
+             aria-labelledby="ccw-tab-layout" hidden={activeTab !== 'layout'}>
           <div className="tab-content p-3">
             <Suspense fallback={<div className="text-muted p-3">Loading layout…</div>}>
               <FactoryLayout
@@ -3733,8 +3767,8 @@ const AppContent = () => {
               />
             </Suspense>
           </div>
-        </Tab>
-      </Tabs>
+        </div>
+      </div>
         </main>
       </div>
 
