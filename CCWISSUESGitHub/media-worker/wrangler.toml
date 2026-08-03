@@ -25,6 +25,10 @@ SCAN_PROJECT_IDS = "downtimelogger-a96fb,shearers-4c4b4"
 PARTS_PROJECT_ID = "jobs-data-17ee4"
 PARTS_BUCKET     = "jobs-data-17ee4.firebasestorage.app"
 
+# The JTI workspace every customer lives under, so the Worker can read a
+# plant's crew roster when counting billable seats.
+WORKSPACE_UID    = "tgezUokMZ1PO7iEDbLbj2U7Uwbx1"
+
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
 #   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON

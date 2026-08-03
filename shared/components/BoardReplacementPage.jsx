@@ -29,6 +29,9 @@ import CrewChip from './CrewChip.jsx';
 import EditedNote from './EditedNote.jsx';
 import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
+import LineLockPrompt from './LineLockPrompt.jsx';
+import { useLineGuard } from '../utils/useLineGuard.jsx';
+import { overrideStamp } from '../utils/lineAccess.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
@@ -60,6 +63,8 @@ export default function BoardReplacementPage({
   const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingSave, setPendingSave] = useState(null);
+  // Identity says who is filing; this says whether they may file it here.
+  const lineGuard = useLineGuard({ people: crewPeople, actor });
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -249,7 +254,7 @@ export default function BoardReplacementPage({
     setTypedQty(1);
   };
 
-  const saveEdit = () => withFreshActor(async (filedBy) => {
+  const saveEdit = () => withFreshActor((filedBy) => lineGuard.check(editing?.lineTitle, async (override) => {
     if (!editing) return;
     setSaving(true);
     try {
@@ -276,9 +281,9 @@ export default function BoardReplacementPage({
     } finally {
       setSaving(false);
     }
-  });
+  }));
 
-  const save = () => withActor(async (filedBy) => {
+  const save = () => withActor((filedBy) => lineGuard.check(form.lineTitle, async (override) => {
     if (!form.lineTitle) return toast.error('Pick a line');
     if (!form.boardType) return toast.error('Pick a board type');
     setSaving(true);
@@ -304,6 +309,9 @@ export default function BoardReplacementPage({
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
         ...crewStamp(lineCrew.forLine(form.lineTitle), lineCrew.shiftId),
+        // Filed against a line this person is not assigned to, with a
+        // supervisor's authorisation. Absent on an ordinary entry.
+        ...overrideStamp(override, form.lineTitle),
         // Who filed it, proven — distinct from the crew, which is context.
         actionBy: filedBy,
         actionByVerified: !!filedBy,
@@ -320,7 +328,7 @@ export default function BoardReplacementPage({
     } finally {
       setSaving(false);
     }
-  });
+  }));
 
   const remove = async (entry) => {
     const ok = await dialog.confirm(
@@ -691,6 +699,15 @@ export default function BoardReplacementPage({
           )}
         </div>
       </div>
+      {lineGuard.challenge && (
+        <LineLockPrompt
+          customerId={customerId}
+          people={crewPeople}
+          challenge={lineGuard.challenge}
+          onAuthorise={lineGuard.authorise}
+          onCancel={lineGuard.dismiss}
+        />
+      )}
       {pendingSave && (
         <PinPrompt
           customerId={customerId}

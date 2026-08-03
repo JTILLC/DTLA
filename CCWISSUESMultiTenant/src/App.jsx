@@ -61,9 +61,21 @@ import CrewPage from '@shared/components/CrewPage.jsx';
 import ActivityPage from '@shared/components/ActivityPage.jsx';
 import { useLineCrew, crewAge } from '@shared/utils/useLineCrew.js';
 import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
-import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
+import { usingBroker, fetchAuthedDataUrl, MEDIA_BROKER_BASE } from '@shared/config/media.js';
 import { lineStatusKey } from '@shared/utils/headHelpers.js';
 import photoQueue from '@shared/utils/photoQueue.js';
+import PlantLoginsPage from '@shared/components/PlantLoginsPage.jsx';
+import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
+
+// The plant's own daily logs.
+//
+// Deliberately NOT `visits`: that collection is JTI's record of a service call,
+// and the database rules now allow only JTI to write it. The two used to share
+// one collection, so a customer login could edit or delete a JTI visit — and,
+// with no author field on the document, no rule could tell them apart.
+// Separate collections make the boundary something the database enforces
+// rather than something the UI politely observes.
+const DAILY_LOGS = 'dailyLogs';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -267,7 +279,7 @@ async function deleteVisitAssets(uid, custId, visitId) {
       .firestore()
       .collection('user_files').doc(uid)
       .collection('customers').doc(custId)
-      .collection('visits').doc(visitId)
+      .collection(DAILY_LOGS).doc(visitId)
       .collection('lineResets').get();
     await Promise.all(snap.docs.map((d) => d.ref.delete().catch(() => {})));
   } catch {
@@ -1115,9 +1127,6 @@ const AppContent = () => {
   // Admin-only: link a Firebase Auth account (UID) to a plant so that login is
   // scoped to it. Writes app_roles/{uid} = { customerId } (or { admin:true }).
   const [showLinkLogin, setShowLinkLogin] = useState(false);
-  const [linkUid, setLinkUid] = useState('');
-  const [linkTarget, setLinkTarget] = useState('');
-  const [linkBusy, setLinkBusy] = useState(false);
   const [currentVisitName, setCurrentVisitName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [showDeletePanel, setShowDeletePanel] = useState(false);
@@ -1301,7 +1310,7 @@ const AppContent = () => {
         await firebase.firestore()
           .collection('user_files').doc(WORKSPACE_UID)
           .collection('customers').doc(custId)
-          .collection('visits').doc(visitId)
+          .collection(DAILY_LOGS).doc(visitId)
           .collection('lineResets').add({
             lineId: line.id,
             title: snapshot.title || line.title || 'Line',
@@ -1407,7 +1416,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(customerId)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .doc(visitId);
 
         const docSnap = await docRef.get();
@@ -1446,7 +1455,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(custDoc.id)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .doc(visitId)
           .get();
 
@@ -1496,7 +1505,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(effectiveCustomerId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .get();
       if (doc.exists) {
@@ -1564,7 +1573,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(custId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .get();
       
       const batch = firebase.firestore().batch();
@@ -1611,7 +1620,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(custId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .update({ deleted: true, deletedAt: new Date().toISOString() });
       if (currentCustomer?.id === custId) {
@@ -1634,7 +1643,7 @@ const AppContent = () => {
       .doc(WORKSPACE_UID)
       .collection('customers')
       .doc(custId)
-      .collection('visits')
+      .collection(DAILY_LOGS)
       .where('deleted', '==', true)
       .get();
 
@@ -1670,7 +1679,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(custId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .update({ deleted: false, deletedAt: null });
       await loadDeletedVisits(custId);
@@ -1697,7 +1706,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(custId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .delete();
       await deleteVisitAssets(WORKSPACE_UID, custId, visitId); // best-effort orphan cleanup
@@ -1721,7 +1730,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitToEdit.id)
         .update({ date: new Date(editTimestamp).toISOString() });
       toast.success('Visit date updated');
@@ -1759,7 +1768,7 @@ const AppContent = () => {
     const ref = firebase.firestore()
       .collection('user_files').doc(uid)
       .collection('customers').doc(customerId)
-      .collection('visits').doc(visitId);
+      .collection(DAILY_LOGS).doc(visitId);
 
     try {
       // Transaction + 3-way merge so a concurrent editor (e.g. JTI on production
@@ -1816,7 +1825,7 @@ const AppContent = () => {
         .doc(uid)
         .collection('customers')
         .doc(customerId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .get();
 
@@ -1891,7 +1900,7 @@ const AppContent = () => {
             .doc(WORKSPACE_UID)
             .collection('customers')
             .doc(u.customerId)
-            .collection('visits')
+            .collection(DAILY_LOGS)
             .doc(u.visitId)
             .update({ 'globalData.serviceReportNumber': u.number })
         )
@@ -1967,7 +1976,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(currentCustomer.id)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .doc(currentVisitId)
           .set(payload);
         savedSnapshotRef.current = serializeVisitContent(lines, globalData, currentVisitName, serviceReportUrl);
@@ -1982,7 +1991,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(currentCustomer.id)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .doc(visitId)
           .set(payload);
         setCurrentVisitId(visitId);
@@ -2035,7 +2044,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .set(payload);
       setCurrentVisitId(visitId);
@@ -2111,7 +2120,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(src.customerId || currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(newId)
         .set(payload);
 
@@ -2174,7 +2183,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(newId)
         .set(payload);
       setGlobalData(blankGlobal);
@@ -2206,7 +2215,7 @@ const AppContent = () => {
     const unsub = firebase.firestore()
       .collection('user_files').doc(WORKSPACE_UID)
       .collection('customers').doc(custId)
-      .collection('visits').doc(visitId)
+      .collection(DAILY_LOGS).doc(visitId)
       .collection('lineResets')
       .onSnapshot((snap) => {
         const list = snap.docs
@@ -2226,7 +2235,7 @@ const AppContent = () => {
       await firebase.firestore()
         .collection('user_files').doc(WORKSPACE_UID)
         .collection('customers').doc(custId)
-        .collection('visits').doc(visitId)
+        .collection(DAILY_LOGS).doc(visitId)
         .collection('lineResets').doc(backupId).delete();
     } catch (e) { console.error('Could not remove reset backup:', e); }
   };
@@ -2303,7 +2312,7 @@ const AppContent = () => {
                 .doc(WORKSPACE_UID)
                 .collection('customers')
                 .doc(customer.id)
-                .collection('visits')
+                .collection(DAILY_LOGS)
                 .doc(visitId)
                 .set(payload);
 
@@ -2359,7 +2368,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(custId)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .get();
         allVisits.push(...visitSnap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() })));
       }
@@ -2551,7 +2560,7 @@ const AppContent = () => {
       .doc(WORKSPACE_UID)
       .collection('customers')
       .doc(subscribedCustomerId)
-      .collection('visits')
+      .collection(DAILY_LOGS)
       .orderBy('date', 'desc')
       .onSnapshot((snap) => {
         const list = snap.docs
@@ -2589,7 +2598,7 @@ const AppContent = () => {
       .doc(WORKSPACE_UID)
       .collection('customers')
       .doc(currentCustomer.id)
-      .collection('visits')
+      .collection(DAILY_LOGS)
       .doc(currentVisitId)
       .onSnapshot((doc) => {
         if (!doc.exists) return;
@@ -2702,7 +2711,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .update({ name: newName });
       await loadVisits(currentCustomer.id);
@@ -2767,31 +2776,6 @@ const AppContent = () => {
     }
   };
 
-  // Admin-only: point a Firebase Auth account at a plant (or make it an admin).
-  // The account must already exist in Firebase Auth — this just writes its role.
-  const linkLoginToCustomer = async () => {
-    const uid = linkUid.trim();
-    if (!uid) { toast.error('Paste the account UID first'); return; }
-    if (!linkTarget) { toast.error('Choose which plant (or Admin) this login is for'); return; }
-    setLinkBusy(true);
-    try {
-      const roleData = linkTarget === '__admin__' ? { admin: true } : { customerId: linkTarget };
-      await firebase.firestore().collection('app_roles').doc(uid).set(roleData);
-      const where = linkTarget === '__admin__'
-        ? 'JTI admin'
-        : (customers.find(c => c.id === linkTarget)?.name || linkTarget);
-      toast.success(`Login linked to ${where}. They can sign in now.`);
-      setShowLinkLogin(false);
-      setLinkUid('');
-      setLinkTarget('');
-    } catch (err) {
-      console.error('Link login failed:', err);
-      toast.error('Could not link login: ' + (err?.message || 'unknown error'));
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
   const handleImportLegacy = async (e) => {
     const file = e.target.files[0];
     if (!file || !file.name.endsWith('.json')) {
@@ -2823,7 +2807,7 @@ const AppContent = () => {
           .doc(WORKSPACE_UID)
           .collection('customers')
           .doc(customerId)
-          .collection('visits')
+          .collection(DAILY_LOGS)
           .doc(visitId)
           .set({
             date: new Date().toISOString(),
@@ -2907,7 +2891,7 @@ const AppContent = () => {
       .doc(WORKSPACE_UID)
       .collection('customers')
       .doc(custId)
-      .collection('visits')
+      .collection(DAILY_LOGS)
       .orderBy('date', 'desc')
       .get();
     const list = snap.docs
@@ -2931,7 +2915,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(currentCustomer.id)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .doc(visitId)
         .update({ deleted: true, deletedAt: new Date().toISOString() });
       await loadVisits(currentCustomer.id);
@@ -2954,7 +2938,7 @@ const AppContent = () => {
       .doc(WORKSPACE_UID)
       .collection('customers')
       .doc(currentCustomer.id)
-      .collection('visits')
+      .collection(DAILY_LOGS)
       .orderBy('date', 'desc')
       .limit(1)
       .get();
@@ -3003,7 +2987,7 @@ const AppContent = () => {
         .doc(WORKSPACE_UID)
         .collection('customers')
         .doc(custId)
-        .collection('visits')
+        .collection(DAILY_LOGS)
         .get();
       allData.visits = allData.visits.concat(visitSnap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() })));
     }
@@ -3042,7 +3026,7 @@ const AppContent = () => {
               .doc(WORKSPACE_UID)
               .collection('customers')
               .doc(key)
-              .collection('visits')
+              .collection(DAILY_LOGS)
               .doc(visitData.id)
               .set(visitData);
           }
@@ -3107,7 +3091,7 @@ const AppContent = () => {
         : (await base.get()).docs.map(d => d.id);
       const all = [];
       for (const cid of custIds) {
-        const visitSnap = await base.doc(cid).collection('visits').get();
+        const visitSnap = await base.doc(cid).collection(DAILY_LOGS).get();
         all.push(...visitSnap.docs
           .map(d => ({ id: d.id, customerId: cid, ...d.data() }))
           .filter(v => !v.deleted)); // don't surface recycle-binned visits in Issue History
@@ -3512,8 +3496,8 @@ const AppContent = () => {
                 )}
                 {isAdmin && (
                   <li>
-                    <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => { setLinkTarget(currentCustomer?.id || ''); setShowLinkLogin(true); }}>
-                      <Lock className="w-4 h-4" /> Link Login to Plant
+                    <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => setShowLinkLogin(true)}>
+                      <Lock className="w-4 h-4" /> Plant logins
                     </button>
                   </li>
                 )}
@@ -3639,46 +3623,12 @@ const AppContent = () => {
       )}
 
       {showLinkLogin && isAdmin && (
-        <div className="p-3 bg-light border-bottom">
-          <div className="d-flex justify-content-between align-items-start mb-2">
-            <h6 className="mb-0 d-flex align-items-center gap-2"><Lock className="w-4 h-4" /> Link a login to a plant</h6>
-            <button onClick={() => setShowLinkLogin(false)} className="btn btn-sm btn-outline-secondary">Close</button>
-          </div>
-          <p className="text-muted small mb-2">
-            Create the account in Firebase Authentication first, then paste its <strong>User UID</strong> here and choose the plant.
-            That person can then sign in and will only see that plant. Repeat with more UIDs to give a plant several supervisor logins.
-            <br />
-            Quickest way to get the UID: have them sign in once. They'll be told the account isn't set up yet, and that screen shows
-            their Account ID with a Copy button — no need to go digging in the Firebase console.
-          </p>
-          <div className="row g-2 align-items-end">
-            <div className="col-md-5">
-              <label className="form-label small mb-1">Account UID</label>
-              <input
-                placeholder="e.g. p8lv0o4pQNN43PQSIdx2rR9kW5B3"
-                value={linkUid}
-                onChange={e => setLinkUid(e.target.value)}
-                className="form-control form-control-sm font-monospace"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label small mb-1">Access</label>
-              <select value={linkTarget} onChange={e => setLinkTarget(e.target.value)} className="form-select form-select-sm">
-                <option value="">-- Select plant --</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-                <option value="__admin__">JTI Admin (full access)</option>
-              </select>
-            </div>
-            <div className="col-md-3 d-flex gap-1">
-              <button type="button" onClick={linkLoginToCustomer} disabled={linkBusy} className="btn btn-primary btn-sm">
-                {linkBusy ? 'Linking…' : 'Link Login'}
-              </button>
-              <button type="button" onClick={() => setShowLinkLogin(false)} className="btn btn-secondary btn-sm">Cancel</button>
-            </div>
-          </div>
-        </div>
+        <AdminLoginsPanel
+          customers={customers}
+          currentCustomerId={currentCustomer?.id || ''}
+          onClose={() => setShowLinkLogin(false)}
+          toast={toast}
+        />
       )}
 
       {showDeletePanel && (
@@ -4166,6 +4116,21 @@ const AppContent = () => {
             />
           </div>
         </Tab>
+
+        {/* Only for a plant login: JTI has no customerId of its own, and
+            creates logins from the admin screen instead. */}
+        {!isAdmin && role?.customerId && (
+          <Tab eventKey="logins" title="Logins">
+            <div className="tab-content">
+              <PlantLoginsPage
+                workspaceId={WORKSPACE_UID}
+                customerId={currentCustomer?.id}
+                customerName={currentCustomer?.name}
+                getIdToken={() => firebase.auth().currentUser.getIdToken()}
+              />
+            </div>
+          </Tab>
+        )}
 
         <Tab eventKey="activity" title="Activity">
           <div className="tab-content p-3">

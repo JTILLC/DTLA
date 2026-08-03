@@ -13,7 +13,7 @@
 //
 // 2. Submissions are immutable once made. To correct one you submit again; the
 //    log is a record of checks performed, not a document to revise.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, Settings, Plus, X, Trash2, ChevronLeft, BookOpen } from 'lucide-react';
 import {
   LOG_PM, subscribeLog, addLogEntry, deleteLogEntry, updateLogEntry,
@@ -30,10 +30,15 @@ import CrewChip from './CrewChip.jsx';
 import EditedNote from './EditedNote.jsx';
 import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
+import LineLockPrompt from './LineLockPrompt.jsx';
+import { useLineGuard } from '../utils/useLineGuard.jsx';
+import { overrideStamp } from '../utils/lineAccess.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
+import { isSiteLead } from '../utils/roles.js';
+import './pm-item.css';
 
 const RESULTS = [
   { key: 'ok', label: 'OK', cls: 'btn-success' },
@@ -68,6 +73,23 @@ const copiedSections = (sections) =>
     })),
   }));
 
+// A textarea that is exactly as tall as its content.
+//
+// Checklist items are sentences, not words, and a one-line input hides all but
+// the first few. This grows as you type and, importantly, arrives at the right
+// height for text that is ALREADY there — which is the case that matters when
+// you open a saved checklist to read it.
+function GrowingTextarea({ value, ...props }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';                 // shrink first, or it only ever grows
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={1} value={value} {...props} />;
+}
+
 export default function PmLogPage({
   customers = [],
   workspaceId,
@@ -86,6 +108,8 @@ export default function PmLogPage({
   const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingSave, setPendingSave] = useState(null);
+  // Identity says who is filing; this says whether they may file it here.
+  const lineGuard = useLineGuard({ people: crewPeople, actor });
   // A PM check is the record most likely to be questioned later, so signing one
   // off is the one action here that must be an attestation rather than a name
   // picked from a list. A supervisor proves it with their own PIN.
@@ -155,7 +179,10 @@ export default function PmLogPage({
     setAnswers((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), ...patch } }));
 
   // ---- Submit -------------------------------------------------------------
-  const submit = () => withActor(async (filedBy) => {
+  const submit = () => withActor((filedBy) => lineGuard.check(lineTitle, async (override) => {
+    // Whoever cannot submit cannot file a check by any route, not merely by
+    // having the button hidden.
+    if (!canSubmit) return;
     const items = [];
     sections.forEach((sec) =>
       (sec.items || []).forEach((it) => {
@@ -204,7 +231,7 @@ export default function PmLogPage({
     } finally {
       setSaving(false);
     }
-  });
+  }));
 
   const openEdit = (entry) => setEditing({
     id: entry.id,
@@ -213,7 +240,7 @@ export default function PmLogPage({
     items: (entry.items || []).map((it) => ({ ...it })),
   });
 
-  const saveEdit = () => withFreshActor(async (filedBy) => {
+  const saveEdit = () => withFreshActor((filedBy) => lineGuard.check(editing?.lineTitle, async (override) => {
     if (!editing) return;
     try {
       const issueCount = editing.items.filter((it) => it.result === 'issue').length;
@@ -228,7 +255,7 @@ export default function PmLogPage({
       console.error('PM edit failed:', err);
       toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
-  });
+  }));
 
   const signOff = async (entry, supervisor) => {
     try {
@@ -388,19 +415,26 @@ export default function PmLogPage({
             </div>
             <div className="card-body d-flex flex-column gap-2">
               {(sec.items || []).map((it, ii) => (
-                <div className="input-group" key={it.id || ii}>
-                  <input
-                    type="text"
-                    className="form-control"
+                /* The label gets a row of its own, and grows to fit.
+                   These are instructions — "Dispersion table surface and radial
+                   troughs free of product build-up" — and in a Bootstrap
+                   input-group they shared one line with a dropdown, a delete
+                   button and two image buttons. What was left showed about
+                   twenty characters, so the only way to read an item was to
+                   click into the field and scrub sideways. */
+                <div className="pm-item" key={it.id || ii}>
+                  <GrowingTextarea
+                    className="form-control pm-item-label"
                     value={it.label}
                     placeholder="Item to check"
                     onChange={(e) => setDraft((d) => d.map((s, i) => i !== si ? s : {
                       ...s, items: s.items.map((x, j) => (j === ii ? { ...x, label: e.target.value } : x)),
                     }))}
                   />
+                  <div className="pm-item-controls">
                   <select
                     className="form-select"
-                    style={{ maxWidth: '130px' }}
+                    style={{ maxWidth: '150px' }}
                     value={it.type || 'check'}
                     onChange={(e) => setDraft((d) => d.map((s, i) => i !== si ? s : {
                       ...s, items: s.items.map((x, j) => (j === ii ? { ...x, type: e.target.value } : x)),
@@ -420,11 +454,11 @@ export default function PmLogPage({
                     <X size={16} />
                   </button>
                   {it.imageUrl && (
-                    <span className="input-group-text p-1">
+                    <span className="pm-item-fig">
                       <ManualFigure src={it.imageUrl} label={it.label} size={40} />
                     </span>
                   )}
-                  <span className="input-group-text p-1">
+                  <span className="pm-item-fig">
                     <ReferenceImage
                       image={it.image}
                       pathPrefix={`pm-images/${workspaceId}/${customerId}`}
@@ -434,6 +468,7 @@ export default function PmLogPage({
                       size={40}
                     />
                   </span>
+                  </div>
                 </div>
               ))}
               <button
@@ -785,7 +820,7 @@ export default function PmLogPage({
       {signingEntry && (
         <PinPrompt
           customerId={customerId}
-          people={crewPeople.filter((p) => (p.roles || []).includes('supervisor') || p.admin)}
+          people={crewPeople.filter((p) => (p.roles || []).includes('supervisor') || isSiteLead(p))}
           title="Supervisor sign-off"
           message="Signing confirms these checks were carried out. It is recorded against you and cannot be undone here."
           onVerified={(p) => {
@@ -797,6 +832,15 @@ export default function PmLogPage({
         />
       )}
 
+      {lineGuard.challenge && (
+        <LineLockPrompt
+          customerId={customerId}
+          people={crewPeople}
+          challenge={lineGuard.challenge}
+          onAuthorise={lineGuard.authorise}
+          onCancel={lineGuard.dismiss}
+        />
+      )}
       {pendingSave && (
         <PinPrompt
           customerId={customerId}

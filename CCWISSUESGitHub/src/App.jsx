@@ -21,9 +21,8 @@ async function ensurePdfLibs() {
   const fn = autoMod.default;
   autoTable = typeof fn === 'function' ? fn : (fn?.default || fn);
 }
-import { Tabs, Tab } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash } from 'lucide-react';
+import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash, Lock } from 'lucide-react';
 import ShareModal from '@shared/components/ShareModal.jsx';
 import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -64,6 +63,10 @@ import { lineStatusKey, scaffoldLinesFrom } from '@shared/utils/headHelpers.js';
 import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
 import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
 import photoQueue from '@shared/utils/photoQueue.js';
+import AppNav from '@shared/components/AppNav.jsx';
+import OverviewPage from '@shared/components/OverviewPage.jsx';
+import { sinceLabel } from '@shared/services/logs.js';
+import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -829,8 +832,12 @@ const exportLineHistoryToPDF = async (lineHistory, customerName, lineTitle) => {
   doc.save(`${customerName}-${lineTitle}-history.pdf`);
 };
 
-const IssueHistory = ({ customers, visits, onExportPDF }) => {
-  const [selectedCustomer, setSelectedCustomer] = useState('');
+const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => {
+  // Opens on the customer already chosen in the header. Asking again, directly
+  // below a bar that names the customer, made the app look like it had lost
+  // track of what you were doing. Widening to another customer is still one
+  // change of this dropdown away.
+  const [selectedCustomer, setSelectedCustomer] = useState(currentCustomerId || '');
   const [selectedLine, setSelectedLine] = useState('');
 
   const history = useMemo(() => {
@@ -915,7 +922,7 @@ const IssueHistory = ({ customers, visits, onExportPDF }) => {
           className="form-select form-select-sm"
           style={{ minWidth: '180px' }}
         >
-          <option value="">-- Select Customer --</option>
+          <option value="">All customers</option>
           {customers.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -1026,6 +1033,15 @@ const AppContent = () => {
 
   const [globalData, setGlobalData] = useState({ customer: '', address: '', cityState: '', headCount: '14' });
   const [lines, setLines] = useState([]);
+
+  // Heads that are down right now, shown against Current Visit. A badge is only
+  // worth the ink when there is something to answer for, so zero shows nothing.
+  const navCounts = useMemo(() => {
+    const offline = (lines || []).reduce(
+      (n, line) => n + (line.heads || []).filter((h) => h.status === 'offline').length, 0);
+    return { current: offline };
+  }, [lines]);
+
   const [showDashboardView, setShowDashboardView] = useState(false);
   const [activeLineId, setActiveLineId] = useState(null);
   const [session, setSession] = useState(null);
@@ -1077,6 +1093,8 @@ const AppContent = () => {
   const [allVisits, setAllVisits] = useState([]);
   const [showVisitList, setShowVisitList] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  // JTI's own screen for giving a plant a way in.
+  const [showPlantLogins, setShowPlantLogins] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', address: '', cityState: '', headCount: '14' });
   const [currentVisitName, setCurrentVisitName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -1115,7 +1133,9 @@ const AppContent = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
   const [showLinesModal, setShowLinesModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('current');
+  // Opens on the overview: the old landing screen was an empty visit-name box,
+  // which is the one screen in the app that knows nothing.
+  const [activeTab, setActiveTab] = useState('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -3122,6 +3142,11 @@ const AppContent = () => {
                     <Plus className="w-4 h-4" /> Add Customer
                   </button>
                 </li>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => setShowPlantLogins(true)}>
+                    <Lock className="w-4 h-4" /> Plant logins
+                  </button>
+                </li>
                 {currentVisitId && (
                   <li>
                     <button className="dropdown-item d-flex align-items-center gap-2" onClick={duplicateVisit}>
@@ -3186,22 +3211,40 @@ const AppContent = () => {
         </div>
       </div>
 
-      {/* Context bar: active customer + loaded visit */}
+      {/* Context bar.
+          The customer's NAME is not repeated here — the dropdown directly above
+          already says it, and a chip echoing it answered a question nobody had.
+          What goes here instead is what the dropdown cannot tell you: how big
+          this plant is, when it was last seen, and which visit is loaded. */}
       {(currentCustomer || currentVisitName) && (
         <div className="context-bar">
           {currentCustomer ? (
-            <span className="pill pill-primary pill-dot" title="Active customer">
-              {currentCustomer.name}
+            <span className="pill pill-muted" title="This customer">
+              {lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} · ` : ''}
+              {currentCustomer.headCount} heads
+              {(() => {
+                const last = visits.find((v) => !v.deleted);
+                return last ? ` · last visit ${sinceLabel(last.date)}` : ' · no visits yet';
+              })()}
             </span>
           ) : (
             <span className="pill pill-muted">No customer selected</span>
           )}
           {currentVisitName && (
-            <span className="pill pill-muted" title="Loaded visit">
+            <span className="pill pill-primary pill-dot" title="Loaded visit">
               {currentVisitName}
             </span>
           )}
         </div>
+      )}
+
+      {showPlantLogins && (
+        <AdminLoginsPanel
+          customers={customers}
+          currentCustomerId={currentCustomer?.id || ''}
+          onClose={() => setShowPlantLogins(false)}
+          toast={toast}
+        />
       )}
 
       {showAddCustomer && (
@@ -3532,8 +3575,23 @@ const AppContent = () => {
 
       <div className="workspace-shell workspace-shell--no-sidebar">
         <main className="workspace-main">
-      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-1 border-bottom">
-        <Tab eventKey="current" title="Current Visit">
+      <AppNav active={activeTab} onSelect={setActiveTab} counts={navCounts} />
+      <div className="ccw-panes">
+        <div className="ccw-pane" id="ccw-pane-overview" role="tabpanel"
+             aria-labelledby="ccw-tab-overview" hidden={activeTab !== 'overview'}>
+          <div className="tab-content p-3">
+            <OverviewPage
+              customerName={currentCustomer?.name}
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              lines={lines}
+              visits={visits}
+              onGo={setActiveTab}
+            />
+          </div>
+        </div>
+        <div className="ccw-pane" id="ccw-pane-current" role="tabpanel"
+             aria-labelledby="ccw-tab-current" hidden={activeTab !== 'current'}>
           <div className="tab-content p-3">
             {currentCustomer && (
               <div className="mb-3">
@@ -3641,9 +3699,10 @@ const AppContent = () => {
               </div>
             )}
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="span" title="Span Adjust">
+        <div className="ccw-pane" id="ccw-pane-span" role="tabpanel"
+             aria-labelledby="ccw-tab-span" hidden={activeTab !== 'span'}>
           <div className="tab-content p-3">
             <SpanAdjustPage
               workspaceId={user?.uid}
@@ -3654,9 +3713,10 @@ const AppContent = () => {
               role="jti"
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="boards" title="Parts/Boards">
+        <div className="ccw-pane" id="ccw-pane-boards" role="tabpanel"
+             aria-labelledby="ccw-tab-boards" hidden={activeTab !== 'boards'}>
           <div className="tab-content p-3">
             <BoardReplacementPage
               customers={customers}
@@ -3669,11 +3729,17 @@ const AppContent = () => {
               canEditTypes
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="pm" title="PM Log">
+        <div className="ccw-pane" id="ccw-pane-pm" role="tabpanel"
+             aria-labelledby="ccw-tab-pm" hidden={activeTab !== 'pm'}>
           <div className="tab-content p-3">
-            {/* Setup + read only here: the plant fills these in, not JTI. */}
+            {/* JTI both defines the checklist and can file a check — a tech
+                doing the PM during a service call needs to record it. The log
+                already distinguishes the two: a submission carries the
+                submitter's role, and the history renders "(JTI)" or "(plant)"
+                against every entry, so who performed a check is never in
+                doubt. */}
             <PmLogPage
               customers={customers}
               workspaceId={user?.uid}
@@ -3683,12 +3749,13 @@ const AppContent = () => {
               performedByName={user?.email || 'JTI'}
               role="jti"
               canEditTemplate
-              canSubmit={false}
+              canSubmit
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="crew" title="Crew">
+        <div className="ccw-pane" id="ccw-pane-crew" role="tabpanel"
+             aria-labelledby="ccw-tab-crew" hidden={activeTab !== 'crew'}>
           <div className="tab-content p-3">
             <CrewPage
               isJti
@@ -3698,9 +3765,10 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="activity" title="Activity">
+        <div className="ccw-pane" id="ccw-pane-activity" role="tabpanel"
+             aria-labelledby="ccw-tab-activity" hidden={activeTab !== 'activity'}>
           <div className="tab-content p-3">
             <ActivityPage
               workspaceId={user?.uid}
@@ -3709,15 +3777,18 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="history" title="Issue History">
+        <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
+             aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
-            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} />
+            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF}
+              currentCustomerId={currentCustomer?.id} />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="layout" title={<><Factory size={16} className="me-1" /> Factory Layout</>}>
+        <div className="ccw-pane" id="ccw-pane-layout" role="tabpanel"
+             aria-labelledby="ccw-tab-layout" hidden={activeTab !== 'layout'}>
           <div className="tab-content p-3">
             <Suspense fallback={<div className="text-muted p-3">Loading layout…</div>}>
               <FactoryLayout
@@ -3733,8 +3804,8 @@ const AppContent = () => {
               />
             </Suspense>
           </div>
-        </Tab>
-      </Tabs>
+        </div>
+      </div>
         </main>
       </div>
 

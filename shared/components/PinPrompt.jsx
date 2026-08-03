@@ -5,9 +5,10 @@
 // Used two ways: to identify whoever is about to take a head offline, and to
 // authorise a plant admin before they hand out or reset someone else's PIN.
 //
-// `requireAdmin` narrows the list to people flagged as plant admins, so the
-// dialog cannot be used to authorise an action as someone who lacks the right —
-// the check is on the list AND on the caller, never on the list alone.
+// `requireSiteLead` narrows the list to that plant's Site Leads, and
+// `requireRole` to a crew role such as supervisor, so the dialog cannot be used
+// to authorise an action as someone who lacks the right — the check is on the
+// list AND on the caller, never on the list alone.
 //
 // People without a PIN are shown greyed rather than hidden. "My name isn't
 // there" sends someone to find a supervisor; "my name is there but greyed"
@@ -15,11 +16,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyRound, X } from 'lucide-react';
 import { verifyPin, hasPin } from '../utils/pin.js';
+import { isSiteLead, SITE_LEAD_LABEL } from '../utils/roles.js';
 
 export default function PinPrompt({
   customerId,
   people = [],
-  requireAdmin = false,
+  requireSiteLead = false,
+  requireRole = '',    // e.g. 'supervisor' — only people carrying that role
   title,
   message,
   onVerified,          // (person) => void
@@ -31,7 +34,10 @@ export default function PinPrompt({
   const [busy, setBusy] = useState(false);
   const pinRef = useRef(null);
 
-  const eligible = people.filter((p) => (requireAdmin ? p.admin : true));
+  const eligible = people.filter((p) => (
+    (requireSiteLead ? isSiteLead(p) : true)
+    && (requireRole ? (p.roles || []).includes(requireRole) : true)
+  ));
 
   useEffect(() => {
     if (selected && pinRef.current) pinRef.current.focus();
@@ -79,9 +85,11 @@ export default function PinPrompt({
 
           {eligible.length === 0 ? (
             <div className="alert alert-warning py-2 mb-0">
-              {requireAdmin
-                ? 'Nobody at this plant is set up as an admin yet. JTI can set the first one.'
-                : 'No one is on the crew list yet.'}
+              {requireSiteLead
+                ? `Nobody at this plant is set up as a ${SITE_LEAD_LABEL} yet. JTI can set the first one.`
+                : requireRole
+                  ? `Nobody at this plant is set up as a ${requireRole} yet.`
+                  : 'No one is on the crew list yet.'}
             </div>
           ) : (
             <>

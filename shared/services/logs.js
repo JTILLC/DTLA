@@ -21,6 +21,7 @@
 // customer) without any rule change.
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
+import { isSiteLead } from '../utils/roles.js';
 
 export const LOG_SPAN = 'spanLog';
 export const LOG_BOARD = 'boardLog';
@@ -190,10 +191,24 @@ export async function saveCrew(workspaceId, customerId, people) {
         id: p.id,
         name: String(p.name || '').trim(),
         roles: Array.isArray(p.roles) ? p.roles : [],
-        // Plant-level admin: may set and reset other people's PINs. Distinct
-        // from the JTI admin claim, which is an access boundary — this one only
-        // governs who can hand out PINs inside their own plant.
-        admin: !!p.admin,
+        // Site Lead: manages the crew list and hands out PINs inside their own
+        // plant. Deliberately NOT called admin any more — that word now means
+        // JTI, and one word for both a cross-customer superuser and a shift
+        // lead is how the wrong one eventually gets granted.
+        //
+        // The old `admin` flag is still read (see utils/roles.js) so existing
+        // crew keep their access, and is carried through here so that a roster
+        // saved by this version does not strip it from a client still reading
+        // the old name.
+        siteLead: isSiteLead(p),
+        ...(p.admin ? { admin: true } : {}),
+        // Lines this person may file against. An empty list means no
+        // restriction rather than no access — see utils/lineAccess.js. Written
+        // explicitly because this whitelist drops anything it does not name,
+        // which would have let the picker appear to work and save nothing.
+        lines: Array.isArray(p.lines)
+          ? p.lines.map((l) => String(l || '').trim()).filter(Boolean)
+          : [],
         // Written by the PIN flows; carried through here so an unrelated roster
         // edit never silently clears someone's PIN.
         ...(p.pinHash ? { pinHash: p.pinHash } : {}),
