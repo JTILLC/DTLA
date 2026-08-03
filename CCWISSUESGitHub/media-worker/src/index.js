@@ -42,6 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+import { createLogin } from './accounts.js';
 import {
   catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
   foldersForCustomers,
@@ -376,6 +377,41 @@ export default {
     }
 
     // --- GET /parts/*: the machine's parts manual ----------------------------
+    // --- Admin: create a customer login ---------------------------------
+    //
+    // Strictly admin-only, and verified here rather than inside accounts.js so
+    // that every authorisation decision in this Worker is made in one file.
+    // Anonymous sign-ins are refused explicitly: they carry a valid token and
+    // no identity, which is exactly the shape that slips past a check written
+    // as "is there a token?".
+    if (url.pathname === '/admin/create-login') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
+        return deny(503, 'Account creation is not configured on the server.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, [env.FIREBASE_PROJECT_ID]);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (claims.firebase?.sign_in_provider === 'anonymous' || claims.admin !== true) {
+        return deny(403, 'Only a JTI admin can create logins.', origin, allowed);
+      }
+
+      const res = await createLogin(request, env, mintToken);
+      const out = new Response(res.body, res);
+      Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
+      return out;
+    }
+
     if (url.pathname.startsWith('/parts/')) {
       if (request.method !== 'GET') return deny(405, 'Method not allowed', origin, allowed);
       if (!partsConfigured(env)) {
