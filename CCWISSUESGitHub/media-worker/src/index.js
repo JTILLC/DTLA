@@ -42,7 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { createLogin, syncClaims } from './accounts.js';
+import { createLogin, syncClaims, plantLogins } from './accounts.js';
 import {
   catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
   foldersForCustomers,
@@ -384,6 +384,47 @@ export default {
     // Anonymous sign-ins are refused explicitly: they carry a valid token and
     // no identity, which is exactly the shape that slips past a check written
     // as "is there a token?".
+    // --- A plant managing its own logins ---------------------------------
+    //
+    // Open to the plant itself, not just JTI — but the customer is taken from
+    // the caller's token and never from the request, so this cannot be pointed
+    // at another plant. A JTI admin has no customerId of their own, so they use
+    // /admin/create-login instead; falling through to "no customer" here would
+    // be a confusing way to say that.
+    if (url.pathname === '/account/logins') {
+      if (!['GET', 'POST'].includes(request.method)) {
+        return deny(405, 'Method not allowed', origin, allowed);
+      }
+      if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
+        return deny(503, 'Login management is not configured on the server.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, [env.FIREBASE_PROJECT_ID]);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (claims.firebase?.sign_in_provider === 'anonymous') {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
+      const customerId = typeof claims.customerId === 'string' ? claims.customerId : '';
+      if (!customerId) {
+        return deny(403, 'This is for a plant login. JTI creates logins from the admin screen.', origin, allowed);
+      }
+
+      const res = await plantLogins(request, env, mintToken, customerId);
+      const out = new Response(res.body, res);
+      Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
+      return out;
+    }
+
     if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
