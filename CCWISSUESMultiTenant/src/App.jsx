@@ -66,6 +66,9 @@ import { lineStatusKey } from '@shared/utils/headHelpers.js';
 import photoQueue from '@shared/utils/photoQueue.js';
 import PlantLoginsPage from '@shared/components/PlantLoginsPage.jsx';
 import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
+import PinPrompt from '@shared/components/PinPrompt.jsx';
+import { subscribeCrew } from '@shared/services/logs.js';
+import { isSiteLead } from '@shared/utils/roles.js';
 
 // The plant's own daily logs.
 //
@@ -162,10 +165,6 @@ const loadImageForPdf = (url) =>
 // Salted SHA-256 hex, used for the per-customer supervisor password. Not
 // high-security (client-side, no server), but a solid deterrent against casual
 // changes by operators — the stored value is a hash, not the password.
-async function sha256Hex(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 // Decode a data: URL and re-encode it down to something sensible for print.
 // Photos are stored at up to 1600px but rendered in 40mm boxes — roughly 240px
@@ -1184,76 +1183,46 @@ const AppContent = () => {
     readOnlyRef.current = !isAdmin && !!lv && !lv.shift;
   }, [visits, currentVisitId, isAdmin]);
 
-  // Supervisor-password hash for the current customer, loaded from
-  // customer_secrets/{cid} (kept out of the public profile so share-link viewers
-  // can't read it). Only admin + that customer's own login can read it.
-  const [customerSecretHash, setCustomerSecretHash] = useState(null);
-  const customerSecretHashRef = useRef(null);
-  useEffect(() => { customerSecretHashRef.current = customerSecretHash; }, [customerSecretHash]);
+  // The crew roster, so a destructive action can be authorised by a named
+  // person rather than by a secret the whole plant shares.
+  const [crewPeople, setCrewPeople] = useState([]);
+  const crewPeopleRef = useRef([]);
+  useEffect(() => { crewPeopleRef.current = crewPeople; }, [crewPeople]);
   useEffect(() => {
-    // Use `session` (declared far above) — `const user = session` is declared
-    // below this line, so referencing `user` in the deps array would hit its
-    // temporal dead zone during render and crash the app.
+    // `session`, not `user`: `const user = session` is declared far below, so
+    // naming it here is a temporal dead zone crash on every render.
     const cid = currentCustomer?.id;
-    if (!session || !cid) { setCustomerSecretHash(null); return; }
-    let active = true;
-    firebase.firestore().collection('customer_secrets').doc(cid).get()
-      .then(d => { if (active) setCustomerSecretHash(d.exists ? (d.data().editPasswordHash || null) : null); })
-      .catch(() => { if (active) setCustomerSecretHash(null); });
-    return () => { active = false; };
+    if (!session || !cid) { setCrewPeople([]); return undefined; }
+    return subscribeCrew(WORKSPACE_UID, cid, setCrewPeople);
   }, [session, currentCustomer?.id]);
 
-  // Gate for destructive actions on CUSTOMER logins. Admins are never prompted.
-  // A customer must enter their per-customer line-edit password (set by the admin
-  // in-app, stored as a salted SHA-256 hash on the customer profile). If no
-  // password is set, destructive actions are blocked entirely (admin only).
+  // A pending authorisation: { actionLabel, resolve }. Held here so the gate can
+  // keep its async shape and every call site stays `if (!(await …)) return;`.
+  const [pinGate, setPinGate] = useState(null);
+  const canAuthorise = (p) => ((p.roles || []).includes('supervisor') || isSiteLead(p)) && p.pinHash;
+
+  // Adding, removing or deleting takes a SUPERVISOR or SITE LEAD PIN.
+  //
+  // This replaced a single password shared by the whole plant. A shared secret
+  // cannot say who used it, spreads by being told to people, and read exactly
+  // like the account password it sat next to — three problems a per-person PIN
+  // does not have, using the roster the plant already keeps.
+  //
+  // Asked every time. Proving who you are earlier in the shift is not the same
+  // as authorising this, and permission must not accumulate on a shared tablet.
   const requireDestructiveAuth = useCallback(async (actionLabel = 'make this change') => {
     if (isAdminRef.current) return true;
-    const cust = currentCustomerRef.current;
-    const hash = customerSecretHashRef.current;
-    if (!hash) {
-      toast.error('Adding, removing, and deleting are restricted. Ask JTI to set a password that lets a supervisor make these changes.');
+    const eligible = crewPeopleRef.current.filter(canAuthorise);
+    if (!eligible.length) {
+      toast.error(
+        'Adding, removing and deleting need a supervisor or Site Lead with a PIN. '
+        + 'Set one on the Crew tab, or ask JTI to.'
+      );
       return false;
     }
-    const entered = await dialog.prompt(`Enter the supervisor password to ${actionLabel}:`, {
-      title: 'Password required',
-      inputType: 'password',
-      confirmText: 'Confirm',
-    });
-    if (entered == null || entered === '') return false;
-    const ok = (await sha256Hex(`${cust.id}:${entered}`)) === hash;
-    if (!ok) { toast.error('Incorrect password'); return false; }
-    return true;
-  }, [dialog, toast]);
+    return new Promise((resolve) => setPinGate({ actionLabel, resolve }));
+  }, [toast]);
 
-  // Admin-only: set/change/clear the per-customer supervisor password.
-  const setCustomerEditPassword = async () => {
-    const cust = currentCustomer;
-    if (!cust) return;
-    const pw = await dialog.prompt(
-      `Set a supervisor password for "${cust.name}". A customer must enter it to add, remove, reset, or delete. Leave blank to clear it (then only JTI can make those changes).`,
-      { title: 'Supervisor password', inputType: 'password', confirmText: 'Save' }
-    );
-    if (pw == null) return; // cancelled
-    try {
-      const secretRef = firebase.firestore().collection('customer_secrets').doc(cust.id);
-      if (pw) {
-        const hashVal = await sha256Hex(`${cust.id}:${pw}`);
-        await secretRef.set(
-          { editPasswordHash: hashVal, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
-          { merge: true }
-        );
-        setCustomerSecretHash(hashVal); // reflect immediately so the gate sees it
-      } else {
-        await secretRef.delete();
-        setCustomerSecretHash(null);
-      }
-      toast.success(pw ? 'Supervisor password set' : 'Supervisor password cleared');
-    } catch (err) {
-      console.error('Failed to set edit password:', err);
-      toast.error('Could not save the password: ' + (err?.message || 'unknown error'));
-    }
-  };
 
   // Stable callbacks for <Line> so React.memo can skip untouched lines.
   // linesRef lets handlers read the latest lines without re-creating on every state change.
@@ -1629,6 +1598,9 @@ const AppContent = () => {
       const st = firebase.storage().ref();
       await wipeStorageFolder(st.child(`issue-photos/${WORKSPACE_UID}/${custId}`));
       await wipeStorageFolder(st.child(`service-reports/${WORKSPACE_UID}/${custId}`));
+      // The shared supervisor password is gone (replaced by supervisor PINs),
+      // but old documents may still exist for customers set up before that.
+      // Deleting a customer should not leave one behind.
       await firebase.firestore().collection('customer_secrets').doc(custId).delete().catch(() => {});
 
       localStorage.removeItem(`ishida_${custId}`);
@@ -3415,18 +3387,6 @@ const AppContent = () => {
             </button>
           )}
 
-          {/* Admin-only: set the per-customer supervisor password that gates
-              destructive actions for that customer's own logins. */}
-          {isAdmin && currentCustomer && (
-            <button
-              onClick={setCustomerEditPassword}
-              className="btn btn-outline-secondary btn-sm"
-              title={`Set the supervisor password for ${currentCustomer.name}${customerSecretHash ? ' (currently set)' : ' (not set)'}`}
-            >
-              <Lock className="w-4 h-4" />{' '}
-              <span className="btn-label">Password{customerSecretHash ? ' ✓' : ''}</span>
-            </button>
-          )}
 
           {/* A loaded visit autosaves to the cloud (status shown by the chip on
               the right). The only manual save needed is to commit a brand-new
@@ -3664,6 +3624,28 @@ const AppContent = () => {
           currentCustomerId={currentCustomer?.id || ''}
           onClose={() => setShowLinkLogin(false)}
           toast={toast}
+        />
+      )}
+
+      {pinGate && (
+        <PinPrompt
+          customerId={currentCustomer?.id}
+          people={crewPeople.filter(canAuthorise)}
+          title="Supervisor or Site Lead"
+          message={`Enter a supervisor or Site Lead PIN to ${pinGate.actionLabel}.`}
+          onVerified={() => {
+            // Deliberately not remembered as the person at this tablet: a
+            // supervisor authorising one action must not leave the device
+            // acting as them for everything after it.
+            const done = pinGate.resolve;
+            setPinGate(null);
+            done(true);
+          }}
+          onCancel={() => {
+            const done = pinGate.resolve;
+            setPinGate(null);
+            done(false);
+          }}
         />
       )}
 
