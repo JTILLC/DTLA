@@ -55,6 +55,8 @@ import syncManager from '@shared/utils/syncManager.js';
 import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
 import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
+import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
+import { withFreshIds } from '@shared/utils/importLines.js';
 import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
 import PmLogPage from '@shared/components/PmLogPage.jsx';
 import CrewPage from '@shared/components/CrewPage.jsx';
@@ -1172,6 +1174,7 @@ const AppContent = () => {
   // The JTI visit being looked at, if any. Kept apart from currentVisitId so
   // that nothing which writes can ever be pointed at one.
   const [viewingJtiId, setViewingJtiId] = useState(null);
+  const [showImportLines, setShowImportLines] = useState(false);
   const [serviceReportUrl, setServiceReportUrl] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
@@ -2687,6 +2690,19 @@ const AppContent = () => {
     setActiveTab('current');
   };
 
+  // Copy JTI's line setup into the log that is open now. Gated like Add Line —
+  // it is the same act, done several lines at a time.
+  const importLinesFromVisit = async (newLines) => {
+    if (!newLines?.length) return;
+    if (!(await requireDestructiveAuth('add lines from a JTI visit'))) return;
+    const fresh = withFreshIds(newLines);
+    setLines((prev) => [...prev, ...fresh]);
+    setActiveLineId((cur) => cur ?? fresh[0]?.id ?? null);
+    setShowDashboardView(false);
+    setShowImportLines(false);
+    toast.success(`Added ${fresh.length} line${fresh.length === 1 ? '' : 's'} — they save automatically.`);
+  };
+
   const closeJtiVisit = () => {
     setViewingJtiId(null);
     setLines([]);
@@ -4200,6 +4216,20 @@ const AppContent = () => {
               </div>
             )}
 
+            {/* A log with no lines and a JTI visit to take them from. This is
+                the state a plant is in on day one at a site JTI has serviced for
+                years — the equipment layout exists, just not in their app. */}
+            {currentVisitId && !readOnly && lines.length === 0 && jtiVisits.length > 0 && (
+              <div className="alert alert-info d-flex flex-wrap align-items-center gap-2">
+                <span>
+                  <strong>No lines on this log yet.</strong> JTI has this plant&apos;s lines on record.
+                </span>
+                <button type="button" className="btn btn-sm btn-primary ms-auto" onClick={() => setShowImportLines(true)}>
+                  <Download size={14} /> Add lines from a JTI visit
+                </button>
+              </div>
+            )}
+
             <div className="d-flex flex-wrap gap-2 my-3 align-items-center">
               {lines.length > 0 && (
                 <>
@@ -4210,6 +4240,15 @@ const AppContent = () => {
                   >
                     <List className="w-4 h-4" /> Lines
                   </button>
+                  {currentVisitId && !readOnly && jtiVisits.length > 0 && (
+                    <button
+                      onClick={() => setShowImportLines(true)}
+                      className="btn btn-sm btn-outline-secondary"
+                      title="Add lines JTI has on record that this log does not have"
+                    >
+                      <Download className="w-4 h-4" /> Add from JTI
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowDashboardView(true)}
                     className="btn btn-sm btn-outline-secondary"
@@ -4457,6 +4496,15 @@ const AppContent = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showImportLines && (
+        <ImportLinesDialog
+          visits={jtiVisits}
+          existingLines={lines}
+          onImport={importLinesFromVisit}
+          onClose={() => setShowImportLines(false)}
+        />
       )}
 
       {showDuplicates && (
