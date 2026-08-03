@@ -24,6 +24,16 @@
 
 export const isSupervisor = (person) => (person?.roles || []).includes('supervisor');
 
+// Roles that are never pinned to particular lines.
+//
+// Maintenance goes wherever the fault is — that is the job. Restricting a tech
+// to a line would stop the one person qualified to put a head back on from
+// doing it, which is the opposite of the point. Supervisors are unrestricted
+// because they can authorise anyone else anyway.
+const UNRESTRICTED_ROLES = ['supervisor', 'tech'];
+export const hasFreeRoam = (person) =>
+  (person?.roles || []).some((r) => UNRESTRICTED_ROLES.includes(r));
+
 // The lines a person is pinned to. An empty list means "no restriction", not
 // "no lines" — the difference matters, and reading it the other way would lock
 // out every plant that never opened the screen.
@@ -47,7 +57,7 @@ export function mayEditLine(person, lineTitle) {
   // No identified actor — a plant that has not set PINs. Unchanged behaviour:
   // logging is never blocked by an identity nobody was asked for.
   if (!person) return true;
-  if (isSupervisor(person)) return true;
+  if (hasFreeRoam(person)) return true;
   if (!isRestricted(person)) return true;
   // Machine-level entries carry no line (a main board, a power supply). There
   // is no line to be wrong about, so there is nothing to guard.

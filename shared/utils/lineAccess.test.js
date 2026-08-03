@@ -84,3 +84,22 @@ describe('overrideStamp', () => {
     expect(overrideStamp(null, 'SN2')).toEqual({});
   });
 });
+
+describe('roles that go wherever the fault is', () => {
+  const tech = { id: 't', name: 'J. Schmoe', roles: ['tech'], lines: ['JLA'] };
+
+  it('lets maintenance file against any line, whatever their list says', () => {
+    // A tech restricted to one line could not put a head back on anywhere else,
+    // which would stop the one person qualified to do it.
+    expect(mayEditLine(tech, 'SN2')).toBe(true);
+    expect(mayEditLine(tech, 'anything at all')).toBe(true);
+  });
+
+  it('still restricts an operator who is only an operator', () => {
+    expect(mayEditLine({ id: 'o', name: 'x', roles: ['operator'], lines: ['JLA'] }, 'SN2')).toBe(false);
+  });
+
+  it('frees an operator who is ALSO maintenance', () => {
+    expect(mayEditLine({ id: 'b', name: 'y', roles: ['operator', 'tech'], lines: ['JLA'] }, 'SN2')).toBe(true);
+  });
+});
