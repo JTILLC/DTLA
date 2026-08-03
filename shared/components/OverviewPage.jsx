@@ -168,7 +168,20 @@ export default function OverviewPage({
                 className="ccw-ov-line"
                 onClick={() => onGo?.('current')}
               >
-                <span className="ccw-ov-linename">{l.title}</span>
+                {/* The same chip the line switcher uses, dot and all — one
+                    visual language for "a line and how it is doing", rather
+                    than a plain label here and a chip three taps away. The dot
+                    reports the worst state on the line, since that is what
+                    decides whether you need to look. */}
+                <span className="line-chip ccw-ov-chip">
+                  <span
+                    className={'line-chip-dot line-chip-dot--' + (
+                      l.offline ? 'offline' : l.issues ? 'attn' : l.fixed ? 'fixed' : 'ok'
+                    )}
+                    aria-hidden="true"
+                  />
+                  {l.title}
+                </span>
                 <span
                   className="ccw-ov-heads"
                   aria-label={`${l.title}: ${l.heads.length} heads, ${l.offline} offline, ${l.issues} with issues`}

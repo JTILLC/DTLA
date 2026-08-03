@@ -103,7 +103,7 @@
 .ccw-ov-lines { display: flex; flex-direction: column; gap: 6px; }
 .ccw-ov-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
   width: 100%;
@@ -119,8 +119,31 @@
 .ccw-ov-line:hover { border-color: var(--border-color); background: var(--bg-secondary); }
 .ccw-ov-line:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-.ccw-ov-linename { font-size: 0.875rem; font-weight: 600; min-width: 5.5rem; }
-.ccw-ov-heads { display: flex; gap: 3px; flex-wrap: wrap; }
+/* The line chip is borrowed wholesale from the line switcher (.line-chip in
+   index.css) so both places speak the same visual language. Only the pointer
+   behaviour differs: here it sits inside a button rather than being one. */
+/* A minimum width so every line's head block starts at the same x. Chips that
+   hug their own text left the grids ragged, and the point of stacking them is
+   to read down the column. */
+.ccw-ov-chip {
+  cursor: inherit;
+  min-height: 32px;
+  padding: 5px 11px;
+  min-width: 7rem;
+  justify-content: flex-start;
+}
+@media (max-width: 575.98px) { .ccw-ov-chip { min-width: 0; } }
+
+/* Rows of seven, matching the Quick Head Toggle. A wrap-anywhere flex row let
+   a 14-head line and a 28-head line break at different points, so no two lines
+   lined up and the block could not be read down the column. A fixed 7-wide
+   grid means head 8 always starts a row, on every line. */
+.ccw-ov-heads {
+  display: grid;
+  grid-template-columns: repeat(7, 14px);
+  gap: 3px;
+  flex: 0 0 auto;
+}
 
 .ccw-ov-head-cell {
   width: 14px;
@@ -135,6 +158,10 @@
 .ccw-ov-head-cell[data-state="issues"]  { background: var(--st-issues);  border-color: var(--st-issues); }
 
 .ccw-ov-linenote {
+  /* Sits against the first row of heads rather than floating mid-block when a
+     line runs to three rows. */
+  align-self: flex-start;
+  padding-top: 7px;
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
