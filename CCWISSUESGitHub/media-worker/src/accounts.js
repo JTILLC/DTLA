@@ -65,6 +65,54 @@ async function identityCall(path, token, projectId, body) {
   return data;
 }
 
+// Put the same role on the auth token as a custom claim.
+//
+// Two stores decide what an account may do, and they are read by different
+// systems: the Firestore rules read app_roles/{uid}, while the storage rules
+// and this Worker read a claim on the ID token — storage rules cannot read
+// Firestore at all, which is why the claim exists.
+//
+// They were kept in step by a script someone had to remember to run. Setting
+// the claim in the same call that writes the document removes the step, and
+// with it the state where an account is an admin to one half of the system and
+// a stranger to the other.
+//
+// The claim only reaches the client on its NEXT token refresh — immediately for
+// an account that has not signed in yet, within the hour otherwise, or at once
+// if they sign out and back in.
+async function setClaims(token, projectId, uid, claims) {
+  const res = await fetch(`${IDENTITY}/projects/${projectId}/accounts:update`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: uid, customAttributes: JSON.stringify(claims) }),
+  });
+  if (!res.ok) {
+    const err = new Error(`Access was recorded but the sign-in token was not updated: ${await res.text()}`);
+    err.status = 500;
+    err.uid = uid;
+    throw err;
+  }
+}
+
+// The claim that matches an app_roles document, so one function decides the
+// shape in both places it is written.
+const claimsForRole = (role) => (role.admin === true ? { admin: true } : { customerId: role.customerId });
+
+// Read app_roles/{uid} back out of Firestore.
+async function readRole(token, projectId, uid) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}`
+    + `/databases/(default)/documents/app_roles/${encodeURIComponent(uid)}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not read that account's access: ${await res.text()}`);
+  const doc = await res.json();
+  const f = doc.fields || {};
+  return {
+    admin: f.admin?.booleanValue === true,
+    customerId: f.customerId?.stringValue || '',
+  };
+}
+
 // Write app_roles/{uid} through the Firestore REST API.
 //
 // This is the document the security rules read to decide what a login may
@@ -112,6 +160,9 @@ export async function createLogin(request, env, mintToken) {
     const uid = created.localId;
 
     await writeRole(token, projectId, uid, customerId);
+    // Same call, so the document and the token cannot disagree about a login
+    // that has only just been made.
+    await setClaims(token, projectId, uid, { customerId });
 
     // returnOobLink gives the link back instead of Firebase emailing it, so it
     // can be shown to the admin who is on the phone to the plant right now.
@@ -130,4 +181,27 @@ export async function createLogin(request, env, mintToken) {
   }
 }
 
-export default { createLogin, ACCOUNT_SCOPE };
+// POST /admin/sync-claims  { uid }
+//
+// Puts the token claim back in step with app_roles for an account that already
+// exists — the ones linked by pasting a UID, which write the document from the
+// browser and cannot set a claim from there.
+export async function syncClaims(request, env, mintToken) {
+  const body = await request.json().catch(() => ({}));
+  const uid = String(body.uid || '').trim();
+  if (!uid) return json({ error: 'Which account?' }, 400);
+
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+
+  try {
+    const role = await readRole(token, projectId, uid);
+    if (!role) return json({ error: 'That account has no access recorded to sync.' }, 404);
+    await setClaims(token, projectId, uid, claimsForRole(role));
+    return json({ uid, claims: claimsForRole(role) });
+  } catch (err) {
+    return json({ error: err.message || 'Could not update the sign-in token.' }, err.status || 400);
+  }
+}
+
+export default { createLogin, syncClaims, ACCOUNT_SCOPE };
