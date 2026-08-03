@@ -2828,10 +2828,39 @@ const AppContent = () => {
     try {
       const roleData = linkTarget === '__admin__' ? { admin: true } : { customerId: linkTarget };
       await firebase.firestore().collection('app_roles').doc(uid).set(roleData);
+
+      // Put the sign-in token in step with what we just recorded.
+      //
+      // The document governs Firestore; a claim on the token governs the
+      // storage rules and the media Worker, which cannot read Firestore. They
+      // used to be reconciled by a script someone had to remember to run, which
+      // is how an account ends up admin to one half of the system and a
+      // stranger to the other. Only the Worker can set a claim, so it is asked
+      // to here — and a failure is reported rather than swallowed, because a
+      // half-linked account looks fine until the day it does not.
+      try {
+        const token = await firebase.auth().currentUser.getIdToken();
+        const res = await fetch(`${MEDIA_BROKER_BASE}/admin/sync-claims`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Server said ${res.status}`);
+        }
+      } catch (err) {
+        console.error('Claim sync failed:', err);
+        toast.error(
+          'Access was recorded, but their sign-in token was not updated: '
+          + (err.message || 'unknown error')
+          + '. They may not be able to open photos until this is retried.'
+        );
+      }
       const where = linkTarget === '__admin__'
         ? 'JTI Staff'
         : (customers.find(c => c.id === linkTarget)?.name || linkTarget);
-      toast.success(`Login linked to ${where}. They can sign in now.`);
+      toast.success(`Login linked to ${where}. If they are already signed in, have them sign out and back in.`);
       setShowLinkLogin(false);
       setLinkUid('');
       setLinkTarget('');

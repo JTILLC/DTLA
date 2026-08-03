@@ -42,7 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { createLogin } from './accounts.js';
+import { createLogin, syncClaims } from './accounts.js';
 import {
   catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
   foldersForCustomers,
@@ -384,7 +384,7 @@ export default {
     // Anonymous sign-ins are refused explicitly: they carry a valid token and
     // no identity, which is exactly the shape that slips past a check written
     // as "is there a token?".
-    if (url.pathname === '/admin/create-login') {
+    if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
         return deny(503, 'Account creation is not configured on the server.', origin, allowed);
@@ -406,7 +406,9 @@ export default {
         return deny(403, 'Only a JTI admin can create logins.', origin, allowed);
       }
 
-      const res = await createLogin(request, env, mintToken);
+      const res = url.pathname === '/admin/sync-claims'
+        ? await syncClaims(request, env, mintToken)
+        : await createLogin(request, env, mintToken);
       const out = new Response(res.body, res);
       Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
       return out;
