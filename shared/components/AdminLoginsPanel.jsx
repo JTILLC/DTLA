@@ -26,6 +26,9 @@ import { MEDIA_BROKER_BASE } from '../config/media.js';
 export default function AdminLoginsPanel({ customers = [], currentCustomerId = '', onClose, toast }) {
   const [newEmail, setNewEmail] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
+  // Optional. Blank is the intended path — the customer chooses their own
+  // through the link. Filled in only when the address cannot receive one.
+  const [newPassword, setNewPassword] = useState('');
   const [created, setCreated] = useState(null);
   const [linkUid, setLinkUid] = useState('');
   const [linkTarget, setLinkTarget] = useState(currentCustomerId);
@@ -42,12 +45,17 @@ export default function AdminLoginsPanel({ customers = [], currentCustomerId = '
       const res = await fetch(`${MEDIA_BROKER_BASE}/admin/create-login`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${await idToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, customerId: linkTarget }),
+        body: JSON.stringify({ email, customerId: linkTarget, password: newPassword || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Server said ${res.status}`);
-      setCreated({ email, setPasswordLink: data.setPasswordLink || '' });
+      setCreated({
+        email,
+        setPasswordLink: data.setPasswordLink || '',
+        passwordSet: !!data.passwordSet,
+      });
       setNewEmail('');
+      setNewPassword('');
       toast.success('Account created');
     } catch (err) {
       console.error('Create login failed:', err);
@@ -149,10 +157,39 @@ export default function AdminLoginsPanel({ customers = [], currentCustomerId = '
           </div>
         </div>
 
+        <div className="row g-2 align-items-end mt-1">
+          <div className="col-md-5">
+            <label className="form-label small mb-1" htmlFor="new-login-password">
+              Password <span className="text-muted">— optional</span>
+            </label>
+            <input
+              id="new-login-password"
+              type="password"
+              autoComplete="new-password"
+              placeholder="leave blank to send them a link"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="form-control form-control-sm"
+            />
+          </div>
+          <div className="col-md-7">
+            <div className="form-text mb-0">
+              {newPassword
+                ? 'You are choosing their password, so you will know it — tell them to change it once they are in. No set-password link is generated.'
+                : 'Leave blank for the normal route: they get a link and choose their own password. Fill it in only for an address that cannot receive mail, such as a test account.'}
+            </div>
+          </div>
+        </div>
+
         {created && (
           <div className="alert alert-success mt-2 mb-0 py-2">
             <div className="fw-semibold small">Account created for {created.email}</div>
-            {created.setPasswordLink ? (
+            {created.passwordSet ? (
+              <div className="small">
+                They can sign in now with the password you set. Ask them to change it —
+                from the sign-in screen, “Forgot password”.
+              </div>
+            ) : created.setPasswordLink ? (
               <>
                 <div className="small mb-1">
                   Send them this link to set their password. It is single-use and expires — if it
