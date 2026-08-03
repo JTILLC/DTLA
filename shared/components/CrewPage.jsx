@@ -583,6 +583,10 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
           }}
         />
       )}
+      {/* Belongs to CrewPage, which owns the useDialog hook. It had ended up
+          inside SetPinDialog, where `dialog` does not exist — so opening the
+          set-PIN screen threw before it could render. */}
+      {dialog.DialogComponent}
     </div>
   );
 }
@@ -634,7 +638,6 @@ function SetPinDialog({ person, onSave, onCancel }) {
           </div>
         </div>
       </form>
-      {dialog.DialogComponent}
     </div>
   );
 }
