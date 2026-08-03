@@ -64,6 +64,7 @@ import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js'
 import { usingBroker, fetchAuthedDataUrl, MEDIA_BROKER_BASE } from '@shared/config/media.js';
 import { lineStatusKey } from '@shared/utils/headHelpers.js';
 import photoQueue from '@shared/utils/photoQueue.js';
+import PlantLoginsPage from '@shared/components/PlantLoginsPage.jsx';
 
 // The plant's own daily logs.
 //
@@ -4329,6 +4330,21 @@ const AppContent = () => {
             />
           </div>
         </Tab>
+
+        {/* Only for a plant login: JTI has no customerId of its own, and
+            creates logins from the admin screen instead. */}
+        {!isAdmin && role?.customerId && (
+          <Tab eventKey="logins" title="Logins">
+            <div className="tab-content">
+              <PlantLoginsPage
+                workspaceId={WORKSPACE_UID}
+                customerId={currentCustomer?.id}
+                customerName={currentCustomer?.name}
+                getIdToken={() => firebase.auth().currentUser.getIdToken()}
+              />
+            </div>
+          </Tab>
+        )}
 
         <Tab eventKey="activity" title="Activity">
           <div className="tab-content p-3">

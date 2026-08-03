@@ -204,4 +204,146 @@ export async function syncClaims(request, env, mintToken) {
   }
 }
 
-export default { createLogin, syncClaims, ACCOUNT_SCOPE };
+
+// ---- The plant managing its own logins -------------------------------------
+//
+// A plant signs in on a shared tablet, so one login covers everybody. Some
+// sites want a second or third — the night supervisor, a second building — and
+// waiting on JTI for that is friction with no purpose.
+//
+// The customer is NEVER taken from the request. It comes from the caller's own
+// token, so a plant can only ever create a login for itself; a body field would
+// be a plant's route into another plant's data.
+
+// How many logins a plant may hold before JTI has to be involved. Overridable
+// per customer from the billing document, which only JTI can write.
+const DEFAULT_INCLUDED_LOGINS = 3;
+
+async function firestoreGet(token, projectId, path) {
+  const res = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function seatsFor(token, projectId, customerId) {
+  const doc = await firestoreGet(token, projectId, `billing/${encodeURIComponent(customerId)}`)
+    .catch(() => null);
+  const n = Number(doc?.fields?.includedLogins?.integerValue);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_INCLUDED_LOGINS;
+}
+
+// Every login pointed at this customer.
+async function loginsFor(token, projectId, customerId) {
+  const res = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'app_roles' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: 'customerId' },
+              op: 'EQUAL',
+              value: { stringValue: customerId },
+            },
+          },
+          limit: 50,
+        },
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`Could not list logins: ${await res.text()}`);
+  const rows = await res.json();
+  const uids = (Array.isArray(rows) ? rows : [])
+    .filter((r) => r.document)
+    .map((r) => r.document.name.split('/').pop());
+  if (!uids.length) return [];
+
+  // Emails and disabled state live on the auth account, not the role document.
+  const look = await fetch(`${IDENTITY}/projects/${projectId}/accounts:lookup`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: uids }),
+  });
+  const data = await look.json().catch(() => ({}));
+  const byUid = new Map((data.users || []).map((u) => [u.localId, u]));
+  return uids.map((uid) => {
+    const u = byUid.get(uid) || {};
+    return {
+      uid,
+      email: u.email || '(unknown)',
+      disabled: !!u.disabled,
+      lastSignIn: u.lastLoginAt ? Number(u.lastLoginAt) : null,
+    };
+  });
+}
+
+// GET  /account/logins            — list this plant's logins and its allowance
+// POST /account/logins  { email } — add one
+// POST /account/logins  { uid, disabled } — suspend or restore one
+export async function plantLogins(request, env, mintToken, customerId) {
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+
+  try {
+    if (request.method === 'GET') {
+      const [logins, included] = await Promise.all([
+        loginsFor(token, projectId, customerId),
+        seatsFor(token, projectId, customerId),
+      ]);
+      return json({ logins, included, used: logins.filter((l) => !l.disabled).length });
+    }
+
+    const body = await request.json().catch(() => ({}));
+
+    // Suspend or restore. Scoped by re-reading the role: a uid from the request
+    // is only acted on once this customer is confirmed to own it.
+    if (body.uid) {
+      const role = await readRole(token, projectId, String(body.uid));
+      if (!role || role.customerId !== customerId) {
+        return json({ error: 'That login does not belong to this plant.' }, 403);
+      }
+      await identityCall('/accounts:update', token, projectId, {
+        localId: String(body.uid),
+        disableUser: body.disabled !== false,
+      });
+      return json({ uid: body.uid, disabled: body.disabled !== false });
+    }
+
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email.includes('@')) return json({ error: 'An email address is required.' }, 400);
+
+    const [logins, included] = await Promise.all([
+      loginsFor(token, projectId, customerId),
+      seatsFor(token, projectId, customerId),
+    ]);
+    const active = logins.filter((l) => !l.disabled).length;
+    if (active >= included) {
+      return json({
+        error: `This plant is using all ${included} of its logins. `
+          + 'Suspend one that is no longer needed, or contact JTI to add more.',
+      }, 409);
+    }
+
+    const created = await identityCall('/accounts', token, projectId, {
+      email, emailVerified: false, disabled: false,
+    });
+    const uid = created.localId;
+    await writeRole(token, projectId, uid, customerId);
+    await setClaims(token, projectId, uid, { customerId });
+    const oob = await identityCall('/accounts:sendOobCode', token, projectId, {
+      requestType: 'PASSWORD_RESET', email, returnOobLink: true,
+    });
+    return json({ uid, email, setPasswordLink: oob.oobLink || '', used: active + 1, included });
+  } catch (err) {
+    return json({ error: err.message || 'Could not do that.' }, err.status || 400);
+  }
+}
+
+export default { createLogin, syncClaims, plantLogins, ACCOUNT_SCOPE };

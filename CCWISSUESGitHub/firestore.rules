@@ -48,6 +48,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // What a plant is entitled to: how many logins, and later its plan and
+    // seat count. The plant reads its own — it is shown their usage — and only
+    // JTI writes it, because an allowance a customer can edit is not one.
+    match /billing/{cid} {
+      allow read: if isAdmin() || isCustomerOf(cid);
+      allow write: if isAdmin();
+    }
+
     // Workspace data. READ: admin, the owning customer's login, or — for the
     // login-less viewer — when that customer has an active public share.
     // WRITE: admin, or the owning customer within the known workspace.
