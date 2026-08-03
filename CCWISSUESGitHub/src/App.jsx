@@ -3028,7 +3028,7 @@ const AppContent = () => {
             <option value="">-- Select Customer --</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>
-                {c.name} ({c.headCount} heads)
+                {c.name}
               </option>
             ))}
           </select>

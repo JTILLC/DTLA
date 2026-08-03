@@ -3331,7 +3331,6 @@ const AppContent = () => {
             // Customer-scoped user: locked to their own customer, no picker.
             <span className="form-select form-select-sm d-inline-flex align-items-center" style={{ width: 'auto', cursor: 'default' }}>
               {currentCustomer?.name || customers[0]?.name || 'Loading…'}
-              {currentCustomer?.headCount ? ` (${currentCustomer.headCount} heads)` : ''}
             </span>
           ) : (
             <select
@@ -3342,7 +3341,7 @@ const AppContent = () => {
               <option value="">-- Select Customer --</option>
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.headCount} heads)
+                  {c.name}
                 </option>
               ))}
             </select>
