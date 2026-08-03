@@ -24,6 +24,7 @@ export const navGroups = ({ noun = 'visit', extras = [] } = {}) => {
       tabs: [
         { key: 'overview', title: 'Overview' },
         { key: 'current', title: `Current ${Noun}` },
+        { key: 'prestart', title: 'Pre-Start' },
       ],
     },
     {
@@ -61,6 +62,7 @@ export const NAV_GROUPS = [
       { key: 'span', title: 'Span Adjust' },
       { key: 'boards', title: 'Parts/Boards' },
       { key: 'pm', title: 'PM Log' },
+      { key: 'prestart', title: 'Pre-Start' },
       { key: 'crew', title: 'Crew' },
       { key: 'activity', title: 'Activity' },
     ],

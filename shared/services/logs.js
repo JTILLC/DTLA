@@ -30,6 +30,11 @@ export const LOG_PM = 'pmLog';
 export const LOG_CREW = 'crewLog';
 export const LOG_HEAD = 'headLog';
 export const PM_TEMPLATE = 'pmTemplate';
+// The daily pre-start walk. Its own log and its own template, kept apart from
+// PM: PM is maintenance work, and an operator doing a before-shift check should
+// not have to open a screen full of span checks and fuse ratings to find it.
+export const LOG_PRESTART = 'prestartLog';
+export const PRESTART_TEMPLATE = 'prestartTemplate';
 export const CONFIG = 'config';
 
 const col = (workspaceId, customerId, name) =>
@@ -457,6 +462,27 @@ export async function fetchConfigSummaries(workspaceId, customerIds, key) {
     }
   }));
   return out;
+}
+
+// ---- Pre-start checklist template -----------------------------------------
+// Shape: { items: [{ id, label, type, imageUrl? }] }
+//
+// Flat, unlike the PM template's sections. A pre-start check is one short walk
+// round the machine, and dividing seven items into headings would be structure
+// for its own sake.
+export function subscribePrestartTemplate(workspaceId, customerId, cb) {
+  if (!workspaceId || !customerId) return () => {};
+  return configDoc(workspaceId, customerId, PRESTART_TEMPLATE).onSnapshot(
+    (snap) => cb(snap.exists ? (snap.data() || null) : null),
+    (err) => { console.error('pre-start template subscription failed:', err); cb(null); }
+  );
+}
+
+export async function savePrestartTemplate(workspaceId, customerId, items) {
+  await configDoc(workspaceId, customerId, PRESTART_TEMPLATE).set({
+    items: items || [],
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 // A starting point so a new customer isn't staring at a blank checklist. Edit
