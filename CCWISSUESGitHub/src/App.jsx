@@ -68,8 +68,8 @@ import OverviewPage from '@shared/components/OverviewPage.jsx';
 import { sinceLabel } from '@shared/services/logs.js';
 import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 import PinPrompt from '@shared/components/PinPrompt.jsx';
-import { useVerifiedPerson } from '@shared/utils/useVerifiedPerson.js';
 import { subscribeCrew } from '@shared/services/logs.js';
+import { isSiteLead } from '@shared/utils/roles.js';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -1156,7 +1156,6 @@ const AppContent = () => {
     if (!session?.uid || !currentCustomer?.id) return undefined;
     return subscribeCrew(session.uid, currentCustomer.id, setCrewPeople);
   }, [session?.uid, currentCustomer?.id]);
-  const { person: verifiedPerson, remember: rememberLinePerson } = useVerifiedPerson(currentCustomer?.id);
 
   const createdThisSession = useRef(new Set());
 
@@ -1209,18 +1208,30 @@ const AppContent = () => {
     toast.success(`"${row.title || 'Line'}" restored`);
   };
 
-  // Adding or removing a line is recorded against a person, not against the
-  // shared plant login. This is attribution, NOT the line lock: any crew member
-  // with a PIN can do it, and a plant that has set no PINs is never asked.
+  // Adding or removing a line changes the shape of the plant's record, so it is
+  // not something every crew member should be able to do. It takes a SUPERVISOR
+  // or SITE LEAD PIN — the same two roles that authorise everything else of
+  // consequence.
+  //
+  // Asked every time, deliberately: an operator who watched a supervisor unlock
+  // something earlier in the shift must not inherit the right to delete a line
+  // an hour later. This is not attribution, it is permission, and permission
+  // does not persist just because a name is remembered on the tablet.
   const [linePinFor, setLinePinFor] = useState(null);     // () => void
-  const attributedLineChange = (run) => {
-    const anyPin = crewPeopleRef.current.some((p) => p.pinHash);
-    if (!anyPin) return run('');
-    if (verifiedPerson) return run(verifiedPerson.name);
+  const lineManagers = useMemo(
+    () => crewPeople.filter((p) => (p.roles || []).includes('supervisor') || isSiteLead(p)),
+    [crewPeople]
+  );
+  const asLineManager = (run) => {
+    // Nobody who could authorise it has a PIN yet, so there is nothing to ask
+    // for. The plant keeps working, exactly as one with no PINs at all does —
+    // the gate must never become the reason a line cannot be created.
+    const canAuthorise = lineManagers.some((p) => p.pinHash);
+    if (!canAuthorise) return run('');
     setLinePinFor(() => run);
   };
 
-  const handleAddLine = (lineName, headCount) => attributedLineChange((who) => {
+  const handleAddLine = (lineName, headCount) => asLineManager((who) => {
     createLine(lineName, headCount, (updater) => {
       setLines((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -1265,7 +1276,7 @@ const AppContent = () => {
     );
     if (!confirmed) return;
 
-    attributedLineChange(async (who) => {
+    asLineManager(async (who) => {
       // Kept before it goes, not after. A line removed by mistake is a visit's
       // worth of head readings, issues and notes, and "are you sure?" is not a
       // backup.
@@ -3424,11 +3435,14 @@ const AppContent = () => {
       {linePinFor && (
         <PinPrompt
           customerId={currentCustomer?.id}
-          people={crewPeople}
-          title="Who is making this change?"
-          message="Adding or removing a line is recorded against you."
+          people={lineManagers}
+          title="Supervisor or Site Lead"
+          message="Adding or removing a line needs a supervisor or Site Lead, and is recorded against them."
           onVerified={(p) => {
-            rememberLinePerson(p);
+            // Deliberately NOT remembered as the person at this tablet. A
+            // supervisor authorising one line change must not leave the device
+            // acting as them afterwards — the operator who takes it back would
+            // inherit a standing they were never given.
             const run = linePinFor;
             setLinePinFor(null);
             run(p.name);
