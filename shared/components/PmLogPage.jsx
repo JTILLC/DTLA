@@ -145,8 +145,6 @@ export default function PmLogPage({
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState([]);         // template editor working copy
   const [savingTemplate, setSavingTemplate] = useState(false);
-  // Viewing the fill screen without being able to file anything from it.
-  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -176,9 +174,9 @@ export default function PmLogPage({
 
   // ---- Submit -------------------------------------------------------------
   const submit = () => withActor(async (filedBy) => {
-    // A preview must never be able to file a check, whatever route reached
-    // here. The button is hidden in preview; this is the guard that matters.
-    if (preview || !canSubmit) return;
+    // Whoever cannot submit cannot file a check by any route, not merely by
+    // having the button hidden.
+    if (!canSubmit) return;
     const items = [];
     sections.forEach((sec) =>
       (sec.items || []).forEach((it) => {
@@ -607,16 +605,9 @@ export default function PmLogPage({
               </div>
             </div>
             <CrewChip lineCrew={lineCrew} lineTitle={lineTitle} />
-            {preview ? (
-              <div className="alert alert-info mb-0 py-2">
-                Preview — this is what the plant sees. Nothing here can be submitted
-                or recorded from this screen.
-              </div>
-            ) : (
-              <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
-                {saving ? 'Submitting…' : 'Submit PM check'}
-              </button>
-            )}
+            <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
+              {saving ? 'Submitting…' : 'Submit PM check'}
+            </button>
           </div>
         </div>
         {dialog.DialogComponent}
@@ -637,21 +628,8 @@ export default function PmLogPage({
               <Settings size={16} /> Checklist
             </button>
           )}
-          {/* Whoever writes the checklist cannot otherwise see what they wrote:
-              the fill screen is the only place the wording, the reference
-              photos and the reading fields appear together, and it was reachable
-              only by the plant staff who submit. This opens the same screen
-              read-only, so a checklist can be proof-read before anyone is asked
-              to work from it. */}
-          {!canSubmit && canEditTemplate && (
-            <button type="button" className="btn btn-outline-primary btn-sm"
-              onClick={() => { setPreview(true); setMode('fill'); }}>
-              <ClipboardList size={16} /> Preview checklist
-            </button>
-          )}
           {canSubmit && (
-            <button type="button" className="btn btn-primary btn-sm"
-              onClick={() => { setPreview(false); setMode('fill'); }}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setMode('fill')}>
               <Plus size={16} /> New PM check
             </button>
           )}

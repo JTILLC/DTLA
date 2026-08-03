@@ -33,6 +33,17 @@ const STATE_WORD = {
   active: 'active',
 };
 
+// "head 4" / "heads 4, 7 and 11". Long lists are cut short rather than running
+// off the row — past about half a dozen the individual numbers stop being the
+// point and the count takes over.
+function headList(nums, max = 6) {
+  if (!nums.length) return '';
+  const word = nums.length === 1 ? 'head' : 'heads';
+  if (nums.length > max) return `${word} ${nums.slice(0, max).join(', ')} +${nums.length - max} more`;
+  if (nums.length === 1) return `head ${nums[0]}`;
+  return `${word} ${nums.slice(0, -1).join(', ')} and ${nums[nums.length - 1]}`;
+}
+
 export default function OverviewPage({
   customerName, workspaceId, customerId, lines = [], visits = [], onGo,
 }) {
@@ -49,12 +60,22 @@ export default function OverviewPage({
     return subscribeLog(workspaceId, customerId, LOG_PM, setPmLog);
   }, [workspaceId, customerId]);
 
-  // Per line: every head's state, and the counts worth saying out loud.
+  // Per line: every head's state, and WHICH heads are in each state.
+  //
+  // Numbers, not just counts. "2 offline" tells you there is a problem; "heads
+  // 1, 2" tells you where to stand. They are numbered from one, matching the
+  // Quick Head Toggle tiles rather than the array index.
   const lineStates = useMemo(() => lines.map((line) => {
     const heads = (line.heads || []).map(headState);
+    const numbersIn = (state) => heads
+      .map((s, i) => (s === state ? i + 1 : 0))
+      .filter(Boolean);
     return {
       title: line.title || 'Untitled line',
       heads,
+      offlineHeads: numbersIn('offline'),
+      fixedHeads: numbersIn('fixed'),
+      issueHeads: numbersIn('issues'),
       offline: heads.filter((s) => s === 'offline').length,
       fixed: heads.filter((s) => s === 'fixed').length,
       issues: heads.filter((s) => s === 'issues').length,
@@ -95,7 +116,7 @@ export default function OverviewPage({
       sev: 'critical',
       title: `${totalOffline} head${totalOffline === 1 ? '' : 's'} offline`,
       detail: lineStates.filter((l) => l.offline)
-        .map((l) => `${l.title} · ${l.offline}`).join(' · '),
+        .map((l) => `${l.title} · ${headList(l.offlineHeads)}`).join('  ·  '),
       go: 'current', goLabel: 'Current Visit',
     });
   }
@@ -104,7 +125,7 @@ export default function OverviewPage({
       sev: 'due',
       title: `${totalIssues} head${totalIssues === 1 ? '' : 's'} running with known issues`,
       detail: lineStates.filter((l) => l.issues)
-        .map((l) => `${l.title} · ${l.issues}`).join(' · '),
+        .map((l) => `${l.title} · ${headList(l.issueHeads)}`).join('  ·  '),
       go: 'current', goLabel: 'Current Visit',
     });
   }
@@ -196,11 +217,11 @@ export default function OverviewPage({
                   ))}
                 </span>
                 <span className="ccw-ov-linenote">
-                  {l.offline ? `${l.offline} offline` : ''}
-                  {l.offline && l.fixed ? ' · ' : ''}
-                  {l.fixed ? `${l.fixed} fixed` : ''}
-                  {!l.offline && !l.fixed && !l.issues ? 'all running' : ''}
-                  {l.issues && !l.offline ? `${l.issues} with issues` : ''}
+                  {[
+                    l.offlineHeads.length ? `${headList(l.offlineHeads)} offline` : '',
+                    l.fixedHeads.length ? `${headList(l.fixedHeads)} fixed` : '',
+                    l.issueHeads.length ? `${headList(l.issueHeads)} with issues` : '',
+                  ].filter(Boolean).join(' · ') || 'all running'}
                 </span>
               </button>
             ))}
