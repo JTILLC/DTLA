@@ -32,6 +32,7 @@ export default function PlantLoginsPage({ workspaceId, customerId, customerName,
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(null);
   const [pending, setPending] = useState(null);      // action awaiting a Site Lead PIN
+  const [usage, setUsage] = useState(null);
   const { person: actor, remember } = useVerifiedPerson(customerId);
 
   useEffect(() => {
@@ -55,6 +56,15 @@ export default function PlantLoginsPage({ workspaceId, customerId, customerName,
     setError('');
     try {
       setState(await call({ method: 'GET' }));
+      // Usage is a separate read so a billing hiccup never stops the login list
+      // — the two answer different questions and only one of them is urgent.
+      try {
+        const token = await getIdToken();
+        const res = await fetch(`${MEDIA_BROKER_BASE}/billing/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setUsage(await res.json());
+      } catch { /* usage is informational; the list is what matters */ }
     } catch (err) {
       setError(err.message || 'Could not load the logins for this plant.');
     } finally {
@@ -130,6 +140,54 @@ export default function PlantLoginsPage({ workspaceId, customerId, customerName,
       </p>
 
       {error && <div className="alert alert-danger py-2">{error}</div>}
+
+      {usage && (
+        <div className="card mb-3">
+          <div className="card-body py-2">
+            <div className="d-flex flex-wrap gap-3 align-items-center">
+              <span className="small">
+                Crew members <strong>{usage.crew}</strong>
+                <span className="text-muted"> · {usage.includedCrew} included</span>
+              </span>
+              <span className="small">
+                Logins <strong>{usage.logins}</strong>
+                <span className="text-muted"> · {usage.includedLogins} included</span>
+              </span>
+              {usage.billableCrew > 0 ? (
+                <span className="badge bg-primary">
+                  {usage.billableCrew} chargeable seat{usage.billableCrew === 1 ? '' : 's'}
+                </span>
+              ) : (
+                <span className="badge bg-success">Within your plan</span>
+              )}
+              {usage.status && usage.status !== 'none' && (
+                <span className={'badge ' + (usage.status === 'active' ? 'bg-success' : 'bg-warning text-dark')}>
+                  {usage.status}
+                </span>
+              )}
+              {usage.manageable && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary ms-auto"
+                  onClick={async () => {
+                    try {
+                      const token = await getIdToken();
+                      const res = await fetch(`${MEDIA_BROKER_BASE}/billing/portal`, {
+                        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+                      });
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                      else toast.error(data.error || 'Could not open billing');
+                    } catch (err) { toast.error(err.message || 'Could not open billing'); }
+                  }}
+                >
+                  Manage billing
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="d-flex align-items-center gap-2 mb-3">
         <span className={'badge ' + (full ? 'bg-warning text-dark' : 'bg-secondary')}>
