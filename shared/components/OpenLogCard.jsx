@@ -22,9 +22,26 @@ const agePhrase = (n) => {
   return `${Math.floor(n / 7)} weeks ago`;
 };
 
-export default function OpenLogCard({ decision, onOpen, onStart, canStart = true }) {
+export default function OpenLogCard({
+  decision, onOpen, onStart, canStart = true,
+  // JTI's own service visits for this plant. A site JTI has serviced for years
+  // arrives with an empty app while everything found and fixed over that time
+  // sits in another collection nobody here ever opens.
+  priorVisits = [], onViewPrior,
+}) {
   if (!decision) return null;
   const { action, log } = decision;
+
+  const prior = priorVisits[0]; // newest — the list arrives date-descending
+  const priorLink = prior && onViewPrior && (
+    <p className="text-secondary small mb-0 mt-3">
+      JTI has {priorVisits.length} earlier visit{priorVisits.length === 1 ? '' : 's'} on record.{' '}
+      <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={() => onViewPrior(prior.id)}>
+        Look at the most recent
+      </button>{' '}
+      to see the lines and what was found.
+    </p>
+  );
 
   const start = canStart && (
     <button type="button" className="btn btn-primary d-inline-flex align-items-center gap-2" onClick={onStart}>
@@ -40,9 +57,12 @@ export default function OpenLogCard({ decision, onOpen, onStart, canStart = true
           <h5 className="mb-2">No daily logs yet</h5>
           <p className="text-secondary mb-4">
             A log holds one shift: which heads are running, what went wrong, and what was replaced.
+            {prior && <> Starting the first one sets your lines up from JTI&apos;s last visit, so you
+              are not typing every line and head in by hand.</>}
           </p>
           {!canStart && <p className="text-secondary small mb-0">Ask a supervisor to start one.</p>}
           {start}
+          {priorLink}
         </div>
       </div>
     );
