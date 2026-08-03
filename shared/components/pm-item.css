@@ -1,0 +1,53 @@
+/* shared/components/pm-item.css
+ *
+ * A row in the PM checklist editor.
+ *
+ * These items are instructions — "Dispersion table surface and radial troughs
+ * free of product build-up" — and they used to sit in a Bootstrap input-group
+ * beside a dropdown, a delete button and two image buttons. The label got
+ * whatever width was left, which was about twenty characters, so reading an
+ * item meant clicking into the field and scrubbing sideways.
+ *
+ * The label now owns a row and wraps; everything that acts on it sits beneath.
+ */
+
+.pm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-color, #dee2e6);
+  border-radius: 8px;
+  background: var(--bg-secondary, transparent);
+}
+
+.pm-item-label {
+  /* Wraps and grows. Resize is off because the height is computed from the
+     content — a hand-dragged height would be overwritten on the next keystroke. */
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+  min-height: 38px;
+}
+
+.pm-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Figures sit as plain buttons now rather than input-group segments, so they
+   need their own box instead of inheriting the group's joined borders. */
+.pm-item-fig {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--border-color, #dee2e6);
+  border-radius: 6px;
+}
+
+/* The remove button is destructive and now sits in a row of similar-sized
+   controls, so it keeps its own colour rather than blending in. */
+.pm-item-controls .btn-outline-danger { flex: 0 0 auto; }
