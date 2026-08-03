@@ -1286,13 +1286,47 @@ const AppContent = () => {
       { title: 'Remove Line', variant: 'danger', confirmText: 'Remove' }
     );
     if (!confirmed) return;
+
+    // Keep the line before it goes. Resetting one was already backed up here;
+    // REMOVING one was not, which made remove the only action in the app that
+    // could lose a shift's readings with no way back. Written to the same bin
+    // the recovery panel already reads, so it restores through the path that
+    // already exists rather than a second one.
+    const snapshot = linesRef.current.find(l => l.id === id);
+    const custId = currentCustomerRef.current?.id;
+    const visitId = currentVisitIdRef.current;
+    if (snapshot && custId && visitId) {
+      try {
+        await firebase.firestore()
+          .collection('user_files').doc(WORKSPACE_UID)
+          .collection('customers').doc(custId)
+          .collection(DAILY_LOGS).doc(visitId)
+          .collection('lineResets').add({
+            lineId: id,
+            title: snapshot.title || 'Line',
+            line: snapshot,
+            // The bin sorts and expires on resetAt, so removals carry it too
+            // rather than needing the panel taught a second field.
+            resetAt: new Date().toISOString(),
+            kind: 'removed',
+          });
+      } catch (e) {
+        // No copy, no delete. Losing a line quietly is the one outcome worth
+        // refusing outright.
+        console.error('Could not back up line before removing:', e);
+        toast.error('Could not save a copy of that line, so it was not removed. Try again.');
+        return;
+      }
+    }
+
     setLines(prev => prev.filter(l => l.id !== id));
     setActiveLineId(prev => {
       if (prev !== id) return prev;
       const remaining = linesRef.current.filter(l => l.id !== id);
       return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
     });
-  }, [dialog, requireDestructiveAuth]);
+    toast.success(`"${lineTitle || 'Line'}" removed — recoverable for 30 days`);
+  }, [dialog, requireDestructiveAuth, toast]);
 
   const handleResetLine = useCallback(async (line) => {
     // Reset is not gated — customers may clear a line freely.
@@ -2211,7 +2245,10 @@ const AppContent = () => {
     const custId = currentCustomer?.id;
     const visitId = currentVisitId;
     if (!user || !custId || !visitId) { setResetBackups([]); return; }
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    // 30 days. A line removed by mistake is often not noticed until the next
+    // visit, which is weeks away — a week was short enough that the safety net
+    // expired before anyone looked for it.
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const unsub = firebase.firestore()
       .collection('user_files').doc(WORKSPACE_UID)
       .collection('customers').doc(custId)
@@ -3366,12 +3403,12 @@ const AppContent = () => {
             <HelpCircle className="w-4 h-4" /> <span className="btn-label keep">Help</span>
           </button>
 
-          {/* Recover a line that was reset (kept 7 days) for the loaded log. */}
+          {/* Recover a line that was reset or removed (kept 30 days) for the loaded log. */}
           {currentCustomer && resetBackups.length > 0 && (
             <button
               onClick={() => setShowRecoverModal(true)}
               className="btn btn-outline-warning btn-sm"
-              title="Recover a line that was reset"
+              title="Recover a line that was reset or removed"
             >
               <RefreshCw className="w-4 h-4" /> <span className="btn-label">Recover</span>{' '}
               <span className="badge bg-warning text-dark ms-1">{resetBackups.length}</span>
@@ -4487,7 +4524,7 @@ const AppContent = () => {
           <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Recover a reset line</h5>
+                <h5 className="modal-title">Recover a line</h5>
                 <button type="button" className="btn-close" onClick={() => setShowRecoverModal(false)} aria-label="Close" />
               </div>
               <div className="modal-body">
@@ -4507,7 +4544,18 @@ const AppContent = () => {
                           <div className="small" style={{ minWidth: 0 }}>
                             <div className="fw-semibold text-truncate">{b.title}</div>
                             <div className="text-muted">
-                              Reset {b.resetAt ? new Date(b.resetAt).toLocaleString() : ''} · {offline} offline, {withIssues} with issues
+                              {b.kind === 'removed' ? 'Removed' : 'Reset'}{' '}
+                              {b.resetAt ? new Date(b.resetAt).toLocaleString() : ''} · {offline} offline, {withIssues} with issues
+                              {b.resetAt && (() => {
+                                const daysLeft = Math.ceil(
+                                  (new Date(b.resetAt).getTime() + 30 * 86400000 - Date.now()) / 86400000
+                                );
+                                return (
+                                  <span className={'badge ms-2 ' + (daysLeft <= 5 ? 'bg-danger' : 'bg-secondary')}>
+                                    {daysLeft}d left
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                           <div className="d-flex gap-1 flex-shrink-0 ms-2">
