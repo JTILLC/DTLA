@@ -261,7 +261,12 @@
       handful of things only a JTI login can reach. The plant's own guide is a separate document —
       send them that one.</p>
   </header>
+</div>
 
+<!-- Two columns from 62rem up: the contents sticks in the left track, the sections
+     own the right one. Without `grid` the sticky nav has no column to stick inside
+     and lands on top of the text it is meant to sit beside. -->
+<div class="wrap grid">
   <nav class="toc" aria-label="Contents">
     <p class="toc-h">Contents</p>
     <ol>
@@ -277,6 +282,7 @@
     </ol>
   </nav>
 
+  <main>
   <section id="apps">
     <div class="sec-head"><span class="sec-num">01</span><h2>The three apps, and which to open</h2></div>
     <dl class="defs">
@@ -434,4 +440,5 @@
     <p>JTI CCW apps · this guide covers the apps as they behave today. The plant's guide is at
       <span class="k">/USER_GUIDE</span> in their app.</p>
   </footer>
+  </main>
 </div>
