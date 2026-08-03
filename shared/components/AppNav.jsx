@@ -13,6 +13,40 @@
 // and made the bar the largest thing on screen.
 import './app-nav.css';
 
+// The JTI app records a service VISIT; the customer app records a daily LOG.
+// Same structure, different noun, so the groups are built rather than fixed —
+// and the customer app has a Logins section the JTI app does not.
+export const navGroups = ({ noun = 'visit', extras = [] } = {}) => {
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return [
+    {
+      label: `This ${noun}`,
+      tabs: [
+        { key: 'overview', title: 'Overview' },
+        { key: 'current', title: `Current ${Noun}` },
+      ],
+    },
+    {
+      label: 'This customer',
+      tabs: [
+        { key: 'span', title: 'Span Adjust' },
+        { key: 'boards', title: 'Parts/Boards' },
+        { key: 'pm', title: 'PM Log' },
+        { key: 'crew', title: 'Crew' },
+        ...extras,
+        { key: 'activity', title: 'Activity' },
+      ],
+    },
+    {
+      label: 'Reference',
+      tabs: [
+        { key: 'history', title: 'Issue History' },
+        { key: 'layout', title: 'Factory Layout' },
+      ],
+    },
+  ];
+};
+
 export const NAV_GROUPS = [
   {
     label: 'This visit',
@@ -40,10 +74,10 @@ export const NAV_GROUPS = [
   },
 ];
 
-export default function AppNav({ active, onSelect, counts = {} }) {
+export default function AppNav({ active, onSelect, counts = {}, groups = NAV_GROUPS }) {
   return (
     <div className="ccw-nav" role="tablist" aria-label="Sections">
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <div className="ccw-nav-group" key={group.label}>
           <span className="ccw-nav-label" aria-hidden="true">{group.label}</span>
           <div className="ccw-nav-tabs">

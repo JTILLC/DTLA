@@ -107,11 +107,20 @@ export default function PinPrompt({
                 ))}
               </select>
 
+              {/* autoComplete="off" is advisory and Chrome ignores it on a
+                  password field. one-time-code is the signal browsers and
+                  password managers do honour — nothing offers to save a code
+                  that is used once — and the data-* opt-outs cover 1Password,
+                  LastPass and Bitwarden, which read their own attributes. */}
               <input
                 ref={pinRef}
                 type="password"
                 inputMode="numeric"
-                autoComplete="off"
+                autoComplete="one-time-code"
+                name="crew-pin"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore
                 className="form-control"
                 placeholder="PIN"
                 value={pin}

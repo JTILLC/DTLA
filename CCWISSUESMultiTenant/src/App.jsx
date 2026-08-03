@@ -21,7 +21,6 @@ async function ensurePdfLibs() {
   const fn = autoMod.default;
   autoTable = typeof fn === 'function' ? fn : (fn?.default || fn);
 }
-import { Tabs, Tab } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash, Lock } from 'lucide-react';
 import ShareModal from '@shared/components/ShareModal.jsx';
@@ -69,6 +68,8 @@ import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 import PinPrompt from '@shared/components/PinPrompt.jsx';
 import { subscribeCrew } from '@shared/services/logs.js';
 import { isSiteLead } from '@shared/utils/roles.js';
+import AppNav, { navGroups } from '@shared/components/AppNav.jsx';
+import OverviewPage from '@shared/components/OverviewPage.jsx';
 
 // The plant's own daily logs.
 //
@@ -1163,7 +1164,9 @@ const AppContent = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
   const [showLinesModal, setShowLinesModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('current');
+  // Opens on the overview: the old landing screen was an empty log-name box,
+  // which is the one screen in the app that knows nothing.
+  const [activeTab, setActiveTab] = useState('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -1185,6 +1188,13 @@ const AppContent = () => {
 
   // The crew roster, so a destructive action can be authorised by a named
   // person rather than by a secret the whole plant shares.
+  // Heads down right now, badged on Current Log. Zero shows nothing.
+  const navCounts = useMemo(() => {
+    const offline = (lines || []).reduce(
+      (n, line) => n + (line.heads || []).filter((h) => h.status === 'offline').length, 0);
+    return { current: offline };
+  }, [lines]);
+
   const [crewPeople, setCrewPeople] = useState([]);
   const crewPeopleRef = useRef([]);
   useEffect(() => { crewPeopleRef.current = crewPeople; }, [crewPeople]);
@@ -3932,8 +3942,28 @@ const AppContent = () => {
 
       <div className="workspace-shell workspace-shell--no-sidebar">
         <main className="workspace-main">
-      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-1 border-bottom">
-        <Tab eventKey="current" title="Current Log">
+      <AppNav
+        active={activeTab}
+        onSelect={setActiveTab}
+        counts={navCounts}
+        groups={navGroups({ noun: 'log', extras: (!isAdmin && role?.customerId) ? [{ key: 'logins', title: 'Logins' }] : [] })}
+      />
+      <div className="ccw-panes">
+        <div className="ccw-pane" id="ccw-pane-overview" role="tabpanel"
+             aria-labelledby="ccw-tab-overview" hidden={activeTab !== 'overview'}>
+          <div className="tab-content p-3">
+            <OverviewPage
+              customerName={currentCustomer?.name}
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              lines={lines}
+              visits={visits}
+              onGo={setActiveTab}
+            />
+          </div>
+        </div>
+        <div className="ccw-pane" id="ccw-pane-current" role="tabpanel"
+             aria-labelledby="ccw-tab-current" hidden={activeTab !== 'current'}>
           <div className="tab-content p-3">
             {readOnly && (
               <div className="alert alert-info d-flex align-items-center gap-2 py-2" role="alert">
@@ -4078,9 +4108,10 @@ const AppContent = () => {
               </div>
             )}
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="span" title="Span Adjust">
+        <div className="ccw-pane" id="ccw-pane-span" role="tabpanel"
+             aria-labelledby="ccw-tab-span" hidden={activeTab !== 'span'}>
           <div className="tab-content p-3">
             <SpanAdjustPage
               workspaceId={WORKSPACE_UID}
@@ -4091,9 +4122,10 @@ const AppContent = () => {
               role={isAdmin ? 'jti' : 'customer'}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="boards" title="Parts/Boards">
+        <div className="ccw-pane" id="ccw-pane-boards" role="tabpanel"
+             aria-labelledby="ccw-tab-boards" hidden={activeTab !== 'boards'}>
           <div className="tab-content p-3">
             <BoardReplacementPage
               customers={isAdmin ? customers : []}
@@ -4106,9 +4138,10 @@ const AppContent = () => {
               canEditTypes={isAdmin}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="pm" title="PM Log">
+        <div className="ccw-pane" id="ccw-pane-pm" role="tabpanel"
+             aria-labelledby="ccw-tab-pm" hidden={activeTab !== 'pm'}>
           <div className="tab-content p-3">
             <PmLogPage
               customers={isAdmin ? customers : []}
@@ -4121,9 +4154,10 @@ const AppContent = () => {
               canEditTemplate={isAdmin}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="crew" title="Crew">
+        <div className="ccw-pane" id="ccw-pane-crew" role="tabpanel"
+             aria-labelledby="ccw-tab-crew" hidden={activeTab !== 'crew'}>
           <div className="tab-content p-3">
             <CrewPage
               isJti={isAdmin}
@@ -4133,12 +4167,13 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
         {/* Only for a plant login: JTI has no customerId of its own, and
             creates logins from the admin screen instead. */}
         {!isAdmin && role?.customerId && (
-          <Tab eventKey="logins" title="Logins">
+          <div className="ccw-pane" id="ccw-pane-logins" role="tabpanel"
+             aria-labelledby="ccw-tab-logins" hidden={activeTab !== 'logins'}>
             <div className="tab-content">
               <PlantLoginsPage
                 workspaceId={WORKSPACE_UID}
@@ -4147,10 +4182,11 @@ const AppContent = () => {
                 getIdToken={() => firebase.auth().currentUser.getIdToken()}
               />
             </div>
-          </Tab>
+          </div>
         )}
 
-        <Tab eventKey="activity" title="Activity">
+        <div className="ccw-pane" id="ccw-pane-activity" role="tabpanel"
+             aria-labelledby="ccw-tab-activity" hidden={activeTab !== 'activity'}>
           <div className="tab-content p-3">
             <ActivityPage
               workspaceId={WORKSPACE_UID}
@@ -4159,15 +4195,17 @@ const AppContent = () => {
               visits={visits}
             />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="history" title="Issue History">
+        <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
+             aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
             <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} lockedCustomerId={scopedCustomerId} />
           </div>
-        </Tab>
+        </div>
 
-        <Tab eventKey="layout" title={<><Factory size={16} className="me-1" /> Factory Layout</>}>
+        <div className="ccw-pane" id="ccw-pane-layout" role="tabpanel"
+             aria-labelledby="ccw-tab-layout" hidden={activeTab !== 'layout'}>
           <div className="tab-content p-3">
             <Suspense fallback={<div className="text-muted p-3">Loading layout…</div>}>
               <FactoryLayout
@@ -4184,8 +4222,8 @@ const AppContent = () => {
               />
             </Suspense>
           </div>
-        </Tab>
-      </Tabs>
+        </div>
+      </div>
         </main>
       </div>
 

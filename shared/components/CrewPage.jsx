@@ -622,12 +622,14 @@ function SetPinDialog({ person, onSave, onCancel }) {
             their work.
           </div>
           <input
-            type="password" inputMode="numeric" autoComplete="off" className="form-control"
+            type="password" inputMode="numeric" autoComplete="one-time-code"
+            name="new-crew-pin" data-1p-ignore data-lpignore="true" data-bwignore className="form-control"
             placeholder="New PIN" value={pin}
             onChange={(e) => { setPin(e.target.value); setError(''); }}
           />
           <input
-            type="password" inputMode="numeric" autoComplete="off" className="form-control"
+            type="password" inputMode="numeric" autoComplete="one-time-code"
+            name="new-crew-pin" data-1p-ignore data-lpignore="true" data-bwignore className="form-control"
             placeholder="Again" value={again}
             onChange={(e) => { setAgain(e.target.value); setError(''); }}
           />
