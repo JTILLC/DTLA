@@ -22,6 +22,7 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 import { isSiteLead } from '../utils/roles.js';
+import { normalizeTypes } from '../utils/boardTypes.js';
 
 export const LOG_SPAN = 'spanLog';
 export const LOG_BOARD = 'boardLog';
@@ -160,9 +161,12 @@ export function subscribeBoardTypes(workspaceId, customerId, cb) {
   );
 }
 
+// Types are normalised on the way out, so a list saved from an older screen (bare
+// strings) and one saved from the current editor (objects carrying a part number)
+// both land in the same shape. See shared/utils/boardTypes.js.
 export async function saveBoardTypes(workspaceId, customerId, types) {
   await configDoc(workspaceId, customerId, 'boardTypes').set({
-    types: (types || []).map((t) => String(t).trim()).filter(Boolean),
+    types: normalizeTypes(types),
     updatedAt: new Date().toISOString(),
   });
 }
@@ -321,6 +325,116 @@ export async function savePmTemplate(workspaceId, customerId, sections) {
     sections: sections || [],
     updatedAt: new Date().toISOString(),
   });
+}
+
+// ---- JTI master templates --------------------------------------------------
+// A checklist or board list that belongs to JTI rather than to any one plant,
+// so the standard lives in one place and can be sent to many.
+//
+//   jti_templates/{id} = { kind, name, data, updatedAt, updatedBy }
+//     kind 'pmTemplate'  -> data { sections: [...] }
+//     kind 'boardTypes'  -> data { types: [...] }
+//
+// Deliberately OUTSIDE user_files/{ws}/customers, because it is not any
+// customer's data — a plant login can't read it and has no reason to. What a
+// plant sees is the COPY made in their own config by a push.
+//
+// Copy, not reference: a plant that adds a line item to their checklist must not
+// have it vanish because JTI edited the master, and a master edit must not
+// silently rewrite what fifty plants are checking tomorrow morning. Pushing is
+// therefore an act with a date on it, not a live link.
+const TEMPLATES = 'jti_templates';
+const templatesCol = () => firebase.firestore().collection(TEMPLATES);
+
+export function subscribeTemplates(kind, cb) {
+  return templatesCol()
+    .where('kind', '==', kind)
+    .onSnapshot(
+      (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))),
+      (err) => { console.error('templates subscription failed:', err); cb([]); }
+    );
+}
+
+export async function saveTemplate({ id, kind, name, data, updatedBy }) {
+  const payload = {
+    kind,
+    name: String(name || '').trim() || 'Untitled',
+    data: data || {},
+    updatedAt: new Date().toISOString(),
+    ...(updatedBy ? { updatedBy } : {}),
+  };
+  if (id) {
+    await templatesCol().doc(id).set(payload);
+    return id;
+  }
+  const ref = await templatesCol().add(payload);
+  return ref.id;
+}
+
+export async function deleteTemplate(id) {
+  if (!id) return;
+  await templatesCol().doc(id).delete();
+}
+
+/**
+ * Send a config to customers, keeping what it replaced.
+ *
+ * Each target gets a copy of `data` in customers/{cid}/config/{key}, stamped
+ * with where it came from. Whatever was there first is written to
+ * customers/{cid}/configBackups/{key}_{timestamp} BEFORE the overwrite — a push
+ * across a dozen plants is exactly the action that quietly destroys the one
+ * checklist somebody had spent an afternoon tailoring, and "it was JTI's
+ * standard anyway" is no comfort to them.
+ *
+ * Customers are pushed one at a time and failures are reported per customer
+ * rather than aborting: a plant whose rules or network refused should not
+ * silently take the other eleven down with it.
+ */
+export async function pushConfigToCustomers(workspaceId, customerIds, key, data, meta = {}) {
+  const results = [];
+  const at = new Date().toISOString();
+  for (const cid of customerIds || []) {
+    try {
+      const ref = configDoc(workspaceId, cid, key);
+      const before = await ref.get();
+      if (before.exists) {
+        await firebase.firestore()
+          .collection('user_files').doc(workspaceId)
+          .collection('customers').doc(cid)
+          .collection('configBackups').doc(`${key}_${Date.now()}`)
+          .set({ key, replacedAt: at, data: before.data() });
+      }
+      await ref.set({
+        ...data,
+        updatedAt: at,
+        pushedAt: at,
+        ...(meta.templateId ? { pushedFrom: meta.templateId } : {}),
+        ...(meta.templateName ? { pushedName: meta.templateName } : {}),
+      });
+      results.push({ customerId: cid, ok: true, replaced: before.exists });
+    } catch (err) {
+      console.error(`push to ${cid} failed:`, err);
+      results.push({ customerId: cid, ok: false, error: err?.message || String(err) });
+    }
+  }
+  return results;
+}
+
+// What a customer has now, for the "which plants would this overwrite" summary
+// shown before a push. One read per customer — fine for the handful of plants
+// this runs against, and it is a deliberate action, not a page load.
+export async function fetchConfigSummaries(workspaceId, customerIds, key) {
+  const out = {};
+  await Promise.all((customerIds || []).map(async (cid) => {
+    try {
+      const snap = await configDoc(workspaceId, cid, key).get();
+      out[cid] = snap.exists ? snap.data() : null;
+    } catch {
+      out[cid] = undefined; // couldn't read — distinct from "nothing there"
+    }
+  }));
+  return out;
 }
 
 // A starting point so a new customer isn't staring at a blank checklist. Edit
