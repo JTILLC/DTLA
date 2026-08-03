@@ -136,3 +136,17 @@ describe('the visit screen (line-level lock)', () => {
     expect(mayEditLine(op(['JLA']), undefined)).toBe(true);
   });
 });
+
+describe('a line you just created', () => {
+  // Reported: adding a line immediately asked for a PIN. An operator creating a
+  // line is by definition responsible for it, and locking them out of it reads
+  // as the app being broken. Line.jsx passes isNewLine; the rule below is what
+  // it falls back to for every OTHER line.
+  it('still locks existing lines the person is not assigned to', () => {
+    expect(mayEditLine({ id: 'p', name: 'A', roles: ['operator'], lines: ['JLA'] }, 'SN2')).toBe(false);
+  });
+
+  it('locks nothing at all when the person has no assignment', () => {
+    expect(mayEditLine({ id: 'p', name: 'A', roles: ['operator'], lines: [] }, 'Brand New Line')).toBe(true);
+  });
+});

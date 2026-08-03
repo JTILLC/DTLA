@@ -12,9 +12,14 @@
 // account and already verifies Firebase ID tokens, so the caller is proven to
 // be a JTI admin before anything is created.
 //
-// Nothing here ever handles a password. The account is created without one and
-// the customer sets their own through a Firebase-generated link, so no password
-// passes through this code, the app, or an email you wrote.
+// The normal path handles no password at all: the account is created without
+// one and the customer sets their own through a Firebase-generated link.
+//
+// A password MAY be supplied instead, for an address that cannot receive mail —
+// a test account, or a plant that has no inbox of its own. It is passed
+// straight to Google and never stored, logged or echoed back here. It is the
+// weaker option and stays opt-in, because it means JTI knows a password the
+// customer did not choose.
 
 const IDENTITY = 'https://identitytoolkit.googleapis.com/v1';
 
@@ -142,20 +147,27 @@ export async function createLogin(request, env, mintToken) {
   const body = await request.json().catch(() => ({}));
   const email = String(body.email || '').trim().toLowerCase();
   const customerId = String(body.customerId || '').trim();
+  const password = typeof body.password === 'string' ? body.password : '';
 
   if (!email || !email.includes('@')) return json({ error: 'An email address is required.' }, 400);
   if (!customerId) return json({ error: 'Pick which plant this login is for.' }, 400);
+  // Firebase's own floor is six. Checked here so the failure is a sentence
+  // rather than a Google error code arriving at the browser.
+  if (password && password.length < 6) {
+    return json({ error: 'A password must be at least 6 characters, or leave it blank to send a link.' }, 400);
+  }
 
   const projectId = env.FIREBASE_PROJECT_ID;
   const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
 
   try {
-    // No password: the account is created unusable until the customer sets one
-    // through the link below. Nothing here ever sees or transmits a secret.
+    // Without a password the account is unusable until the customer sets one
+    // through the link below, which is the intended path.
     const created = await identityCall('/accounts', token, projectId, {
       email,
       emailVerified: false,
       disabled: false,
+      ...(password ? { password } : {}),
     });
     const uid = created.localId;
 
@@ -164,15 +176,21 @@ export async function createLogin(request, env, mintToken) {
     // that has only just been made.
     await setClaims(token, projectId, uid, { customerId });
 
-    // returnOobLink gives the link back instead of Firebase emailing it, so it
-    // can be shown to the admin who is on the phone to the plant right now.
-    const oob = await identityCall('/accounts:sendOobCode', token, projectId, {
-      requestType: 'PASSWORD_RESET',
-      email,
-      returnOobLink: true,
-    });
+    // A link is only worth generating when there is no password to use. Asking
+    // for one anyway would hand back a way to override the password just set.
+    let setPasswordLink = '';
+    if (!password) {
+      // returnOobLink gives the link back instead of Firebase emailing it, so
+      // it can be shown to the admin on the phone to the plant right now.
+      const oob = await identityCall('/accounts:sendOobCode', token, projectId, {
+        requestType: 'PASSWORD_RESET',
+        email,
+        returnOobLink: true,
+      });
+      setPasswordLink = oob.oobLink || '';
+    }
 
-    return json({ uid, email, customerId, setPasswordLink: oob.oobLink || '' });
+    return json({ uid, email, customerId, setPasswordLink, passwordSet: !!password });
   } catch (err) {
     return json(
       { error: err.message || 'Could not create the account.', uid: err.uid || null },

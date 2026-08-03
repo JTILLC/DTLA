@@ -31,7 +31,7 @@ const migrateHead = (head) => {
 
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti' }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti', isNewLine = false }) => {
   // Who is at this device, proven once with a PIN. Taking a head offline is the
   // action most worth attributing: it stops product, and "who turned this off?"
   // is the first question asked the next morning.
@@ -75,7 +75,9 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // declaration is a temporal dead zone crash on every render, which on this
   // screen means the whole app.
   const me = resolvePerson(crewPeople, actor);
-  const locked = !unlocked && !mayEditLine(me, localLine?.title);
+  // A line created in this session is never locked: you cannot be unauthorised
+  // for something you just made, and being locked out of it reads as a bug.
+  const locked = !isNewLine && !unlocked && !mayEditLine(me, localLine?.title);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showActiveHeads, setShowActiveHeads] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
