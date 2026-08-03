@@ -364,4 +364,70 @@ export async function plantLogins(request, env, mintToken, customerId) {
   }
 }
 
-export default { createLogin, syncClaims, plantLogins, ACCOUNT_SCOPE };
+
+// ---- JTI listing and resetting a plant's logins ----------------------------
+//
+// The plant's own screen scopes itself to the caller's token. JTI has no
+// customerId of its own, so it names the plant explicitly — which is safe only
+// because index.js has already proved the caller is a JTI admin.
+
+// POST /admin/logins  { customerId }
+export async function adminListLogins(request, env, mintToken) {
+  const body = await request.json().catch(() => ({}));
+  const customerId = String(body.customerId || '').trim();
+  if (!customerId) return json({ error: 'Which plant?' }, 400);
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+  try {
+    return json({ logins: await loginsFor(token, projectId, customerId) });
+  } catch (err) {
+    return json({ error: err.message || 'Could not list logins.' }, err.status || 400);
+  }
+}
+
+// POST /admin/reset-password  { uid, password? }
+//
+// With a password, it is set and the account can be used at once — for an
+// address that cannot receive mail. Without one, a reset link comes back to
+// send on, which is the better route whenever there is an inbox.
+//
+// Same rule as creation: never both. A link handed back beside a password just
+// set is a way to override it.
+export async function adminResetPassword(request, env, mintToken) {
+  const body = await request.json().catch(() => ({}));
+  const uid = String(body.uid || '').trim();
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!uid) return json({ error: 'Which account?' }, 400);
+  if (password && password.length < 6) {
+    return json({ error: 'A password must be at least 6 characters, or leave it blank to get a link.' }, 400);
+  }
+
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+  try {
+    // The email is read from the account rather than taken from the request:
+    // a reset link is sent to whatever address is passed, so accepting one
+    // would let a caller point another account's reset at their own inbox.
+    const look = await fetch(`${IDENTITY}/projects/${projectId}/accounts:lookup`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localId: [uid] }),
+    });
+    const found = await look.json().catch(() => ({}));
+    const email = found?.users?.[0]?.email;
+    if (!email) return json({ error: 'That account no longer exists.' }, 404);
+
+    if (password) {
+      await identityCall('/accounts:update', token, projectId, { localId: uid, password });
+      return json({ uid, email, passwordSet: true });
+    }
+    const oob = await identityCall('/accounts:sendOobCode', token, projectId, {
+      requestType: 'PASSWORD_RESET', email, returnOobLink: true,
+    });
+    return json({ uid, email, setPasswordLink: oob.oobLink || '' });
+  } catch (err) {
+    return json({ error: err.message || 'Could not reset that password.' }, err.status || 400);
+  }
+}
+
+export default { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword, ACCOUNT_SCOPE };
