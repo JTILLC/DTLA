@@ -1165,6 +1165,13 @@ const AppContent = () => {
   // The customer whose log list has actually arrived from the subscription.
   // Distinguishes "no logs" from "not loaded yet" for the Current Log decision.
   const [visitsLoadedFor, setVisitsLoadedFor] = useState(null);
+  // JTI's own service visits for this customer, from the `visits` collection.
+  // A plant may READ these (the rules already allow it) and never write them —
+  // that boundary is enforced by the database, not by this screen.
+  const [jtiVisits, setJtiVisits] = useState([]);
+  // The JTI visit being looked at, if any. Kept apart from currentVisitId so
+  // that nothing which writes can ever be pointed at one.
+  const [viewingJtiId, setViewingJtiId] = useState(null);
   const [serviceReportUrl, setServiceReportUrl] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
@@ -1185,11 +1192,15 @@ const AppContent = () => {
   useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
 
   // Backstop: never autosave a JTI service visit opened by a customer (view-only).
+  // Looking at one of JTI's visits is view-only for EVERYONE here, JTI included:
+  // this app writes dailyLogs, and a visit lives in another collection that the
+  // plant's rules refuse in writing. An editor that appeared to accept changes
+  // and then dropped them would be worse than one that says it is read-only.
   const readOnlyRef = useRef(false);
   useEffect(() => {
     const lv = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
-    readOnlyRef.current = !isAdmin && !!lv && !lv.shift;
-  }, [visits, currentVisitId, isAdmin]);
+    readOnlyRef.current = !!viewingJtiId || (!isAdmin && !!lv && !lv.shift);
+  }, [visits, currentVisitId, isAdmin, viewingJtiId]);
 
   // The crew roster, so a destructive action can be authorised by a named
   // person rather than by a secret the whole plant shares.
@@ -2293,10 +2304,13 @@ const AppContent = () => {
     const iso = (newLogDate === todayYMD())
       ? new Date().toISOString()
       : new Date(`${newLogDate}T12:00:00`).toISOString();
-    // "Last shift" = the most recent existing log for this customer.
-    const prior = newLogCarry
-      ? [...visits].filter(v => !v.deleted).sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-      : null;
+    // "Last shift" = the most recent existing log for this customer. A plant with
+    // no logs yet falls back to JTI's most recent service visit, so a site JTI has
+    // been servicing for years starts with its lines and heads already set up
+    // instead of a blank screen and an evening of typing.
+    const priorLog = [...visits].filter(v => !v.deleted)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    const prior = newLogCarry ? (priorLog || jtiVisits[0] || null) : null;
     setShowNewLogModal(false);
     setShowVisitsModal(false);
     await startNewVisit(iso, newLogShift, prior);
@@ -2571,6 +2585,7 @@ const AppContent = () => {
     const cid = currentCustomer?.id;
     if (!cid || !logDecision) return;
     if (autoOpenedForRef.current === cid) return;
+    if (viewingJtiId) return;                                      // looking at a JTI visit
     if (currentVisitId) { autoOpenedForRef.current = cid; return; } // something already open
     // A ?visitId= link owns the choice; don't race it.
     const urlHasDeepLink = typeof window !== 'undefined' &&
@@ -2578,7 +2593,7 @@ const AppContent = () => {
     if (urlHasDeepLink && !deepLinkProcessed) return;
     autoOpenedForRef.current = cid;
     if (logDecision.action === 'open') loadVisit(logDecision.log.id);
-  }, [logDecision, currentVisitId, currentCustomer?.id, deepLinkProcessed]);
+  }, [logDecision, currentVisitId, currentCustomer?.id, deepLinkProcessed, viewingJtiId]);
 
   // Persist last customer + visit so we can auto-resume next session
   useEffect(() => {
@@ -2626,6 +2641,59 @@ const AppContent = () => {
       });
     return () => unsub();
   }, [user, currentCustomer?.id]);
+
+  // JTI's service visits for this customer — read-only here.
+  //
+  // A plant set up for a site JTI has been servicing for years arrives with an
+  // empty app, while the history of what was found and fixed sits in `visits`
+  // where nobody at the plant ever looks. The rules already permit the read; the
+  // app simply never asked.
+  useEffect(() => {
+    if (!user || !currentCustomer?.id) { setJtiVisits([]); return; }
+    const cid = currentCustomer.id;
+    setJtiVisits([]);
+    const unsub = firebase.firestore()
+      .collection('user_files').doc(WORKSPACE_UID)
+      .collection('customers').doc(cid)
+      .collection('visits')
+      .orderBy('date', 'desc')
+      .onSnapshot(
+        (snap) => setJtiVisits(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((v) => !v.deleted)),
+        (err) => { console.warn('JTI visits unavailable:', err); setJtiVisits([]); },
+      );
+    return () => unsub();
+  }, [user, currentCustomer?.id]);
+
+  // Open one of JTI's visits to look at. currentVisitId is deliberately cleared:
+  // every write path in this app keys off it, so a visit on screen cannot be the
+  // target of an autosave, a rename or a delete.
+  const viewJtiVisit = async (visitId) => {
+    const v = jtiVisits.find((x) => x.id === visitId);
+    if (!v) return;
+    const loadedLines = (v.lines || []).map((line) => ({
+      ...line,
+      heads: (line.heads || []).map((h, i) => ({ ...h, id: h.id || i + 1 })),
+    }));
+    setCurrentVisitId(null);
+    savedSnapshotRef.current = null;   // nothing to autosave against
+    setCloudState('idle');
+    setViewingJtiId(visitId);
+    setGlobalData(v.globalData || {});
+    setLines(loadedLines);
+    setActiveLineId(loadedLines[0]?.id ?? null);
+    setCurrentVisitName(v.name || 'JTI service visit');
+    setServiceReportUrl(v.serviceReportUrl || null);
+    setShowDashboardView(false);
+    setActiveTab('current');
+  };
+
+  const closeJtiVisit = () => {
+    setViewingJtiId(null);
+    setLines([]);
+    setActiveLineId(null);
+    setCurrentVisitName('');
+    setServiceReportUrl(null);
+  };
 
   // Live ref so the subscription callback (below) always compares against the
   // current visit name without re-subscribing on every keystroke.
@@ -3239,7 +3307,10 @@ const AppContent = () => {
   // logins those are view-only so they can see what JTI did without altering it.
   const loadedVisitObj = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
   const isJtiVisit = !!loadedVisitObj && !loadedVisitObj.shift;
-  const readOnly = !isAdmin && isJtiVisit;
+  // Viewing one of JTI's own visits is read-only for everyone, including JTI:
+  // this app writes dailyLogs, and the visit lives elsewhere.
+  const viewedJtiVisit = viewingJtiId ? jtiVisits.find(v => v.id === viewingJtiId) : null;
+  const readOnly = !!viewingJtiId || (!isAdmin && isJtiVisit);
 
   // "What's down" summary for the loaded log: an offline head still needs
   // attention unless all its issues are marked Fixed (Fixed = running/working).
@@ -4003,9 +4074,19 @@ const AppContent = () => {
              aria-labelledby="ccw-tab-current" hidden={activeTab !== 'current'}>
           <div className="tab-content p-3">
             {readOnly && (
-              <div className="alert alert-info d-flex align-items-center gap-2 py-2" role="alert">
+              <div className="alert alert-info d-flex align-items-center gap-2 py-2 flex-wrap" role="alert">
                 <Eye size={16} />
-                <span><strong>JTI service visit — view only.</strong> This log was done by JTI. Contact JTI to make changes.</span>
+                <span>
+                  <strong>JTI service visit — view only.</strong>{' '}
+                  {viewedJtiVisit
+                    ? <>{viewedJtiVisit.name || 'Visit'}{viewedJtiVisit.date ? ` · ${new Date(viewedJtiVisit.date).toLocaleDateString()}` : ''}. Nothing here can be changed.</>
+                    : <>This log was done by JTI. Contact JTI to make changes.</>}
+                </span>
+                {viewingJtiId && (
+                  <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={closeJtiVisit}>
+                    Close
+                  </button>
+                )}
               </div>
             )}
 
@@ -4035,20 +4116,22 @@ const AppContent = () => {
             )}
             {/* No log open: say what exists and offer the two useful moves,
                 rather than presenting an empty Log Name box. */}
-            {currentCustomer && !currentVisitId && logDecision && (
+            {currentCustomer && !currentVisitId && !viewingJtiId && logDecision && (
               <OpenLogCard
                 decision={logDecision}
                 onOpen={(log) => loadVisit(log.id)}
                 onStart={() => setShowNewLogModal(true)}
+                priorVisits={jtiVisits}
+                onViewPrior={viewJtiVisit}
               />
             )}
 
             {/* The editor proper. Hidden until a log is open, so the card above is
                 the whole screen rather than a note stuck on top of a live-looking
                 form with nothing behind it. */}
-            {currentVisitId && (
+            {(currentVisitId || viewingJtiId) && (
             <div style={{ pointerEvents: readOnly ? 'none' : 'auto', opacity: readOnly ? 0.7 : 1 }}>
-            {currentCustomer && (
+            {currentCustomer && currentVisitId && (
               <div className="mb-3">
                 <label className="form-label d-flex align-items-center gap-2 flex-wrap">
                   <strong>Log Name:</strong>
@@ -4341,6 +4424,35 @@ const AppContent = () => {
                   onDelete={deleteVisit}
                   collapsed={false}
                 />
+
+                {/* JTI's own visits. Listed apart from the plant's logs because
+                    they are a different kind of record with different rules —
+                    read here, never written, and not something a shift can be
+                    filed against. */}
+                {jtiVisits.length > 0 && (
+                  <div className="border-top mt-2 pt-2">
+                    <div className="px-3 pb-1 small text-uppercase fw-bold text-secondary" style={{ letterSpacing: '.08em' }}>
+                      JTI service visits · view only
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {jtiVisits.map((v) => (
+                        <li key={v.id} className="list-group-item">
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 text-start text-decoration-none w-100"
+                            onClick={() => { viewJtiVisit(v.id); setShowVisitsModal(false); }}
+                          >
+                            <div className="fw-semibold">{v.name || 'Service visit'}</div>
+                            <div className="small text-secondary">
+                              {v.date ? new Date(v.date).toLocaleDateString() : 'no date'}
+                              {(v.lines || []).length ? ` · ${v.lines.length} line${v.lines.length === 1 ? '' : 's'}` : ''}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
