@@ -106,7 +106,7 @@ export default function PmLogPage({
   const lineCrew = useLineCrew(workspaceId, customerId);
   // Crewing says who was ON the line; this says who actually filed the entry.
   // An entry logged at 2am otherwise inherits whoever was crewed at 6am.
-  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const { person: actor, remember: rememberActor, touch: touchActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingSave, setPendingSave] = useState(null);
   // Identity says who is filing; this says whether they may file it here.
@@ -128,6 +128,9 @@ export default function PmLogPage({
   // filed something; it must never become a lock on recording work at all.
   const withActor = (run) => {
     const anyPin = crewPeople.some((p) => p.pinHash);
+    // Using the remembered name pushes the idle clock out, so a shift's
+    // continuous work never re-prompts while a tablet put down still lapses.
+    if (actor) touchActor();
     if (actor || !anyPin) return run(actor?.name || '');
     setPendingSave(() => run);
   };

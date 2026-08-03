@@ -38,7 +38,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // Who is at this device, proven once with a PIN. Taking a head offline is the
   // action most worth attributing: it stops product, and "who turned this off?"
   // is the first question asked the next morning.
-  const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
+  const { person: actor, remember: rememberActor, touch: touchActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);   // () => void
   // A line somebody is not assigned to is read-only until a supervisor says
@@ -61,6 +61,9 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // locked out of its own machines — the feature must not become a gate.
   const attributed = (run) => {
     const anyPin = crewPeople.some((p) => p.pinHash);
+    // Using the remembered name pushes the idle clock out, so a shift's
+    // continuous work never re-prompts while a tablet put down still lapses.
+    if (actor) touchActor();
     if (actor || !anyPin) return run(actor?.name || '');
     setPendingAction(() => run);
   };
