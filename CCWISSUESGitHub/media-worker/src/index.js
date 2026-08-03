@@ -295,9 +295,19 @@ async function verifyIdToken(jwt, projectIds) {
 
 // Mirrors storage.rules: admins go anywhere, a customer login only under its own
 // customer id.
+// Every media prefix laid out as workspace/customer/…, which is what makes the
+// customer id checkable from the path alone.
+//
+// pm-images and prestart-photos were missing here. Both are written by the apps
+// and served only through this broker, so a photo uploaded to either simply
+// never appeared — the fetch 403'd and the caller fell back to a legacy public
+// URL that broker-only uploads do not have. Silent, because a missing photo
+// looks like a photo nobody took.
+const MEDIA_PREFIXES = ['issue-photos', 'service-reports', 'pm-images', 'prestart-photos'];
+
 const pathAllowedForClaims = (path, claims) => {
   if (path.includes('..')) return false;
-  const m = path.match(/^(?:issue-photos|service-reports)\/[^/]+\/([^/]+)\//);
+  const m = path.match(new RegExp(`^(?:${MEDIA_PREFIXES.join('|')})/[^/]+/([^/]+)/`));
   if (!m) return false;
   if (claims.admin === true) return true;
   return !!claims.customerId && claims.customerId === m[1];

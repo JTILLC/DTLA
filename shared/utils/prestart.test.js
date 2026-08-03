@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered } from './prestart.js';
+import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, allPhotos, photoCount } from './prestart.js';
 
 const NOW = new Date(2026, 7, 3, 9, 0);            // Mon 3 Aug 2026, 09:00
 const at = (d, h = 6, m = 0) => new Date(2026, 7, d, h, m).toISOString();
@@ -109,5 +109,41 @@ describe('unanswered', () => {
   it('never blocks on an empty reading', () => {
     // A value box with nothing to put in it must not stop a shift.
     expect(unanswered(items, { a: 'ok', b: 'na' })).toEqual([]);
+  });
+});
+
+describe('photos on a submission', () => {
+  const items = [{ id: 'a', label: 'Dispersion table', type: 'check' }];
+
+  it('stores paths only — a resolved broker URL is short-lived', () => {
+    const out = buildSubmission({
+      items,
+      answers: { a: 'issue' },
+      photos: { a: [{ path: 'prestart/x.jpg', url: 'blob:expires' }] },
+    });
+    expect(out[0].photos).toEqual([{ path: 'prestart/x.jpg' }]);
+  });
+
+  it('is an empty list when nothing was attached', () => {
+    expect(buildSubmission({ items, answers: { a: 'ok' } })[0].photos).toEqual([]);
+  });
+
+  it('gathers every photo with the item it belongs to', () => {
+    const entry = { items: [
+      { label: 'Table', photos: [{ path: 'a.jpg' }, { path: 'b.jpg' }] },
+      { label: 'Chutes', photos: [] },
+      { label: 'Troughs', photos: [{ path: 'c.jpg' }] },
+    ] };
+    expect(allPhotos(entry)).toEqual([
+      { path: 'a.jpg', label: 'Table' },
+      { path: 'b.jpg', label: 'Table' },
+      { path: 'c.jpg', label: 'Troughs' },
+    ]);
+    expect(photoCount(entry)).toBe(3);
+  });
+
+  it('counts nothing for an entry with no photos', () => {
+    expect(photoCount({ items: [{ label: 'x' }] })).toBe(0);
+    expect(photoCount(null)).toBe(0);
   });
 });

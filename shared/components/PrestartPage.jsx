@@ -20,14 +20,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ClipboardCheck, Check, AlertTriangle, MinusCircle, ChevronLeft, Settings,
-  Plus, X, CircleCheck, CircleAlert,
+  Plus, X, CircleCheck, CircleAlert, Camera,
 } from 'lucide-react';
 import {
   subscribeLog, addLogEntry, subscribeCrew,
   subscribePrestartTemplate, savePrestartTemplate, LOG_PRESTART,
 } from '../services/logs.js';
 import { PRESTART_PRESET, presetItems } from '../config/prestartPreset.js';
-import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered } from '../utils/prestart.js';
+import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, photoCount, allPhotos } from '../utils/prestart.js';
+import PhotoStrip from './PhotoStrip.jsx';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
@@ -78,6 +79,8 @@ export default function PrestartPage({
   const [lineTitle, setLineTitle] = useState('');
   const [answers, setAnswers] = useState({});     // itemId -> 'ok'|'issue'|'na'|text
   const [notes, setNotes] = useState({});         // itemId -> string
+  const [photos, setPhotos] = useState({});       // itemId -> [{ path }]
+  const [shiftNotes, setShiftNotes] = useState(''); // one note for the whole check
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState([]);
 
@@ -135,6 +138,8 @@ export default function PrestartPage({
     setLineTitle(title);
     setAnswers({});
     setNotes({});
+    setPhotos({});
+    setShiftNotes('');
     setMode('fill');
   };
 
@@ -161,7 +166,7 @@ export default function PrestartPage({
         `${missing.length} item${missing.length === 1 ? '' : 's'} still to answer.`,
       );
     }
-    const built = buildSubmission({ items, answers, notes });
+    const built = buildSubmission({ items, answers, notes, photos });
     setSaving(true);
     try {
       await addLogEntry(workspaceId, customerId, LOG_PRESTART, {
@@ -172,6 +177,7 @@ export default function PrestartPage({
         actionByVerified: !!filedBy,
         ...overrideStamp(override, lineTitle),
         role,
+        notes: shiftNotes.trim(),
         items: built,
         issueCount: built.filter((i) => i.result === 'issue').length,
         okCount: built.filter((i) => i.result === 'ok').length,
@@ -179,6 +185,8 @@ export default function PrestartPage({
       setMode('home');
       setAnswers({});
       setNotes({});
+      setPhotos({});
+      setShiftNotes('');
       const bad = built.filter((i) => i.result === 'issue').length;
       toast.success(bad
         ? `Recorded — ${bad} problem${bad === 1 ? '' : 's'} flagged for maintenance.`
@@ -318,9 +326,37 @@ export default function PrestartPage({
                     placeholder="What is wrong? (maintenance will read this)"
                   />
                 )}
+
+                {/* A photo on any item, but only offered up front on a problem —
+                    a description of a rocking table is worth far less than a
+                    picture of it, and asking for one on all seven items every
+                    morning is how the whole check stops being done. */}
+                {(a === 'issue' || (photos[it.id] || []).length > 0) && (
+                  <PhotoStrip
+                    photos={photos[it.id] || []}
+                    onChange={(next) => setPhotos((x) => ({ ...x, [it.id]: next }))}
+                    pathPrefix={`prestart-photos/${workspaceId}/${customerId}`}
+                    label="Photo"
+                    max={3}
+                  />
+                )}
               </div>
             );
           })}
+        </div>
+
+        <div className="mt-3">
+          <label className="form-label" htmlFor="prestart-notes">
+            Anything else? <span className="text-secondary fw-normal">(optional)</span>
+          </label>
+          <textarea
+            id="prestart-notes"
+            className="form-control"
+            rows={2}
+            value={shiftNotes}
+            onChange={(e) => setShiftNotes(e.target.value)}
+            placeholder="Anything worth passing on that isn't one of the items above"
+          />
         </div>
 
         <button type="button" className="btn btn-primary w-100 mt-3" onClick={submit} disabled={saving}>
@@ -500,9 +536,23 @@ export default function PrestartPage({
                   {new Date(e.performedAt).toLocaleDateString()} {timeOf(e.performedAt)}
                   {e.actionBy ? ` · ${e.actionBy}` : ''}
                 </span>
+                {photoCount(e) > 0 && (
+                  <span className="badge bg-secondary"><Camera size={11} /> {photoCount(e)}</span>
+                )}
                 {issueCount(e) > 0
                   ? <span className="badge bg-danger ms-auto">{issueCount(e)} problem{issueCount(e) === 1 ? '' : 's'}</span>
                   : <span className="badge bg-success ms-auto">clear</span>}
+                {/* What was actually wrong, and the note left with it — the
+                    reason anyone opens this list at all. */}
+                {(issueCount(e) > 0 || e.notes) && (
+                  <div className="w-100 small text-secondary ps-1">
+                    {(e.items || []).filter((i) => i.result === 'issue').map((i, n) => (
+                      <div key={n}>• {i.label}{i.note ? ` — ${i.note}` : ''}</div>
+                    ))}
+                    {e.notes && <div className="fst-italic">“{e.notes}”</div>}
+                    <PhotoStrip photos={allPhotos(e)} onChange={() => {}} readOnly size={44} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>

@@ -9,35 +9,11 @@
 // a public exception for them would undo the point of the broker. The upload
 // therefore strips the auto-created download token, exactly as issue photos do.
 import { useEffect, useRef, useState } from 'react';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/storage';
 import { Camera, X } from 'lucide-react';
+import { uploadPhoto, deletePhoto } from '../utils/photoUpload.js';
 import { fetchAuthedMedia, usingBroker } from '../config/media.js';
 import { useToast } from './Toast.jsx';
 
-const MAX_DIM = 1400;
-const JPEG_QUALITY = 0.8;
-
-// Same normalise-and-shrink as issue photos: iOS shoots HEIC, which only Safari
-// decodes, so anything that won't decode is rejected rather than stored as bytes
-// nothing can render.
-const compressImage = (file) =>
-  new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) return resolve(null);
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((b) => resolve(b || null), 'image/jpeg', JPEG_QUALITY);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-    img.src = url;
-  });
 
 export default function ReferenceImage({ image, onChange, pathPrefix, readOnly = false, size = 56 }) {
   const toast = useToast();
@@ -74,21 +50,7 @@ export default function ReferenceImage({ image, onChange, pathPrefix, readOnly =
     if (!file) return;
     setBusy(true);
     try {
-      const blob = await compressImage(file);
-      if (!blob) {
-        toast.error(`Couldn't read "${file.name}". If it's a HEIC photo, save it as JPEG first.`);
-        return;
-      }
-      const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
-      const ref = firebase.storage().ref().child(path);
-      await ref.put(blob, { contentType: 'image/jpeg' });
-      // Strip the public download token so the object is broker-only.
-      try {
-        await ref.updateMetadata({ customMetadata: { firebaseStorageDownloadTokens: '' } });
-      } catch (metaErr) {
-        console.warn('Could not revoke public token:', metaErr?.message || metaErr);
-      }
-      onChange({ path });
+      onChange(await uploadPhoto(pathPrefix, file));
       toast.success('Reference image added');
     } catch (err) {
       console.error('Reference image upload failed:', err);
@@ -101,13 +63,7 @@ export default function ReferenceImage({ image, onChange, pathPrefix, readOnly =
   const clear = async () => {
     const path = image?.path;
     onChange(null);
-    if (path) {
-      try {
-        await firebase.storage().ref().child(path).delete();
-      } catch (err) {
-        console.warn('Could not delete reference image:', err?.message || err);
-      }
-    }
+    await deletePhoto(path);
   };
 
   if (!image?.path && readOnly) return null;
