@@ -14,6 +14,8 @@ import { useDialog } from './DialogSystem.jsx';
 import { buildHeadIssueHistory, migrateHeadData as migrateHeadDataShared } from '../utils/headHelpers.js';
 import { mayEditLine, resolvePerson, refusalMessage } from '../utils/lineAccess.js';
 import LineLockPrompt from './LineLockPrompt.jsx';
+import CrewChip from './CrewChip.jsx';
+import { useLineCrew } from '../utils/useLineCrew.js';
 
 const issueTypes = [
   'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
@@ -43,6 +45,9 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // forever: the point is that a supervisor was present, and that is a fact
   // about now.
   const [unlocked, setUnlocked] = useState(false);
+  // Who the Crew page has on this line. Subscribed rather than passed in, so a
+  // change made on the Crew tab shows here without reopening the visit.
+  const lineCrew = useLineCrew(userId, customerId);
   const [lockChallenge, setLockChallenge] = useState(null);
 
   useEffect(() => {
@@ -473,6 +478,11 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           </div>
         </div>
       )}
+      {/* Who is on this line, as set on the Crew page. Silent when nobody is
+          crewed: the prompt to set it belongs on the forms that are about to
+          record a name, not on every line of every visit. */}
+      <CrewChip lineCrew={lineCrew} lineTitle={localLine.title} lead="Crewed:" quiet />
+
       <div className="machine-running">
         <label>
           <input type="checkbox" name="running" checked={localLine.running} onChange={handleCheckbox} /> Line Running?
