@@ -61,7 +61,7 @@ import CrewPage from '@shared/components/CrewPage.jsx';
 import ActivityPage from '@shared/components/ActivityPage.jsx';
 import { useLineCrew, crewAge } from '@shared/utils/useLineCrew.js';
 import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
-import { usingBroker, fetchAuthedDataUrl } from '@shared/config/media.js';
+import { usingBroker, fetchAuthedDataUrl, MEDIA_BROKER_BASE } from '@shared/config/media.js';
 import { lineStatusKey } from '@shared/utils/headHelpers.js';
 import photoQueue from '@shared/utils/photoQueue.js';
 
@@ -1126,6 +1126,10 @@ const AppContent = () => {
   // scoped to it. Writes app_roles/{uid} = { customerId } (or { admin:true }).
   const [showLinkLogin, setShowLinkLogin] = useState(false);
   const [linkUid, setLinkUid] = useState('');
+  // Creating a login outright, rather than linking one made by hand elsewhere.
+  const [newEmail, setNewEmail] = useState('');
+  const [createBusy, setCreateBusy] = useState(false);
+  const [created, setCreated] = useState(null);   // { email, setPasswordLink }
   const [linkTarget, setLinkTarget] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
   const [currentVisitName, setCurrentVisitName] = useState('');
@@ -2777,6 +2781,43 @@ const AppContent = () => {
     }
   };
 
+  // Admin-only: create the login AND record what it may reach, in one step.
+  //
+  // The work happens in the media Worker: creating an auth account needs
+  // privileges no browser should hold, and the Worker already has the service
+  // account and already proves the caller is a JTI admin.
+  //
+  // No password is set or sent from here. The account is created without one
+  // and the customer chooses their own through the returned link, so nothing
+  // secret passes through this app.
+  const createLoginForPlant = async () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!email.includes('@')) { toast.error('Enter the email address for the new login'); return; }
+    if (!linkTarget || linkTarget === '__admin__') {
+      toast.error('Choose which plant this login is for');
+      return;
+    }
+    setCreateBusy(true);
+    try {
+      const token = await firebase.auth().currentUser.getIdToken();
+      const res = await fetch(`${MEDIA_BROKER_BASE}/admin/create-login`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, customerId: linkTarget }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Server said ${res.status}`);
+      setCreated({ email, setPasswordLink: data.setPasswordLink || '' });
+      setNewEmail('');
+      toast.success('Account created');
+    } catch (err) {
+      console.error('Create login failed:', err);
+      toast.error(err.message || 'Could not create the account');
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
   // Admin-only: point a Firebase Auth account at a plant (or make it an admin).
   // The account must already exist in Firebase Auth — this just writes its role.
   const linkLoginToCustomer = async () => {
@@ -3651,15 +3692,98 @@ const AppContent = () => {
       {showLinkLogin && isAdmin && (
         <div className="p-3 bg-light border-bottom">
           <div className="d-flex justify-content-between align-items-start mb-2">
-            <h6 className="mb-0 d-flex align-items-center gap-2"><Lock className="w-4 h-4" /> Link a login to a plant</h6>
-            <button onClick={() => setShowLinkLogin(false)} className="btn btn-sm btn-outline-secondary">Close</button>
+            <h6 className="mb-0 d-flex align-items-center gap-2"><Lock className="w-4 h-4" /> Plant logins</h6>
+            <button onClick={() => { setShowLinkLogin(false); setCreated(null); }} className="btn btn-sm btn-outline-secondary">Close</button>
           </div>
+
+          {/* Create outright. The old flow — make the account in the Firebase
+              console, copy a forty-character UID, paste it here — is kept below
+              for an account that already exists, but it should no longer be the
+              way a new plant gets set up. */}
+          <div className="border rounded p-2 mb-3">
+            <div className="fw-semibold small mb-1">Create a new login</div>
+            <p className="text-muted small mb-2">
+              Makes the account and gives it access to one plant, in one step. No password is
+              set here — you get a link to send them, and they choose their own.
+            </p>
+            <div className="row g-2 align-items-end">
+              <div className="col-md-5">
+                <label className="form-label small mb-1" htmlFor="new-login-email">Their email</label>
+                <input
+                  id="new-login-email"
+                  type="email"
+                  placeholder="ops@flagstonefoods.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="form-control form-control-sm"
+                />
+              </div>
+              <div className="col-md-4">
+                <label className="form-label small mb-1" htmlFor="new-login-plant">Plant</label>
+                <select
+                  id="new-login-plant"
+                  value={linkTarget}
+                  onChange={(e) => setLinkTarget(e.target.value)}
+                  className="form-select form-select-sm"
+                >
+                  <option value="">-- Select plant --</option>
+                  {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="col-md-3">
+                <button
+                  type="button"
+                  onClick={createLoginForPlant}
+                  disabled={createBusy}
+                  className="btn btn-primary btn-sm w-100"
+                >
+                  {createBusy ? 'Creating…' : 'Create account'}
+                </button>
+              </div>
+            </div>
+
+            {created && (
+              <div className="alert alert-success mt-2 mb-0 py-2">
+                <div className="fw-semibold small">Account created for {created.email}</div>
+                {created.setPasswordLink ? (
+                  <>
+                    <div className="small mb-1">
+                      Send them this link to set their password. It is single-use and expires —
+                      if it lapses, they can use “Forgot password” on the sign-in screen.
+                    </div>
+                    <div className="d-flex gap-2 align-items-center">
+                      <input
+                        readOnly
+                        value={created.setPasswordLink}
+                        className="form-control form-control-sm font-monospace"
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(created.setPasswordLink);
+                          toast.success('Link copied');
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="small">
+                    Ask them to use “Forgot password” on the sign-in screen to set one.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="fw-semibold small mb-1">Link an account that already exists</div>
           <p className="text-muted small mb-2">
-            Create the account in Firebase Authentication first, then paste its <strong>User UID</strong> here and choose the plant.
-            That person can then sign in and will only see that plant. Repeat with more UIDs to give a plant several supervisor logins.
-            <br />
-            Quickest way to get the UID: have them sign in once. They'll be told the account isn't set up yet, and that screen shows
-            their Account ID with a Copy button — no need to go digging in the Firebase console.
+            For an account made elsewhere, or to grant JTI admin. Paste its <strong>User UID</strong> and choose the plant.
+            Quickest way to get the UID: have them sign in once — they'll be told the account isn't set up yet,
+            and that screen shows their Account ID with a Copy button.
           </p>
           <div className="row g-2 align-items-end">
             <div className="col-md-5">
