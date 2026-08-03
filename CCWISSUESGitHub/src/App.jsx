@@ -3717,7 +3717,12 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-pm" role="tabpanel"
              aria-labelledby="ccw-tab-pm" hidden={activeTab !== 'pm'}>
           <div className="tab-content p-3">
-            {/* Setup + read only here: the plant fills these in, not JTI. */}
+            {/* JTI both defines the checklist and can file a check — a tech
+                doing the PM during a service call needs to record it. The log
+                already distinguishes the two: a submission carries the
+                submitter's role, and the history renders "(JTI)" or "(plant)"
+                against every entry, so who performed a check is never in
+                doubt. */}
             <PmLogPage
               customers={customers}
               workspaceId={user?.uid}
@@ -3727,7 +3732,7 @@ const AppContent = () => {
               performedByName={user?.email || 'JTI'}
               role="jti"
               canEditTemplate
-              canSubmit={false}
+              canSubmit
             />
           </div>
         </div>
