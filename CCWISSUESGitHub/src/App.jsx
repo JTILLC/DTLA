@@ -1104,8 +1104,12 @@ const AppContent = () => {
   // any customer). Kept separate from `visits` (the current customer's live list)
   // so the cross-customer load can't clobber the toolbar count / visits picker.
   const [allVisits, setAllVisits] = useState([]);
-  // The plant's own shift logs for the selected customer — history only.
+  // The plant's own shift logs for the selected customer.
   const [plantLogs, setPlantLogs] = useState([]);
+  // The plant log being looked at, if any. Kept apart from currentVisitId
+  // because every write in this app keys off that — so a plant's log on screen
+  // can never be the target of an autosave, a rename or a delete.
+  const [viewingPlantLogId, setViewingPlantLogId] = useState(null);
 
   // Issue History reads both sides of the record: JTI's service visits and the
   // plant's own shift logs. `allVisits` still supplies other customers once JTI
@@ -1505,6 +1509,39 @@ const AppContent = () => {
       setDeepLinkProcessed(true);
     }
   }, [user, searchParams, deepLinkProcessed]);
+
+  // Open one of the plant's daily logs to look at.
+  //
+  // Read-only, and structurally so: this app writes `visits`, a daily log lives
+  // in `dailyLogs`, and it belongs to the plant. An editor that appeared to take
+  // changes and then dropped them would be worse than one that says plainly it
+  // cannot.
+  const viewPlantLog = (logId) => {
+    const v = plantLogs.find((x) => x.id === logId);
+    if (!v) return;
+    const loadedLines = (v.lines || []).map((line) => ({
+      ...line,
+      heads: (line.heads || []).map((h, i) => ({ ...h, id: h.id || i + 1 })),
+    }));
+    setCurrentVisitId(null);
+    savedSnapshotRef.current = null;
+    setCloudState('idle');
+    setViewingPlantLogId(logId);
+    setGlobalData(v.globalData || {});
+    setLines(loadedLines);
+    setActiveLineId(loadedLines[0]?.id ?? null);
+    setCurrentVisitName(v.name || 'Plant daily log');
+    setServiceReportUrl(null);
+    setShowDashboardView(false);
+    setActiveTab('current');
+  };
+
+  const closePlantLog = () => {
+    setViewingPlantLogId(null);
+    setLines([]);
+    setActiveLineId(null);
+    setCurrentVisitName('');
+  };
 
   const loadVisit = async (visitId) => {
     if (!user || !currentCustomer) return toast.error('Select a customer first');
@@ -1941,6 +1978,13 @@ const AppContent = () => {
 
   const saveToCloud = async (override = false) => {
     if (!user || !currentCustomer) return toast.error('Select a customer first');
+    // A plant's daily log is open for reading. Saving would mint a JTI visit
+    // containing THEIR shift's lines — a record that looks like a service call
+    // that never happened. Guarded here as well as on the button, because a
+    // disabled button is a courtesy and this is a correctness rule.
+    if (viewingPlantLogId) {
+      return toast.error("That's the plant's log — close it before saving a visit.");
+    }
 
     // Different confirmation messages for new vs override
     if (override) {
@@ -3205,7 +3249,7 @@ const AppContent = () => {
               onClick={() => saveToCloud(false)}
               className="btn btn-primary btn-sm"
               title="Save this as a new visit (then it autosaves)"
-              disabled={!currentCustomer || lines.length === 0}
+              disabled={!currentCustomer || lines.length === 0 || !!viewingPlantLogId}
             >
               <Save className="w-4 h-4" /> <span className="btn-label">Save Visit</span>
             </button>
@@ -3816,7 +3860,25 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-current" role="tabpanel"
              aria-labelledby="ccw-tab-current" hidden={activeTab !== 'current'}>
           <div className="tab-content p-3">
-            {currentCustomer && (
+            {/* One of the plant's own logs, open for reading. */}
+            {viewingPlantLogId && (
+              <div className="alert alert-info d-flex align-items-center gap-2 py-2 flex-wrap" role="alert">
+                <Eye size={16} />
+                <span>
+                  <strong>Plant daily log — view only.</strong>{' '}
+                  {(() => {
+                    const v = plantLogs.find((x) => x.id === viewingPlantLogId);
+                    return v ? `${v.name || 'Log'}${v.date ? ` · ${new Date(v.date).toLocaleDateString()}` : ''}` : '';
+                  })()}
+                  . This is the plant&apos;s record — yours are the visits.
+                </span>
+                <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={closePlantLog}>
+                  Close
+                </button>
+              </div>
+            )}
+
+            {currentCustomer && !viewingPlantLogId && (
               <div className="mb-3">
                 <label className="form-label"><strong>Visit Name:</strong></label>
                 <input
@@ -3829,6 +3891,7 @@ const AppContent = () => {
               </div>
             )}
 
+            <div style={viewingPlantLogId ? { pointerEvents: 'none', opacity: 0.75 } : undefined}>
             <GlobalForm
               key={`gf-${lines.length}-${JSON.stringify(globalData)}`}
               globalData={globalData}
@@ -3851,6 +3914,7 @@ const AppContent = () => {
                 }
               }}
             />
+            </div>
 
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
@@ -3894,10 +3958,13 @@ const AppContent = () => {
               )}
             </div>
 
+            {/* While reading a plant's log the line list is non-interactive.
+                Writes are already blocked at source by currentVisitId being
+                null; this stops the screen inviting edits that go nowhere. */}
             {showDashboardView ? (
               <Dashboard key={`dash-${lines.length}`} lines={lines} setShowDashboardView={setShowDashboardView} />
             ) : (
-              <div>
+              <div style={viewingPlantLogId ? { pointerEvents: 'none', opacity: 0.75 } : undefined}>
                 {lines.map(line => (
                   <Line
                     key={line.id}
@@ -4106,6 +4173,35 @@ const AppContent = () => {
                   onDelete={deleteVisit}
                   collapsed={false}
                 />
+
+                {/* The plant's own shift logs. Listed apart because they are a
+                    different record with different rules — read here, never
+                    written, and never something a service visit is filed on. */}
+                {plantLogs.length > 0 && (
+                  <div className="border-top mt-2 pt-2">
+                    <div className="px-3 pb-1 small text-uppercase fw-bold text-secondary" style={{ letterSpacing: '.08em' }}>
+                      Plant daily logs · view only
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {plantLogs.slice(0, 30).map((v) => (
+                        <li key={v.id} className="list-group-item">
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 text-start text-decoration-none w-100"
+                            onClick={() => { viewPlantLog(v.id); setShowVisitsModal(false); }}
+                          >
+                            <div className="fw-semibold">{v.name || 'Daily log'}</div>
+                            <div className="small text-secondary">
+                              {v.date ? new Date(v.date).toLocaleDateString() : 'no date'}
+                              {v.shift ? ` · ${v.shift}` : ''}
+                              {(v.lines || []).length ? ` · ${v.lines.length} line${v.lines.length === 1 ? '' : 's'}` : ''}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
