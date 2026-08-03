@@ -14,20 +14,25 @@
 import { useEffect, useState } from 'react';
 import { Link2, Save } from 'lucide-react';
 import { fetchPartsCatalog } from '../config/parts.js';
-import { savePartsBindings } from '../services/logs.js';
+import { savePartsBindings, saveBoardParts } from '../services/logs.js';
 import { useToast } from './Toast.jsx';
+import BoardPartsByMachine from './BoardPartsByMachine.jsx';
 
 export default function PartsManualBinding({
   workspaceId,
   customerId,
   lines = [],           // [{ title, model, serialNumber }]
   bindings = {},
+  boardTypes = [],      // names, for the per-machine board part numbers
+  boardParts,           // { byMachine }
+  confirm,
   onClose,
 }) {
   const toast = useToast();
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState(bindings);
+  const [partsDraft, setPartsDraft] = useState(boardParts || { byMachine: {} });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -66,6 +71,11 @@ export default function PartsManualBinding({
         Object.entries(draft).filter(([, b]) => b?.partsCustomer && b?.folder)
       );
       await savePartsBindings(workspaceId, customerId, cleaned);
+      // Board parts are keyed by machine, so unlinking a line here can orphan a
+      // mapping. Orphans are kept rather than pruned: relinking the same machine
+      // later should find its board numbers still there, and a stale key costs
+      // nothing but a few bytes.
+      await saveBoardParts(workspaceId, customerId, partsDraft);
       toast.success('Parts manuals linked');
       onClose?.();
     } catch (err) {
@@ -141,7 +151,17 @@ export default function PartsManualBinding({
         })}
 
         {catalog && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={commit} disabled={saving}>
+          <BoardPartsByMachine
+            bindings={draft}
+            boardTypes={boardTypes}
+            boardParts={partsDraft}
+            onChange={setPartsDraft}
+            confirm={confirm}
+          />
+        )}
+
+        {catalog && (
+          <button type="button" className="btn btn-primary btn-sm mt-3" onClick={commit} disabled={saving}>
             <Save size={14} /> {saving ? 'Saving…' : 'Save links'}
           </button>
         )}
