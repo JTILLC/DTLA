@@ -13,7 +13,17 @@
 import { AlertTriangle, Users } from 'lucide-react';
 import { crewAge } from '../utils/useLineCrew.js';
 
-export default function CrewChip({ lineCrew, lineTitle }) {
+export default function CrewChip({
+  lineCrew,
+  lineTitle,
+  // What the names are introduced as. On a log form they are who the entry will
+  // be recorded against; on a line header they are simply who is on it.
+  lead = 'Logging against',
+  // A line header shows crewing as information. Where nothing is set there is
+  // nothing to say, and the warning belongs on the forms that are about to
+  // record a name — not on every line of every visit.
+  quiet = false,
+}) {
   if (!lineTitle) return null;
   const crew = lineCrew.forLine(lineTitle);
   const age = crewAge(lineCrew.updatedAt);
@@ -24,6 +34,7 @@ export default function CrewChip({ lineCrew, lineTitle }) {
   ].filter(Boolean);
 
   if (named.length === 0) {
+    if (quiet) return null;
     return (
       <div className="small text-warning-emphasis d-flex align-items-start gap-1">
         <AlertTriangle size={14} className="flex-shrink-0 mt-1" />
@@ -36,7 +47,7 @@ export default function CrewChip({ lineCrew, lineTitle }) {
     <div className="small text-muted d-flex align-items-start gap-1">
       <Users size={14} className="flex-shrink-0 mt-1" />
       <span>
-        Logging against {named.join(' · ')}
+        {lead} {named.join(' · ')}
         {age.stale && (
           <span className="text-warning-emphasis"> — crewing {age.label}, check it&apos;s current</span>
         )}
