@@ -39,6 +39,7 @@ import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 import { isSiteLead } from '../utils/roles.js';
 import './pm-item.css';
+import ActingAs from './ActingAs.jsx';
 
 const RESULTS = [
   { key: 'ok', label: 'OK', cls: 'btn-success' },
@@ -611,6 +612,7 @@ export default function PmLogPage({
               </div>
             </div>
             <CrewChip lineCrew={lineCrew} lineTitle={lineTitle} />
+            <ActingAs customerId={customerId} what="PM checks" />
             <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
               {saving ? 'Submitting…' : 'Submit PM check'}
             </button>

@@ -16,6 +16,7 @@ import { mayEditLine, resolvePerson, refusalMessage } from '../utils/lineAccess.
 import LineLockPrompt from './LineLockPrompt.jsx';
 import CrewChip from './CrewChip.jsx';
 import { useLineCrew } from '../utils/useLineCrew.js';
+import ActingAs from './ActingAs.jsx';
 
 const issueTypes = [
   'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
@@ -482,6 +483,11 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           crewed: the prompt to set it belongs on the forms that are about to
           record a name, not on every line of every visit. */}
       <CrewChip lineCrew={lineCrew} lineTitle={localLine.title} lead="Crewed:" quiet />
+
+      {/* Who head changes are being attributed to, and a way out of it. The PIN
+          is remembered for ten hours so nobody re-enters it per head; without
+          saying so, that reads as the app deciding on its own who did the work. */}
+      <ActingAs customerId={customerId} what="Head changes" />
 
       <div className="machine-running">
         <label>

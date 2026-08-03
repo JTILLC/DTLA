@@ -33,6 +33,7 @@ import { overrideStamp } from '../utils/lineAccess.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
+import ActingAs from './ActingAs.jsx';
 
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 const LAST_LINE_KEY = 'ccw-span-last-line';
@@ -495,6 +496,7 @@ export default function SpanAdjustPage({
             )}
           </div>
           <CrewChip lineCrew={lineCrew} lineTitle={selected} />
+            <ActingAs customerId={customerId} what="Span adjustments" />
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : `Log span adjustment for ${selected}`}
           </button>
