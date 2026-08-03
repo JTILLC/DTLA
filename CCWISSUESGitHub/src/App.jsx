@@ -67,6 +67,9 @@ import AppNav from '@shared/components/AppNav.jsx';
 import OverviewPage from '@shared/components/OverviewPage.jsx';
 import { sinceLabel } from '@shared/services/logs.js';
 import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
+import PinPrompt from '@shared/components/PinPrompt.jsx';
+import { useVerifiedPerson } from '@shared/utils/useVerifiedPerson.js';
+import { subscribeCrew } from '@shared/services/logs.js';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -1140,9 +1143,94 @@ const AppContent = () => {
   const fileInputRef = useRef(null);
 
   // Handler for adding a new line via dialog
-  const handleAddLine = (lineName, headCount) => {
-    createLine(lineName, headCount, setLines, setActiveLineId, lines);
+  // Lines created during this session. A line you just made is one you are
+  // plainly responsible for, whatever the roster says, so the line lock does
+  // not apply to it — locking someone out of a line they just created reads as
+  // the app being broken, and it is not what the lock is for.
+  // Crew for PIN attribution on line changes. Kept in a ref as well so the
+  // helper below can read it without becoming a dependency of every caller.
+  const [crewPeople, setCrewPeople] = useState([]);
+  const crewPeopleRef = useRef([]);
+  useEffect(() => { crewPeopleRef.current = crewPeople; }, [crewPeople]);
+  useEffect(() => {
+    if (!session?.uid || !currentCustomer?.id) return undefined;
+    return subscribeCrew(session.uid, currentCustomer.id, setCrewPeople);
+  }, [session?.uid, currentCustomer?.id]);
+  const { person: verifiedPerson, remember: rememberLinePerson } = useVerifiedPerson(currentCustomer?.id);
+
+  const createdThisSession = useRef(new Set());
+
+  // Lines removed from the CURRENT visit, restorable for 30 days.
+  const [showDeletedLines, setShowDeletedLines] = useState(false);
+  const [deletedLines, setDeletedLines] = useState([]);
+
+  const LINE_BIN_DAYS = 30;
+  const lineBinRef = () => {
+    const custId = currentCustomerRef.current?.id;
+    const visitId = currentVisitIdRef.current;
+    if (!session?.uid || !custId || !visitId) return null;
+    return firebase.firestore()
+      .collection('user_files').doc(session.uid)
+      .collection('customers').doc(custId)
+      .collection('visits').doc(visitId)
+      .collection('deletedLines');
   };
+
+  const loadDeletedLines = async () => {
+    const ref = lineBinRef();
+    if (!ref) { setDeletedLines([]); return; }
+    try {
+      const snap = await ref.get();
+      const cutoff = Date.now() - LINE_BIN_DAYS * 86400000;
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Anything past its 30 days is swept on the way past, so the bin cannot
+      // grow without bound and nothing lingers longer than promised.
+      rows.filter((r) => new Date(r.deletedAt).getTime() < cutoff)
+        .forEach((r) => ref.doc(r.id).delete().catch(() => {}));
+      setDeletedLines(
+        rows.filter((r) => new Date(r.deletedAt).getTime() >= cutoff)
+          .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
+      );
+    } catch (e) {
+      console.error('Could not read deleted lines:', e);
+      setDeletedLines([]);
+    }
+  };
+
+  const restoreDeletedLine = async (row) => {
+    const ref = lineBinRef();
+    if (!ref) return;
+    // A restored line keeps its own id, so a visit that still holds it is not
+    // given a duplicate.
+    setLines((prev) => (prev.some((l) => l.id === row.line?.id) ? prev : [...prev, row.line]));
+    setActiveLineId(row.line?.id ?? null);
+    try { await ref.doc(row.id).delete(); } catch { /* the line is back either way */ }
+    await loadDeletedLines();
+    toast.success(`"${row.title || 'Line'}" restored`);
+  };
+
+  // Adding or removing a line is recorded against a person, not against the
+  // shared plant login. This is attribution, NOT the line lock: any crew member
+  // with a PIN can do it, and a plant that has set no PINs is never asked.
+  const [linePinFor, setLinePinFor] = useState(null);     // () => void
+  const attributedLineChange = (run) => {
+    const anyPin = crewPeopleRef.current.some((p) => p.pinHash);
+    if (!anyPin) return run('');
+    if (verifiedPerson) return run(verifiedPerson.name);
+    setLinePinFor(() => run);
+  };
+
+  const handleAddLine = (lineName, headCount) => attributedLineChange((who) => {
+    createLine(lineName, headCount, (updater) => {
+      setLines((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        // Whatever is in `next` but not in `prev` was just created here.
+        const before = new Set(prev.map((l) => l.id));
+        next.forEach((l) => { if (!before.has(l.id)) createdThisSession.current.add(l.id); });
+        return next.map((l) => (before.has(l.id) ? l : { ...l, addedBy: who || '', addedAt: new Date().toISOString() }));
+      });
+    }, setActiveLineId, lines);
+  });
 
   // Stable callbacks for <Line> so React.memo can skip untouched lines.
   // linesRef lets handlers read the latest lines without re-creating on every state change.
@@ -1168,19 +1256,51 @@ const AppContent = () => {
   }, []);
 
   const handleRemoveLine = useCallback(async (id) => {
-    const lineTitle = linesRef.current.find(l => l.id === id)?.title;
+    const snapshot = linesRef.current.find(l => l.id === id);
+    const lineTitle = snapshot?.title;
     const confirmed = await dialog.confirm(
-      `Are you sure you want to remove "${lineTitle || 'this line'}"?`,
+      `Remove "${lineTitle || 'this line'}"? It can be restored for 30 days from `
+      + `the gear menu → Deleted lines.`,
       { title: 'Remove Line', variant: 'danger', confirmText: 'Remove' }
     );
     if (!confirmed) return;
-    setLines(prev => prev.filter(l => l.id !== id));
-    setActiveLineId(prev => {
-      if (prev !== id) return prev;
-      const remaining = linesRef.current.filter(l => l.id !== id);
-      return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+
+    attributedLineChange(async (who) => {
+      // Kept before it goes, not after. A line removed by mistake is a visit's
+      // worth of head readings, issues and notes, and "are you sure?" is not a
+      // backup.
+      const custId = currentCustomerRef.current?.id;
+      const visitId = currentVisitIdRef.current;
+      if (snapshot && session?.uid && custId && visitId) {
+        try {
+          await firebase.firestore()
+            .collection('user_files').doc(session.uid)
+            .collection('customers').doc(custId)
+            .collection('visits').doc(visitId)
+            .collection('deletedLines').add({
+              lineId: id,
+              title: snapshot.title || 'Line',
+              line: snapshot,
+              deletedAt: new Date().toISOString(),
+              deletedBy: who || '',
+            });
+        } catch (e) {
+          // If the line cannot be saved, it does not get deleted. Losing it
+          // quietly is the one outcome worth refusing.
+          console.error('Could not back up line before removing:', e);
+          toast.error('Could not save a copy of that line, so it was not removed. Try again.');
+          return;
+        }
+      }
+      setLines(prev => prev.filter(l => l.id !== id));
+      setActiveLineId(prev => {
+        if (prev !== id) return prev;
+        const remaining = linesRef.current.filter(l => l.id !== id);
+        return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+      });
+      toast.success(`"${lineTitle || 'Line'}" removed — restorable for 30 days`);
     });
-  }, [dialog]);
+  }, [dialog, session, toast]);
 
   const handleResetLine = useCallback(async (line) => {
     const confirmed = await dialog.confirm(
@@ -3149,6 +3269,16 @@ const AppContent = () => {
                 </li>
                 {currentVisitId && (
                   <li>
+                    <button
+                      className="dropdown-item d-flex align-items-center gap-2"
+                      onClick={() => { setShowDeletedLines(true); loadDeletedLines(); }}
+                    >
+                      <History className="w-4 h-4" /> Deleted lines
+                    </button>
+                  </li>
+                )}
+                {currentVisitId && (
+                  <li>
                     <button className="dropdown-item d-flex align-items-center gap-2" onClick={duplicateVisit}>
                       <Copy className="w-4 h-4" /> Duplicate Visit
                     </button>
@@ -3236,6 +3366,75 @@ const AppContent = () => {
             </span>
           )}
         </div>
+      )}
+
+      {showDeletedLines && (
+        <div className="p-3 bg-light border-bottom">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <h6 className="mb-0 d-flex align-items-center gap-2">
+              <History className="w-4 h-4" /> Deleted lines — this visit
+            </h6>
+            <button onClick={() => setShowDeletedLines(false)} className="btn btn-sm btn-outline-secondary">
+              Close
+            </button>
+          </div>
+          <p className="text-muted small">
+            A removed line is kept for {LINE_BIN_DAYS} days with everything on it — heads,
+            issues and notes — and can be put back exactly as it was.
+          </p>
+          {deletedLines.length === 0 ? (
+            <div className="text-muted small">Nothing removed from this visit.</div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-sm align-middle mb-0">
+                <thead>
+                  <tr><th>Line</th><th>Removed</th><th>By</th><th>Expires</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {deletedLines.map((row) => {
+                    const at = new Date(row.deletedAt);
+                    const daysLeft = Math.ceil(
+                      (at.getTime() + LINE_BIN_DAYS * 86400000 - Date.now()) / 86400000
+                    );
+                    return (
+                      <tr key={row.id}>
+                        <td><strong>{row.title || 'Line'}</strong></td>
+                        <td>{at.toLocaleDateString()}</td>
+                        <td>{row.deletedBy || '—'}</td>
+                        <td>
+                          <span className={`badge ${daysLeft <= 5 ? 'bg-danger' : 'bg-secondary'}`}>
+                            {daysLeft} day{daysLeft === 1 ? '' : 's'}
+                          </span>
+                        </td>
+                        <td className="text-end">
+                          <button className="btn btn-sm btn-primary" onClick={() => restoreDeletedLine(row)}>
+                            Restore
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {linePinFor && (
+        <PinPrompt
+          customerId={currentCustomer?.id}
+          people={crewPeople}
+          title="Who is making this change?"
+          message="Adding or removing a line is recorded against you."
+          onVerified={(p) => {
+            rememberLinePerson(p);
+            const run = linePinFor;
+            setLinePinFor(null);
+            run(p.name);
+          }}
+          onCancel={() => setLinePinFor(null)}
+        />
       )}
 
       {showPlantLogins && (
@@ -3679,6 +3878,8 @@ const AppContent = () => {
                   <Line
                     key={line.id}
                     line={line}
+                    // Created here, so the line lock does not apply to it.
+                    isNewLine={createdThisSession.current.has(line.id)}
                     updateLine={updateLineStable}
                     removeLine={handleRemoveLine}
                     resetLine={handleResetLine}
