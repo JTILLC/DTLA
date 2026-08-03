@@ -849,12 +849,15 @@ const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => 
     const headHistory = {};
 
     customerVisits.forEach(visit => {
+      // A record with no lines is legitimate — a log started and not yet filled
+      // in — and used to throw here the moment one appeared.
+      const visitLines = visit.lines || [];
       const linesToProcess = selectedLine === '__ALL__'
-        ? visit.lines
-        : visit.lines.filter(l => l.title === selectedLine);
+        ? visitLines
+        : visitLines.filter(l => l?.title === selectedLine);
 
       linesToProcess.forEach(line => {
-        line.heads.forEach(head => {
+        (line.heads || []).forEach(head => {
           const headIssues = head.issues || [];
           const hasOldFormatIssue = head.error && head.error !== 'None';
           const hasNewFormatIssues = headIssues.length > 0;
@@ -886,6 +889,10 @@ const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => 
             headHistory[historyKey].visitEntries.push({
               visitName: visit.name || `Visit ${new Date(visit.date).toLocaleDateString()}`,
               visitDate: visit.date,
+              // Which side of the record this came from. A head failing across
+              // both a service visit and the plant's own shifts is a different
+              // story from one only ever seen by one of them.
+              source: visit.source === 'plant' ? 'Plant log' : '',
               status: head.status,
               issues: issuesList,
               headNotes: head.notes || ''
@@ -940,7 +947,7 @@ const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => 
             {(() => {
               const lines = new Set();
               visits.filter(v => v.customerId === selectedCustomer).forEach(v => {
-                v.lines.forEach(l => lines.add(l.title));
+                (v.lines || []).forEach(l => { if (l?.title) lines.add(l.title); });
               });
               return Array.from(lines).sort().map(line => (
                 <option key={line} value={line}>{line}</option>
@@ -980,7 +987,12 @@ const IssueHistory = ({ customers, visits, onExportPDF, currentCustomerId }) => 
                 <tbody>
                   {head.visitEntries.map((entry, i) => (
                     <tr key={i}>
-                      <td style={{ verticalAlign: 'top' }}>{entry.visitName}</td>
+                      <td style={{ verticalAlign: 'top' }}>
+                        {entry.visitName}
+                        {entry.source && (
+                          <span className="badge bg-info text-dark ms-1 align-middle">{entry.source}</span>
+                        )}
+                      </td>
                       <td style={{ verticalAlign: 'top' }}>
                         <span className={`badge ${entry.status === 'offline' ? 'bg-danger' : 'bg-success'}`}>
                           {entry.status}
@@ -1036,6 +1048,22 @@ const AppContent = () => {
 
   // Heads that are down right now, shown against Current Visit. A badge is only
   // worth the ink when there is something to answer for, so zero shows nothing.
+  // Issue History reads both sides of the record: JTI's service visits and the
+  // plant's own shift logs. `allVisits` still supplies other customers once JTI
+  // has loaded them, and is de-duplicated against the live pair.
+  const historyVisits = useMemo(() => {
+    const cid = currentCustomer?.id;
+    const mine = cid ? visits.map((v) => ({ ...v, customerId: v.customerId || cid, source: 'jti' })) : [];
+    const theirs = cid ? plantLogs.map((v) => ({ ...v, customerId: cid, source: 'plant' })) : [];
+    const key = (v) => `${v.customerId}/${v.id}`;
+    const seen = new Set([...mine, ...theirs].map(key));
+    const others = (allVisits || [])
+      .filter((v) => !seen.has(key(v)))
+      .map((v) => ({ ...v, source: v.source || 'jti' }));
+    return [...mine, ...theirs, ...others]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [visits, plantLogs, allVisits, currentCustomer?.id]);
+
   const navCounts = useMemo(() => {
     const offline = (lines || []).reduce(
       (n, line) => n + (line.heads || []).filter((h) => h.status === 'offline').length, 0);
@@ -1091,6 +1119,8 @@ const AppContent = () => {
   // any customer). Kept separate from `visits` (the current customer's live list)
   // so the cross-customer load can't clobber the toolbar count / visits picker.
   const [allVisits, setAllVisits] = useState([]);
+  // The plant's own shift logs for the selected customer — history only.
+  const [plantLogs, setPlantLogs] = useState([]);
   const [showVisitList, setShowVisitList] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   // JTI's own screen for giving a plant a way in.
@@ -2436,6 +2466,29 @@ const AppContent = () => {
           .filter((v) => !v.deleted);
         setVisits(list);
       });
+    return () => unsub();
+  }, [user, currentCustomer?.id]);
+
+  // The plant's own daily logs, for Issue History only.
+  //
+  // A head that keeps failing does not care whether the shift crew or JTI wrote
+  // it down, and half the record lives on each side: JTI's visits here, the
+  // plant's shifts in dailyLogs. Read-only and never loaded into the editor —
+  // this app edits visits, and a daily log belongs to the plant.
+  useEffect(() => {
+    if (!user || !currentCustomer?.id) { setPlantLogs([]); return; }
+    const cid = currentCustomer.id;
+    setPlantLogs([]);
+    const unsub = firebase
+      .firestore()
+      .collection('user_files').doc(user.uid)
+      .collection('customers').doc(cid)
+      .collection('dailyLogs')
+      .orderBy('date', 'desc')
+      .onSnapshot(
+        (snap) => setPlantLogs(snap.docs.map((d) => ({ id: d.id, customerId: cid, ...d.data() })).filter((v) => !v.deleted)),
+        (err) => { console.warn('Plant daily logs unavailable:', err); setPlantLogs([]); },
+      );
     return () => unsub();
   }, [user, currentCustomer?.id]);
 
@@ -3952,7 +4005,7 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
              aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
-            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF}
+            <IssueHistory customers={customers} visits={historyVisits} onExportPDF={exportLineHistoryToPDF}
               currentCustomerId={currentCustomer?.id} />
           </div>
         </div>

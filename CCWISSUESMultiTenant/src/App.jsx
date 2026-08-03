@@ -871,12 +871,15 @@ const IssueHistory = ({ customers, visits, onExportPDF, lockedCustomerId }) => {
     const headHistory = {};
 
     customerVisits.forEach(visit => {
+      // A record with no lines is legitimate (a log started and not yet filled
+      // in), and used to throw here the moment one appeared.
+      const visitLines = visit.lines || [];
       const linesToProcess = selectedLine === '__ALL__'
-        ? visit.lines
-        : visit.lines.filter(l => l.title === selectedLine);
+        ? visitLines
+        : visitLines.filter(l => l?.title === selectedLine);
 
       linesToProcess.forEach(line => {
-        line.heads.forEach(head => {
+        (line.heads || []).forEach(head => {
           const headIssues = head.issues || [];
           const hasOldFormatIssue = head.error && head.error !== 'None';
           const hasNewFormatIssues = headIssues.length > 0;
@@ -908,6 +911,10 @@ const IssueHistory = ({ customers, visits, onExportPDF, lockedCustomerId }) => {
             headHistory[historyKey].visitEntries.push({
               visitName: visit.name || `Visit ${new Date(visit.date).toLocaleDateString()}`,
               visitDate: visit.date,
+              // Who recorded it. A plant reading their own history needs to
+              // tell their shift log from a JTI service call — the two carry
+              // different weight when deciding whether a head keeps failing.
+              source: visit.source === 'jti' ? 'JTI visit' : '',
               status: head.status,
               issues: issuesList,
               headNotes: head.notes || ''
@@ -964,7 +971,7 @@ const IssueHistory = ({ customers, visits, onExportPDF, lockedCustomerId }) => {
             {(() => {
               const lines = new Set();
               visits.filter(v => v.customerId === selectedCustomer).forEach(v => {
-                v.lines.forEach(l => lines.add(l.title));
+                (v.lines || []).forEach(l => { if (l?.title) lines.add(l.title); });
               });
               return Array.from(lines).sort().map(line => (
                 <option key={line} value={line}>{line}</option>
@@ -1004,7 +1011,12 @@ const IssueHistory = ({ customers, visits, onExportPDF, lockedCustomerId }) => {
                 <tbody>
                   {head.visitEntries.map((entry, i) => (
                     <tr key={i}>
-                      <td style={{ verticalAlign: 'top' }}>{entry.visitName}</td>
+                      <td style={{ verticalAlign: 'top' }}>
+                        {entry.visitName}
+                        {entry.source && (
+                          <span className="badge bg-info text-dark ms-1 align-middle">{entry.source}</span>
+                        )}
+                      </td>
                       <td style={{ verticalAlign: 'top' }}>
                         <span className={`badge ${entry.status === 'offline' ? 'bg-danger' : 'bg-success'}`}>
                           {entry.status}
@@ -1213,6 +1225,30 @@ const AppContent = () => {
     const lv = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
     return lv ? daysOld(lv) : null;
   }, [visits, currentVisitId]);
+
+  // What the Issue History tab reads.
+  //
+  // It used to read `allVisits`, which is filled only by the manual "load all
+  // from cloud" and only from dailyLogs — so for a plant it was empty, and for
+  // JTI it never contained a service visit. The question the tab answers ("has
+  // this head done this before?") does not care which of the two recorded it,
+  // and for a site JTI has serviced for years the answer is mostly in the
+  // visits.
+  //
+  // Both sources are already subscribed, so this costs nothing to assemble.
+  // allVisits still contributes JTI's other customers when they have loaded it.
+  const historyVisits = useMemo(() => {
+    const cid = currentCustomer?.id;
+    const mine = cid ? visits.map((v) => ({ ...v, customerId: v.customerId || cid, source: 'log' })) : [];
+    const jti = cid ? jtiVisits.map((v) => ({ ...v, customerId: cid, source: 'jti' })) : [];
+    const key = (v) => `${v.customerId}/${v.id}`;
+    const seen = new Set([...mine, ...jti].map(key));
+    const others = (allVisits || [])
+      .filter((v) => !seen.has(key(v)))
+      .map((v) => ({ ...v, source: v.source || 'log' }));
+    return [...mine, ...jti, ...others]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [visits, jtiVisits, allVisits, currentCustomer?.id]);
 
   // Heads down right now, badged on Current Log. Zero shows nothing.
   const navCounts = useMemo(() => {
@@ -4384,7 +4420,7 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
              aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
-            <IssueHistory customers={customers} visits={allVisits} onExportPDF={exportLineHistoryToPDF} lockedCustomerId={scopedCustomerId} />
+            <IssueHistory customers={customers} visits={historyVisits} onExportPDF={exportLineHistoryToPDF} lockedCustomerId={scopedCustomerId} />
           </div>
         </div>
 
