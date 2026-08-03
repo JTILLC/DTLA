@@ -55,6 +55,7 @@ import syncManager from '@shared/utils/syncManager.js';
 import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
 import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
+import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
 import { withFreshIds } from '@shared/utils/importLines.js';
 import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
@@ -4356,6 +4357,24 @@ const AppContent = () => {
               performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
               role={isAdmin ? 'jti' : 'customer'}
               canEditTypes={isAdmin}
+            />
+          </div>
+        </div>
+
+        <div className="ccw-pane" id="ccw-pane-prestart" role="tabpanel"
+             aria-labelledby="ccw-tab-prestart" hidden={activeTab !== 'prestart'}>
+          <div className="tab-content p-3">
+            <PrestartPage
+              workspaceId={WORKSPACE_UID}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              lines={lines}
+              visits={visits}
+              performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
+              role={isAdmin ? 'jti' : 'customer'}
+              // The list is JTI's standard, edited by JTI — same rule as the PM
+              // checklist next door. A plant fills it in and nothing more.
+              canEditTemplate={isAdmin}
             />
           </div>
         </div>

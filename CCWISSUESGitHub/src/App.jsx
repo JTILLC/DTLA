@@ -57,6 +57,7 @@ import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
 import PmLogPage from '@shared/components/PmLogPage.jsx';
 import CrewPage from '@shared/components/CrewPage.jsx';
+import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ActivityPage from '@shared/components/ActivityPage.jsx';
 import { useLineCrew, crewAge } from '@shared/utils/useLineCrew.js';
 import { lineStatusKey, scaffoldLinesFrom } from '@shared/utils/headHelpers.js';
@@ -3951,6 +3952,26 @@ const AppContent = () => {
               performedByName={user?.email || 'JTI'}
               role="jti"
               canEditTypes
+            />
+          </div>
+        </div>
+
+        <div className="ccw-pane" id="ccw-pane-prestart" role="tabpanel"
+             aria-labelledby="ccw-tab-prestart" hidden={activeTab !== 'prestart'}>
+          <div className="tab-content p-3">
+            {/* JTI writes the standard here and pushes it to plants. Filing a
+                check from this app is allowed too — a tech walking a machine
+                before handing it back is doing the same walk. */}
+            <PrestartPage
+              workspaceId={user?.uid}
+              customerId={currentCustomer?.id}
+              customerName={currentCustomer?.name}
+              lines={lines}
+              visits={visits}
+              performedByName={user?.email || 'JTI'}
+              role="jti"
+              canEditTemplate
+              canSubmit
             />
           </div>
         </div>
