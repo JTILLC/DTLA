@@ -30,6 +30,9 @@ import CrewChip from './CrewChip.jsx';
 import EditedNote from './EditedNote.jsx';
 import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
+import LineLockPrompt from './LineLockPrompt.jsx';
+import { useLineGuard } from '../utils/useLineGuard.jsx';
+import { overrideStamp } from '../utils/lineAccess.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
@@ -104,6 +107,8 @@ export default function PmLogPage({
   const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingSave, setPendingSave] = useState(null);
+  // Identity says who is filing; this says whether they may file it here.
+  const lineGuard = useLineGuard({ people: crewPeople, actor });
   // A PM check is the record most likely to be questioned later, so signing one
   // off is the one action here that must be an attestation rather than a name
   // picked from a list. A supervisor proves it with their own PIN.
@@ -173,7 +178,7 @@ export default function PmLogPage({
     setAnswers((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), ...patch } }));
 
   // ---- Submit -------------------------------------------------------------
-  const submit = () => withActor(async (filedBy) => {
+  const submit = () => withActor((filedBy) => lineGuard.check(lineTitle, async (override) => {
     // Whoever cannot submit cannot file a check by any route, not merely by
     // having the button hidden.
     if (!canSubmit) return;
@@ -225,7 +230,7 @@ export default function PmLogPage({
     } finally {
       setSaving(false);
     }
-  });
+  }));
 
   const openEdit = (entry) => setEditing({
     id: entry.id,
@@ -234,7 +239,7 @@ export default function PmLogPage({
     items: (entry.items || []).map((it) => ({ ...it })),
   });
 
-  const saveEdit = () => withFreshActor(async (filedBy) => {
+  const saveEdit = () => withFreshActor((filedBy) => lineGuard.check(editing?.lineTitle, async (override) => {
     if (!editing) return;
     try {
       const issueCount = editing.items.filter((it) => it.result === 'issue').length;
@@ -249,7 +254,7 @@ export default function PmLogPage({
       console.error('PM edit failed:', err);
       toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
-  });
+  }));
 
   const signOff = async (entry, supervisor) => {
     try {
@@ -826,6 +831,15 @@ export default function PmLogPage({
         />
       )}
 
+      {lineGuard.challenge && (
+        <LineLockPrompt
+          customerId={customerId}
+          people={crewPeople}
+          challenge={lineGuard.challenge}
+          onAuthorise={lineGuard.authorise}
+          onCancel={lineGuard.dismiss}
+        />
+      )}
       {pendingSave && (
         <PinPrompt
           customerId={customerId}

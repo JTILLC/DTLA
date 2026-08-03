@@ -27,6 +27,9 @@ import CrewChip from './CrewChip.jsx';
 import EditedNote from './EditedNote.jsx';
 import { withEditStamp } from '../utils/editTrail.js';
 import PinPrompt from './PinPrompt.jsx';
+import LineLockPrompt from './LineLockPrompt.jsx';
+import { useLineGuard } from '../utils/useLineGuard.jsx';
+import { overrideStamp } from '../utils/lineAccess.js';
 import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
@@ -50,6 +53,8 @@ export default function SpanAdjustPage({
   const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingSave, setPendingSave] = useState(null);
+  // Identity says who is filing; this says whether they may file it here.
+  const lineGuard = useLineGuard({ people: crewPeople, actor });
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -177,7 +182,7 @@ export default function SpanAdjustPage({
     setScanned(new Set(byHead.keys()));
   };
 
-  const save = () => withActor(async (filedBy) => {
+  const save = () => withActor((filedBy) => lineGuard.check(selected, async (override) => {
     if (!selected) return toast.error('Pick a line first');
     const measured = rows.filter((r) => String(r.currentWeight).trim() !== '');
     if (measured.length === 0) {
@@ -197,6 +202,9 @@ export default function SpanAdjustPage({
         performedBy: performedByName || (role === 'customer' ? 'Plant staff' : 'JTI'),
         role,
         ...crewStamp(lineCrew.forLine(selected), lineCrew.shiftId),
+        // Filed against a line this person is not assigned to, with a
+        // supervisor's authorisation. Absent on an ordinary entry.
+        ...overrideStamp(override, selected),
         // Who filed it, proven — distinct from the crew, which is context.
         actionBy: filedBy,
         actionByVerified: !!filedBy,
@@ -216,7 +224,7 @@ export default function SpanAdjustPage({
     } finally {
       setSaving(false);
     }
-  });
+  }));
 
   // Weights get mistyped, and re-logging to fix one would lose when the work
   // was actually done and who did it. Editing keeps both and records the change.
@@ -231,7 +239,7 @@ export default function SpanAdjustPage({
     })),
   });
 
-  const saveEdit = () => withFreshActor(async (filedBy) => {
+  const saveEdit = () => withFreshActor((filedBy) => lineGuard.check(editing?.entry?.lineTitle, async (override) => {
     if (!editing) return;
     try {
       const heads = editing.heads.map((r) => {
@@ -240,14 +248,16 @@ export default function SpanAdjustPage({
         return { head: r.head, currentWeight: cw, spanWeight: sw, difference: round1(sw - cw) };
       });
       await updateLogEntry(workspaceId, customerId, LOG_SPAN, editing.id,
-        withEditStamp({ heads, notes: editing.notes.trim() }, editing.entry, filedBy));
+        withEditStamp({
+          heads, notes: editing.notes.trim(), ...overrideStamp(override, editing.entry?.lineTitle),
+        }, editing.entry, filedBy));
       toast.success('Entry updated');
       setEditing(null);
     } catch (err) {
       console.error('Span log edit failed:', err);
       toast.error('Could not update: ' + (err?.message || 'unknown error'));
     }
-  });
+  }));
 
   const confirmEntry = async (entry) => {
     try {
@@ -637,6 +647,15 @@ export default function SpanAdjustPage({
           </div>
         )}
       </div>
+      {lineGuard.challenge && (
+        <LineLockPrompt
+          customerId={customerId}
+          people={crewPeople}
+          challenge={lineGuard.challenge}
+          onAuthorise={lineGuard.authorise}
+          onCancel={lineGuard.dismiss}
+        />
+      )}
       {pendingSave && (
         <PinPrompt
           customerId={customerId}
