@@ -1,0 +1,437 @@
+<title>JTI — Running the CCW apps</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f3f6fa;
+    --surface-3: #e6ebf2;
+    --border: #d3dae4;
+    --border-strong: #b9c3d1;
+    --ink: #16202e;
+    --ink-soft: #465264;
+    --ink-faint: #6c7889;
+    --accent: #1d5fb3;
+    --accent-strong: #164a8c;
+    --accent-wash: #e7effa;
+    --active: #1a9d5a;
+    --offline: #d63a3a;
+    --fixed: #e08a1e;
+    --issues: #2a92c9;
+    --shadow: 0 1px 2px rgba(20,32,50,.06), 0 8px 24px -12px rgba(20,32,50,.18);
+    --radius: 12px;
+    --maxread: 44rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e131a;
+      --surface: #151d28;
+      --surface-2: #1a2430;
+      --surface-3: #212d3b;
+      --border: #2a3644;
+      --border-strong: #3a4858;
+      --ink: #e7ecf3;
+      --ink-soft: #aab5c4;
+      --ink-faint: #7f8b9c;
+      --accent: #4f95e8;
+      --accent-strong: #6aa8ef;
+      --accent-wash: #16283f;
+      --active: #35b978;
+      --offline: #ee5b5b;
+      --fixed: #f0a63f;
+      --issues: #46a9dd;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6fa; --surface-3: #e6ebf2;
+    --border: #d3dae4; --border-strong: #b9c3d1; --ink: #16202e; --ink-soft: #465264;
+    --ink-faint: #6c7889; --accent: #1d5fb3; --accent-strong: #164a8c; --accent-wash: #e7effa;
+    --active: #1a9d5a; --offline: #d63a3a; --fixed: #e08a1e; --issues: #2a92c9;
+    --shadow: 0 1px 2px rgba(20,32,50,.06), 0 8px 24px -12px rgba(20,32,50,.18);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e131a; --surface: #151d28; --surface-2: #1a2430; --surface-3: #212d3b;
+    --border: #2a3644; --border-strong: #3a4858; --ink: #e7ecf3; --ink-soft: #aab5c4;
+    --ink-faint: #7f8b9c; --accent: #4f95e8; --accent-strong: #6aa8ef; --accent-wash: #16283f;
+    --active: #35b978; --offline: #ee5b5b; --fixed: #f0a63f; --issues: #46a9dd;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* ---------- header ---------- */
+  header.top {
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(120% 140% at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+      var(--surface);
+  }
+  .eyebrow {
+    font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 .7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    line-height: 1.04; letter-spacing: -.03em; font-weight: 800;
+    margin: 0 0 .6rem; text-wrap: balance; max-width: 20ch;
+  }
+  .lede { font-size: 1.16rem; color: var(--ink-soft); margin: 0; max-width: 46ch; text-wrap: pretty; }
+  .top .wrap { padding-top: 3.2rem; padding-bottom: 2.6rem; }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem;
+  }
+  .tag {
+    font-size: .78rem; font-weight: 600; color: var(--ink-soft);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: .28rem .66rem; border-radius: 100px;
+  }
+
+  /* ---------- layout ---------- */
+  .grid { display: block; }
+  @media (min-width: 62rem) {
+    .grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 3rem; align-items: start; }
+  }
+  nav.toc {
+    display: none;
+  }
+  @media (min-width: 62rem) {
+    nav.toc {
+      display: block; position: sticky; top: 1.5rem;
+      padding: 1.4rem 0; font-size: .9rem;
+      max-height: calc(100vh - 3rem); overflow-y: auto;
+    }
+    nav.toc .toc-h {
+      font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--ink-faint); font-weight: 700; margin: 0 0 .7rem;
+    }
+    nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .12rem; }
+    nav.toc a {
+      display: flex; gap: .6rem; align-items: baseline;
+      text-decoration: none; color: var(--ink-soft);
+      padding: .32rem .55rem; border-radius: 7px; border-left: 2px solid transparent;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    nav.toc a:hover { color: var(--ink); background: var(--surface-2); }
+    nav.toc a .n { color: var(--ink-faint); font-variant-numeric: tabular-nums; font-weight: 600; font-size: .78rem; min-width: 1.1rem; }
+    nav.toc a.admin { color: var(--accent); }
+  }
+  main { padding: 2.4rem 0 4rem; min-width: 0; }
+
+  /* ---------- sections ---------- */
+  section { scroll-margin-top: 1.5rem; }
+  section + section { margin-top: 2.9rem; }
+  .sec-head { display: flex; gap: .85rem; align-items: baseline; margin: 0 0 .35rem; }
+  .sec-num {
+    font-size: .82rem; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums; letter-spacing: .04em;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: .05rem .42rem; line-height: 1.5; flex: none; margin-top: .25rem;
+  }
+  h2 { font-size: 1.5rem; letter-spacing: -.02em; font-weight: 750; margin: 0; line-height: 1.2; text-wrap: balance; }
+  h3 { font-size: 1.06rem; font-weight: 700; letter-spacing: -.01em; margin: 1.8rem 0 .5rem; }
+  p { margin: .7rem 0; max-width: var(--maxread); }
+  .intro-line { color: var(--ink-soft); max-width: var(--maxread); margin-top: .1rem; }
+  a { color: var(--accent-strong); }
+
+  ol.steps { counter-reset: step; list-style: none; margin: 1.1rem 0; padding: 0; max-width: var(--maxread); }
+  ol.steps > li {
+    counter-increment: step; position: relative;
+    padding: 0 0 0 2.6rem; margin: 0 0 1rem;
+  }
+  ol.steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: -.05rem;
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-size: .82rem; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.steps > li p { margin: .15rem 0; }
+  ul.plain { margin: .7rem 0; padding-left: 1.2rem; max-width: var(--maxread); }
+  ul.plain li { margin: .35rem 0; }
+  ul.plain li::marker { color: var(--accent); }
+
+  /* ---------- UI tokens (teach recognition) ---------- */
+  .ui { font-weight: 600; background: var(--surface-3); border: 1px solid var(--border); border-radius: 6px; padding: .04em .4em; font-size: .92em; white-space: nowrap; }
+  .k { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .86em; background: var(--surface-3); border: 1px solid var(--border); border-radius: 5px; padding: .05em .38em; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .74rem; font-weight: 700; letter-spacing: .01em;
+    padding: .18rem .5rem; border-radius: 5px; color: #fff; vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  .badge.jti { background: var(--accent); }
+  .badge.shift { background: var(--surface-3); color: var(--ink-soft); border: 1px solid var(--border-strong); }
+  .badge.sr { background: transparent; color: var(--active); border: 1px solid var(--active); }
+
+  /* head color legend */
+  .legend { display: grid; gap: .7rem; margin: 1.2rem 0; max-width: var(--maxread); }
+  @media (min-width: 34rem) { .legend { grid-template-columns: 1fr 1fr; } }
+  .swatch { display: flex; gap: .8rem; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; }
+  .chip {
+    width: 2.35rem; height: 2.35rem; border-radius: 8px; flex: none;
+    display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1rem;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .chip.active { background: var(--active); }
+  .chip.offline { background: var(--offline); }
+  .chip.fixed { background: var(--fixed); }
+  .chip.issues { background: var(--issues); }
+  .swatch b { display: block; font-size: .95rem; }
+  .swatch span { display: block; font-size: .84rem; color: var(--ink-soft); }
+
+  /* status toggle demo */
+  .statusrow { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; align-items: center; }
+  .stbtn { font-size: .82rem; font-weight: 700; padding: .3rem .7rem; border-radius: 6px; color: #fff; }
+  .stbtn.nf { background: var(--offline); }
+  .stbtn.fx { background: var(--fixed); }
+  .stbtn.aw { background: var(--issues); }
+  .arrow { color: var(--ink-faint); font-weight: 700; }
+
+  /* save chip demo */
+  .chips-demo { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .savechip { font-size: .8rem; font-weight: 600; padding: .25rem .6rem; border-radius: 100px; border: 1px solid var(--border); background: var(--surface); }
+  .savechip.ok { color: var(--active); border-color: color-mix(in srgb, var(--active) 45%, var(--border)); }
+  .savechip.saving { color: var(--ink-soft); }
+  .savechip.off { color: var(--fixed); border-color: color-mix(in srgb, var(--fixed) 45%, var(--border)); }
+
+  /* callouts */
+  .call { border: 1px solid var(--border); border-left-width: 3px; border-radius: 10px; background: var(--surface); padding: 1rem 1.15rem; margin: 1.3rem 0; max-width: var(--maxread); box-shadow: var(--shadow); }
+  .call .call-h { font-weight: 750; font-size: .96rem; margin: 0 0 .3rem; display: flex; align-items: center; gap: .5rem; }
+  .call p { margin: .35rem 0; font-size: .96rem; color: var(--ink-soft); }
+  .call p:first-of-type { margin-top: 0; }
+  .call.view { border-left-color: var(--accent); }
+  .call.view .call-h { color: var(--accent); }
+  .call.lock { border-left-color: var(--fixed); }
+  .call.lock .call-h { color: var(--fixed); }
+  .call.tip { border-left-color: var(--active); }
+  .call.tip .call-h { color: var(--active); }
+  /* For limits worth stating plainly rather than burying — e.g. what the
+     head-offline alert cannot reach. */
+  .call.warn { border-left-color: var(--offline); }
+  .call.warn .call-h { color: var(--offline); }
+
+  /* view-only banner mock */
+  .mock-banner { display: flex; gap: .6rem; align-items: center; background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); color: var(--ink); border-radius: 9px; padding: .7rem .85rem; font-size: .9rem; max-width: var(--maxread); margin: 1rem 0; }
+  .mock-banner .dot { color: var(--accent); flex: none; }
+
+  hr.div { border: 0; border-top: 1px solid var(--border); margin: 3.4rem 0; max-width: var(--maxread); }
+
+  /* admin appendix */
+  .admin-band { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.7rem 1.6rem; margin-top: 1.4rem; box-shadow: var(--shadow); }
+  .admin-band h2 { font-size: 1.35rem; }
+  .admin-eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 .3rem; }
+  dl.admin { margin: 1.1rem 0 0; display: grid; gap: .1rem; }
+  dl.admin div { padding: .8rem 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr; gap: .1rem; }
+  @media (min-width: 40rem) { dl.admin div { grid-template-columns: 11rem 1fr; gap: 1rem; } }
+  dl.admin dt { font-weight: 700; font-size: .95rem; }
+  dl.admin dd { margin: 0; color: var(--ink-soft); font-size: .95rem; }
+
+  footer { border-top: 1px solid var(--border); color: var(--ink-faint); font-size: .86rem; }
+  footer .wrap { padding: 1.8rem 1.5rem; display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; justify-content: space-between; }
+
+  a:focus-visible, nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style>
+  table.matrix { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+  table.matrix th, table.matrix td { border:1px solid var(--border); padding:.5rem .6rem; text-align:left; }
+  table.matrix thead th { background:var(--surface-2); font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-faint); }
+  table.matrix td:not(:first-child) { text-align:center; }
+  table.matrix tbody tr:nth-child(even) { background:var(--surface-2); }
+  .matrix-wrap { overflow-x:auto; }
+</style>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">JTI · Operator's manual</p>
+    <h1>Running the CCW apps</h1>
+    <p class="lede">Everything that is yours alone: setting a plant up, who can do what, and the
+      handful of things only a JTI login can reach. The plant's own guide is a separate document —
+      send them that one.</p>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-h">Contents</p>
+    <ol>
+      <li><a href="#apps"><span class="n">1</span> The three apps, and which to open</a></li>
+      <li><a href="#newplant"><span class="n">2</span> Setting up a new plant</a></li>
+      <li><a href="#access"><span class="n">3</span> Who can do what</a></li>
+      <li><a href="#logins"><span class="n">4</span> Logins, passwords &amp; resets</a></li>
+      <li><a href="#visits"><span class="n">5</span> Visits, and why they are yours</a></li>
+      <li><a href="#parts"><span class="n">6</span> Parts manuals</a></li>
+      <li><a href="#share"><span class="n">7</span> Share links</a></li>
+      <li><a href="#recover"><span class="n">8</span> When something goes wrong</a></li>
+      <li><a href="#limits"><span class="n">9</span> What this does not protect against</a></li>
+    </ol>
+  </nav>
+
+  <section id="apps">
+    <div class="sec-head"><span class="sec-num">01</span><h2>The three apps, and which to open</h2></div>
+    <dl class="defs">
+      <div><dt>jti-issues.pages.dev</dt><dd><b>Yours.</b> Service visits, span certificates, parts and PM
+        across every customer. This is where you work.</dd></div>
+      <div><dt>jti-issues-mt.pages.dev</dt><dd><b>The plant's.</b> Daily shift logs, their crew, their
+        logins. Sign in here as JTI to set a plant up or look at what they are seeing.</dd></div>
+      <div><dt>jti-ccw-viewer.pages.dev</dt><dd><b>Read-only.</b> What a share link opens. No sign-in,
+        nothing can be changed.</dd></div>
+    </dl>
+    <div class="call tip">
+      <p class="call-h">Same data, two doors</p>
+      <p>Both apps write to the same customer records — span, parts, PM, crew — so a PM the plant files
+        shows up in yours. What differs is the day-to-day container: you record a <em>visit</em>, they
+        record a <em>daily log</em>, and neither can edit the other's.</p>
+    </div>
+  </section>
+
+  <section id="newplant">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Setting up a new plant</h2></div>
+    <p>About ten minutes, in this order. Steps 1–3 can only be done by you.</p>
+    <ol class="steps">
+      <li><b>Create the customer.</b> In your app, ⚙ → <span class="k">Add Customer</span>. Name,
+        address, head count.</li>
+      <li><b>Create their login.</b> ⚙ → <span class="k">Plant logins</span> → their email → the plant →
+        <span class="k">Create account</span>. You get a link to send them; they choose their own
+        password. For an address that cannot receive mail — a test account — set a password directly
+        with the optional field.</li>
+      <li><b>Add the crew and appoint a Site Lead.</b> In the plant app as JTI: <span class="k">Crew</span> →
+        add each person, tick their roles, tick <span class="k">Site Lead</span> on the person who will
+        run it, and <b>set that person's PIN</b>.
+        <div class="call warn">
+          <p class="call-h">Only you can do this first step</p>
+          <p>A plant cannot appoint its own first Site Lead — the gate protecting the crew list would
+            have nothing to check against. Once one exists with a PIN, they do the rest themselves.</p>
+        </div>
+      </li>
+      <li><b>Hand over.</b> The Site Lead sets everyone else's PINs, assigns lines if they want to, and
+        adds any further logins.</li>
+      <li><b>Optional — bind the parts manual.</b> Parts/Boards → <span class="k">Parts manuals</span>,
+        and point each line at the machine's folder. Without this, part lookup has nothing to search.</li>
+    </ol>
+  </section>
+
+  <section id="access">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Who can do what</h2></div>
+    <div class="matrix-wrap">
+    <table class="matrix">
+      <thead><tr><th>Can…</th><th>JTI</th><th>Site Lead</th><th>Supervisor</th><th>Maint.</th><th>Operator</th></tr></thead>
+      <tbody>
+        <tr><td>Log heads, issues, notes</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>own lines</td></tr>
+        <tr><td>Span, parts, PM entries</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>own lines</td></tr>
+        <tr><td>Work any line</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+        <tr><td>Approve someone onto another line</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+        <tr><td>Add / remove a line, delete a log</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+        <tr><td>Manage crew, roles &amp; PINs</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Add or suspend plant logins</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Create customers &amp; accounts</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Edit your visits</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><b>Site Lead</b> is a tick-box, not a role — the plant's administrator, usually the supervisor.
+      <b>Operators</b> are only restricted once you tick lines for them; leave it blank and they can
+      work anywhere, which is how every plant starts.</p>
+    <div class="call tip">
+      <p class="call-h">You are never prompted</p>
+      <p>A JTI login skips every PIN gate in both apps. If something asks you for a supervisor PIN, you
+        are signed in as the plant, not as JTI.</p>
+    </div>
+  </section>
+
+  <section id="logins">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Logins, passwords &amp; resets</h2></div>
+    <p>⚙ → <span class="k">Plant logins</span>, in either app. Choose a plant and you get its accounts:
+      email, whether suspended, when it last signed in.</p>
+    <dl class="defs">
+      <div><dt>Create</dt><dd>Email + plant. Returns a set-password link to send them, or set a password
+        directly for an address with no inbox.</dd></div>
+      <div><dt>Reset password</dt><dd>Blank gives a link to send; typing one sets it immediately. Never
+        both — a link handed back beside a password you just set would undo it.</dd></div>
+      <div><dt>Link an existing account</dt><dd>For an account made elsewhere, or to grant JTI Staff.
+        Paste the UID — easiest way to get it is to have them sign in once and copy the Account ID from
+        the “not set up yet” screen.</dd></div>
+    </dl>
+    <div class="call warn">
+      <p class="call-h">Two different passwords</p>
+      <p>The <b>account password</b> signs someone into the app. A <b>PIN</b> says who is standing at the
+        tablet. They are unrelated: setting one does nothing to the other.</p>
+    </div>
+  </section>
+
+  <section id="visits">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Visits, and why they are yours</h2></div>
+    <p>Your <b>visits</b> and their <b>daily logs</b> are separate collections. The plant can read your
+      visits — that is the point of the share — and cannot write them. That is enforced by the database,
+      not by the app hiding a button, so it holds regardless of what any client does.</p>
+    <p>Their daily logs are theirs; you can see them by signing into the plant app as JTI.</p>
+  </section>
+
+  <section id="parts">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Parts manuals</h2></div>
+    <p>Part lookup searches <em>one machine's</em> manual, never a global catalogue — so a number that is
+      correct for a different weigher is never offered. That scoping comes from a <b>binding</b>: one
+      line, one folder in the parts catalogue, one machine.</p>
+    <ol class="steps">
+      <li>Parts/Boards → <span class="k">Parts manuals</span>.</li>
+      <li>For each line, pick the customer and folder in the catalogue that is that machine.</li>
+      <li>Unbound lines say so rather than searching something wrong.</li>
+    </ol>
+    <p>Quantities and item numbers come from the manual as transcribed. If one is wrong, fix it in the
+      Parts Viewer app — the CCW apps only display what the catalogue holds.</p>
+  </section>
+
+  <section id="share">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Share links</h2></div>
+    <p><span class="k">Share</span> creates a read-only link to a visit for someone with no login. Links
+      can expire; public read closes on its own when the last live link lapses.</p>
+    <p>Anyone with the link can read it — treat it as public.</p>
+  </section>
+
+  <section id="recover">
+    <div class="sec-head"><span class="sec-num">08</span><h2>When something goes wrong</h2></div>
+    <dl class="defs">
+      <div><dt>A line was removed</dt><dd>Recoverable for 30 days, with everything on it. Plant app:
+        the yellow <span class="k">Recover</span> button. Your app: ⚙ → <span class="k">Deleted lines</span>.</dd></div>
+      <div><dt>A visit or log was deleted</dt><dd>⚙ → <span class="k">Recycle Bin</span>, 30 days.</dd></div>
+      <div><dt>Work filed under the wrong name</dt><dd>Someone left their PIN active on a shared tablet.
+        The name is shown on every screen with <span class="k">Not you?</span>; it also clears itself
+        after 15 minutes idle.</dd></div>
+      <div><dt>“Account not set up yet”</dt><dd>The login exists but has no role. Plant logins → link it,
+        or create it properly.</dd></div>
+      <div><dt>Photos will not open</dt><dd>Their token and their role document have drifted apart. Reset
+        it by re-linking the account, which puts both back in step.</dd></div>
+    </dl>
+  </section>
+
+  <section id="limits">
+    <div class="sec-head"><span class="sec-num">09</span><h2>What this does not protect against</h2></div>
+    <p>Worth knowing precisely, so you rely on it for the right things.</p>
+    <ul class="ticks">
+      <li><b>PINs are a guardrail, not a boundary.</b> A plant signs in on one shared account, so the
+        database authenticates the <em>account</em>, not the person, and a PIN is checked in the browser.
+        It reliably stops the wrong line being picked by mistake. It would not stop someone determined
+        who opens the developer tools.</li>
+      <li><b>Your visits are a real boundary.</b> Enforced in the database rules — a different category
+        of protection from the above.</li>
+      <li><b>Anyone with a plant's login can see everything that plant has.</b> Suspend the login when
+        someone leaves; changing a shared password locks everyone out at once, which is the argument for
+        one login per building rather than one per plant.</li>
+    </ul>
+  </section>
+
+  <footer class="foot">
+    <p>JTI CCW apps · this guide covers the apps as they behave today. The plant's guide is at
+      <span class="k">/USER_GUIDE</span> in their app.</p>
+  </footer>
+</div>
