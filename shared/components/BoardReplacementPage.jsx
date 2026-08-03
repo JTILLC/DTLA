@@ -37,6 +37,17 @@ import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 import ActingAs from './ActingAs.jsx';
+import TemplateBar from './TemplateBar.jsx';
+import { normalizeTypes, partForType, mappedPickedPart } from '../utils/boardTypes.js';
+
+// Shared by the copy-from picker, the template bar and the push dialog, so all
+// three describe a list the same way.
+const describeTypes = (d) => {
+  const n = normalizeTypes(d?.types).length;
+  if (!n) return null;
+  const mapped = normalizeTypes(d?.types).filter((t) => t.partNumber).length;
+  return `${n} board type${n === 1 ? '' : 's'}${mapped ? `, ${mapped} with part numbers` : ''}`;
+};
 
 const BLANK = {
   lineTitle: '',
@@ -136,8 +147,14 @@ export default function BoardReplacementPage({
   }, [workspaceId, customerId]);
 
   // Configured list wins; BOARD_TYPES is the starting point for a customer
-  // nobody has set up yet.
-  const boardTypes = (configuredTypes && configuredTypes.length) ? configuredTypes : BOARD_TYPES;
+  // nobody has set up yet. Normalised so the rest of this file sees objects
+  // whether the stored list is the old bare strings or the current shape that
+  // carries a part number.
+  const boardTypeList = useMemo(
+    () => normalizeTypes((configuredTypes && configuredTypes.length) ? configuredTypes : BOARD_TYPES),
+    [configuredTypes],
+  );
+  const boardTypes = useMemo(() => boardTypeList.map((t) => t.name), [boardTypeList]);
 
   // Lines come from the customer's visits — the only place a line is defined.
   const lines = useMemo(() => {
@@ -162,6 +179,23 @@ export default function BoardReplacementPage({
   const headCount = lines.find((l) => l.title === form.lineTitle)?.heads || 0;
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+  // The part JTI mapped to the chosen board type, if any.
+  const mappedPart = useMemo(
+    () => partForType(boardTypeList, form.boardType),
+    [boardTypeList, form.boardType],
+  );
+
+  // Choosing a board type fills its part in — but only into an empty picker.
+  // Overwriting a part someone already chose would silently change what the log
+  // says was fitted, and the mapping is guidance, not a better source than the
+  // person standing at the machine.
+  const chooseBoardType = (name) => {
+    set('boardType', name);
+    if (pickedPart || extraParts.length || form.partNumber.trim()) return;
+    const part = mappedPickedPart(partForType(boardTypeList, name));
+    if (part) setPickedPart(part);
+  };
 
   // Everything replaced in this one job, in the shape the log stores.
   // A part typed rather than picked is still a part: it is recorded with its
@@ -204,12 +238,12 @@ export default function BoardReplacementPage({
   };
 
   const openTypeEditor = () => {
-    setDraftTypes([...boardTypes]);
+    setDraftTypes(boardTypeList.map((t) => ({ ...t })));
     setEditingTypes(true);
   };
 
   const commitTypes = async () => {
-    const cleaned = draftTypes.map((t) => t.trim()).filter(Boolean);
+    const cleaned = normalizeTypes(draftTypes);
     if (cleaned.length === 0) return toast.error('Keep at least one board type');
     setSavingTypes(true);
     try {
@@ -434,11 +468,19 @@ export default function BoardReplacementPage({
               currentCustomerId={customerId}
               configKey="boardTypes"
               label="board types"
-              describe={(d) => {
-                const t = (d?.types || []).filter(Boolean);
-                return t.length ? `${t.length} board type${t.length === 1 ? '' : 's'}` : null;
-              }}
-              onCopy={(d) => setDraftTypes([...(d?.types || [])])}
+              describe={describeTypes}
+              onCopy={(d) => setDraftTypes(normalizeTypes(d?.types))}
+            />
+            <TemplateBar
+              workspaceId={workspaceId}
+              customers={customers}
+              currentCustomerId={customerId}
+              configKey="boardTypes"
+              label="board types"
+              draft={() => ({ types: normalizeTypes(draftTypes) })}
+              describe={describeTypes}
+              onLoad={(d) => setDraftTypes(normalizeTypes(d?.types))}
+              updatedBy={performedByName}
             />
           </div>
           <div className="card-body d-flex flex-column gap-2">
@@ -447,29 +489,59 @@ export default function BoardReplacementPage({
               Renaming or removing one never changes entries already logged — they
               keep the name they were recorded with.
             </small>
-            {draftTypes.map((t, i) => (
-              <div key={i} className="input-group">
-                <input
-                  type="text"
-                  className="form-control"
-                  value={t}
-                  onChange={(e) => setDraftTypes((d) => d.map((v, j) => (j === i ? e.target.value : v)))}
-                  placeholder="Board type"
-                />
-                <button
-                  type="button"
-                  className="btn btn-outline-danger"
-                  onClick={() => setDraftTypes((d) => d.filter((_, j) => j !== i))}
-                  aria-label={`Remove ${t}`}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
+            <small className="text-muted">
+              Give a board its part number and whoever logs a replacement gets the
+              part filled in for them — they can still change it. Leave it blank for
+              boards that vary by machine.
+            </small>
+            {draftTypes.map((t, i) => {
+              const upd = (patch) => setDraftTypes((d) => d.map((v, j) => (j === i ? { ...v, ...patch } : v)));
+              return (
+                <div key={i} className="d-flex gap-2 align-items-start">
+                  <div className="flex-grow-1 d-flex flex-column gap-1">
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={t.name || ''}
+                      onChange={(e) => upd({ name: e.target.value })}
+                      placeholder="Board type"
+                      aria-label="Board type name"
+                    />
+                    <div className="d-flex gap-1 flex-wrap">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        style={{ maxWidth: '11rem' }}
+                        value={t.partNumber || ''}
+                        onChange={(e) => upd({ partNumber: e.target.value })}
+                        placeholder="Part number (optional)"
+                        aria-label={`Part number for ${t.name || 'this board'}`}
+                      />
+                      <input
+                        type="text"
+                        className="form-control form-control-sm flex-grow-1"
+                        value={t.partName || ''}
+                        onChange={(e) => upd({ partName: e.target.value })}
+                        placeholder="Part description (optional)"
+                        aria-label={`Part description for ${t.name || 'this board'}`}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={() => setDraftTypes((d) => d.filter((_, j) => j !== i))}
+                    aria-label={`Remove ${t.name || 'board type'}`}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              );
+            })}
             <button
               type="button"
               className="btn btn-sm btn-outline-secondary align-self-start"
-              onClick={() => setDraftTypes((d) => [...d, ''])}
+              onClick={() => setDraftTypes((d) => [...d, { name: '' }])}
             >
               <Plus size={16} /> Add type
             </button>
@@ -523,10 +595,21 @@ export default function BoardReplacementPage({
                 id="board-type"
                 className="form-select"
                 value={form.boardType}
-                onChange={(e) => set('boardType', e.target.value)}
+                onChange={(e) => chooseBoardType(e.target.value)}
               >
-                {boardTypes.map((b) => <option key={b} value={b}>{b}</option>)}
+                {boardTypeList.map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name}{b.partNumber ? ` — ${b.partNumber}` : ''}
+                  </option>
+                ))}
               </select>
+              {mappedPart && !pickedPart && (
+                <small className="text-muted">
+                  {mappedPart.partNumber}{mappedPart.partName ? ` · ${mappedPart.partName}` : ''} —
+                  {' '}<button type="button" className="btn btn-link btn-sm p-0 align-baseline"
+                    onClick={() => setPickedPart(mappedPickedPart(mappedPart))}>use this part</button>
+                </small>
+              )}
             </div>
 
             <div>

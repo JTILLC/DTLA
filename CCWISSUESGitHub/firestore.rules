@@ -89,6 +89,15 @@ service cloud.firestore {
       }
     }
 
+    // JTI's own template library — master PM checklists and board lists that
+    // belong to JTI rather than to any plant. The catch-all below already limits
+    // this to admins; it is written out because "no plant can read this" is a
+    // deliberate property, not an accident of ordering. What a plant sees is the
+    // COPY a push makes in their own config, which their existing rules cover.
+    match /jti_templates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
     // Anything else: admins only.
     match /{document=**} {
       allow read, write: if isAdmin();

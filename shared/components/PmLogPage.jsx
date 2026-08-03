@@ -40,6 +40,16 @@ import { useDialog } from './DialogSystem.jsx';
 import { isSiteLead } from '../utils/roles.js';
 import './pm-item.css';
 import ActingAs from './ActingAs.jsx';
+import TemplateBar from './TemplateBar.jsx';
+
+// One wording for "what is in this checklist", shared by the copy-from picker,
+// the JTI template bar and the push dialog.
+const describeChecklist = (d) => {
+  const secs = d?.sections || [];
+  const items = secs.reduce((n, s) => n + (s.items || []).length, 0);
+  if (!secs.length || !items) return null;
+  return `${secs.length} section${secs.length === 1 ? '' : 's'} and ${items} item${items === 1 ? '' : 's'}`;
+};
 
 const RESULTS = [
   { key: 'ok', label: 'OK', cls: 'btn-success' },
@@ -389,14 +399,27 @@ export default function PmLogPage({
           currentCustomerId={customerId}
           configKey="pmTemplate"
           label="checklist"
-          describe={(d) => {
-            const secs = d?.sections || [];
-            const items = secs.reduce((n, s) => n + (s.items || []).length, 0);
-            if (!secs.length || !items) return null;
-            return `${secs.length} section${secs.length === 1 ? '' : 's'} and ${items} item${items === 1 ? '' : 's'}`;
-          }}
+          describe={describeChecklist}
           onCopy={(d) => setDraft(copiedSections(d?.sections))}
         />
+
+        {canEditTemplate && (
+          <TemplateBar
+            workspaceId={workspaceId}
+            customers={customers}
+            currentCustomerId={customerId}
+            configKey="pmTemplate"
+            label="checklist"
+            // Sent as copiedSections would leave it: fresh ids, and without the
+            // per-customer uploaded photos, whose Storage paths and broker auth
+            // are scoped to the plant they were taken at. A pushed reference to
+            // one would resolve to a broken image at every other site.
+            draft={() => ({ sections: copiedSections(draft) })}
+            describe={describeChecklist}
+            onLoad={(d) => setDraft(copiedSections(d?.sections))}
+            updatedBy={performedByName}
+          />
+        )}
 
         {draft.map((sec, si) => (
           <div className="card mb-3" key={sec.id || si}>
