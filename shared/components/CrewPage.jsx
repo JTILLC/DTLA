@@ -26,6 +26,7 @@ import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import PinPrompt from './PinPrompt.jsx';
 import { hashPin, hasPin, pinProblem } from '../utils/pin.js';
+import { isSiteLead, SITE_LEAD_LABEL } from '../utils/roles.js';
 
 const ROLES = [
   { key: 'operator', label: 'Operator' },
@@ -62,7 +63,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
 
   // Gate an admin action: JTI passes straight through, a plant admin is asked
   // for their PIN once and then trusted for the rest of this page visit.
-  const asAdmin = (run) => {
+  const asSiteLead = (run) => {
     if (adminOk) return run();
     setAskAdmin(() => run);
   };
@@ -70,7 +71,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
   // The very first admin cannot prove themselves — nobody has a PIN yet. JTI
   // sets that one, which is why the flag is meaningless without a JTI login to
   // bootstrap it.
-  const anyPlantAdmin = people.some((p) => p.admin && hasPin(p));
+  const anySiteLead = people.some((p) => isSiteLead(p) && hasPin(p));
 
   const setPersonPin = async (person, pin) => {
     const problem = pinProblem(pin);
@@ -99,10 +100,14 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
     toast.success(`PIN cleared for ${person.name}`);
   };
 
-  const toggleAdmin = async (person) => {
-    const next = people.map((p) => (p.id === person.id ? { ...p, admin: !p.admin } : p));
+  const toggleSiteLead = async (person) => {
+    const now = !isSiteLead(person);
+    // Written under the new name; the old `admin` flag is cleared at the same
+    // time so the two can never disagree about one person.
+    const next = people.map((p) => (
+      p.id === person.id ? { ...p, siteLead: now, admin: now } : p));
     await saveCrew(workspaceId, customerId, next);
-    toast.success(`${person.name} is ${!person.admin ? 'now' : 'no longer'} a plant admin`);
+    toast.success(`${person.name} is ${now ? 'now' : 'no longer'} a ${SITE_LEAD_LABEL}`);
   };
 
   useEffect(() => {
@@ -347,7 +352,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                  Roles and line assignments ARE the permission model now — an
                  operator who can edit the roster can tick themselves as a
                  supervisor and walk past every check that depends on it. */
-              onClick={() => asAdmin(() => {
+              onClick={() => asSiteLead(() => {
                 setDraftPeople(people.map((p) => ({ ...p })));
                 setEditingRoster(true);
               })}
@@ -381,8 +386,8 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                             : <span className="badge bg-secondary">none</span>}
                         </td>
                         <td data-label="Admin">
-                          {p.admin
-                            ? <span className="badge bg-primary"><ShieldCheck size={11} /> admin</span>
+                          {isSiteLead(p)
+                            ? <span className="badge bg-primary"><ShieldCheck size={11} /> {SITE_LEAD_LABEL}</span>
                             : <span className="text-muted small">—</span>}
                         </td>
                         <td className="text-end">
@@ -390,7 +395,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                             <button
                               type="button"
                               className="btn btn-sm btn-outline-secondary"
-                              onClick={() => asAdmin(() => setPinFor(p))}
+                              onClick={() => asSiteLead(() => setPinFor(p))}
                             >
                               <KeyRound size={13} /> {hasPin(p) ? 'Reset PIN' : 'Set PIN'}
                             </button>
@@ -398,7 +403,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                               <button
                                 type="button"
                                 className="btn btn-sm btn-outline-danger"
-                                onClick={() => asAdmin(() => clearPersonPin(p))}
+                                onClick={() => asSiteLead(() => clearPersonPin(p))}
                               >
                                 Clear
                               </button>
@@ -406,9 +411,9 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                             <button
                               type="button"
                               className="btn btn-sm btn-outline-secondary"
-                              onClick={() => asAdmin(() => toggleAdmin(p))}
+                              onClick={() => asSiteLead(() => toggleSiteLead(p))}
                             >
-                              {p.admin ? 'Remove admin' : 'Make admin'}
+                              {isSiteLead(p) ? `Remove ${SITE_LEAD_LABEL}` : `Make ${SITE_LEAD_LABEL}`}
                             </button>
                           </div>
                         </td>
@@ -416,7 +421,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                     ))}
                   </tbody>
                 </table>
-                {!anyPlantAdmin && (
+                {!anySiteLead && (
                   <div className="form-text mt-2">
                     No plant admin with a PIN yet — JTI sets the first one, then
                     that person can manage the rest.
@@ -555,9 +560,9 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
         <PinPrompt
           customerId={customerId}
           people={people}
-          requireAdmin
+          requireSiteLead
           title="Supervisor PIN"
-          message="Setting or clearing someone's PIN needs an admin."
+          message={`Setting or clearing someone's PIN needs a ${SITE_LEAD_LABEL}.`}
           onVerified={() => {
             const run = askAdmin;
             setAskAdmin(null);
