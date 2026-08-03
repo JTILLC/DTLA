@@ -2829,7 +2829,7 @@ const AppContent = () => {
       const roleData = linkTarget === '__admin__' ? { admin: true } : { customerId: linkTarget };
       await firebase.firestore().collection('app_roles').doc(uid).set(roleData);
       const where = linkTarget === '__admin__'
-        ? 'JTI admin'
+        ? 'JTI Staff'
         : (customers.find(c => c.id === linkTarget)?.name || linkTarget);
       toast.success(`Login linked to ${where}. They can sign in now.`);
       setShowLinkLogin(false);
@@ -3781,7 +3781,7 @@ const AppContent = () => {
 
           <div className="fw-semibold small mb-1">Link an account that already exists</div>
           <p className="text-muted small mb-2">
-            For an account made elsewhere, or to grant JTI admin. Paste its <strong>User UID</strong> and choose the plant.
+            For an account made elsewhere, or to grant JTI Staff access. Paste its <strong>User UID</strong> and choose the plant.
             Quickest way to get the UID: have them sign in once — they'll be told the account isn't set up yet,
             and that screen shows their Account ID with a Copy button.
           </p>
@@ -3802,7 +3802,7 @@ const AppContent = () => {
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-                <option value="__admin__">JTI Admin (full access)</option>
+                <option value="__admin__">JTI Staff — every plant</option>
               </select>
             </div>
             <div className="col-md-3 d-flex gap-1">

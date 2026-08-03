@@ -37,6 +37,7 @@ import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
+import { isSiteLead } from '../utils/roles.js';
 import './pm-item.css';
 
 const RESULTS = [
@@ -819,7 +820,7 @@ export default function PmLogPage({
       {signingEntry && (
         <PinPrompt
           customerId={customerId}
-          people={crewPeople.filter((p) => (p.roles || []).includes('supervisor') || p.admin)}
+          people={crewPeople.filter((p) => (p.roles || []).includes('supervisor') || isSiteLead(p))}
           title="Supervisor sign-off"
           message="Signing confirms these checks were carried out. It is recorded against you and cannot be undone here."
           onVerified={(p) => {
