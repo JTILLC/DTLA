@@ -61,7 +61,7 @@ export const issueCount = (entry) =>
  * same reason the PM log does it: templates get edited, items get reworded and
  * removed, and a signed check has to keep meaning what it meant on the day.
  */
-export function buildSubmission({ items = [], answers = {}, notes = {} }) {
+export function buildSubmission({ items = [], answers = {}, notes = {}, photos = {} }) {
   return items.map((it) => ({
     label: it.label,
     type: it.type || 'check',
@@ -69,12 +69,22 @@ export function buildSubmission({ items = [], answers = {}, notes = {} }) {
     result: it.type === 'value' ? '' : (answers[it.id] || ''),
     value: it.type === 'value' ? (answers[it.id] || '') : '',
     note: notes[it.id] || '',
+    // Only the paths. A resolved broker URL is short-lived and storing one
+    // would leave the record pointing at a link that expires.
+    photos: (photos[it.id] || []).map((ph) => ({ path: ph.path })),
   }));
 }
+
+// Every photo on a submission, with the item it belongs to — for the views that
+// show a check at a glance rather than item by item.
+export const allPhotos = (entry) =>
+  (entry?.items || []).flatMap((i) => (i.photos || []).map((p) => ({ ...p, label: i.label })));
+
+export const photoCount = (entry) => allPhotos(entry).length;
 
 // Every check item answered? `value` items are free readings and may be blank —
 // requiring them would stop a shift over a box that has nothing to put in it.
 export const unanswered = (items = [], answers = {}) =>
   items.filter((it) => (it.type || 'check') === 'check' && !answers[it.id]);
 
-export default { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, RESULTS };
+export default { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, allPhotos, photoCount, RESULTS };

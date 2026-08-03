@@ -75,6 +75,17 @@ service firebase.storage {
                 && request.resource.contentType.matches('image/.*')));
     }
 
+    // prestart-photos/{workspaceId}/{customerId}/…
+    // Evidence attached to a daily pre-start check — the operator photographing
+    // what they just flagged. Same rule as every other picture of a customer's
+    // equipment: written by that plant or JTI, read through the broker.
+    match /prestart-photos/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
+    }
+
     // No write rule for any other path → arbitrary uploads are denied.
 
     // --- helpers ---
