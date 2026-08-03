@@ -48,6 +48,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // What a plant is entitled to: how many logins, and later its plan and
+    // seat count. The plant reads its own — it is shown their usage — and only
+    // JTI writes it, because an allowance a customer can edit is not one.
+    match /billing/{cid} {
+      allow read: if isAdmin() || isCustomerOf(cid);
+      allow write: if isAdmin();
+    }
+
     // Workspace data. READ: admin, the owning customer's login, or — for the
     // login-less viewer — when that customer has an active public share.
     // WRITE: admin, or the owning customer within the known workspace.
@@ -55,10 +63,29 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if isAdmin();
 
-      match /customers/{cid}/{document=**} {
+      // The customer document itself.
+      match /customers/{cid} {
         allow read: if isAdmin() || isCustomerOf(cid) || isSharedCustomer(cid);
         allow write: if isAdmin()
           || (workspaceId == 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1' && isCustomerOf(cid));
+      }
+
+      // Everything under a customer, with the first sub-collection bound so it
+      // can be tested. It cannot be `{document=**}` any more: that matched
+      // `visits` too, and rules are OR'd rather than overridden, so a stricter
+      // rule alongside it would have granted nothing extra and taken nothing
+      // away.
+      //
+      // `visits` is JTI's record of a service call. Customers read them — that
+      // is the point of the share — but only JTI writes them. The plant's own
+      // records are `dailyLogs`, a separate collection, so the boundary is a
+      // path the database can check rather than an intention the UI observes.
+      match /customers/{cid}/{coll}/{rest=**} {
+        allow read: if isAdmin() || isCustomerOf(cid) || isSharedCustomer(cid);
+        allow write: if isAdmin()
+          || (workspaceId == 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1'
+              && isCustomerOf(cid)
+              && coll != 'visits');
       }
     }
 

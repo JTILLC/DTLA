@@ -77,6 +77,15 @@ body {
   color: var(--text-secondary) !important;
 }
 
+/* Same trap as the *-emphasis colours above: Bootstrap's .text-secondary and
+   .text-body-secondary are dark greys meant for a light ground, and they never
+   get remapped because this app keys off [data-theme] rather than
+   [data-bs-theme]. Left alone they render dark-on-dark. */
+[data-theme="dark"] .text-secondary,
+[data-theme="dark"] .text-body-secondary {
+  color: var(--text-secondary) !important;
+}
+
 [data-theme="dark"] .form-control,
 [data-theme="dark"] .form-select {
   background-color: var(--input-bg) !important;
