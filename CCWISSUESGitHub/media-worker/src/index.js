@@ -42,7 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { createLogin, syncClaims, plantLogins } from './accounts.js';
+import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
 import {
   billingConfigured, summary as billingSummary, checkout as billingCheckout,
   portal as billingPortal, webhook as billingWebhook,
@@ -487,7 +487,8 @@ export default {
       return out;
     }
 
-    if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims') {
+    if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims'
+        || url.pathname === '/admin/logins' || url.pathname === '/admin/reset-password') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
         return deny(503, 'Account creation is not configured on the server.', origin, allowed);
@@ -509,9 +510,12 @@ export default {
         return deny(403, 'Only a JTI admin can create logins.', origin, allowed);
       }
 
-      const res = url.pathname === '/admin/sync-claims'
-        ? await syncClaims(request, env, mintToken)
-        : await createLogin(request, env, mintToken);
+      const handler = {
+        '/admin/sync-claims': syncClaims,
+        '/admin/logins': adminListLogins,
+        '/admin/reset-password': adminResetPassword,
+      }[url.pathname] || createLogin;
+      const res = await handler(request, env, mintToken);
       const out = new Response(res.body, res);
       Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
       return out;

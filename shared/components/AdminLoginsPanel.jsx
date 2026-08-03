@@ -17,10 +17,10 @@
 // No password is set or transmitted here. Creating an account and setting a
 // custom claim need privileges a browser must never hold, so both happen in the
 // media Worker, which proves the caller is a JTI admin first.
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
-import { Lock } from 'lucide-react';
+import { Lock, KeyRound, RefreshCw } from 'lucide-react';
 import { MEDIA_BROKER_BASE } from '../config/media.js';
 
 export default function AdminLoginsPanel({ customers = [], currentCustomerId = '', onClose, toast }) {
@@ -33,8 +33,61 @@ export default function AdminLoginsPanel({ customers = [], currentCustomerId = '
   const [linkUid, setLinkUid] = useState('');
   const [linkTarget, setLinkTarget] = useState(currentCustomerId);
   const [linkBusy, setLinkBusy] = useState(false);
+  // Existing logins for the selected plant, so a password can be reset without
+  // going to the Firebase console to find the account first.
+  const [logins, setLogins] = useState([]);
+  const [loadingLogins, setLoadingLogins] = useState(false);
+  const [resetFor, setResetFor] = useState(null);      // the login being reset
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
 
   const idToken = () => firebase.auth().currentUser.getIdToken();
+
+  const post = useCallback(async (path, payload) => {
+    const res = await fetch(`${MEDIA_BROKER_BASE}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await idToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Server said ${res.status}`);
+    return data;
+  }, []);
+
+  const loadLogins = useCallback(async (customerId) => {
+    if (!customerId || customerId === '__admin__') { setLogins([]); return; }
+    setLoadingLogins(true);
+    try {
+      const data = await post('/admin/logins', { customerId });
+      setLogins(data.logins || []);
+    } catch (err) {
+      console.error('Could not list logins:', err);
+      setLogins([]);
+    } finally {
+      setLoadingLogins(false);
+    }
+  }, [post]);
+
+  // Follows the plant picker, so the list always describes the plant on screen.
+  useEffect(() => { loadLogins(linkTarget); }, [linkTarget, loadLogins]);
+
+  const doReset = async () => {
+    setResetBusy(true);
+    try {
+      const data = await post('/admin/reset-password', {
+        uid: resetFor.uid,
+        password: resetPassword || undefined,
+      });
+      setResetResult(data);
+      setResetPassword('');
+      toast.success(data.passwordSet ? 'Password set' : 'Reset link ready');
+    } catch (err) {
+      toast.error(err.message || 'Could not reset that password');
+    } finally {
+      setResetBusy(false);
+    }
+  };
 
   const createLogin = async () => {
     const email = newEmail.trim().toLowerCase();
@@ -222,6 +275,129 @@ export default function AdminLoginsPanel({ customers = [], currentCustomerId = '
           </div>
         )}
       </div>
+
+      {/* Existing logins for the chosen plant. Listed here so resetting a
+          password does not mean going to the Firebase console to find the
+          account first — which was the whole reason this screen exists. */}
+      {linkTarget && linkTarget !== '__admin__' && (
+        <div className="border rounded p-2 mb-3">
+          <div className="d-flex justify-content-between align-items-center mb-1">
+            <div className="fw-semibold small d-flex align-items-center gap-2">
+              <KeyRound size={14} /> Logins for this plant
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-link p-0"
+              onClick={() => loadLogins(linkTarget)}
+              disabled={loadingLogins}
+            >
+              <RefreshCw size={12} /> {loadingLogins ? 'Checking…' : 'Refresh'}
+            </button>
+          </div>
+
+          {logins.length === 0 ? (
+            <div className="text-muted small">
+              {loadingLogins ? 'Checking…' : 'No logins yet for this plant.'}
+            </div>
+          ) : (
+            <ul className="list-group list-group-flush">
+              {logins.map((l) => (
+                <li key={l.uid} className="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2 flex-wrap bg-transparent">
+                  <div>
+                    <div className="small fw-semibold">
+                      {l.email}
+                      {l.disabled && <span className="badge bg-secondary ms-2">suspended</span>}
+                    </div>
+                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                      {l.lastSignIn
+                        ? `last signed in ${new Date(l.lastSignIn).toLocaleDateString()}`
+                        : 'never signed in'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => { setResetFor(l); setResetPassword(''); setResetResult(null); }}
+                  >
+                    Reset password
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {resetFor && (
+            <div className="border rounded p-2 mt-2">
+              <div className="small fw-semibold mb-1">Reset password — {resetFor.email}</div>
+              <div className="d-flex gap-2 flex-wrap align-items-end">
+                <div>
+                  <label className="form-label small mb-1" htmlFor="reset-pw">
+                    New password <span className="text-muted">— optional</span>
+                  </label>
+                  <input
+                    id="reset-pw"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="blank = send them a link"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="form-control form-control-sm"
+                    style={{ maxWidth: '240px' }}
+                  />
+                </div>
+                <button type="button" className="btn btn-sm btn-primary" onClick={doReset} disabled={resetBusy}>
+                  {resetBusy ? 'Working…' : (resetPassword ? 'Set password' : 'Get reset link')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link"
+                  onClick={() => { setResetFor(null); setResetResult(null); setResetPassword(''); }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="form-text mb-0">
+                {resetPassword
+                  ? 'You are choosing their password, so you will know it — tell them to change it.'
+                  : 'Leave blank for a link they can use to choose their own. Better whenever the address can receive mail.'}
+              </div>
+
+              {resetResult && (
+                <div className="alert alert-success mt-2 mb-0 py-2">
+                  {resetResult.passwordSet ? (
+                    <div className="small">
+                      Password set for {resetResult.email}. They can sign in now — ask them to change it.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="small mb-1">Send them this link to choose a new password:</div>
+                      <div className="d-flex gap-2">
+                        <input
+                          readOnly
+                          value={resetResult.setPasswordLink}
+                          className="form-control form-control-sm font-monospace"
+                          onFocus={(e) => e.target.select()}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(resetResult.setPasswordLink);
+                            toast.success('Link copied');
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="fw-semibold small mb-1">Link an account that already exists</div>
       <p className="text-muted small mb-2">
