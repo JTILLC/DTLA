@@ -54,6 +54,7 @@ import offlineQueue from '@shared/utils/offlineQueue.js';
 import syncManager from '@shared/utils/syncManager.js';
 import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
 import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
+import OpenLogCard from '@shared/components/OpenLogCard.jsx';
 import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
 import PmLogPage from '@shared/components/PmLogPage.jsx';
 import CrewPage from '@shared/components/CrewPage.jsx';
@@ -68,6 +69,7 @@ import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 import PinPrompt from '@shared/components/PinPrompt.jsx';
 import { subscribeCrew } from '@shared/services/logs.js';
 import { isSiteLead } from '@shared/utils/roles.js';
+import { chooseOpeningLog, logLabel, daysOld } from '@shared/utils/todaysLog.js';
 import AppNav, { navGroups } from '@shared/components/AppNav.jsx';
 import OverviewPage from '@shared/components/OverviewPage.jsx';
 
@@ -1160,6 +1162,9 @@ const AppContent = () => {
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [editTimestamp, setEditTimestamp] = useState('');
   const [currentVisitId, setCurrentVisitId] = useState(null);
+  // The customer whose log list has actually arrived from the subscription.
+  // Distinguishes "no logs" from "not loaded yet" for the Current Log decision.
+  const [visitsLoadedFor, setVisitsLoadedFor] = useState(null);
   const [serviceReportUrl, setServiceReportUrl] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
@@ -1188,6 +1193,13 @@ const AppContent = () => {
 
   // The crew roster, so a destructive action can be authorised by a named
   // person rather than by a secret the whole plant shares.
+  // How old the open log is, in whole days. Drives the badge beside Log Name so
+  // an operator can see at a glance that they are typing into an earlier day.
+  const openLogAge = useMemo(() => {
+    const lv = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
+    return lv ? daysOld(lv) : null;
+  }, [visits, currentVisitId]);
+
   // Heads down right now, badged on Current Log. Zero shows nothing.
   const navCounts = useMemo(() => {
     const offline = (lines || []).reduce(
@@ -2509,7 +2521,6 @@ const AppContent = () => {
 
   // Auto-resume last customer on first customers-loaded (skip if deep-link in progress)
   const autoResumedRef = useRef(false);
-  const pendingVisitIdRef = useRef(null);
   useEffect(() => {
     if (autoResumedRef.current) return;
     if (!user || customers.length === 0 || currentCustomer) return;
@@ -2519,15 +2530,13 @@ const AppContent = () => {
     if (urlHasDeepLink) { autoResumedRef.current = true; return; }
 
     const lastCustId = localStorage.getItem('ccwissues-last-customer-id');
-    const lastVisitId = localStorage.getItem('ccwissues-last-visit-id');
     const cust = lastCustId && customers.find(c => c.id === lastCustId);
-    if (cust) {
-      autoResumedRef.current = true;
-      pendingVisitIdRef.current = lastVisitId || null;
-      handleSelectCustomer(cust.id);
-    } else {
-      autoResumedRef.current = true;
-    }
+    autoResumedRef.current = true;
+    // The remembered CUSTOMER is resumed here; the remembered LOG is not. Which
+    // log to open is decided by chooseOpeningLog once the log list arrives, so a
+    // log from a previous day can no longer reopen itself and quietly collect
+    // today's readings.
+    if (cust) handleSelectCustomer(cust.id);
   }, [user, customers, currentCustomer]);
 
   // Customer-scoped users are locked to their one customer — always select it
@@ -2539,14 +2548,37 @@ const AppContent = () => {
     if (cust) handleSelectCustomer(cust.id);
   }, [scopedCustomerId, customers, currentCustomer]);
 
-  // After customer is selected, flush any pending visit load (from auto-resume)
+  // ── Which log does Current Log open? ──────────────────────────────────────
+  // Today's, automatically. Anything older is offered, never opened — see
+  // shared/utils/todaysLog.js for what goes wrong otherwise.
+  //
+  // `logDecision` is derived, so the card below stays right after a log is
+  // deleted or a new one is started; the auto-open beside it is a one-shot per
+  // customer, so closing a log does not immediately reopen it.
+  const logDecision = useMemo(() => {
+    const cid = currentCustomer?.id;
+    if (!cid || visitsLoadedFor !== cid) return null; // log list hasn't arrived yet
+    return chooseOpeningLog(visits, {
+      isAdmin,
+      rememberedId: typeof localStorage !== 'undefined'
+        ? localStorage.getItem('ccwissues-last-visit-id')
+        : null,
+    });
+  }, [currentCustomer?.id, visitsLoadedFor, visits, isAdmin]);
+
+  const autoOpenedForRef = useRef(null);
   useEffect(() => {
-    if (currentCustomer?.id && pendingVisitIdRef.current) {
-      const vid = pendingVisitIdRef.current;
-      pendingVisitIdRef.current = null;
-      loadVisit(vid);
-    }
-  }, [currentCustomer?.id]);
+    const cid = currentCustomer?.id;
+    if (!cid || !logDecision) return;
+    if (autoOpenedForRef.current === cid) return;
+    if (currentVisitId) { autoOpenedForRef.current = cid; return; } // something already open
+    // A ?visitId= link owns the choice; don't race it.
+    const urlHasDeepLink = typeof window !== 'undefined' &&
+      /[?&](visitId|id)=/.test(window.location.search);
+    if (urlHasDeepLink && !deepLinkProcessed) return;
+    autoOpenedForRef.current = cid;
+    if (logDecision.action === 'open') loadVisit(logDecision.log.id);
+  }, [logDecision, currentVisitId, currentCustomer?.id, deepLinkProcessed]);
 
   // Persist last customer + visit so we can auto-resume next session
   useEffect(() => {
@@ -2567,12 +2599,16 @@ const AppContent = () => {
   useEffect(() => {
     if (!user || !currentCustomer?.id) {
       setVisits([]);
+      setVisitsLoadedFor(null);
       return;
     }
     const subscribedCustomerId = currentCustomer.id;
     // Clear immediately so the old customer's visits don't flash in the UI
     // before the new subscription's first snapshot arrives.
     setVisits([]);
+    // An empty `visits` means "none yet" and "not loaded yet" alike, and the
+    // difference decides whether Current Log offers to start a log or waits.
+    setVisitsLoadedFor(null);
     const unsub = firebase
       .firestore()
       .collection('user_files')
@@ -2586,6 +2622,7 @@ const AppContent = () => {
           .map((d) => ({ id: d.id, customerId: subscribedCustomerId, ...d.data() }))
           .filter((v) => !v.deleted);
         setVisits(list);
+        setVisitsLoadedFor(subscribedCustomerId);
       });
     return () => unsub();
   }, [user, currentCustomer?.id]);
@@ -3996,10 +4033,34 @@ const AppContent = () => {
                 )}
               </div>
             )}
+            {/* No log open: say what exists and offer the two useful moves,
+                rather than presenting an empty Log Name box. */}
+            {currentCustomer && !currentVisitId && logDecision && (
+              <OpenLogCard
+                decision={logDecision}
+                onOpen={(log) => loadVisit(log.id)}
+                onStart={() => setShowNewLogModal(true)}
+              />
+            )}
+
+            {/* The editor proper. Hidden until a log is open, so the card above is
+                the whole screen rather than a note stuck on top of a live-looking
+                form with nothing behind it. */}
+            {currentVisitId && (
             <div style={{ pointerEvents: readOnly ? 'none' : 'auto', opacity: readOnly ? 0.7 : 1 }}>
             {currentCustomer && (
               <div className="mb-3">
-                <label className="form-label"><strong>Log Name:</strong></label>
+                <label className="form-label d-flex align-items-center gap-2 flex-wrap">
+                  <strong>Log Name:</strong>
+                  {/* Which day you are typing into. The name is renamable and often
+                      renamed, so it cannot be relied on to carry the date. */}
+                  {openLogAge != null && (
+                    <span className={`badge ${openLogAge > 0 ? 'bg-warning text-dark' : 'bg-secondary'}`}>
+                      {logLabel(visits.find(v => v.id === currentVisitId))}
+                      {openLogAge > 0 ? ` · not today` : ''}
+                    </span>
+                  )}
+                </label>
                 <input
                   type="text"
                   value={currentVisitName}
@@ -4033,6 +4094,7 @@ const AppContent = () => {
               }}
             />
             </div>
+            )}
 
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
