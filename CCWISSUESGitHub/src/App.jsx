@@ -1048,22 +1048,6 @@ const AppContent = () => {
 
   // Heads that are down right now, shown against Current Visit. A badge is only
   // worth the ink when there is something to answer for, so zero shows nothing.
-  // Issue History reads both sides of the record: JTI's service visits and the
-  // plant's own shift logs. `allVisits` still supplies other customers once JTI
-  // has loaded them, and is de-duplicated against the live pair.
-  const historyVisits = useMemo(() => {
-    const cid = currentCustomer?.id;
-    const mine = cid ? visits.map((v) => ({ ...v, customerId: v.customerId || cid, source: 'jti' })) : [];
-    const theirs = cid ? plantLogs.map((v) => ({ ...v, customerId: cid, source: 'plant' })) : [];
-    const key = (v) => `${v.customerId}/${v.id}`;
-    const seen = new Set([...mine, ...theirs].map(key));
-    const others = (allVisits || [])
-      .filter((v) => !seen.has(key(v)))
-      .map((v) => ({ ...v, source: v.source || 'jti' }));
-    return [...mine, ...theirs, ...others]
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [visits, plantLogs, allVisits, currentCustomer?.id]);
-
   const navCounts = useMemo(() => {
     const offline = (lines || []).reduce(
       (n, line) => n + (line.heads || []).filter((h) => h.status === 'offline').length, 0);
@@ -1121,6 +1105,23 @@ const AppContent = () => {
   const [allVisits, setAllVisits] = useState([]);
   // The plant's own shift logs for the selected customer — history only.
   const [plantLogs, setPlantLogs] = useState([]);
+
+  // Issue History reads both sides of the record: JTI's service visits and the
+  // plant's own shift logs. `allVisits` still supplies other customers once JTI
+  // has loaded them, and is de-duplicated against the live pair.
+  const historyVisits = useMemo(() => {
+    const cid = currentCustomer?.id;
+    const mine = cid ? visits.map((v) => ({ ...v, customerId: v.customerId || cid, source: 'jti' })) : [];
+    const theirs = cid ? plantLogs.map((v) => ({ ...v, customerId: cid, source: 'plant' })) : [];
+    const key = (v) => `${v.customerId}/${v.id}`;
+    const seen = new Set([...mine, ...theirs].map(key));
+    const others = (allVisits || [])
+      .filter((v) => !seen.has(key(v)))
+      .map((v) => ({ ...v, source: v.source || 'jti' }));
+    return [...mine, ...theirs, ...others]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [visits, plantLogs, allVisits, currentCustomer?.id]);
+
   const [showVisitList, setShowVisitList] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   // JTI's own screen for giving a plant a way in.
