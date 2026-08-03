@@ -44,6 +44,11 @@
 import { scanWeights, mayScan } from './weights.js';
 import { createLogin, syncClaims, plantLogins } from './accounts.js';
 import {
+  billingConfigured, summary as billingSummary, checkout as billingCheckout,
+  portal as billingPortal, webhook as billingWebhook,
+} from './billing.js';
+import { ACCOUNT_SCOPE } from './accounts.js';
+import {
   catalog, partsForFolder, partsConfigured, diagramMeta, diagramImage, diagramsForFolder,
   foldersForCustomers,
 } from './parts.js';
@@ -391,6 +396,63 @@ export default {
     // at another plant. A JTI admin has no customerId of their own, so they use
     // /admin/create-login instead; falling through to "no customer" here would
     // be a confusing way to say that.
+    // --- Billing ----------------------------------------------------------
+    //
+    // The webhook is FIRST and deliberately outside the token check: Stripe has
+    // no Firebase session, and its request is authenticated by a signature over
+    // the raw body instead. Reading the body must therefore happen before
+    // anything else touches it.
+    if (url.pathname === '/billing/webhook') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      const raw = await request.text();
+      const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+      return billingWebhook(
+        env, token, env.FIREBASE_PROJECT_ID, raw,
+        request.headers.get('Stripe-Signature') || ''
+      );
+    }
+
+    if (url.pathname.startsWith('/billing/')) {
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, [env.FIREBASE_PROJECT_ID]);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      const customerId = typeof claims.customerId === 'string' ? claims.customerId : '';
+      if (!customerId) return deny(403, 'This is for a plant login.', origin, allowed);
+
+      const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY, ACCOUNT_SCOPE);
+      const ws = env.WORKSPACE_UID || '';
+      // Logins are counted by the same code that caps them, so the figure a
+      // plant is shown and the figure enforced against it are one number.
+      const listRes = await plantLogins(
+        new Request(request.url, { method: 'GET' }), env, mintToken, customerId
+      );
+      const listed = await listRes.json().catch(() => ({ used: 0 }));
+      const usedLogins = listed.used || 0;
+
+      let res;
+      if (url.pathname === '/billing/summary') {
+        res = await billingSummary(env, token, env.FIREBASE_PROJECT_ID, ws, customerId, usedLogins);
+      } else if (url.pathname === '/billing/checkout') {
+        res = await billingCheckout(env, token, env.FIREBASE_PROJECT_ID, ws, customerId, usedLogins, origin || '');
+      } else if (url.pathname === '/billing/portal') {
+        res = await billingPortal(env, token, env.FIREBASE_PROJECT_ID, customerId, origin || '');
+      } else {
+        return deny(404, 'Not found', origin, allowed);
+      }
+      const out = new Response(res.body, res);
+      Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
+      return out;
+    }
+
     if (url.pathname === '/account/logins') {
       if (!['GET', 'POST'].includes(request.method)) {
         return deny(405, 'Method not allowed', origin, allowed);
@@ -590,6 +652,7 @@ export default {
           media: !!env.GCP_SA_EMAIL && !!env.GCP_SA_PRIVATE_KEY,
           scanWeights: !!env.ANTHROPIC_API_KEY,
           parts: partsConfigured(env),
+          billing: billingConfigured(env),
         }),
         { headers: { ...JSON_CT, ...corsHeaders(origin, allowed) } }
       );
