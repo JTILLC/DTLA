@@ -3540,7 +3540,14 @@ const AppContent = () => {
         <div className="p-3 bg-info bg-opacity-10 border-bottom" style={{ maxHeight: '400px', overflowY: 'auto' }}>
           <div className="d-flex justify-content-between align-items-start mb-3">
             <h5 className="mb-0">Help Guide</h5>
-            <button onClick={() => setShowHelp(false)} className="btn btn-sm btn-outline-secondary">Close</button>
+            <div className="d-flex gap-2">
+              {/* Extensionless: Cloudflare Pages 308s /JTI_GUIDE.html to
+                  /JTI_GUIDE, so linking the .html adds a redirect for nothing. */}
+              <a href="/JTI_GUIDE" target="_blank" rel="noopener" className="btn btn-sm btn-primary">
+                Full guide ↗
+              </a>
+              <button onClick={() => setShowHelp(false)} className="btn btn-sm btn-outline-secondary">Close</button>
+            </div>
           </div>
 
           <div className="mb-4">
