@@ -460,6 +460,64 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
                   >
                     <Trash2 size={14} />
                   </button>
+
+                  {/* Which lines this person may file against.
+                      Nothing ticked means every line, not no lines — a plant
+                      that never opens this screen must keep working exactly as
+                      it did. Supervisors are not restricted at all, so the
+                      picker says so rather than offering ticks that do nothing. */}
+                  <div className="w-100 mt-1 ps-1">
+                    {(p.roles || []).includes('supervisor') ? (
+                      <div className="form-text mb-0">
+                        Supervisors can file against any line, and can authorise
+                        others to.
+                      </div>
+                    ) : lines.length === 0 ? (
+                      <div className="form-text mb-0">
+                        No lines recorded for this customer yet.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="small text-muted mb-1">
+                          May edit
+                          {(p.lines || []).length === 0
+                            ? ' — every line (none picked)'
+                            : ` — ${(p.lines || []).length} of ${lines.length} lines`}
+                        </div>
+                        <div className="d-flex flex-wrap gap-2">
+                          {lines.map((title) => (
+                            <div className="form-check form-check-inline m-0" key={title}>
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`${p.id}-line-${title}`}
+                                checked={(p.lines || []).includes(title)}
+                                onChange={(e) => setDraftPeople((d) => d.map((x, j) => {
+                                  if (j !== i) return x;
+                                  const set = new Set(x.lines || []);
+                                  if (e.target.checked) set.add(title); else set.delete(title);
+                                  return { ...x, lines: [...set] };
+                                }))}
+                              />
+                              <label className="form-check-label small" htmlFor={`${p.id}-line-${title}`}>
+                                {title}
+                              </label>
+                            </div>
+                          ))}
+                          {(p.lines || []).length > 0 && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-link p-0"
+                              onClick={() => setDraftPeople((d) => d.map((x, j) => (
+                                j === i ? { ...x, lines: [] } : x)))}
+                            >
+                              Clear — allow every line
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
               <div className="d-flex gap-2 flex-wrap">

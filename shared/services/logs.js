@@ -194,6 +194,13 @@ export async function saveCrew(workspaceId, customerId, people) {
         // from the JTI admin claim, which is an access boundary — this one only
         // governs who can hand out PINs inside their own plant.
         admin: !!p.admin,
+        // Lines this person may file against. An empty list means no
+        // restriction rather than no access — see utils/lineAccess.js. Written
+        // explicitly because this whitelist drops anything it does not name,
+        // which would have let the picker appear to work and save nothing.
+        lines: Array.isArray(p.lines)
+          ? p.lines.map((l) => String(l || '').trim()).filter(Boolean)
+          : [],
         // Written by the PIN flows; carried through here so an unrelated roster
         // edit never silently clears someone's PIN.
         ...(p.pinHash ? { pinHash: p.pinHash } : {}),
