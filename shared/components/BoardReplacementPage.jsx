@@ -36,6 +36,7 @@ import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
+import ActingAs from './ActingAs.jsx';
 
 const BLANK = {
   lineTitle: '',
@@ -570,6 +571,7 @@ export default function BoardReplacementPage({
             </div>
 
             <CrewChip lineCrew={lineCrew} lineTitle={form.lineTitle} />
+            <ActingAs customerId={customerId} what="Replacements" />
             <button
               type="button"
               className="btn btn-primary"
