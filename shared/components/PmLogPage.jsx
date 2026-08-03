@@ -13,7 +13,7 @@
 //
 // 2. Submissions are immutable once made. To correct one you submit again; the
 //    log is a record of checks performed, not a document to revise.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, Settings, Plus, X, Trash2, ChevronLeft, BookOpen } from 'lucide-react';
 import {
   LOG_PM, subscribeLog, addLogEntry, deleteLogEntry, updateLogEntry,
@@ -34,6 +34,7 @@ import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
+import './pm-item.css';
 
 const RESULTS = [
   { key: 'ok', label: 'OK', cls: 'btn-success' },
@@ -67,6 +68,23 @@ const copiedSections = (sections) =>
       ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
     })),
   }));
+
+// A textarea that is exactly as tall as its content.
+//
+// Checklist items are sentences, not words, and a one-line input hides all but
+// the first few. This grows as you type and, importantly, arrives at the right
+// height for text that is ALREADY there — which is the case that matters when
+// you open a saved checklist to read it.
+function GrowingTextarea({ value, ...props }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';                 // shrink first, or it only ever grows
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={1} value={value} {...props} />;
+}
 
 export default function PmLogPage({
   customers = [],
@@ -127,6 +145,8 @@ export default function PmLogPage({
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState([]);         // template editor working copy
   const [savingTemplate, setSavingTemplate] = useState(false);
+  // Viewing the fill screen without being able to file anything from it.
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -156,6 +176,9 @@ export default function PmLogPage({
 
   // ---- Submit -------------------------------------------------------------
   const submit = () => withActor(async (filedBy) => {
+    // A preview must never be able to file a check, whatever route reached
+    // here. The button is hidden in preview; this is the guard that matters.
+    if (preview || !canSubmit) return;
     const items = [];
     sections.forEach((sec) =>
       (sec.items || []).forEach((it) => {
@@ -388,19 +411,26 @@ export default function PmLogPage({
             </div>
             <div className="card-body d-flex flex-column gap-2">
               {(sec.items || []).map((it, ii) => (
-                <div className="input-group" key={it.id || ii}>
-                  <input
-                    type="text"
-                    className="form-control"
+                /* The label gets a row of its own, and grows to fit.
+                   These are instructions — "Dispersion table surface and radial
+                   troughs free of product build-up" — and in a Bootstrap
+                   input-group they shared one line with a dropdown, a delete
+                   button and two image buttons. What was left showed about
+                   twenty characters, so the only way to read an item was to
+                   click into the field and scrub sideways. */
+                <div className="pm-item" key={it.id || ii}>
+                  <GrowingTextarea
+                    className="form-control pm-item-label"
                     value={it.label}
                     placeholder="Item to check"
                     onChange={(e) => setDraft((d) => d.map((s, i) => i !== si ? s : {
                       ...s, items: s.items.map((x, j) => (j === ii ? { ...x, label: e.target.value } : x)),
                     }))}
                   />
+                  <div className="pm-item-controls">
                   <select
                     className="form-select"
-                    style={{ maxWidth: '130px' }}
+                    style={{ maxWidth: '150px' }}
                     value={it.type || 'check'}
                     onChange={(e) => setDraft((d) => d.map((s, i) => i !== si ? s : {
                       ...s, items: s.items.map((x, j) => (j === ii ? { ...x, type: e.target.value } : x)),
@@ -420,11 +450,11 @@ export default function PmLogPage({
                     <X size={16} />
                   </button>
                   {it.imageUrl && (
-                    <span className="input-group-text p-1">
+                    <span className="pm-item-fig">
                       <ManualFigure src={it.imageUrl} label={it.label} size={40} />
                     </span>
                   )}
-                  <span className="input-group-text p-1">
+                  <span className="pm-item-fig">
                     <ReferenceImage
                       image={it.image}
                       pathPrefix={`pm-images/${workspaceId}/${customerId}`}
@@ -434,6 +464,7 @@ export default function PmLogPage({
                       size={40}
                     />
                   </span>
+                  </div>
                 </div>
               ))}
               <button
@@ -576,9 +607,16 @@ export default function PmLogPage({
               </div>
             </div>
             <CrewChip lineCrew={lineCrew} lineTitle={lineTitle} />
-            <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
-              {saving ? 'Submitting…' : 'Submit PM check'}
-            </button>
+            {preview ? (
+              <div className="alert alert-info mb-0 py-2">
+                Preview — this is what the plant sees. Nothing here can be submitted
+                or recorded from this screen.
+              </div>
+            ) : (
+              <button type="button" className="btn btn-primary btn-lg" onClick={submit} disabled={saving}>
+                {saving ? 'Submitting…' : 'Submit PM check'}
+              </button>
+            )}
           </div>
         </div>
         {dialog.DialogComponent}
@@ -599,8 +637,21 @@ export default function PmLogPage({
               <Settings size={16} /> Checklist
             </button>
           )}
+          {/* Whoever writes the checklist cannot otherwise see what they wrote:
+              the fill screen is the only place the wording, the reference
+              photos and the reading fields appear together, and it was reachable
+              only by the plant staff who submit. This opens the same screen
+              read-only, so a checklist can be proof-read before anyone is asked
+              to work from it. */}
+          {!canSubmit && canEditTemplate && (
+            <button type="button" className="btn btn-outline-primary btn-sm"
+              onClick={() => { setPreview(true); setMode('fill'); }}>
+              <ClipboardList size={16} /> Preview checklist
+            </button>
+          )}
           {canSubmit && (
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setMode('fill')}>
+            <button type="button" className="btn btn-primary btn-sm"
+              onClick={() => { setPreview(false); setMode('fill'); }}>
               <Plus size={16} /> New PM check
             </button>
           )}
