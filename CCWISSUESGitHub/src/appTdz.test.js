@@ -50,4 +50,67 @@ describe.each(APPS)('%s App.jsx', (_name, file) => {
       `\`user\` is in its temporal dead zone here — use \`session\` instead:\n${offenders.join('\n')}`
     ).toEqual([]);
   });
+
+  // The general form of the same crash, which the check above was too specific
+  // to catch. A useMemo body runs DURING RENDER, so every `const` it reads must
+  // already have been initialised — a memo placed above the useState lines it
+  // depends on throws "Cannot access 'X' before initialization" on first render
+  // and the app shows an error screen instead of itself.
+  //
+  // This shipped: historyVisits was written above the state it reads, the build
+  // passed, the tests passed, and the page was blank in production.
+  //
+  // Only useMemo is scanned. A useCallback body does not run at render time, so
+  // naming a later const inside one is fine and flagging it would be noise.
+  it('has no useMemo reading a const declared below it', () => {
+    const src = readFileSync(file, 'utf8');
+    const lines = src.split('\n');
+
+    // Top-level declarations split the file into component scopes, so a memo in
+    // one component is never compared against a name declared in another.
+    const scopeStarts = lines.reduce((acc, l, i) => {
+      if (/^(export default )?function \w+|^const \w+ = (\(|\w+ =>)/.test(l)) acc.push(i);
+      return acc;
+    }, [0]);
+    const scopeOf = (i) => scopeStarts.filter((s) => s <= i).pop() ?? 0;
+
+    // `const [x, setX] = useState(…)` / `const x = useMemo|useRef|useState(…)`
+    const declaredAt = new Map();      // name -> line index
+    lines.forEach((l, i) => {
+      const arr = l.match(/^\s*const \[\s*(\w+)/);
+      const one = l.match(/^\s*const (\w+)\s*=\s*(useMemo|useRef|useState|useCallback)\(/);
+      const name = arr?.[1] || one?.[1];
+      if (name && !declaredAt.has(name)) declaredAt.set(name, i);
+    });
+
+    const offenders = [];
+    const re = /useMemo\(/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const startLine = src.slice(0, m.index).split('\n').length - 1;
+      // Walk braces/parens from the useMemo( to find where its body ends.
+      let depth = 0, end = m.index;
+      for (let i = m.index + 'useMemo'.length; i < src.length; i += 1) {
+        const c = src[i];
+        if (c === '(') depth += 1;
+        else if (c === ')') { depth -= 1; if (depth === 0) { end = i; break; } }
+      }
+      const body = src.slice(m.index, end);
+      const scope = scopeOf(startLine);
+
+      new Set(body.match(/(?<![A-Za-z0-9_.'"`])[A-Za-z_]\w*/g) || []).forEach((id) => {
+        const at = declaredAt.get(id);
+        if (at === undefined) return;
+        if (at <= startLine) return;               // declared first — fine
+        if (scopeOf(at) !== scope) return;         // a different component
+        offenders.push(`  line ${startLine + 1}: useMemo reads \`${id}\`, declared at line ${at + 1}`);
+      });
+    }
+
+    expect(
+      [...new Set(offenders)],
+      `A useMemo runs during render and cannot read a const declared below it.\n`
+      + `Move the useMemo below these declarations:\n${[...new Set(offenders)].join('\n')}`
+    ).toEqual([]);
+  });
 });
