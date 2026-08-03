@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Cpu, ChevronLeft, Trash2, Plus, Settings, X, Link2 } from 'lucide-react';
 import {
   LOG_BOARD, subscribeLog, addLogEntry, deleteLogEntry, sinceLabel,
-  subscribeBoardTypes, saveBoardTypes, subscribePartsBindings, updateLogEntry,
+  subscribeBoardTypes, saveBoardTypes, subscribePartsBindings, subscribeBoardParts, updateLogEntry,
 } from '../services/logs.js';
 import { BOARD_TYPES } from '@app/config/constants';
 import { useToast } from './Toast.jsx';
@@ -38,7 +38,8 @@ import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import { useDialog } from './DialogSystem.jsx';
 import ActingAs from './ActingAs.jsx';
 import TemplateBar from './TemplateBar.jsx';
-import { normalizeTypes, partForType, mappedPickedPart } from '../utils/boardTypes.js';
+import { normalizeTypes } from '../utils/boardTypes.js';
+import { resolveBoardPart } from '../utils/boardParts.js';
 
 // Shared by the copy-from picker, the template bar and the push dialog, so all
 // three describe a list the same way.
@@ -117,6 +118,9 @@ export default function BoardReplacementPage({
   const [savingTypes, setSavingTypes] = useState(false);
   // Which machine's manual each line's parts come from, keyed by line title.
   const [bindings, setBindings] = useState({});
+  // Board type -> part number, per machine. Overrides the board type's general
+  // number for boards that differ between machines.
+  const [boardParts, setBoardParts] = useState({ byMachine: {} });
   const [editingBindings, setEditingBindings] = useState(false);
   // The manual entry confirmed for the part currently typed, if any.
   const [pickedPart, setPickedPart] = useState(null);
@@ -144,6 +148,11 @@ export default function BoardReplacementPage({
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
     return subscribeBoardTypes(workspaceId, customerId, setConfiguredTypes);
+  }, [workspaceId, customerId]);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeBoardParts(workspaceId, customerId, setBoardParts);
   }, [workspaceId, customerId]);
 
   // Configured list wins; BOARD_TYPES is the starting point for a customer
@@ -180,21 +189,29 @@ export default function BoardReplacementPage({
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
-  // The part JTI mapped to the chosen board type, if any.
+  // The part for the chosen board type — this machine's, if one is set for it,
+  // otherwise the board type's general number. See shared/utils/boardParts.js.
+  const resolveFor = (lineTitle, boardType) => resolveBoardPart({
+    boardParts,
+    binding: bindings[lineTitle] || null,
+    boardTypes: boardTypeList,
+    boardType,
+  });
   const mappedPart = useMemo(
-    () => partForType(boardTypeList, form.boardType),
-    [boardTypeList, form.boardType],
+    () => resolveFor(form.lineTitle, form.boardType),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [boardParts, bindings, boardTypeList, form.lineTitle, form.boardType],
   );
 
   // Choosing a board type fills its part in — but only into an empty picker.
   // Overwriting a part someone already chose would silently change what the log
-  // says was fitted, and the mapping is guidance, not a better source than the
+  // says was fitted, and a mapping is guidance, not a better source than the
   // person standing at the machine.
   const chooseBoardType = (name) => {
     set('boardType', name);
     if (pickedPart || extraParts.length || form.partNumber.trim()) return;
-    const part = mappedPickedPart(partForType(boardTypeList, name));
-    if (part) setPickedPart(part);
+    const r = resolveFor(form.lineTitle, name);
+    if (r) setPickedPart(r.part);
   };
 
   // Everything replaced in this one job, in the shape the log stores.
@@ -449,6 +466,11 @@ export default function BoardReplacementPage({
           customerId={customerId}
           lines={lines}
           bindings={bindings}
+          boardTypes={boardTypes}
+          boardParts={boardParts}
+          confirm={(message) => dialog.confirm(message, {
+            title: 'Remove part', confirmText: 'Remove', variant: 'danger',
+          })}
           onClose={() => setEditingBindings(false)}
         />
       )}
@@ -605,9 +627,16 @@ export default function BoardReplacementPage({
               </select>
               {mappedPart && !pickedPart && (
                 <small className="text-muted">
-                  {mappedPart.partNumber}{mappedPart.partName ? ` · ${mappedPart.partName}` : ''} —
-                  {' '}<button type="button" className="btn btn-link btn-sm p-0 align-baseline"
-                    onClick={() => setPickedPart(mappedPickedPart(mappedPart))}>use this part</button>
+                  {mappedPart.part.partCode}
+                  {mappedPart.part.partName ? ` · ${mappedPart.part.partName}` : ''}
+                  {/* Which claim this is: off this machine's manual, or the
+                      general number kept for the board type. */}
+                  <span className="ms-1">
+                    ({mappedPart.source === 'machine' ? 'this machine' : 'usual part'})
+                  </span>
+                  {' — '}
+                  <button type="button" className="btn btn-link btn-sm p-0 align-baseline"
+                    onClick={() => setPickedPart(mappedPart.part)}>use this part</button>
                 </small>
               )}
             </div>

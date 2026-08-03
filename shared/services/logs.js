@@ -300,6 +300,28 @@ export async function savePartsBindings(workspaceId, customerId, bindings) {
   });
 }
 
+// Which part number a board type is ON A PARTICULAR MACHINE, keyed by the bound
+// folder — because "Main Control Board" is a different part on a bigger weigher,
+// and the board-type list carries only one number for all of them.
+//
+// Shape: { byMachine: { '<partsCustomer>//<folder>': { '<boardType>': { partNumber, … } } } }
+//
+// See shared/utils/boardParts.js for the resolution order.
+export function subscribeBoardParts(workspaceId, customerId, cb) {
+  if (!workspaceId || !customerId) return () => {};
+  return configDoc(workspaceId, customerId, 'boardParts').onSnapshot(
+    (snap) => cb(snap.exists ? (snap.data() || { byMachine: {} }) : { byMachine: {} }),
+    (err) => { console.error('board parts subscription failed:', err); cb({ byMachine: {} }); }
+  );
+}
+
+export async function saveBoardParts(workspaceId, customerId, boardParts) {
+  await configDoc(workspaceId, customerId, 'boardParts').set({
+    byMachine: boardParts?.byMachine || {},
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // ---- PM checklist template -------------------------------------------------
 // Defined by JTI, filled in by the plant. Stored per customer alongside the
 // board types, for the same reason: what needs checking differs between sites.
