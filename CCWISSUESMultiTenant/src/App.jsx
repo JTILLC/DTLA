@@ -3594,7 +3594,7 @@ const AppContent = () => {
                 {isAdmin && (
                   <li>
                     <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => { setLinkTarget(currentCustomer?.id || ''); setShowLinkLogin(true); }}>
-                      <Lock className="w-4 h-4" /> Link Login to Plant
+                      <Lock className="w-4 h-4" /> Plant logins
                     </button>
                   </li>
                 )}
