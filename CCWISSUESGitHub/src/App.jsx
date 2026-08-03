@@ -67,9 +67,6 @@ import AppNav from '@shared/components/AppNav.jsx';
 import OverviewPage from '@shared/components/OverviewPage.jsx';
 import { sinceLabel } from '@shared/services/logs.js';
 import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
-import PinPrompt from '@shared/components/PinPrompt.jsx';
-import { subscribeCrew } from '@shared/services/logs.js';
-import { isSiteLead } from '@shared/utils/roles.js';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -1147,15 +1144,6 @@ const AppContent = () => {
   // plainly responsible for, whatever the roster says, so the line lock does
   // not apply to it — locking someone out of a line they just created reads as
   // the app being broken, and it is not what the lock is for.
-  // Crew for PIN attribution on line changes. Kept in a ref as well so the
-  // helper below can read it without becoming a dependency of every caller.
-  const [crewPeople, setCrewPeople] = useState([]);
-  const crewPeopleRef = useRef([]);
-  useEffect(() => { crewPeopleRef.current = crewPeople; }, [crewPeople]);
-  useEffect(() => {
-    if (!session?.uid || !currentCustomer?.id) return undefined;
-    return subscribeCrew(session.uid, currentCustomer.id, setCrewPeople);
-  }, [session?.uid, currentCustomer?.id]);
 
   const createdThisSession = useRef(new Set());
 
@@ -1208,40 +1196,18 @@ const AppContent = () => {
     toast.success(`"${row.title || 'Line'}" restored`);
   };
 
-  // Adding or removing a line changes the shape of the plant's record, so it is
-  // not something every crew member should be able to do. It takes a SUPERVISOR
-  // or SITE LEAD PIN — the same two roles that authorise everything else of
-  // consequence.
-  //
-  // Asked every time, deliberately: an operator who watched a supervisor unlock
-  // something earlier in the shift must not inherit the right to delete a line
-  // an hour later. This is not attribution, it is permission, and permission
-  // does not persist just because a name is remembered on the tablet.
-  const [linePinFor, setLinePinFor] = useState(null);     // () => void
-  const lineManagers = useMemo(
-    () => crewPeople.filter((p) => (p.roles || []).includes('supervisor') || isSiteLead(p)),
-    [crewPeople]
-  );
-  const asLineManager = (run) => {
-    // Nobody who could authorise it has a PIN yet, so there is nothing to ask
-    // for. The plant keeps working, exactly as one with no PINs at all does —
-    // the gate must never become the reason a line cannot be created.
-    const canAuthorise = lineManagers.some((p) => p.pinHash);
-    if (!canAuthorise) return run('');
-    setLinePinFor(() => run);
-  };
 
-  const handleAddLine = (lineName, headCount) => asLineManager((who) => {
+  const handleAddLine = (lineName, headCount) => {
     createLine(lineName, headCount, (updater) => {
       setLines((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         // Whatever is in `next` but not in `prev` was just created here.
         const before = new Set(prev.map((l) => l.id));
         next.forEach((l) => { if (!before.has(l.id)) createdThisSession.current.add(l.id); });
-        return next.map((l) => (before.has(l.id) ? l : { ...l, addedBy: who || '', addedAt: new Date().toISOString() }));
+        return next.map((l) => (before.has(l.id) ? l : { ...l, addedBy: 'JTI', addedAt: new Date().toISOString() }));
       });
     }, setActiveLineId, lines);
-  });
+  };
 
   // Stable callbacks for <Line> so React.memo can skip untouched lines.
   // linesRef lets handlers read the latest lines without re-creating on every state change.
@@ -1276,7 +1242,7 @@ const AppContent = () => {
     );
     if (!confirmed) return;
 
-    asLineManager(async (who) => {
+    (async () => {
       // Kept before it goes, not after. A line removed by mistake is a visit's
       // worth of head readings, issues and notes, and "are you sure?" is not a
       // backup.
@@ -1293,7 +1259,7 @@ const AppContent = () => {
               title: snapshot.title || 'Line',
               line: snapshot,
               deletedAt: new Date().toISOString(),
-              deletedBy: who || '',
+              deletedBy: 'JTI',
             });
         } catch (e) {
           // If the line cannot be saved, it does not get deleted. Losing it
@@ -1310,7 +1276,7 @@ const AppContent = () => {
         return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
       });
       toast.success(`"${lineTitle || 'Line'}" removed — restorable for 30 days`);
-    });
+    })();
   }, [dialog, session, toast]);
 
   const handleResetLine = useCallback(async (line) => {
@@ -3432,24 +3398,6 @@ const AppContent = () => {
         </div>
       )}
 
-      {linePinFor && (
-        <PinPrompt
-          customerId={currentCustomer?.id}
-          people={lineManagers}
-          title="Supervisor or Site Lead"
-          message="Adding or removing a line needs a supervisor or Site Lead, and is recorded against them."
-          onVerified={(p) => {
-            // Deliberately NOT remembered as the person at this tablet. A
-            // supervisor authorising one line change must not leave the device
-            // acting as them afterwards — the operator who takes it back would
-            // inherit a standing they were never given.
-            const run = linePinFor;
-            setLinePinFor(null);
-            run(p.name);
-          }}
-          onCancel={() => setLinePinFor(null)}
-        />
-      )}
 
       {showPlantLogins && (
         <AdminLoginsPanel
