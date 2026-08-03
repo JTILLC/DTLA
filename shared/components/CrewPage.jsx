@@ -343,7 +343,14 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
             <button
               type="button"
               className="btn btn-sm btn-outline-secondary"
-              onClick={() => { setDraftPeople(people.map((p) => ({ ...p }))); setEditingRoster(true); }}
+              /* Behind the plant-admin gate, like the PIN actions beside it.
+                 Roles and line assignments ARE the permission model now — an
+                 operator who can edit the roster can tick themselves as a
+                 supervisor and walk past every check that depends on it. */
+              onClick={() => asAdmin(() => {
+                setDraftPeople(people.map((p) => ({ ...p })));
+                setEditingRoster(true);
+              })}
             >
               Edit
             </button>
