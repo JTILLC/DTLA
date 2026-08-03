@@ -103,3 +103,36 @@ describe('roles that go wherever the fault is', () => {
     expect(mayEditLine({ id: 'b', name: 'y', roles: ['operator', 'tech'], lines: ['JLA'] }, 'SN2')).toBe(true);
   });
 });
+
+describe('the visit screen (line-level lock)', () => {
+  // The visit screen holds edits locally and saves the whole visit at once, so
+  // the guard sits on the line rather than on the save. These are the cases
+  // that decide whether a line renders read-only.
+  const op = (lines) => ({ id: 'p1', name: 'A. Kaur', roles: ['operator'], lines });
+
+  it('locks a line the operator is not assigned to', () => {
+    expect(mayEditLine(op(['JLA']), 'SN2')).toBe(false);
+  });
+
+  it('leaves their own lines open', () => {
+    expect(mayEditLine(op(['JLA', 'SN2']), 'SN2')).toBe(true);
+  });
+
+  it('never locks a plant that has not set any of this up', () => {
+    // No PINs, nobody identified: the visit screen must behave exactly as it
+    // did before any of this existed.
+    expect(mayEditLine(null, 'SN2')).toBe(true);
+    expect(mayEditLine(op([]), 'SN2')).toBe(true);
+  });
+
+  it('never locks maintenance out of a machine', () => {
+    expect(mayEditLine({ id: 't', name: 'J', roles: ['tech'], lines: ['JLA'] }, 'SN2')).toBe(true);
+  });
+
+  it('does not lock a line with no title yet', () => {
+    // A line being added has no title; locking it would make new lines
+    // un-editable at the moment they are created.
+    expect(mayEditLine(op(['JLA']), '')).toBe(true);
+    expect(mayEditLine(op(['JLA']), undefined)).toBe(true);
+  });
+});

@@ -12,6 +12,8 @@ import HeadIssueModal from './HeadIssueModal.jsx';
 import SpanAdjustLog from './SpanAdjustLog.jsx';
 import { useDialog } from './DialogSystem.jsx';
 import { buildHeadIssueHistory, migrateHeadData as migrateHeadDataShared } from '../utils/headHelpers.js';
+import { mayEditLine, resolvePerson, refusalMessage } from '../utils/lineAccess.js';
+import LineLockPrompt from './LineLockPrompt.jsx';
 
 const issueTypes = [
   'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
@@ -36,6 +38,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   const { person: actor, remember: rememberActor } = useVerifiedPerson(customerId);
   const [crewPeople, setCrewPeople] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);   // () => void
+  // A line somebody is not assigned to is read-only until a supervisor says
+  // otherwise. Unlocking lasts for as long as this line stays open, not
+  // forever: the point is that a supervisor was present, and that is a fact
+  // about now.
+  const [unlocked, setUnlocked] = useState(false);
+  const [lockChallenge, setLockChallenge] = useState(null);
 
   useEffect(() => {
     if (!userId || !customerId) return undefined;
@@ -61,6 +69,13 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       : null;
   const [expandedHistory, setExpandedHistory] = useState({});
   const [localLine, setLocalLine] = useState(() => migrateLine(line));
+
+  // Read-only unless this person may work this line. Derived AFTER localLine
+  // exists — it reads localLine.title, and a `const` used above its own
+  // declaration is a temporal dead zone crash on every render, which on this
+  // screen means the whole app.
+  const me = resolvePerson(crewPeople, actor);
+  const locked = !unlocked && !mayEditLine(me, localLine?.title);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showActiveHeads, setShowActiveHeads] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
@@ -373,6 +388,31 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
 
   return (
     <div className="machine-section" style={{ display: isVisible ? 'block' : 'none' }}>
+      {/* Not your line.
+          Everything below is inside a disabled <fieldset>, which the browser
+          applies to every input and button within it. That is deliberate: heads
+          can be changed through roughly two dozen controls on this screen, and
+          guarding each one by hand would leave whichever gets added next
+          unguarded. The lock is on the container, so new controls arrive
+          protected. */}
+      {locked && (
+        <div className="alert alert-warning d-flex align-items-center justify-content-between gap-2 flex-wrap py-2">
+          <span className="small">
+            <strong>Read-only.</strong>{' '}
+            {refusalMessage(me, localLine?.title)}{' '}
+            A supervisor can unlock it for this visit.
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-warning"
+            onClick={() => setLockChallenge({ message: refusalMessage(me, localLine?.title) })}
+          >
+            Unlock
+          </button>
+        </div>
+      )}
+
+      <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minInlineSize: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
         {isEditingTitle ? (
           <div style={{ flex: 1 }}>
@@ -1012,6 +1052,30 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
           onCancel={() => setPendingAction(null)}
         />
       )}
+      </fieldset>
+
+      {lockChallenge && (
+        <LineLockPrompt
+          customerId={customerId}
+          people={crewPeople}
+          challenge={lockChallenge}
+          onAuthorise={(supervisor) => {
+            setLockChallenge(null);
+            setUnlocked(true);
+            // Recorded on the line itself, so a visit saved after an override
+            // says who allowed it — the same fact the other logs carry.
+            const stamped = {
+              ...localLine,
+              unlockedBy: supervisor?.name || '',
+              unlockedAt: new Date().toISOString(),
+            };
+            setLocalLine(stamped);
+            updateLine(stamped);
+          }}
+          onCancel={() => setLockChallenge(null)}
+        />
+      )}
+
       {dialog.DialogComponent}
     </div>
   );
