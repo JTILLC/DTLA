@@ -22,7 +22,7 @@ async function ensurePdfLibs() {
   autoTable = typeof fn === 'function' ? fn : (fn?.default || fn);
 }
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash } from 'lucide-react';
+import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash, Lock } from 'lucide-react';
 import ShareModal from '@shared/components/ShareModal.jsx';
 import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -66,6 +66,7 @@ import photoQueue from '@shared/utils/photoQueue.js';
 import AppNav from '@shared/components/AppNav.jsx';
 import OverviewPage from '@shared/components/OverviewPage.jsx';
 import { sinceLabel } from '@shared/services/logs.js';
+import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -1092,6 +1093,8 @@ const AppContent = () => {
   const [allVisits, setAllVisits] = useState([]);
   const [showVisitList, setShowVisitList] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  // JTI's own screen for giving a plant a way in.
+  const [showPlantLogins, setShowPlantLogins] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', address: '', cityState: '', headCount: '14' });
   const [currentVisitName, setCurrentVisitName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -3139,6 +3142,11 @@ const AppContent = () => {
                     <Plus className="w-4 h-4" /> Add Customer
                   </button>
                 </li>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => setShowPlantLogins(true)}>
+                    <Lock className="w-4 h-4" /> Plant logins
+                  </button>
+                </li>
                 {currentVisitId && (
                   <li>
                     <button className="dropdown-item d-flex align-items-center gap-2" onClick={duplicateVisit}>
@@ -3228,6 +3236,15 @@ const AppContent = () => {
             </span>
           )}
         </div>
+      )}
+
+      {showPlantLogins && (
+        <AdminLoginsPanel
+          customers={customers}
+          currentCustomerId={currentCustomer?.id || ''}
+          onClose={() => setShowPlantLogins(false)}
+          toast={toast}
+        />
       )}
 
       {showAddCustomer && (
