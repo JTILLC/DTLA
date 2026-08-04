@@ -124,6 +124,20 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   };
 
   const handleHeadChange = (index, field, value, who) => {
+    // Stopping or restarting a head must be attributed, whatever route got
+    // here. The head-issue modal called this function directly, so its
+    // Offline/Active buttons took a head off with no PIN asked and an empty
+    // name on the record — and closing the PIN prompt raised elsewhere left the
+    // head off anyway.
+    //
+    // Guarded at the single point every path funnels through rather than at
+    // each call site, because the call site that was missed is exactly the one
+    // nobody thought to wrap. `who` is undefined only on an unattributed call:
+    // the attributed path always supplies a name, or '' at a plant with no PINs
+    // set, which is a value and so terminates the recursion.
+    if (field === 'status' && who === undefined) {
+      return attributed((w) => handleHeadChange(index, field, value, w));
+    }
     const updatedHeads = localLine.heads.map((h, j) => j === index
       ? {
           ...h,
@@ -152,6 +166,14 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   // Merge several fields onto one head at once (used by RedZone sync so a single
   // update carries the work-order id/status/timestamp rather than three writes).
   const updateHeadFields = (index, fields) => {
+    // The multi-field path must not become a side door onto status for the same
+    // reason. It carries work-order fields today; a status slipped in here
+    // tomorrow would skip the prompt silently.
+    if (fields && 'status' in fields) {
+      const { status, ...rest } = fields;
+      if (Object.keys(rest).length) updateHeadFields(index, rest);
+      return handleHeadChange(index, 'status', status);
+    }
     const updatedHeads = localLine.heads.map((h, j) => j === index ? { ...h, ...fields } : h);
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
