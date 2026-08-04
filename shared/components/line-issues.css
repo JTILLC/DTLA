@@ -1,0 +1,65 @@
+/* shared/components/line-issues.css
+ *
+ * Issue state colour on the Line screen: the Fixed / Not Fixed / Active w/
+ * Issues toggle button, the past-issue chips, and the box an issue's controls
+ * sit in.
+ *
+ * These were inline styles built from CSS named colours — 'orange',
+ * 'lightblue', 'lightcoral' with color:'#000' — which never change with the
+ * theme, so dark mode carried pastel slabs from the light palette with black
+ * text stamped on them. The theme can't reach an inline hex; it can reach a
+ * custom property.
+ *
+ * The treatment is the one Issue History settled on (see issue-history.css):
+ * a tinted ground plus a solid coloured edge, with the label in the theme's
+ * text colour. The colour is still the first thing you see, but the words on
+ * top of it stay readable in either theme — a saturated block forced a text
+ * colour that could only ever suit one of them.
+ */
+
+/* One hue per state, consumed by button and chip alike so the toggle and the
+   history it produces can never drift apart. active_with_issues has no theme
+   token; #0ea5e9 is the colour Issue History already uses for the same state. */
+.line-issue-state--fixed     { --lis-c: var(--warning); }
+.line-issue-state--attn      { --lis-c: #0ea5e9; }
+.line-issue-state--not_fixed { --lis-c: var(--danger); }
+
+/* .btn.x rather than .x: Bootstrap's .btn sets its own colour and background
+   at the same single-class specificity, and load order between the bundled
+   stylesheets is not something to bet a button's legibility on. */
+.btn.line-issue-state {
+  min-width: 110px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--lis-c, var(--text-secondary)) 55%, transparent);
+  border-left: 3px solid var(--lis-c, var(--text-secondary));
+  background: color-mix(in srgb, var(--lis-c, var(--text-secondary)) 16%, transparent);
+}
+.btn.line-issue-state:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--lis-c, var(--text-secondary)) 28%, transparent);
+}
+
+/* A past issue, one per fault per prior visit. Read-only, so it drops the
+   button's full border and keeps just the edge and the tint. */
+.line-issue-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-radius: 4px;
+  border-left: 3px solid var(--lis-c, var(--text-secondary));
+  background: color-mix(in srgb, var(--lis-c, var(--text-secondary)) 14%, transparent);
+}
+
+/* The container an issue's select/toggle/photos sit in. Was an inline
+   isDark ternary (#333 / #f8f9fa) with a #ddd border — a second, parallel
+   theming system that had to be kept in agreement with the real one by hand. */
+.line-issue-box {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}

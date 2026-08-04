@@ -18,6 +18,7 @@ import {
 } from '../services/logs.js';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
+import './data-table.css';
 
 export default function SpanAdjustLog({
   workspaceId,
@@ -208,7 +209,7 @@ export default function SpanAdjustLog({
           ) : (
             <div className="d-flex flex-column gap-2">
               {lineEntries.map((e) => (
-                <div key={e.id} className="border rounded p-2">
+                <div key={e.id} className="data-box p-2">
                   <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
                       <div className="fw-semibold">
@@ -266,7 +267,10 @@ export default function SpanAdjustLog({
                         Weights recorded ({e.heads.length} heads)
                       </summary>
                       <div className="table-responsive mt-1">
-                        <table className="table table-sm mb-0">
+                        {/* data-table: see data-table.css — without it Bootstrap
+                            keeps its light --bs-table-bg under [data-theme] and
+                            the snapshot glares white on a dark page. */}
+                        <table className="table table-sm data-table mb-0">
                           <thead>
                             <tr>
                               <th>Head</th>

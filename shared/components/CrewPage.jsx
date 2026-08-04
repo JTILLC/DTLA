@@ -27,6 +27,7 @@ import { useDialog } from './DialogSystem.jsx';
 import PinPrompt from './PinPrompt.jsx';
 import { hashPin, hasPin, pinProblem } from '../utils/pin.js';
 import { isSiteLead, SITE_LEAD_LABEL } from '../utils/roles.js';
+import './data-table.css';
 
 const ROLES = [
   { key: 'operator', label: 'Operator' },
@@ -221,7 +222,12 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
             <div className="text-muted">No lines found for this customer yet.</div>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm align-middle mb-0">
+              {/* data-table: see data-table.css — a bare Bootstrap table keeps
+                  its light --bs-table-bg under [data-theme] and glares white on
+                  a dark page. mobile-cards: the cells already carry data-label,
+                  so on a phone each line becomes a labelled card instead of a
+                  five-column table scrolled sideways under a thumb. */}
+              <table className="table table-sm align-middle mb-0 data-table mobile-cards">
                 <thead>
                   <tr>
                     <th>Line</th>
@@ -309,7 +315,7 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
               ) : (
                 <div className="d-flex flex-column gap-2 mt-2">
                   {history.map((h) => (
-                    <div key={h.id} className="border rounded p-2">
+                    <div key={h.id} className="data-box p-2">
                       <div className="small fw-semibold">
                         {new Date(h.performedAt).toLocaleString([], {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -369,7 +375,9 @@ export default function CrewPage({ workspaceId, customerId, customerName, visits
               </div>
             ) : (
               <div className="table-responsive">
-                <table className="table table-sm align-middle mb-0">
+                {/* Same pair of classes as the crewing table above, for the
+                    same two reasons. */}
+                <table className="table table-sm align-middle mb-0 data-table mobile-cards">
                   <thead>
                     <tr><th>Name</th><th>Roles</th><th>PIN</th><th>Admin</th><th /></tr>
                   </thead>

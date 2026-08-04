@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Hash, Search } from 'lucide-react';
 import { useBodyScrollLock } from '../utils/useBodyScrollLock.js';
+import './data-table.css';
 
 // Bulk-assign service report numbers to historical visits so they become
 // look-up-able by number in the dashboard. Works ACROSS all customers (reads
@@ -85,7 +86,10 @@ export default function BackfillSrModal({ visits = [], customers = [], onClose, 
               <p className="text-muted mb-0">No visits to show.{onlyUntagged ? ' Every visit already has a number. 🎉' : ''}</p>
             ) : (
               <div className="table-responsive">
-                <table className="table table-sm align-middle">
+                {/* data-table: see data-table.css — without it Bootstrap keeps
+                    its light --bs-table-bg under [data-theme] and the rows
+                    glare white on the dark modal. */}
+                <table className="table table-sm align-middle data-table">
                   <thead>
                     <tr>
                       <th>Date</th>

@@ -17,11 +17,20 @@ import LineLockPrompt from './LineLockPrompt.jsx';
 import CrewChip from './CrewChip.jsx';
 import { useLineCrew } from '../utils/useLineCrew.js';
 import ActingAs from './ActingAs.jsx';
+import './line-issues.css';
 
 const issueTypes = [
   'None', 'Chute', 'Operator', 'Load Cell', 'Detached Head', 'Stepper Motor Error',
   'Hopper Issues', 'Installed Wrong', 'Radial Feeder', 'Booster Hopper Issues', 'Other'
 ];
+
+// Maps an issue's fixed state onto the classes in line-issues.css, which carry
+// the state's colour for the toggle button and history chips alike.
+const issueStateClass = (fixed) => (
+  fixed === 'fixed' ? 'line-issue-state--fixed'
+    : fixed === 'active_with_issues' ? 'line-issue-state--attn'
+    : 'line-issue-state--not_fixed'
+);
 
 // Migrate + clear legacy error/notes after moving them into the issues array,
 // so the head-level notes field doesn't duplicate the first issue's notes.
@@ -513,7 +522,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
               onChange={(e) => changeHeadCount(e.target.value)}
               style={{ width: '80px' }}
             />
-            <span style={{ fontSize: '0.85em', color: '#666' }}>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>
               (Currently {localLine.heads.length} heads)
             </span>
           </div>
@@ -536,7 +545,10 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       </div>
 
       {/* Quick Head Toggle */}
-      <div className="quick-head-toggle mb-3 p-3" style={{ background: isDark ? '#2a2a2a' : '#f8f9fa', borderRadius: '8px' }}>
+      {/* The theme token, not the isDark prop: the prop is a second theming
+          system that has to be kept in agreement with [data-theme] by hand,
+          and #2a2a2a was its drift — a grey from no palette this app uses. */}
+      <div className="quick-head-toggle mb-3 p-3" style={{ background: 'var(--bg-secondary)', borderRadius: '8px' }}>
         <h6 className="mb-2"><strong>Quick Head Toggle</strong></h6>
         <div style={{
           display: 'grid',
@@ -673,12 +685,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     <td data-label="Issues" style={{ verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {issues.map((issue, issIdx) => (
-                          <div key={issIdx} style={{
-                            padding: '8px',
-                            backgroundColor: isDark ? '#333' : '#f8f9fa',
-                            borderRadius: '4px',
-                            border: '1px solid #ddd'
-                          }}>
+                          <div key={issIdx} className="line-issue-box">
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                               <select
                                 value={issue.type}
@@ -691,14 +698,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                               </select>
                               <button
                                 onClick={() => toggleFixedStatus(head.index, issIdx)}
-                                className="btn btn-sm"
-                                style={{
-                                  backgroundColor: issue.fixed === 'fixed' ? 'orange' :
-                                    issue.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral',
-                                  fontWeight: 'bold',
-                                  color: '#000',
-                                  minWidth: '110px'
-                                }}
+                                className={`btn btn-sm line-issue-state ${issueStateClass(issue.fixed)}`}
                                 title={issue.fixedBy
                                   ? `${getFixedLabel(issue.fixed)} — marked by ${issue.fixedBy}${issue.fixedAt ? ' on ' + new Date(issue.fixedAt).toLocaleString() : ''}`
                                   : 'Click to toggle status'}
@@ -770,7 +770,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                   </tr>
                   {history.length > 0 && (
                     <tr>
-                      <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: isDark ? '#1a1a2e' : '#f0f0f5' }}>
+                      <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: 'var(--bg-secondary)' }}>
                         <button
                           onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
                           className="btn btn-sm btn-outline-secondary"
@@ -786,17 +786,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                 {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
                                   <span
                                     key={iIdx}
-                                    style={{
-                                      display: 'inline-block',
-                                      padding: '1px 6px',
-                                      borderRadius: '3px',
-                                      marginLeft: '4px',
-                                      fontSize: '0.8rem',
-                                      fontWeight: 'bold',
-                                      color: '#000',
-                                      backgroundColor: iss.fixed === 'fixed' ? 'orange' :
-                                        iss.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral'
-                                    }}
+                                    className={`line-issue-chip ${issueStateClass(iss.fixed)}`}
                                   >
                                     {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
                                   </span>
@@ -821,7 +811,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         <div className="mb-3">
           <h6
             className="cursor-pointer mb-2"
-            style={{ cursor: 'pointer', fontWeight: 'bold', color: '#28a745', userSelect: 'none' }}
+            style={{ cursor: 'pointer', fontWeight: 'bold', color: 'var(--success)', userSelect: 'none' }}
             onClick={() => setShowActiveHeads(!showActiveHeads)}
           >
             Active Heads ({activeHeads.length}) {showActiveHeads ? '▼' : '▶'}
@@ -857,12 +847,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                       <td data-label="Issues" style={{ verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {issues.map((issue, issIdx) => (
-                            <div key={issIdx} style={{
-                              padding: '8px',
-                              backgroundColor: isDark ? '#333' : '#f8f9fa',
-                              borderRadius: '4px',
-                              border: '1px solid #ddd'
-                            }}>
+                            <div key={issIdx} className="line-issue-box">
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                                 <select
                                   value={issue.type}
@@ -875,14 +860,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                 </select>
                                 <button
                                   onClick={() => toggleFixedStatus(head.index, issIdx)}
-                                  className="btn btn-sm"
-                                  style={{
-                                    backgroundColor: issue.fixed === 'fixed' ? 'orange' :
-                                      issue.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral',
-                                    fontWeight: 'bold',
-                                    color: '#000',
-                                    minWidth: '110px'
-                                  }}
+                                  className={`btn btn-sm line-issue-state ${issueStateClass(issue.fixed)}`}
                                   title="Click to toggle status"
                                 >
                                   {getFixedLabel(issue.fixed)}
@@ -947,7 +925,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                     </tr>
                     {history.length > 0 && (
                       <tr>
-                        <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: isDark ? '#1a1a2e' : '#f0f0f5' }}>
+                        <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: 'var(--bg-secondary)' }}>
                           <button
                             onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
                             className="btn btn-sm btn-outline-secondary"
@@ -963,17 +941,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                                   {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
                                     <span
                                       key={iIdx}
-                                      style={{
-                                        display: 'inline-block',
-                                        padding: '1px 6px',
-                                        borderRadius: '3px',
-                                        marginLeft: '4px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 'bold',
-                                        color: '#000',
-                                        backgroundColor: iss.fixed === 'fixed' ? 'orange' :
-                                          iss.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral'
-                                      }}
+                                      className={`line-issue-chip ${issueStateClass(iss.fixed)}`}
                                     >
                                       {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
                                     </span>
