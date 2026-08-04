@@ -114,3 +114,61 @@ describe.each(APPS)('%s App.jsx', (_name, file) => {
     ).toEqual([]);
   });
 });
+
+// A JSX prop referencing an identifier the file never defines.
+//
+// `requireEditAuth={requireDestructiveAuth}` was pasted into BOTH apps, but
+// that function exists only in the plant app — JTI's own app has no crew roster
+// to prove yourself against. It compiled cleanly (an identifier reference is
+// valid syntax; only evaluating it throws) and shipped, and the screen died
+// with "requireDestructiveAuth is not defined" the moment a visit was opened.
+//
+// The build cannot catch this and neither can a test that never renders. A
+// scan can: every identifier passed as a JSX prop must be declared somewhere in
+// its own file.
+describe.each(APPS)('%s App.jsx', (_name, file) => {
+  it('passes no JSX prop bound to an identifier the file never declares', () => {
+    const src = readFileSync(file, 'utf8');
+
+    // Names this file brings into scope: imports, declarations, destructured
+    // bindings, function params, and loop/callback parameters.
+    const declared = new Set(['true', 'false', 'null', 'undefined', 'this']);
+    const add = (re, group = 1) => {
+      for (const m of src.matchAll(re)) {
+        for (const part of m[group].split(/[,{}[\]\s:]+/)) {
+          const n = part.replace(/\.\.\./, '').trim();
+          if (/^[A-Za-z_$][\w$]*$/.test(n)) declared.add(n);
+        }
+      }
+    };
+    add(/\bimport\s+([^;]+?)\s+from\s/g);
+    add(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g);
+    add(/\b(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])\s*=/g);
+    add(/\(([^)]*)\)\s*=>/g);              // arrow params
+    add(/\bfunction\s*\w*\s*\(([^)]*)\)/g); // function params
+    add(/\bcatch\s*\(([^)]*)\)/g);
+    // Globals a browser bundle legitimately reaches for.
+    ['window', 'document', 'console', 'localStorage', 'navigator', 'firebase',
+     'Date', 'Math', 'JSON', 'Object', 'Array', 'String', 'Number', 'Boolean',
+     'Promise', 'Set', 'Map', 'React', 'URL', 'Blob', 'FileReader', 'Image',
+     'setTimeout', 'setInterval', 'fetch', 'alert', 'confirm', 'performance',
+     'CustomEvent', 'Event', 'Intl', 'crypto', 'atob', 'btoa', 'structuredClone',
+    ].forEach((g) => declared.add(g));
+
+    // prop={identifier} — a bare identifier only, not an expression.
+    const offenders = [];
+    for (const m of src.matchAll(/\s([a-zA-Z][\w]*)=\{([A-Za-z_$][\w$]*)\}/g)) {
+      const [, prop, ident] = m;
+      if (declared.has(ident)) continue;
+      const line = src.slice(0, m.index).split('\n').length;
+      offenders.push(`  line ${line}: ${prop}={${ident}} — ${ident} is never declared in this file`);
+    }
+
+    expect(
+      [...new Set(offenders)],
+      `A JSX prop is bound to an identifier this file does not define. It will\n`
+      + `compile and then throw "<name> is not defined" when the component renders:\n`
+      + `${[...new Set(offenders)].join('\n')}`,
+    ).toEqual([]);
+  });
+});

@@ -3786,6 +3786,11 @@ const AppContent = () => {
             ) : (
               <div style={viewingPlantLogId ? { pointerEvents: 'none', opacity: 0.75 } : undefined}>
                 {lines.map(line => (
+                  /* No requireEditAuth is passed here: the PIN gate is a PLANT
+                     control and this app is JTI's — there is no crew roster to
+                     prove yourself against. Line treats the prop as optional and
+                     falls through to its confirm. backupLine still applies;
+                     recovery is worth having whoever did the removing. */
                   <Line
                     key={line.id}
                     line={line}
@@ -3793,7 +3798,6 @@ const AppContent = () => {
                     isNewLine={createdThisSession.current.has(line.id)}
                     updateLine={updateLineStable}
                     removeLine={handleRemoveLine}
-                    requireEditAuth={requireDestructiveAuth}
                     backupLine={backupLine}
                     resetLine={handleResetLine}
                     isVisible={line.id === activeLineId}
