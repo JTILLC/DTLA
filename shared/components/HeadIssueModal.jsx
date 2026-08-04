@@ -4,6 +4,17 @@
 // existing issue handlers, so edits flow through the normal autosave.
 import IssuePhotos from './IssuePhotos.jsx';
 import { useBodyScrollLock } from '../utils/useBodyScrollLock.js';
+import './line-issues.css';
+
+// Same mapping as Line.jsx. This modal edits the very same issues through the
+// very same handlers, so it has to reach for the same colours — when the two
+// were styled separately they disagreed, and the disagreement showed on one
+// screen as pastel-on-dark.
+const issueStateClass = (fixed) => (
+  fixed === 'fixed' ? 'line-issue-state--fixed'
+    : fixed === 'active_with_issues' ? 'line-issue-state--attn'
+    : 'line-issue-state--not_fixed'
+);
 
 const HeadIssueModal = ({
   head, lineTitle, isDark, issueTypes, getFixedLabel, onClose,
@@ -65,12 +76,13 @@ const HeadIssueModal = ({
                 <div className="text-muted small">No issues yet — add one to explain what's wrong.</div>
               )}
               {issues.map((issue, issIdx) => (
-                <div key={issIdx} style={{ padding: '8px', backgroundColor: isDark ? '#333' : '#f8f9fa', borderRadius: '4px', border: '1px solid #ddd' }}>
+                <div key={issIdx} className="line-issue-box">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <select
+                      className="form-select form-select-sm"
                       value={issue.type}
                       onChange={(e) => updateIssue(idx, issIdx, 'type', e.target.value)}
-                      style={{ flex: 1, minWidth: '120px' }}
+                      style={{ flex: 1, minWidth: '120px', width: 'auto' }}
                     >
                       {issueTypes.filter(t => t !== 'None').map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
@@ -79,11 +91,7 @@ const HeadIssueModal = ({
                     <button
                       type="button"
                       onClick={() => toggleFixedStatus(idx, issIdx)}
-                      className="btn btn-sm"
-                      style={{
-                        backgroundColor: issue.fixed === 'fixed' ? 'orange' : issue.fixed === 'active_with_issues' ? 'lightblue' : 'lightcoral',
-                        fontWeight: 'bold', color: '#000', minWidth: '110px',
-                      }}
+                      className={`btn btn-sm line-issue-state ${issueStateClass(issue.fixed)}`}
                       title="Click to toggle status"
                     >
                       {getFixedLabel(issue.fixed)}
