@@ -1,0 +1,71 @@
+/* shared/components/pin-session.css
+ *
+ * The header badge naming whoever the tablet is currently logging as.
+ *
+ * Built on the apps' own theme variables (--text-primary, --bg-secondary …)
+ * rather than Bootstrap's --bs-* ones: these apps switch themes with
+ * [data-theme] on <html>, so every --bs-* colour keeps its light value in dark
+ * mode and lands dark-on-dark. app-nav.css carries the same warning.
+ */
+
+.pin-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.pin-session-icon { color: var(--success, #198754); flex: none; }
+
+.pin-session-label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  min-width: 0;
+}
+.pin-session-lede { color: var(--text-secondary); }
+/* A long name truncates rather than pushing the sign-off button off a phone. */
+.pin-session-label strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 12ch;
+}
+
+.pin-session-off {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 3px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pin-session-off:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+.pin-session-off:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* On a phone the name is what matters; the word "Sign off" is carried by the
+   icon and the accessible label. */
+@media (max-width: 575.98px) {
+  .pin-session { font-size: 0.75rem; padding-left: 7px; }
+  .pin-session-lede { display: none; }
+  .pin-session-off span { display: none; }
+}

@@ -55,6 +55,7 @@ import syncManager from '@shared/utils/syncManager.js';
 import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
 import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
+import PinSession from '@shared/components/PinSession.jsx';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
 import { withFreshIds } from '@shared/utils/importLines.js';
@@ -3616,6 +3617,10 @@ const AppContent = () => {
 
           {/* Spacer pushes saving indicator + overflow menu to the right */}
           <div className="ms-auto d-flex align-items-center gap-2">
+            {/* Who this tablet is currently logging as, and how to hand over.
+                In the header rather than inside a form: the person who needs it
+                is the one who has just walked up, before they open anything. */}
+            <PinSession customerId={currentCustomer?.id} />
             {currentVisitId && (
               <button
                 type="button"
