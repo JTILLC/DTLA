@@ -13,7 +13,11 @@ import { useDialog } from './DialogSystem.jsx';
 // `dailyLogs`. This was hardcoded to 'visits', so uploading from the plant app
 // wrote to a document that does not exist there and the report was never
 // recorded against the log.
-const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, onReportUploaded, collectionName = 'visits' }) => {
+const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, onReportUploaded, collectionName = 'visits',
+  // A plant may READ the service report for a visit — it is the write-up of
+  // work done on their machines, and hiding it served nobody — but the report
+  // is JTI's record, so replacing or deleting it stays with JTI.
+  readOnly = false }) => {
   const [opening, setOpening] = useState(false);
 
   // The report's object path is fully determined by the ids, so legacy visits
@@ -193,6 +197,9 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
     }
   };
 
+  // Nothing to show and nothing to be done: don't take up the space.
+  if (readOnly && !currentReportUrl) return null;
+
   return (
     <div className="service-report-upload">
       <label className="form-label"><strong>Service Report (PDF):</strong></label>
@@ -215,25 +222,29 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
             {opening ? 'Opening…' : 'View Report'}
             <ExternalLink size={14} className="ms-1" />
           </button>
-          <button
-            onClick={handleDelete}
-            className="btn btn-sm btn-outline-danger"
-            title="Delete report"
-          >
-            <Trash2 size={16} />
-          </button>
-          <label className="btn btn-sm btn-outline-secondary mb-0">
-            <Upload size={16} className="me-1" />
-            Replace
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-              disabled={uploading}
-            />
-          </label>
+          {!readOnly && (
+            <>
+              <button
+                onClick={handleDelete}
+                className="btn btn-sm btn-outline-danger"
+                title="Delete report"
+              >
+                <Trash2 size={16} />
+              </button>
+              <label className="btn btn-sm btn-outline-secondary mb-0">
+                <Upload size={16} className="me-1" />
+                Replace
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                  disabled={uploading}
+                />
+              </label>
+            </>
+          )}
         </div>
       ) : (
         <div>
