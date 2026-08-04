@@ -3910,6 +3910,7 @@ const AppContent = () => {
                 userId={WORKSPACE_UID}
                 customerId={currentCustomer?.id}
                 visitId={currentVisitId}
+                collectionName={DAILY_LOGS}
                 currentReportUrl={serviceReportUrl}
                 onReportUploaded={(url) => setServiceReportUrl(url)}
               />
