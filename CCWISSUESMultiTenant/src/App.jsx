@@ -3176,6 +3176,9 @@ const AppContent = () => {
   // Viewing one of JTI's own visits is read-only for everyone, including JTI:
   // this app writes dailyLogs, and the visit lives elsewhere.
   const viewedJtiVisit = viewingJtiId ? jtiVisits.find(v => v.id === viewingJtiId) : null;
+  const barName = viewingJtiId
+    ? (viewedJtiVisit?.visitName || viewedJtiVisit?.name || 'JTI service visit')
+    : (currentVisitName || 'Untitled log');
   const readOnly = !!viewingJtiId || (!isAdmin && isJtiVisit);
 
   // "What's down" summary for the loaded log: an offline head still needs
@@ -3883,14 +3886,17 @@ const AppContent = () => {
         </div>
       )}
 
-      {/* Static visit + service-report bar, pinned at the top of the workspace. */}
-      {currentVisitId && (
+      {/* Static visit + service-report bar, pinned at the top of the workspace.
+          Also shown while reading one of JTI's own visits — that is where the
+          service reports live, and gating the bar on currentVisitId alone hid
+          every one of them from the plant. */}
+      {(currentVisitId || viewingJtiId) && (
         <div className="report-bar">
           <div className="report-bar-visit">
-            <span className="report-bar-label">Log</span>
-            <span className="report-bar-name" title={currentVisitName || 'Untitled log'}>{currentVisitName || 'Untitled log'}</span>
+            <span className="report-bar-label">{viewingJtiId ? 'Visit' : 'Log'}</span>
+            <span className="report-bar-name" title={barName}>{barName}</span>
           </div>
-          {/* SR# + service-report upload are the service-tech workflow — admin only. */}
+          {/* The SR number is the service-tech's own workflow and stays with JTI. */}
           {isAdmin && (
             <>
               <div className="report-bar-sr">
@@ -3906,16 +3912,21 @@ const AppContent = () => {
                   title="Service report number — links this visit to its service report & invoice in the dashboard"
                 />
               </div>
-              <ServiceReportUpload
-                userId={WORKSPACE_UID}
-                customerId={currentCustomer?.id}
-                visitId={currentVisitId}
-                collectionName={DAILY_LOGS}
-                currentReportUrl={serviceReportUrl}
-                onReportUploaded={(url) => setServiceReportUrl(url)}
-              />
             </>
           )}
+          {/* The report itself is shown to the plant too: it is the write-up of
+              work done on their machines, and it was hidden from them entirely.
+              Read-only for them — replacing or deleting it stays with JTI — and
+              the control renders nothing at all when there is no report. */}
+          <ServiceReportUpload
+            userId={WORKSPACE_UID}
+            customerId={currentCustomer?.id}
+            visitId={currentVisitId || viewingJtiId}
+            collectionName={currentVisitId ? DAILY_LOGS : 'visits'}
+            currentReportUrl={serviceReportUrl}
+            onReportUploaded={(url) => setServiceReportUrl(url)}
+            readOnly={!isAdmin || !!viewingJtiId}
+          />
         </div>
       )}
 
