@@ -202,7 +202,13 @@ export const buildHeadIssueHistory = (lineTitle, headId, allVisits, currentVisit
         date: visit.date,
         visitName: visit.name || 'Unnamed Visit',
         visitId: visit.id,
-        issues: migrated.issues
+        issues: migrated.issues,
+        // The head's own note and status. "Rebuilt WDU" is the line somebody
+        // actually wants when they ask what happened last time, and it was
+        // being dropped on the floor here — the caller could only ever show
+        // issue types.
+        notes: migrated.notes || '',
+        status: migrated.status,
       });
     }
   });

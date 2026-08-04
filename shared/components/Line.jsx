@@ -17,6 +17,7 @@ import LineLockPrompt from './LineLockPrompt.jsx';
 import CrewChip from './CrewChip.jsx';
 import { useLineCrew } from '../utils/useLineCrew.js';
 import ActingAs from './ActingAs.jsx';
+import HeadHistoryModal from './HeadHistoryModal.jsx';
 import './line-issues.css';
 
 const issueTypes = [
@@ -85,7 +86,8 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     userId && customerId && visitId
       ? `user_files/${userId}/customers/${customerId}/visits/${visitId}`
       : null;
-  const [expandedHistory, setExpandedHistory] = useState({});
+  // Which head's history is open, if any: { headNo, history }.
+  const [historyFor, setHistoryFor] = useState(null);
   const [localLine, setLocalLine] = useState(() => migrateLine(line));
 
   // Read-only unless this person may work this line. Derived AFTER localLine
@@ -672,7 +674,6 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                 const hasActiveWithIssues = issues.some(iss => iss.fixed === 'active_with_issues');
                 const history = buildHeadIssueHistory(localLine.title, head.id || head.index + 1, visits, currentVisitId);
                 const historyKey = `${head.index}`;
-                const isHistoryExpanded = expandedHistory[historyKey];
 
                 return (
                   <React.Fragment key={head.index}>
@@ -683,7 +684,26 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                       'head-row--offline'
                     }
                   >
-                    <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                    <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>
+                      <div className="d-flex flex-column align-items-start gap-1">
+                        <span>{head.index + 1}</span>
+                        {/* On the head, not at the foot of its row: "has this
+                            one done this before?" is asked while looking at the
+                            head, and the answer used to be a collapsible strip
+                            below that moved the table when it opened. */}
+                        <button
+                          type="button"
+                          className={`hh-btn${history.length ? ' hh-btn--has' : ''}`}
+                          onClick={() => setHistoryFor({ headNo: head.index + 1, history })}
+                          disabled={history.length === 0}
+                          title={history.length
+                            ? `${history.length} earlier visit${history.length === 1 ? '' : 's'} recorded this head`
+                            : 'Nothing recorded against this head before today'}
+                        >
+                          History ({history.length})
+                        </button>
+                      </div>
+                    </td>
                     <td data-label="Taken off by" style={{ verticalAlign: 'top' }}>
                       {head.statusBy ? (
                         <span className="small">
@@ -792,36 +812,6 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                       />
                     </td>
                   </tr>
-                  {history.length > 0 && (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: 'var(--bg-secondary)' }}>
-                        <button
-                          onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
-                          className="btn btn-sm btn-outline-secondary"
-                          style={{ fontSize: '0.8rem', padding: '2px 8px' }}
-                        >
-                          {isHistoryExpanded ? '▼' : '▶'} Past Issues ({history.length})
-                        </button>
-                        {isHistoryExpanded && (
-                          <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
-                            {history.map((entry, hIdx) => (
-                              <div key={hIdx} style={{ marginBottom: '4px', fontSize: '0.85rem' }}>
-                                <strong>{new Date(entry.date).toLocaleDateString()}:</strong>{' '}
-                                {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
-                                  <span
-                                    key={iIdx}
-                                    className={`line-issue-chip ${issueStateClass(iss.fixed)}`}
-                                  >
-                                    {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
-                                  </span>
-                                )) : <span className="text-muted">Offline (no issues logged)</span>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
                   </React.Fragment>
                 );
               })}
@@ -856,12 +846,30 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                   const hasIssuesOrNotes = issues.length > 0 || head.notes.trim() !== '';
                   const history = buildHeadIssueHistory(localLine.title, head.id || head.index + 1, visits, currentVisitId);
                   const historyKey = `active-${head.index}`;
-                  const isHistoryExpanded = expandedHistory[historyKey];
 
                   return (
                     <React.Fragment key={head.index}>
                     <tr className={hasIssuesOrNotes ? 'head-row--attn' : 'head-row--ok'}>
-                      <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{head.index + 1}</td>
+                      <td data-label="Head #" style={{ verticalAlign: 'top', fontWeight: 'bold' }}>
+                      <div className="d-flex flex-column align-items-start gap-1">
+                        <span>{head.index + 1}</span>
+                        {/* On the head, not at the foot of its row: "has this
+                            one done this before?" is asked while looking at the
+                            head, and the answer used to be a collapsible strip
+                            below that moved the table when it opened. */}
+                        <button
+                          type="button"
+                          className={`hh-btn${history.length ? ' hh-btn--has' : ''}`}
+                          onClick={() => setHistoryFor({ headNo: head.index + 1, history })}
+                          disabled={history.length === 0}
+                          title={history.length
+                            ? `${history.length} earlier visit${history.length === 1 ? '' : 's'} recorded this head`
+                            : 'Nothing recorded against this head before today'}
+                        >
+                          History ({history.length})
+                        </button>
+                      </div>
+                    </td>
                       <td data-label="Status" style={{ verticalAlign: 'top' }}>
                         <select value={head.status} onChange={(e) => attributed((who) => handleHeadChange(head.index, 'status', e.target.value, who))}>
                           <option value="active">Active</option>
@@ -947,36 +955,6 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
                         />
                       </td>
                     </tr>
-                    {history.length > 0 && (
-                      <tr>
-                        <td colSpan="4" style={{ padding: '4px 8px', backgroundColor: 'var(--bg-secondary)' }}>
-                          <button
-                            onClick={() => setExpandedHistory(prev => ({ ...prev, [historyKey]: !prev[historyKey] }))}
-                            className="btn btn-sm btn-outline-secondary"
-                            style={{ fontSize: '0.8rem', padding: '2px 8px' }}
-                          >
-                            {isHistoryExpanded ? '▼' : '▶'} Past Issues ({history.length})
-                          </button>
-                          {isHistoryExpanded && (
-                            <div style={{ marginTop: '6px', paddingLeft: '8px' }}>
-                              {history.map((entry, hIdx) => (
-                                <div key={hIdx} style={{ marginBottom: '4px', fontSize: '0.85rem' }}>
-                                  <strong>{new Date(entry.date).toLocaleDateString()}:</strong>{' '}
-                                  {entry.issues.length > 0 ? entry.issues.map((iss, iIdx) => (
-                                    <span
-                                      key={iIdx}
-                                      className={`line-issue-chip ${issueStateClass(iss.fixed)}`}
-                                    >
-                                      {iss.type} - {iss.fixed === 'fixed' ? 'Fixed' : iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'}
-                                    </span>
-                                  )) : <span className="text-muted">Offline (no issues logged)</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
                     </React.Fragment>
                   );
                 })}
@@ -1086,6 +1064,15 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         photoPathBase={photoPathBase}
         visitDocPath={visitDocPath}
       />
+
+      {historyFor && (
+        <HeadHistoryModal
+          lineTitle={localLine.title}
+          headNo={historyFor.headNo}
+          history={historyFor.history}
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
 
       {pendingAction && (
         <PinPrompt

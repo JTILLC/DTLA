@@ -1,0 +1,83 @@
+/* shared/components/head-history.css
+ *
+ * One head's record across earlier visits, and the button that opens it.
+ *
+ * Colours come from the theme tokens, not Bootstrap's — these apps switch on
+ * [data-theme] rather than [data-bs-theme], so anything left to Bootstrap keeps
+ * its light value on a dark page.
+ */
+
+/* The button that lives on the head itself. Small and quiet: it sits in a table
+   cell beside a head number, and a full-size button there would out-shout the
+   status controls that are the actual job. */
+.hh-btn {
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hh-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+.hh-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* A head with prior faults is worth noticing before you open anything, so the
+   button carries the weight rather than staying uniform. */
+.hh-btn--has {
+  color: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+/* Nothing recorded: kept visible but inert, so the control is in the same place
+   on every head. A button that appears only sometimes is one people stop
+   looking for. */
+.hh-btn:disabled { opacity: 0.45; cursor: default; }
+
+.hh-count {
+  margin-left: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hh-list { display: flex; flex-direction: column; gap: 10px; }
+
+.hh-entry {
+  padding: 9px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--bg-secondary);
+}
+
+.hh-when { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.hh-date { font-weight: 650; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.hh-visit { font-size: 0.85rem; color: var(--text-secondary); }
+.hh-offline {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 1px 6px; border-radius: 999px;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.hh-issues { display: flex; flex-wrap: wrap; gap: 5px; }
+/* The chip carries its own left margin for use inline in a sentence elsewhere;
+   in a wrapped row that margin doubles the gap on the left of every line. */
+.hh-issues .line-issue-chip { margin-left: 0; }
+
+.hh-note {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
