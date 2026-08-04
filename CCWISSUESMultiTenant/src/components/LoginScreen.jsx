@@ -54,7 +54,7 @@ export default function LoginScreen({ onLogin, onResetPassword }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', padding: '16px' }}>
       <div style={{ background: '#1e293b', borderRadius: '16px', border: '1px solid #334155', boxShadow: '0 10px 30px rgba(0,0,0,0.45)', padding: '32px', width: '100%', maxWidth: '380px' }}>
-        <h1 style={{ textAlign: 'center', marginBottom: '24px', color: '#f1f5f9', fontSize: '1.5rem', fontWeight: 'bold' }}>JTI CCW Log</h1>
+        <h1 style={{ textAlign: 'center', marginBottom: '24px', color: '#f1f5f9', fontSize: '1.5rem', fontWeight: 'bold' }}>Headcount</h1>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', marginBottom: '4px', color: '#aaa', fontSize: '0.875rem' }}>Email</label>
