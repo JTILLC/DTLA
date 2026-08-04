@@ -3802,7 +3802,11 @@ const AppContent = () => {
                     buildCombinedPDF={buildCombinedStable}
                     globalData={globalData}
                     isDark={isDark}
-                    visits={visits}
+                    // Head history spans BOTH halves of the record — this plant's own
+                    // logs and the service visits — the same combined set the Issue
+                    // History tab reads. Passing only one half meant a head could show
+                    // "History (0)" while its faults sat one tab away.
+                    visits={historyVisits}
                     currentVisitId={currentVisitId}
                     userId={user?.uid}
                     customerId={currentCustomer?.id}
