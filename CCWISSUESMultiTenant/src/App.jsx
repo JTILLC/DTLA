@@ -124,7 +124,7 @@ const createLine = (lineName, headCount, setLines, setActiveLineId, lines) => {
     notes: '',
     heads: createDefaultHeads(headCount),
     showSpanAdjust: false,
-    // Span calibration certificate fields (entered in the Span Calibration preview)
+    // Proof-of-span-adjustment fields (entered in the Span Calibration preview)
     customerContact: '',
     spanCalWeight: '',
     targetWeight: '',
@@ -549,7 +549,7 @@ const exportLineToPDF = async (line, globalData) => {
   doc.save(`${(globalData?.customer) || 'ishida'}-${line.title.replace(/[^a-z0-9]/gi, '-')}.pdf`);
 };
 
-// Combination Weigher Span Calibration Certificate — mirrors the printed JTI template.
+// Combination Weigher Proof of Span Adjustment — mirrors the printed JTI template.
 // Renders onto the current page of `doc` so it can be merged with other sections.
 const renderSpanCalibration = (doc, line, globalData, opts = {}) => {
   if (!line || !Array.isArray(line.heads)) return;
@@ -567,7 +567,7 @@ const renderSpanCalibration = (doc, line, globalData, opts = {}) => {
   doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('Combination Weigher Span Calibration Certificate', 50, 14);
+  doc.text('Combination Weigher Proof of Span Adjustment', 50, 14);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
   doc.text('Joshua Todd Industries', 50, 21);
