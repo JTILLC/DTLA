@@ -1,0 +1,53 @@
+/* shared/components/data-table.css
+ *
+ * The themed Bootstrap table, for the screens where a table is the right shape.
+ *
+ * Bootstrap paints every cell through --bs-table-bg, which it sets to white,
+ * and these apps switch themes with [data-theme] rather than [data-bs-theme] —
+ * so the variable never gets a dark value and each table sat as a glaring
+ * white slab on a slate-900 page. Issue History hit the same trap and dropped
+ * its tables entirely (see issue-history.css); the tables that import this
+ * file earn their keep — a line × role grid, columns of weights that have to
+ * line up — so they stay tables and the variables get corrected instead.
+ *
+ * The override is on the VARIABLES, not background-color: Bootstrap paints
+ * cells via `.table > :not(caption) > * > *`, which outguns any plain
+ * background rule on the table class. Re-pointing the variable sidesteps the
+ * specificity fight without an !important.
+ *
+ * The selector is `table.data-table`, not `.data-table`. Bootstrap sets these
+ * variables on `.table` — the same specificity — so a bare class override is
+ * decided by source order, and Bootstrap's stylesheet loads last. The rows
+ * stayed white. Adding the element qualifier wins on specificity instead of
+ * hoping about order.
+ */
+table.data-table {
+  --bs-table-bg: transparent;               /* the card behind shows through */
+  --bs-table-color: var(--text-primary);
+  --bs-table-border-color: var(--border-color);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Readings are compared down a column; proportional digits make 8.1 and 10.4
+   different widths, so the numbers wobble as the eye scans. */
+table.data-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* An action cell (Clear, Set PIN…) carries no data-label. In mobile card mode
+   an unlabelled cell would still reserve the 40% label slot, indenting a lone
+   button into the middle of its card for no reason. */
+@media (max-width: 768px) {
+  table.mobile-cards.data-table td:not([data-label])::before {
+    content: none;
+  }
+}
+
+/* The same trap in miniature: history entries sat in Bootstrap's
+   `.border.rounded`, whose --bs-border-color keeps its light-theme grey —
+   a bright hairline scored across every dark card. */
+.data-box {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 10px);
+}

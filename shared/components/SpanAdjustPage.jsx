@@ -34,6 +34,7 @@ import { useVerifiedPerson } from '../utils/useVerifiedPerson.js';
 import { subscribeCrew } from '../services/logs.js';
 import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import ActingAs from './ActingAs.jsx';
+import './data-table.css';
 
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 const LAST_LINE_KEY = 'ccw-span-last-line';
@@ -408,7 +409,10 @@ export default function SpanAdjustPage({
           <WeightScanner key={`${selected}-${logSeq}`} expectedHeads={rows.length} onApply={applyScan} />
 
           <div className="table-responsive">
-            <table className="table table-sm mobile-cards mb-0">
+            {/* data-table: see data-table.css — without it Bootstrap keeps its
+                light --bs-table-bg under [data-theme] and the weight grid
+                glares white on a dark page. */}
+            <table className="table table-sm mobile-cards data-table mb-0">
               <thead>
                 <tr>
                   <th>Head</th>
@@ -520,7 +524,7 @@ export default function SpanAdjustPage({
             ) : (
               <div className="d-flex flex-column gap-2">
                 {lineEntries.map((e) => (
-                  <div key={e.id} className="border rounded p-2">
+                  <div key={e.id} className="data-box p-2">
                     <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                       <div>
                         <div className="fw-semibold">
@@ -556,13 +560,13 @@ export default function SpanAdjustPage({
                       </div>
                     </div>
                     {editing?.id === e.id && (
-                      <div className="border rounded p-2 mt-2">
+                      <div className="data-box p-2 mt-2">
                         <div className="small text-muted mb-2">
                           Correcting this entry. The time it was logged and who
                           logged it are kept; the change is recorded separately.
                         </div>
                         <div className="table-responsive">
-                          <table className="table table-sm mb-2">
+                          <table className="table table-sm data-table mb-2">
                             <thead>
                               <tr><th>Head</th><th>Current</th><th>Span</th></tr>
                             </thead>
@@ -627,7 +631,7 @@ export default function SpanAdjustPage({
                           Weights ({e.heads.length} heads)
                         </summary>
                         <div className="table-responsive mt-1">
-                          <table className="table table-sm mb-0">
+                          <table className="table table-sm data-table mb-0">
                             <thead>
                               <tr><th>Head</th><th>Current</th><th>Span</th><th>Diff</th></tr>
                             </thead>
