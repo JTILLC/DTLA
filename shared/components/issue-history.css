@@ -1,0 +1,150 @@
+/* shared/components/issue-history.css
+ *
+ * The per-head fault record.
+ *
+ * It used to be a Bootstrap <table> per head. Two things made it look cheap,
+ * and both were structural rather than a matter of taste:
+ *
+ *   Bootstrap sets --bs-table-bg: #fff and these apps switch themes with
+ *   [data-theme] rather than [data-bs-theme], so every row stayed white on a
+ *   slate-900 page — a stack of glaring white slabs. (app-nav.css carries the
+ *   same warning; it is the recurring trap in this codebase.)
+ *
+ *   Each <table> sized its own columns, so no two heads lined up. Scanning
+ *   down the page, VISIT and STATUS moved left and right under you.
+ *
+ * So: no tables. One grid, declared once, shared by every row on the screen,
+ * which is what makes the columns agree. Colour carries meaning through a
+ * tinted chip and a coloured edge rather than a saturated block — the status
+ * still reads at a glance without the page shouting.
+ */
+
+.ih-head {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.ih-head + .ih-head { margin-top: 10px; }
+
+.ih-head-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+.ih-head-title {
+  font-weight: 650;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+.ih-head-line { color: var(--text-secondary); font-weight: 500; }
+.ih-head-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One declaration, every row — this is what keeps the columns aligned across
+   heads. `auto` on the date lets the longest visit name set the width for all
+   of them rather than each head choosing its own. */
+.ih-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 5.5rem minmax(0, 1.15fr) minmax(0, 1.25fr);
+  gap: 10px 16px;
+  align-items: start;
+  padding: 9px 14px;
+  font-size: 0.875rem;
+}
+.ih-row + .ih-row { border-top: 1px solid var(--border-color); }
+
+.ih-when { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ih-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+/* Where the record came from: an outline, not a fill. It qualifies the date;
+   it is not a status. */
+.ih-src {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--brand);
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+.ih-status { display: flex; }
+.ih-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.ih-pill--offline { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.ih-pill--active  { color: var(--success); border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+
+.ih-issues {
+  display: flex; flex-direction: column; gap: 5px; min-width: 0;
+  /* Hug the text. Stretched to the column width, the tint read as a filled bar
+     again — the very thing the chip replaced. */
+  align-items: flex-start;
+}
+
+/* The chip that replaced the saturated bar. A tinted ground plus a solid edge
+   on the left: the colour is still the first thing you see, but the words on
+   top of it stay comfortably readable in either theme. */
+.ih-issue {
+  max-width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 3px 9px 3px 8px;
+  border-radius: 5px;
+  border-left: 3px solid var(--ih-c, var(--text-secondary));
+  background: color-mix(in srgb, var(--ih-c, var(--text-secondary)) 14%, transparent);
+  color: var(--text-primary);
+  min-width: 0;
+}
+.ih-issue--not_fixed          { --ih-c: var(--danger); }
+.ih-issue--fixed              { --ih-c: var(--warning); }
+.ih-issue--active_with_issues { --ih-c: #0ea5e9; }
+
+.ih-issue-type { font-weight: 650; }
+.ih-issue-state {
+  font-size: 0.74rem;
+  color: var(--ih-c, var(--text-secondary));
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ih-issue-note { flex-basis: 100%; font-size: 0.8rem; color: var(--text-secondary); font-style: italic; }
+
+.ih-note { color: var(--text-secondary); min-width: 0; overflow-wrap: anywhere; }
+.ih-note--empty { color: var(--border-color); }
+
+/* On a phone the four columns become two lines: what happened, then what was
+   written about it. Labels appear only here, where the grid can no longer
+   carry the meaning by position alone. */
+@media (max-width: 700px) {
+  .ih-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .ih-note:not(.ih-note--empty)::before {
+    content: 'Notes';
+    display: block;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+  .ih-note--empty { display: none; }
+}
