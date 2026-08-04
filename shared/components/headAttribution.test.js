@@ -54,6 +54,27 @@ describe('head status attribution', () => {
     expect(src).toMatch(/const quickToggleHead = \([^)]*\) => attributed\(/);
   });
 
+  // Raising a fault flips the head to "active with issues" — a state change on
+  // the machine, and it was landing with nobody's name on it.
+  it('raising an issue is attributed, and records who raised it', () => {
+    expect(src, 'addIssue no longer asks who — a fault can be raised with no PIN')
+      .toMatch(/const addIssue = \([^)]*\) => attributed\(/);
+    expect(bodyOf('addIssue'), 'a new issue no longer records who raised it')
+      .toMatch(/raisedBy/);
+  });
+
+  it('removing an issue is attributed', () => {
+    // The path by which a head's history quietly loses an entry.
+    expect(src, 'removeIssue no longer asks who — a fault can be deleted with no PIN')
+      .toMatch(/const removeIssue = \([^)]*\) => attributed\(/);
+  });
+
+  it('editing an issue is NOT attributed, so notes do not prompt per keystroke', () => {
+    // Deliberate: type/notes/photos are edits to a record that already exists.
+    // If this ever starts prompting, typing a note becomes unusable.
+    expect(src).toMatch(/const updateIssue = \([^)]*\) => \{/);
+  });
+
   it('the head-issue modal is still wired to the guarded function', () => {
     // Wiring it to anything that writes status directly would reopen the hole.
     const mount = src.slice(src.indexOf('<HeadIssueModal'));
