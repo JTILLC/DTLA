@@ -4,7 +4,7 @@ import { useBodyScrollLock } from '../utils/useBodyScrollLock.js';
 
 const fmtDate = (d) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 
-// Live preview + edit modal for the Span Calibration Certificate.
+// Live preview + edit modal for the Proof of Span Adjustment document.
 export default function SpanCalPreview({ line, globalData, buildPdf, onClose, onSave }) {
   useBodyScrollLock();
   const [draft, setDraft] = useState(() => {
@@ -73,13 +73,13 @@ export default function SpanCalPreview({ line, globalData, buildPdf, onClose, on
       <div className="modal-dialog modal-xl modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">Span Calibration Certificate — Preview</h5>
+            <h5 className="modal-title">Proof of Span Adjustment — Preview</h5>
             <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
           </div>
           <div className="modal-body">
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 240px', minWidth: '240px', maxHeight: '74vh', overflowY: 'auto', paddingRight: '6px' }}>
-                <h6>Certificate Details</h6>
+                <h6>Adjustment Details</h6>
                 {field('model', 'Model Information')}
                 {field('jobNumber', 'Job Number')}
                 {field('serialNumber', 'Serial Number')}

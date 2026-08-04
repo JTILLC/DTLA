@@ -62,7 +62,7 @@ export default function CombinedExport({ line, buildPdf, onClose }) {
                 {!anySelected && <p style={{ color: '#c00', fontSize: '0.85em' }}>Select at least one section.</p>}
                 <p style={{ fontSize: '0.78em', color: '#888', marginTop: '10px' }}>
                   Span Calibration here uses the saved data (no signatures). For a signed
-                  certificate, use the dedicated “Span Calibration PDF…” preview.
+                  proof of span adjustment, use the dedicated “Span Calibration PDF…” preview.
                 </p>
               </div>
               <div style={{ flex: '2 1 420px', minWidth: '320px' }}>
