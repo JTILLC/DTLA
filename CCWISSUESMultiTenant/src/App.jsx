@@ -62,6 +62,7 @@ import { withFreshIds } from '@shared/utils/importLines.js';
 import BoardReplacementPage from '@shared/components/BoardReplacementPage.jsx';
 import PmLogPage from '@shared/components/PmLogPage.jsx';
 import CrewPage from '@shared/components/CrewPage.jsx';
+import IssueHistory from '@shared/components/IssueHistory.jsx';
 import ActivityPage from '@shared/components/ActivityPage.jsx';
 import { useLineCrew, crewAge } from '@shared/utils/useLineCrew.js';
 import { startPhotoSync, replacePendingPhoto } from '@shared/utils/photoSync.js';
@@ -855,215 +856,6 @@ const exportLineHistoryToPDF = async (lineHistory, customerName, lineTitle) => {
   doc.save(`${customerName}-${lineTitle}-history.pdf`);
 };
 
-const IssueHistory = ({ customers, visits, onExportPDF, lockedCustomerId }) => {
-  const [selectedCustomer, setSelectedCustomer] = useState(lockedCustomerId || '');
-  const [selectedLine, setSelectedLine] = useState('');
-
-  // Customer-scoped users are locked to their own customer — no picker.
-  useEffect(() => {
-    if (lockedCustomerId) setSelectedCustomer(lockedCustomerId);
-  }, [lockedCustomerId]);
-
-  const history = useMemo(() => {
-    if (!selectedCustomer || !selectedLine) return [];
-    const customer = customers.find(c => c.id === selectedCustomer);
-    if (!customer) return [];
-
-    const customerVisits = visits.filter(v => v.customerId === selectedCustomer);
-    const headHistory = {};
-
-    customerVisits.forEach(visit => {
-      // A record with no lines is legitimate (a log started and not yet filled
-      // in), and used to throw here the moment one appeared.
-      const visitLines = visit.lines || [];
-      const linesToProcess = selectedLine === '__ALL__'
-        ? visitLines
-        : visitLines.filter(l => l?.title === selectedLine);
-
-      linesToProcess.forEach(line => {
-        (line.heads || []).forEach(head => {
-          const headIssues = head.issues || [];
-          const hasOldFormatIssue = head.error && head.error !== 'None';
-          const hasNewFormatIssues = headIssues.length > 0;
-          const hasNotes = head.notes && head.notes.trim() !== '';
-          const isOffline = head.status !== 'active';
-
-          if (isOffline || hasOldFormatIssue || hasNewFormatIssues || hasNotes) {
-            const historyKey = selectedLine === '__ALL__'
-              ? `${line.title}__${head.id}`
-              : head.id.toString();
-
-            if (!headHistory[historyKey]) {
-              headHistory[historyKey] = {
-                lineTitle: line.title,
-                headId: head.id,
-                visitEntries: []
-              };
-            }
-
-            const issuesList = [];
-            if (hasNewFormatIssues) {
-              headIssues.forEach(iss => {
-                issuesList.push({ type: iss.type, fixed: iss.fixed, notes: iss.notes || '' });
-              });
-            } else if (hasOldFormatIssue) {
-              issuesList.push({ type: head.error, fixed: head.fixed, notes: '' });
-            }
-
-            headHistory[historyKey].visitEntries.push({
-              visitName: visit.name || `Visit ${new Date(visit.date).toLocaleDateString()}`,
-              visitDate: visit.date,
-              // Who recorded it. A plant reading their own history needs to
-              // tell their shift log from a JTI service call — the two carry
-              // different weight when deciding whether a head keeps failing.
-              source: visit.source === 'jti' ? 'JTI visit' : '',
-              status: head.status,
-              issues: issuesList,
-              headNotes: head.notes || ''
-            });
-          }
-        });
-      });
-    });
-
-    const result = Object.values(headHistory).map(entry => ({
-      lineTitle: entry.lineTitle,
-      headId: entry.headId,
-      visitEntries: entry.visitEntries.sort(
-        (a, b) => new Date(b.visitDate || 0) - new Date(a.visitDate || 0)
-      )
-    }));
-
-    result.sort((a, b) => {
-      if (a.lineTitle !== b.lineTitle) return a.lineTitle.localeCompare(b.lineTitle);
-      return a.headId - b.headId;
-    });
-
-    return result;
-  }, [selectedCustomer, selectedLine, customers, visits]);
-
-  return (
-    <div className="p-4 bg-light rounded">
-      <h5 className="mb-3">Issue History</h5>
-      
-      <div className="d-flex gap-3 mb-3 flex-wrap">
-        {!lockedCustomerId && (
-          <select
-            value={selectedCustomer}
-            onChange={(e) => { setSelectedCustomer(e.target.value); setSelectedLine(''); }}
-            className="form-select form-select-sm"
-            style={{ minWidth: '180px' }}
-          >
-            <option value="">-- Select Customer --</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        )}
-
-        {selectedCustomer && (
-          <select 
-            value={selectedLine} 
-            onChange={(e) => setSelectedLine(e.target.value)}
-            className="form-select form-select-sm"
-            style={{ minWidth: '180px' }}
-          >
-            <option value="">-- Select Line --</option>
-            <option value="__ALL__">All Lines</option>
-            {(() => {
-              const lines = new Set();
-              visits.filter(v => v.customerId === selectedCustomer).forEach(v => {
-                (v.lines || []).forEach(l => { if (l?.title) lines.add(l.title); });
-              });
-              return Array.from(lines).sort().map(line => (
-                <option key={line} value={line}>{line}</option>
-              ));
-            })()}
-          </select>
-        )}
-
-        {selectedLine && history.length > 0 && (
-          <button
-            onClick={() => onExportPDF(history, customers.find(c => c.id === selectedCustomer)?.name || 'Unknown', selectedLine === '__ALL__' ? 'All-Lines' : selectedLine)}
-            className="btn btn-success btn-sm"
-          >
-            Export History PDF
-          </button>
-        )}
-      </div>
-
-      {history.length > 0 ? (
-        <div>
-          <h6>Issue History for {selectedLine === '__ALL__' ? 'All Lines' : selectedLine}</h6>
-          {history.map((head, idx) => (
-            <div key={`${head.lineTitle}-${head.headId}-${idx}`} className="mb-4 bg-white p-3 rounded shadow-sm">
-              <h6 className="text-primary">
-                {selectedLine === '__ALL__' ? `${head.lineTitle} - ` : ''}Head #{head.headId}
-              </h6>
-              <div className="table-responsive">
-              <table className="table table-sm table-bordered">
-                <thead className="table-primary">
-                  <tr>
-                    <th>Visit</th>
-                    <th>Status</th>
-                    <th>Issues</th>
-                    <th>Head Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {head.visitEntries.map((entry, i) => (
-                    <tr key={i}>
-                      <td style={{ verticalAlign: 'top' }}>
-                        {entry.visitName}
-                        {entry.source && (
-                          <span className="badge bg-info text-dark ms-1 align-middle">{entry.source}</span>
-                        )}
-                      </td>
-                      <td style={{ verticalAlign: 'top' }}>
-                        <span className={`badge ${entry.status === 'offline' ? 'bg-danger' : 'bg-success'}`}>
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td style={{ verticalAlign: 'top' }}>
-                        {entry.issues.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {entry.issues.map((iss, j) => (
-                              <div key={j} style={{
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                backgroundColor: iss.fixed === 'fixed' ? '#ffc107' :
-                                  iss.fixed === 'active_with_issues' ? '#17a2b8' : '#dc3545',
-                                color: iss.fixed === 'fixed' ? '#000' : '#fff',
-                                fontSize: '0.85em'
-                              }}>
-                                <strong>{iss.type}</strong>
-                                <span style={{ marginLeft: '8px', opacity: 0.9 }}>
-                                  ({iss.fixed === 'fixed' ? 'Fixed' :
-                                    iss.fixed === 'active_with_issues' ? 'Active w/ Issues' : 'Not Fixed'})
-                                </span>
-                                {iss.notes && <div style={{ marginTop: '2px', fontStyle: 'italic' }}>{iss.notes}</div>}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span style={{ color: '#999' }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ verticalAlign: 'top' }}>{entry.headNotes || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : selectedLine ? (
-        <p className="text-muted">No issues found for {selectedLine === '__ALL__' ? 'All Lines' : selectedLine}</p>
-      ) : null}
-    </div>
-  );
-};
 
 const AppContent = () => {
   const [searchParams] = useSearchParams();
@@ -4444,7 +4236,15 @@ const AppContent = () => {
         <div className="ccw-pane" id="ccw-pane-history" role="tabpanel"
              aria-labelledby="ccw-tab-history" hidden={activeTab !== 'history'}>
           <div className="tab-content p-3">
-            <IssueHistory customers={customers} visits={historyVisits} onExportPDF={exportLineHistoryToPDF} lockedCustomerId={scopedCustomerId} />
+            <IssueHistory
+              customers={customers}
+              visits={historyVisits}
+              onExportPDF={exportLineHistoryToPDF}
+              customerId={scopedCustomerId || currentCustomer?.id}
+              locked={!!scopedCustomerId}
+              badgeSource="jti"
+              badgeLabel="JTI visit"
+            />
           </div>
         </div>
 
