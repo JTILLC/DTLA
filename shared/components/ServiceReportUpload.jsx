@@ -8,7 +8,12 @@ import { fetchAuthedMedia } from '../config/media.js';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
 
-const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, onReportUploaded }) => {
+// `collectionName` because the two apps keep their records in different
+// collections — JTI's service visits in `visits`, a plant's shifts in
+// `dailyLogs`. This was hardcoded to 'visits', so uploading from the plant app
+// wrote to a document that does not exist there and the report was never
+// recorded against the log.
+const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, onReportUploaded, collectionName = 'visits' }) => {
   const [opening, setOpening] = useState(false);
 
   // The report's object path is fully determined by the ids, so legacy visits
@@ -85,43 +90,51 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
           setUploading(false);
         },
         async () => {
-          // Firebase mints a PUBLIC download token on upload whose URL bypasses
-          // Storage rules. Strip it so the report is reachable only through the
-          // media broker. Best-effort — a failure here must not lose the upload.
+          // Everything past this point runs in an async callback that nothing
+          // awaits, so a throw here becomes an unhandled rejection and the
+          // spinner sticks at 100% forever with no error and no report. It is
+          // exactly what happened. Whatever goes wrong, the UI must come back.
           try {
-            await uploadTask.snapshot.ref.updateMetadata({
-              customMetadata: { firebaseStorageDownloadTokens: '' },
-            });
-          } catch (metaErr) {
-            console.warn('Could not revoke public token for service report:', metaErr?.message || metaErr);
+            // Firebase mints a PUBLIC download token on upload whose URL
+            // bypasses Storage rules. Strip it so the report is reachable only
+            // through the media broker.
+            try {
+              await uploadTask.snapshot.ref.updateMetadata({
+                customMetadata: { firebaseStorageDownloadTokens: '' },
+              });
+            } catch (metaErr) {
+              console.warn('Could not revoke public token for service report:', metaErr?.message || metaErr);
+            }
+
+            // NOT getDownloadURL(). That call returns a tokenised URL, and the
+            // token is the thing just revoked — so after the strip it fails,
+            // which is what hung the upload. Nothing reads this field as a URL
+            // any more: the viewer derives the object path from the ids and
+            // fetches it through the broker. It is stored as the "a report
+            // exists" flag the rest of the app tests for truthiness.
+            const reportRefPath = reportPath();
+
+            await firebase.firestore()
+              .collection('user_files')
+              .doc(userId)
+              .collection('customers')
+              .doc(customerId)
+              .collection(collectionName)
+              .doc(visitId)
+              .update({
+                serviceReportUrl: reportRefPath,
+                serviceReportUploadedAt: new Date().toISOString()
+              });
+
+            if (onReportUploaded) onReportUploaded(reportRefPath);
+            toast.success('Service report uploaded');
+          } catch (err) {
+            console.error('Service report finalise failed:', err);
+            setError('Uploaded, but could not record it on the visit: ' + (err?.message || 'unknown error'));
+          } finally {
+            setUploading(false);
+            setUploadProgress(0);
           }
-
-          // Still stored, but only as an "a report exists" flag and a legacy
-          // fallback — it is no longer what the app fetches. The object path is
-          // derivable from the ids, so no schema change is needed.
-          const downloadUrl = await uploadTask.snapshot.ref.getDownloadURL();
-
-          // Update visit document with the report URL
-          await firebase.firestore()
-            .collection('user_files')
-            .doc(userId)
-            .collection('customers')
-            .doc(customerId)
-            .collection('visits')
-            .doc(visitId)
-            .update({
-              serviceReportUrl: downloadUrl,
-              serviceReportUploadedAt: new Date().toISOString()
-            });
-
-          setUploading(false);
-          setUploadProgress(0);
-
-          if (onReportUploaded) {
-            onReportUploaded(downloadUrl);
-          }
-
-          toast.success('Service report uploaded successfully!');
         }
       );
     } catch (err) {
@@ -162,7 +175,7 @@ const ServiceReportUpload = ({ userId, customerId, visitId, currentReportUrl, on
         .doc(userId)
         .collection('customers')
         .doc(customerId)
-        .collection('visits')
+        .collection(collectionName)
         .doc(visitId)
         .update({
           serviceReportUrl: firebase.firestore.FieldValue.delete(),
