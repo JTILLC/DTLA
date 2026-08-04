@@ -43,7 +43,7 @@ const migrateHead = (head) => {
 
 const migrateLine = (line) => ({ ...line, heads: line.heads.map(migrateHead) });
 
-const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti', isNewLine = false }) => {
+const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineToPDF, buildSpanCalibrationPDF, buildCombinedPDF, globalData, isDark, visits, currentVisitId, userId, customerId, visitId, performedByName, logRole = 'jti', isNewLine = false, requireEditAuth, backupLine }) => {
   // Who is at this device, proven once with a PIN. Taking a head offline is the
   // action most worth attributing: it stops product, and "who turned this off?"
   // is the first question asked the next morning.
@@ -426,13 +426,37 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
         }))
       ];
     } else if (count < currentCount) {
-      // Remove heads from the end
-      const confirmed = await dialog.confirm(`This will remove ${currentCount - count} head(s) from the end. Continue?`, {
-        title: 'Remove Heads',
-        confirmText: 'Continue',
-        variant: 'warning'
-      });
+      // Removing heads destroys their issues, notes, photos and span weights.
+      // It was the softest door in the app onto the hardest outcome: removing a
+      // LINE asks a supervisor for a PIN and drops the line in the 30-day bin,
+      // while taking a line from 14 heads to 1 asked only "Continue?" and left
+      // nothing to recover. Same destruction, no gate, no way back.
+      //
+      // So it now takes the same PIN as removing a line, and lands in the same
+      // bin. The gate is optional only so a caller that has not wired it yet
+      // fails to a confirm rather than to a crash — every app that mounts this
+      // passes it.
+      if (requireEditAuth && !(await requireEditAuth('remove heads from this line'))) return;
+
+      const lost = currentCount - count;
+      const confirmed = await dialog.confirm(
+        `Remove ${lost} head${lost === 1 ? '' : 's'} from the end of "${localLine.title}"? `
+        + `Anything recorded against ${lost === 1 ? 'it' : 'them'} — issues, notes, photos, weights — goes too. `
+        + `You can recover the line for 30 days.`,
+        { title: 'Remove Heads', confirmText: `Remove ${lost} head${lost === 1 ? '' : 's'}`, variant: 'danger' },
+      );
       if (!confirmed) return;
+
+      // Snapshot BEFORE slicing, into the same bin the Recover panel already
+      // reads, so this is undone through the path that exists rather than a
+      // second one.
+      if (backupLine) {
+        try {
+          await backupLine(localLine);
+        } catch (e) {
+          console.error('Could not back up the line before removing heads:', e);
+        }
+      }
       newHeads = localLine.heads.slice(0, count);
     } else {
       return; // No change

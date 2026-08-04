@@ -1163,6 +1163,26 @@ const AppContent = () => {
     toast.success(`"${lineTitle || 'Line'}" removed — recoverable for 30 days`);
   }, [dialog, requireDestructiveAuth, toast]);
 
+  // One snapshot mechanism for both ways a line can lose data: resetting it,
+  // and cutting its head count down. Shared so a line removed by either route
+  // turns up in the same Recover panel, rather than one of them quietly having
+  // no way back.
+  const backupLine = useCallback(async (snapshot) => {
+    const custId = currentCustomerRef.current?.id;
+    const visitId = currentVisitIdRef.current;
+    if (!custId || !visitId || !snapshot) return;
+    await firebase.firestore()
+      .collection('user_files').doc(WORKSPACE_UID)
+      .collection('customers').doc(custId)
+      .collection(DAILY_LOGS).doc(visitId)
+      .collection('lineResets').add({
+        lineId: snapshot.id,
+        title: snapshot.title || 'Line',
+        line: snapshot,
+        resetAt: new Date().toISOString(),
+      });
+  }, []);
+
   const handleResetLine = useCallback(async (line) => {
     // Reset is not gated — customers may clear a line freely.
     const confirmed = await dialog.confirm(
@@ -4105,6 +4125,8 @@ const AppContent = () => {
                     line={line}
                     updateLine={updateLineStable}
                     removeLine={handleRemoveLine}
+                    requireEditAuth={requireDestructiveAuth}
+                    backupLine={backupLine}
                     resetLine={handleResetLine}
                     isVisible={line.id === activeLineId}
                     exportLineToPDF={exportLineStable}
@@ -4119,7 +4141,6 @@ const AppContent = () => {
                     visitId={currentVisitId}
                     performedByName={session?.email || (isAdmin ? 'JTI' : 'Plant staff')}
                     logRole={isAdmin ? 'jti' : 'customer'}
-                    requireEditAuth={requireDestructiveAuth}
                   />
                 ))}
               </div>
