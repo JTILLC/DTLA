@@ -287,13 +287,24 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
   });
 
   // Add issue to a head
-  const addIssue = (headIndex) => {
+  // Raising an issue puts the head into "active with issues" — a state change on
+  // the machine, not a note about one — so it is attributed like taking a head
+  // offline. It was not, which meant a fault could appear against a head with
+  // nobody's name on it.
+  //
+  // Who RAISED it is kept separate from who fixed it (`fixedBy`, set by
+  // toggleFixedStatus). They are usually different people, and the pair is the
+  // whole story of the fault.
+  const addIssue = (headIndex) => attributed((who) => {
     const updatedHeads = localLine.heads.map((h, j) => {
       if (j === headIndex) {
         const issues = h.issues || [];
         return {
           ...h,
-          issues: [...issues, { type: 'Chute', fixed: 'not_fixed', notes: '', photos: [] }]
+          issues: [...issues, {
+            type: 'Chute', fixed: 'not_fixed', notes: '', photos: [],
+            raisedBy: who, raisedAt: new Date().toISOString(),
+          }],
         };
       }
       return h;
@@ -301,7 +312,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Update an issue
   const updateIssue = (headIndex, issueIndex, field, value) => {
@@ -318,8 +329,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  // Remove an issue
-  const removeIssue = (headIndex, issueIndex) => {
+  // Removing a recorded fault is at least as consequential as raising one — it
+  // is the path by which a head's history quietly loses an entry — so it asks
+  // too. (Editing an issue's type, notes or photos does not: those are edits to
+  // a record that already exists, and prompting on a note would ask on every
+  // keystroke.)
+  const removeIssue = (headIndex, issueIndex) => attributed(() => {
     const updatedHeads = localLine.heads.map((h, j) => {
       if (j === headIndex) {
         const issues = (h.issues || []).filter((_, idx) => idx !== issueIndex);
@@ -330,7 +345,7 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     const updated = { ...localLine, heads: updatedHeads };
     setLocalLine(updated);
     updateLine(updated);
-  };
+  });
 
   // Toggle fixed status: not_fixed -> fixed -> active_with_issues -> not_fixed
   const toggleFixedStatus = (headIndex, issueIndex) => attributed((whoFixed) => {
