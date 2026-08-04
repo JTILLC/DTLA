@@ -1,16 +1,27 @@
 {
-  "name": "Ishida Weigher Issue Logger",
-  "short_name": "CCW Issues",
+  "name": "Headcount",
+  "short_name": "Headcount",
   "icons": [
     {
-      "src": "/mdtl.png",
+      "src": "/headcount-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/headcount-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/headcount-1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ],
-  "theme_color": "#007bff",
-  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
   "display": "standalone",
   "start_url": "/"
 }
