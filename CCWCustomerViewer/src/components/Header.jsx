@@ -1,6 +1,7 @@
 import { Moon, Sun, Printer, FileText, ExternalLink } from 'lucide-react';
 
 import { mediaUrl } from '../config/media';
+import jtiLogo from '../assets/jti-logo.png';
 
 const Header = ({ customerName, visitName, visitDate, isDark, onToggleDark, onPrint, serviceReportUrl, serviceReportPath, shareToken }) => {
   // Route the report through the broker so access dies with the share link.
@@ -21,7 +22,7 @@ const Header = ({ customerName, visitName, visitDate, isDark, onToggleDark, onPr
         <div className="header-row">
           <div className="d-flex align-items-center gap-3 header-identity">
             <img
-              src="https://i.imgur.com/GQRZTtW.png"
+              src={jtiLogo}
               alt="JTI Logo"
               className="header-logo"
             />

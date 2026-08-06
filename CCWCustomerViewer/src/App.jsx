@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import CustomerViewer from './components/CustomerViewer';
+import jtiLogo from './assets/jti-logo.png';
 
 function App() {
   return (
@@ -19,7 +20,7 @@ function LandingPage() {
       <div className="card mx-auto" style={{ maxWidth: '500px' }}>
         <div className="card-body py-5">
           <img
-            src="https://i.imgur.com/GQRZTtW.png"
+            src={jtiLogo}
             alt="JTI Logo"
             style={{ width: '120px', marginBottom: '20px' }}
           />

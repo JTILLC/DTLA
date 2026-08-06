@@ -10,6 +10,7 @@ import MaintenanceLogs from './MaintenanceLogs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { LayoutGrid, AlertCircle, Factory, ClipboardList } from 'lucide-react';
+import jtiLogo from '../assets/jti-logo.png?inline';
 
 // "Updated 2 min ago" reads as a live signal in a way an absolute timestamp
 // doesn't — the customer can tell at a glance whether the data is fresh.
@@ -193,23 +194,9 @@ const CustomerViewer = () => {
     };
 
     // Pre-load logo as base64 to avoid CORS issues
-    let logoData = null;
-    try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = 'https://i.imgur.com/GQRZTtW.png';
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      logoData = canvas.toDataURL('image/png');
-    } catch (e) {
-      console.warn('Could not load logo for PDF:', e);
-    }
+    // Already a data URI at build time — no fetch, no canvas, no CORS header
+    // standing between a customer and the logo on their report.
+    const logoData = jtiLogo;
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageHeight = doc.internal.pageSize.height;

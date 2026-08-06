@@ -2070,124 +2070,11 @@ const AppContent = () => {
     }
   };
 
-  const saveAllToCloud = async () => {
-    if (!user) return toast.error('Sign in first');
-    const ok = await dialog.confirm('Save ALL local data to cloud? This will upload any unsaved visits.', {
-      title: 'Save All to Cloud',
-      confirmText: 'Save All',
-    });
-    if (!ok) return;
-
-    try {
-      let savedCount = 0;
-
-      // Go through each customer and save their local data to cloud
-      for (const customer of customers) {
-        const localKey = `ishida_${customer.id}`;
-        const localData = localStorage.getItem(localKey);
-
-        if (localData) {
-          try {
-            const parsed = JSON.parse(localData);
-            if (parsed.lines && parsed.lines.length > 0) {
-              // Create a new visit from local data
-              const visitId = `visit_${Date.now()}_${customer.id}`;
-              const payload = {
-                date: new Date().toISOString(),
-                name: parsed.currentVisitName || `Synced ${new Date().toLocaleDateString()}`,
-                globalData: parsed.globalData || {},
-                lines: parsed.lines.map(line => ({
-                  ...line,
-                  heads: line.heads.map(head => ({ ...head, id: head.id }))
-                })),
-              };
-
-              await firebase
-                .firestore()
-                .collection('user_files')
-                .doc(user.uid)
-                .collection('customers')
-                .doc(customer.id)
-                .collection('visits')
-                .doc(visitId)
-                .set(payload);
-
-              savedCount++;
-            }
-          } catch (e) {
-            console.error(`Error parsing local data for ${customer.id}:`, e);
-          }
-        }
-      }
-
-      if (savedCount > 0) {
-        toast.success(`Saved ${savedCount} customer visit(s) to cloud!`);
-      } else {
-        toast.info('No local data to save. Use the "New" button to save individual visits.');
-      }
-    } catch (err) {
-      console.error('Save all to cloud error:', err);
-      toast.error('Failed to save all to cloud');
-    }
-  };
-
-  const loadAllFromCloud = async () => {
-    if (!user) return toast.error('Sign in first');
-    const ok = await dialog.confirm('Load ALL customers and visits from cloud? This will overwrite local data.', {
-      title: 'Load All from Cloud',
-      variant: 'warning',
-      confirmText: 'Load All',
-    });
-    if (!ok) return;
-
-    try {
-      const customerSnap = await firebase
-        .firestore()
-        .collection('user_files')
-        .doc(user.uid)
-        .collection('customers')
-        .get();
-
-      // Map customers correctly - extract profile data
-      const loadedCustomers = customerSnap.docs.map(d => ({
-        id: d.id,
-        ...d.data().profile
-      }));
-
-      // Load all visits
-      const allVisits = [];
-      for (const doc of customerSnap.docs) {
-        const custId = doc.id;
-        const visitSnap = await firebase
-          .firestore()
-          .collection('user_files')
-          .doc(user.uid)
-          .collection('customers')
-          .doc(custId)
-          .collection('visits')
-          .get();
-        allVisits.push(...visitSnap.docs.map(d => ({ id: d.id, customerId: custId, ...d.data() })));
-      }
-
-      // Sort visits by date (newest first)
-      allVisits.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      // DON'T clear localStorage - preserve local data as backup
-      // Just update the in-memory state with cloud data
-
-      setCustomers(loadedCustomers);
-      setAllVisits(allVisits);
-      setCurrentCustomer(null);
-      setLines([]);
-      setCurrentVisitName('');
-      setCurrentVisitId(null);
-
-      toast.success(`Loaded ${loadedCustomers.length} customers and ${allVisits.length} visits from cloud!`);
-    } catch (err) {
-      console.error('Load all from cloud error:', err);
-      toast.error('Failed to load all from cloud: ' + err.message);
-    }
-  };
+  // saveAllToCloud / loadAllFromCloud were removed here (2026-08-05).
+  // Nothing called them: no button, no menu item, no keyboard path. They were
+  // a bulk 'overwrite local from cloud' and its mirror, written before visits
+  // saved themselves, and they were the two most destructive functions in the
+  // file — one confirm away from overwriting every visit on the device.
 
   useEffect(() => {
     const unsub = firebase.auth().onAuthStateChanged((u) => {
@@ -2842,7 +2729,16 @@ const AppContent = () => {
     if (!user || !currentCustomer || !currentVisitId) return;
     if (savedSnapshotRef.current === null) return; // not baselined yet (mid-load)
     const current = serializeVisitContent(lines, globalData, currentVisitName, serviceReportUrl);
-    if (current === savedSnapshotRef.current) return; // nothing actually changed
+    if (current === savedSnapshotRef.current) {
+      // Back to what's already stored — typically an edit undone inside the
+      // debounce window. The previous run's cleanup has just cancelled the
+      // pending write, so returning here left "Saving…" on screen with nothing
+      // left to save and nothing that would ever clear it: the chip only moves
+      // when a write completes, and no write is coming. Say saved, because it is.
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      setCloudState(prev => (prev === 'saving' ? 'saved' : prev));
+      return;
+    }
     setCloudState('saving');
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => { writeVisitInPlace(); }, 1500);
@@ -4140,15 +4036,30 @@ const AppContent = () => {
                     {lines.map(line => {
                       const offlineHeads = line.heads.filter(h => h.status === 'offline');
                       const offlineCount = offlineHeads.length;
-                      const fixedOfflineHeads = offlineHeads.filter(h => {
+                      // Two different questions were being answered by one number.
+                      //
+                      // "Repaired" counted a head with an OPEN issue as repaired,
+                      // because it was running again. The customer's own viewer
+                      // has always counted strictly-fixed, so the same line read
+                      // "3 repaired" here and "1 repaired" on the portal the
+                      // customer was sent — with this side the flattering one.
+                      //
+                      // Back in service is the right test for how many heads are
+                      // running; it is the wrong word for repaired.
+                      const isRepaired = (h) => {
                         const issues = h.issues || [];
-                        // Active with Issues is treated like fixed - head is running
+                        if (issues.length > 0) return issues.every(iss => iss.fixed === 'fixed');
+                        return h.fixed === 'fixed';
+                      };
+                      const isBackInService = (h) => {
+                        const issues = h.issues || [];
                         if (issues.length > 0) {
                           return issues.every(iss => iss.fixed === 'fixed' || iss.fixed === 'active_with_issues');
                         }
                         return h.fixed === 'fixed' || h.fixed === 'active_with_issues';
-                      });
-                      const repairedCount = fixedOfflineHeads.length;
+                      };
+                      const repairedCount = offlineHeads.filter(isRepaired).length;
+                      const runningCount = line.heads.length - offlineCount + offlineHeads.filter(isBackInService).length;
                       const hasIssues = line.heads.some(h => {
                         const issues = h.issues || [];
                         return issues.length > 0 || (h.error && h.error !== 'None');
@@ -4211,7 +4122,7 @@ const AppContent = () => {
                               <span className="badge bg-warning text-dark me-1">{repairedCount} repaired</span>
                             )}
                             {offlineCount > 0 ? (
-                              <span className="badge bg-dark text-white">{line.heads.length - offlineCount + repairedCount}/{line.heads.length}</span>
+                              <span className="badge bg-dark text-white">{runningCount}/{line.heads.length}</span>
                             ) : (
                               <span className="badge bg-dark text-white">{line.heads.length} heads</span>
                             )}

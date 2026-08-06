@@ -219,7 +219,21 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
 
   // Span Adjust bulk helpers.
   const [spanAllValue, setSpanAllValue] = useState('');
-  const clearSpanCurrentWeights = () => {
+  // Clearing throws away every current weight on the line at once — the
+  // measurements somebody just walked the machine to take. It sat next to
+  // "Apply to all" as an equally plain button and did it on one tap, with
+  // nothing to undo it.
+  const clearSpanCurrentWeights = async () => {
+    const measured = localLine.heads.filter(h => Number(h.currentWeight) > 0).length;
+    if (measured > 0) {
+      if (requireEditAuth && !(await requireEditAuth('clear the weights on this line'))) return;
+      const confirmed = await dialog.confirm(
+        `Clear the current weight on all ${localLine.heads.length} heads of "${localLine.title}"? `
+        + `${measured} ${measured === 1 ? 'has' : 'have'} a weight recorded. Target weights are kept.`,
+        { title: 'Clear Current Weights', confirmText: 'Clear weights', variant: 'danger' },
+      );
+      if (!confirmed) return;
+    }
     const updatedHeads = localLine.heads.map(h => ({
       ...h, currentWeight: 0, weightDifference: round1((h.spanWeight || 0) - 0),
     }));
@@ -244,7 +258,12 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
-  const toggleEditTitle = () => {
+  // Renaming a line renames it everywhere it has ever been referenced — history,
+  // exports, the customer's own records. Asked at the point of opening the field
+  // rather than per keystroke, and never on the way back out, so saving a name
+  // you were already allowed to type is not a second challenge.
+  const toggleEditTitle = async () => {
+    if (!isEditingTitle && requireEditAuth && !(await requireEditAuth('rename this line'))) return;
     setIsEditingTitle(!isEditingTitle);
   };
 
@@ -412,7 +431,10 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     let newHeads;
 
     if (count > currentCount) {
-      // Add new heads
+      // Growing destroys nothing, so this asks rather than warns — but how many
+      // heads a machine has is a fact about the machine, and a line that quietly
+      // grew to 20 heads reads as 6 heads nobody is checking.
+      if (requireEditAuth && !(await requireEditAuth('add heads to this line'))) return;
       newHeads = [
         ...localLine.heads,
         ...Array.from({ length: count - currentCount }, (_, i) => ({

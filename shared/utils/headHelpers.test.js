@@ -6,7 +6,7 @@
 // reappear as if they were still open, which is exactly what a customer would
 // dispute.
 import { describe, it, expect } from 'vitest';
-import { scaffoldLinesFrom, lineStatusKey } from './headHelpers.js';
+import { scaffoldLinesFrom, lineStatusKey, buildHeadIssueHistory } from './headHelpers.js';
 
 const priorVisit = () => ({
   name: 'March service',
@@ -178,5 +178,78 @@ describe('lineStatusKey', () => {
     expect(lineStatusKey({ heads: [] })).toBe('ok');
     expect(lineStatusKey({})).toBe('ok');
     expect(lineStatusKey(null)).toBe('ok');
+  });
+});
+
+// What the History button on a head actually shows.
+//
+// The lookup matches a head by `id` and falls back to POSITION when the stored
+// head has none — heads were saved without ids for years, and without that
+// fallback every one of those visits is silently absent from the history. The
+// button would open on "Nothing recorded against this head before today" for a
+// head with a decade of faults, which is worse than having no button.
+describe('buildHeadIssueHistory', () => {
+  const visit = (id, name, date, heads) => ({
+    id, name, date, lines: [{ title: 'Line 1', heads }],
+  });
+
+  it('finds a head by id', () => {
+    const visits = [visit('v1', 'March', '2026-03-01', [
+      { id: 1, status: 'active', issues: [] },
+      { id: 2, status: 'offline', issues: [{ type: 'Load cell', fixed: 'fixed', notes: 'swapped' }] },
+    ])];
+    const h = buildHeadIssueHistory('Line 1', 2, visits, 'current');
+    expect(h).toHaveLength(1);
+    expect(h[0].issues[0].type).toBe('Load cell');
+  });
+
+  it('falls back to position for legacy heads saved without an id', () => {
+    const visits = [visit('v1', 'March', '2026-03-01', [
+      { status: 'active', issues: [] },
+      { status: 'offline', error: 'Drive belt', fixed: 'not_fixed', notes: 'ordered' },
+    ])];
+    const h = buildHeadIssueHistory('Line 1', 2, visits, 'current');
+    expect(h).toHaveLength(1);
+    // The legacy error/fixed/notes shape is migrated into an issue on the way out.
+    expect(h[0].issues[0].type).toBe('Drive belt');
+    expect(h[0].notes).toBe('ordered');
+    expect(h[0].status).toBe('offline');
+  });
+
+  it('keeps a head taken offline with no issue logged', () => {
+    const visits = [visit('v1', 'March', '2026-03-01', [{ id: 1, status: 'offline', issues: [] }])];
+    expect(buildHeadIssueHistory('Line 1', 1, visits, 'current')).toHaveLength(1);
+  });
+
+  it('leaves out heads that were fine, and the visit being viewed', () => {
+    const visits = [
+      visit('v1', 'March', '2026-03-01', [{ id: 1, status: 'active', issues: [] }]),
+      visit('cur', 'Today', '2026-08-01', [{ id: 1, status: 'offline', issues: [] }]),
+    ];
+    expect(buildHeadIssueHistory('Line 1', 1, visits, 'cur')).toEqual([]);
+  });
+
+  it('returns newest first', () => {
+    const visits = [
+      visit('v1', 'Jan', '2026-01-01', [{ id: 1, status: 'offline', issues: [] }]),
+      visit('v2', 'June', '2026-06-01', [{ id: 1, status: 'offline', issues: [] }]),
+      visit('v3', 'March', '2026-03-01', [{ id: 1, status: 'offline', issues: [] }]),
+    ];
+    expect(buildHeadIssueHistory('Line 1', 1, visits, 'cur').map(e => e.visitName))
+      .toEqual(['June', 'March', 'Jan']);
+  });
+
+  it('does not cross lines, and survives a missing head or line', () => {
+    const visits = [{ id: 'v1', name: 'March', date: '2026-03-01', lines: [
+      { title: 'Line 2', heads: [{ id: 1, status: 'offline', issues: [] }] },
+    ] }];
+    expect(buildHeadIssueHistory('Line 1', 1, visits, 'cur')).toEqual([]);
+    expect(buildHeadIssueHistory('Line 2', 9, visits, 'cur')).toEqual([]);
+  });
+
+  it('returns nothing rather than throwing on missing inputs', () => {
+    expect(buildHeadIssueHistory('Line 1', 1, null, 'cur')).toEqual([]);
+    expect(buildHeadIssueHistory('', 1, [], 'cur')).toEqual([]);
+    expect(buildHeadIssueHistory('Line 1', undefined, [], 'cur')).toEqual([]);
   });
 });
