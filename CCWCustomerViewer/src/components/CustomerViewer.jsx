@@ -204,7 +204,7 @@ const CustomerViewer = () => {
 
     const addHeader = (startY) => {
       if (logoData) {
-        doc.addImage(logoData, 'PNG', margin, 10, 30, 15);
+        doc.addImage(logoData, 'PNG', margin, 10, 30, 15, 'jtiLogo', 'FAST');
       }
       return startY;
     };

@@ -321,7 +321,7 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   }
 
   const drawPageHeader = () => {
-    doc.addImage(PDF_CONFIG.logoUrl, 'PNG', 14, 10, 30, 15);
+    doc.addImage(PDF_CONFIG.logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
     doc.setFontSize(16);
     doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
   };
@@ -359,7 +359,7 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
 
   // Add JTI logo top-left
   const logoUrl = PDF_CONFIG.logoUrl;
-  doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+  doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
 
   // Title
   doc.setFontSize(16);
@@ -398,7 +398,7 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
     // Check if we need a new page
     if (y + estimatedHeight > pageHeight - 20 && !isLastLine) {
       doc.addPage();
-      doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15);
+      doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
       doc.setFontSize(16);
       doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
       y = 35;
@@ -470,7 +470,7 @@ const renderLineReport = (doc, line, globalData) => {
   const migratedLine = migrateLineHeads(line);
 
   // Add JTI logo top-left
-  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight);
+  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight, 'jtiLogo', 'FAST');
 
   // Title
   doc.setFontSize(PDF_CONFIG.titleFontSize);
@@ -565,7 +565,7 @@ const renderSpanCalibration = (doc, line, globalData, opts = {}) => {
   dueDate.setDate(dueDate.getDate() - 1); // valid for one year (matches template: e.g. 7/1 -> 6/30 next year)
 
   // Header: logo (left) + title, then company / phone / email / location stacked
-  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight);
+  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight, 'jtiLogo', 'FAST');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text('Combination Weigher Proof of Span Adjustment', 50, 14);
@@ -684,7 +684,7 @@ const renderAudit = (doc, line, globalData) => {
   const customerName = line?.customerName || gd.customer || '';
 
   // Header
-  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight);
+  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight, 'jtiLogo', 'FAST');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
   doc.text('Combination Weigher Audit', 50, 16);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
@@ -764,7 +764,7 @@ const exportLineHistoryToPDF = async (lineHistory, customerName, lineTitle) => {
   const pageHeight = doc.internal.pageSize.height;
 
   // Add JTI logo top-left
-  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight);
+  doc.addImage(PDF_CONFIG.logoUrl, 'PNG', PDF_CONFIG.margin, 10, PDF_CONFIG.logoWidth, PDF_CONFIG.logoHeight, 'jtiLogo', 'FAST');
 
   // Title
   doc.setFontSize(PDF_CONFIG.titleFontSize);
@@ -791,7 +791,7 @@ const exportLineHistoryToPDF = async (lineHistory, customerName, lineTitle) => {
     // Check if we need a new page
     if (y + estimatedHeight > pageHeight - 20 && !isLastHead) {
       doc.addPage();
-      doc.addImage(PDF_CONFIG.logoUrl, 'PNG', 14, 10, 30, 15);
+      doc.addImage(PDF_CONFIG.logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
       doc.setFontSize(16);
       doc.text(`Issue History Report - ${lineTitle}`, 105, 20, { align: 'center' });
       doc.setFontSize(10);
