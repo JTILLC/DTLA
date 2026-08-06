@@ -28,6 +28,11 @@ import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import { ToastProvider, AlertShim, useToast } from '@shared/components/Toast.jsx';
 import VisitsSidebar from './components/VisitsSidebar.jsx';
+import BackfillPanel from './components/BackfillPanel.jsx';
+import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
+import {
+  findMissingVisits, buildVisitFromCandidate, customerKey,
+} from '@shared/utils/serviceReportBackfill.js';
 import BackfillSrModal from '@shared/components/BackfillSrModal.jsx';
 
 // Shared utilities and constants
@@ -2583,6 +2588,112 @@ const AppContent = () => {
     setCloudState('idle');
   };
 
+  // ---- Billed-but-never-logged service reports -----------------------------
+  //
+  // Confirmed renames. DatePac is not a typo — it is what Oasis Date used to be
+  // called, and the change happened between two invoices in the same system.
+  // Matching on name alone would file those under a second, duplicate plant and
+  // split one machine's history in two. Extend this list when it happens again.
+  // Written as the timesheet app actually spells them: the query below is an
+  // exact-string Firestore `in`, so a normalised key would match nothing.
+  const CUSTOMER_ALIASES = {
+    'DatePac': 'Oasis Date',
+    'Oasis Dates': 'Oasis Date',
+    'B&G Foods': 'Seneca Foods',
+  };
+
+  const [backfill, setBackfill] = useState({ candidates: [], loading: false, error: '' });
+  const [backfillCreating, setBackfillCreating] = useState(null);
+
+  // Every timesheet spelling that means this CCW customer, so the query below
+  // catches the invoices filed under an old name too.
+  const timesheetNamesFor = useCallback((cust) => {
+    if (!cust?.name) return [];
+    const names = [cust.name];
+    Object.entries(CUSTOMER_ALIASES).forEach(([alias, target]) => {
+      if (customerKey(target) === customerKey(cust.name)) names.push(alias);
+    });
+    return names;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadBackfillCandidates = useCallback(async (cust, visitList) => {
+    if (!cust) return setBackfill({ candidates: [], loading: false, error: '' });
+    if (!isTimesheetSignedIn()) {
+      // The second sign-in happens at login, so a session that predates this
+      // feature has no connection to the timesheet project. Rendering nothing
+      // would be the same silent-empty failure this panel exists to avoid:
+      // "no missing visits" and "never looked" have to read differently.
+      return setBackfill({ candidates: [], loading: false, error: '', needsReconnect: true });
+    }
+    setBackfill((b) => ({ ...b, loading: true, error: '', needsReconnect: false }));
+    try {
+      // Scoped to this customer rather than pulling every timesheet: the
+      // dashboard next door reads the whole collection to build the same view
+      // and it is the slowest thing it does.
+      const wanted = timesheetNamesFor(cust);
+      const snap = await timesheetDb()
+        .collection('timesheets')
+        .where('customer', 'in', wanted.slice(0, 10))
+        .get();
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setBackfill({ candidates: findMissingVisits(rows, visitList), loading: false, error: '', needsReconnect: false });
+    } catch (err) {
+      console.error('Backfill lookup failed:', err);
+      setBackfill({ candidates: [], loading: false, error: err?.message || 'Could not reach the timesheet app.' });
+    }
+  }, [timesheetNamesFor]);
+
+  // A visit built from an invoice. Written straight to the visits collection
+  // with the machines scaffolded from the customer's most recent visit, then
+  // opened — so what lands is reviewable rather than taken on trust.
+  useEffect(() => {
+    if (!showVisitsModal || !currentCustomer) return;
+    loadBackfillCandidates(currentCustomer, visits);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showVisitsModal, currentCustomer?.id, visits.length]);
+
+  const createVisitFromCandidate = useCallback(async (candidate) => {
+    if (!user || !currentCustomer) return;
+    const prior = visits.find((v) => Array.isArray(v.lines) && v.lines.length);
+    const lineCount = prior ? (prior.lines || []).length : 0;
+
+    const ok = await dialog.confirm(
+      `Create a visit for service report ${candidate.number}?\n\n`
+      + `Customer: ${currentCustomer.name}\n`
+      + `Date: ${candidate.date || 'not recorded'}\n`
+      + `${lineCount ? `Lines: ${lineCount}, copied from "${prior.name || 'the last visit'}"` : 'Lines: none — this customer has no earlier visit to copy machines from'}\n`
+      + `${candidate.hasWork ? 'The write-up from the timesheet goes into the visit notes.' : 'There is no write-up on this one.'}`,
+      { title: 'Create Visit from Service Report', confirmText: 'Create' },
+    );
+    if (!ok) return;
+
+    setBackfillCreating(candidate.norm);
+    try {
+      const payload = buildVisitFromCandidate(candidate, prior ? scaffoldLinesFrom(prior) : []);
+      const visitId = `visit_${Date.now()}`;
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(currentCustomer.id)
+        .collection('visits')
+        .doc(visitId)
+        .set(payload);
+
+      await loadVisits(currentCustomer.id);
+      toast.success(`Visit ${candidate.number} created`);
+      setBackfill((b) => ({ ...b, candidates: b.candidates.filter((c) => c.norm !== candidate.norm) }));
+    } catch (err) {
+      console.error('Could not create visit from service report:', err);
+      toast.error('Could not create that visit: ' + err.message);
+    } finally {
+      setBackfillCreating(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, currentCustomer, visits, dialog, toast]);
+
   const loadVisits = async (custId) => {
     if (!user) return;
     const snap = await firebase
@@ -2834,6 +2945,13 @@ const AppContent = () => {
   if (!user) {
     return <LoginScreen onLogin={async (email, password) => {
       const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+      // Same credentials, second project — read-only, and only so the visit list
+      // can notice service reports that were billed but never logged. If it
+      // fails this app still works completely; the backfill panel is the only
+      // thing that goes quiet, and it says so rather than showing an empty list.
+      signInToTimesheet(email, password).then((r) => {
+        if (!r.ok) console.warn('Timesheet lookup unavailable:', r.error);
+      });
       setSession(cred.user);
     }} />;
   }
@@ -3970,6 +4088,18 @@ const AppContent = () => {
                   onEditDate={(v) => { setVisitToEdit(v); setEditTimestamp(new Date(v.date).toISOString().slice(0, 16)); setShowVisitsModal(false); }}
                   onDelete={deleteVisit}
                   collapsed={false}
+                />
+
+                {/* Billed but never logged: service reports whose number no
+                    visit here claims. Sits under the list because that is where
+                    you are when you notice the history has a gap. */}
+                <BackfillPanel
+                  candidates={backfill.candidates}
+                  loading={backfill.loading}
+                  error={backfill.error}
+                  needsReconnect={backfill.needsReconnect}
+                  creatingId={backfillCreating}
+                  onCreate={createVisitFromCandidate}
                 />
 
                 {/* The plant's own shift logs. Listed apart because they are a
