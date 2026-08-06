@@ -1,3 +1,12 @@
+// The logo travels with the build rather than being fetched from imgur.
+//
+// It sat on i.imgur.com: a third party hosting the letterhead of every service
+// report and invoice that goes to a customer. If that image ever 404s or is
+// replaced, it happens on paperwork already in front of a client, and each
+// export told imgur who was making it. `?inline` hands jsPDF a data URI, which
+// is what addImage wants anyway — a bare http URL is not something it can fetch.
+import jtiLogo from '../assets/jti-logo.png?inline';
+
 // src/config/constants.js - Centralized configuration and constants
 
 export const ISSUE_TYPES = [
@@ -59,7 +68,7 @@ export const PDF_CONFIG = {
   pageSize: 'a4',
   orientation: 'portrait',
   margin: 14,
-  logoUrl: 'https://i.imgur.com/GQRZTtW.png',
+  logoUrl: jtiLogo,
   logoWidth: 30,
   logoHeight: 15,
   titleFontSize: 16,
