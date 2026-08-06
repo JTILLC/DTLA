@@ -24,7 +24,13 @@
   --st-active-bd: #a3cfbb;
   --st-offline:   #dc3545;
   --st-fixed:     #f59e0b;
-  --st-issues:    #0aa2c0;
+  /* Active with issues is #0dcaf0 everywhere else in the app: the head tiles
+     (Bootstrap's .btn-info, which is not re-themable) and the line-chip dot
+     that sits on THIS screen, three centimetres to the left of these cells.
+     A dulled-down variant was picked here for the light ground, so the same
+     state read as two different teals side by side. It does not get its own
+     shade — one meaning, one colour, both themes. */
+  --st-issues:    #0dcaf0;
 }
 
 [data-theme="dark"] .ccw-overview {
@@ -32,7 +38,10 @@
   --st-active-bd: #2c6e4b;
   --st-offline:   #e5535f;
   --st-fixed:     #d99406;
-  --st-issues:    #3ab7d4;
+  /* Deliberately NOT lifted for dark: .btn-info and .line-chip-dot--attn are
+     #0dcaf0 in both themes, so a dark-mode variant here would re-open the
+     same mismatch. */
+  --st-issues:    #0dcaf0;
 }
 
 .ccw-ov-head {
