@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 
 // CCW Issues (Downtime Logger) Configuration
 const ccwIssuesConfig = {
@@ -65,3 +66,12 @@ export const ccwIssuesStorage = getStorage(ccwIssuesApp);
 
 // Initialize Realtime Database instance
 export const shearersRealtimeDb = getDatabase(shearersApp);
+
+// Auth instances for all projects
+export const ccwIssuesAuth = getAuth(ccwIssuesApp);
+export const jobsMasterAuth = getAuth(jobsMasterApp);
+export const timesheetAuth = getAuth(timesheetApp);
+export const shearersAuth = getAuth(shearersApp);
+
+// Primary auth (used for login state)
+export const auth = ccwIssuesAuth;
