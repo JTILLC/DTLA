@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shared links - public read for customer_shares (token validation)
+    match /customer_shares/{token} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Parts diagrams - public read for shared viewer access
+    match /parts-viewer-diagrams/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Everything else requires authentication
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

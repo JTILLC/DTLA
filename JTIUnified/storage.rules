@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Diagram images - public read for shared viewer access
+    match /diagram-images/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Everything else requires authentication
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
