@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X } from 'lucide-react';
+import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip } from 'lucide-react';
+import { saveManualReport, deleteManualReport } from '../data-service';
 
 const CCW_URL = 'https://jti-issues.pages.dev';
 // Every other link in this dashboard — SearchResults, CalendarView, App, the
@@ -16,6 +17,12 @@ const fmtDate = (d) => {
   return isNaN(dt) ? String(d) : dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+// A blank entry. `kind` decides which half of a report number it fills in.
+const emptyEntry = (kind, number = '') => ({
+  id: null, kind, number, customer: '', date: '', invoiceNumber: '', amount: '', notes: '',
+  file: null, removeFile: false, existingFileName: '',
+});
+
 export default function ServiceReportLookup({
   reports = [],
   years = [],
@@ -30,6 +37,60 @@ export default function ServiceReportLookup({
   const [selectedNorm, setSelectedNorm] = useState(null);
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+
+  // Manual entry: the form, what it is saving, and which row is one click from
+  // being deleted (a second click on the row itself, rather than a native
+  // confirm that blocks the page).
+  const [entry, setEntry] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
+
+  const openEntry = (kind, number = '') => { setFormError(''); setEntry(emptyEntry(kind, number)); };
+  const editEntry = (row) => {
+    setFormError('');
+    setEntry({
+      id: row.id,
+      kind: row.kind === 'manual-invoice' ? 'invoice' : 'report',
+      number: row.number || '',
+      customer: row.customer || '',
+      date: row.date || '',
+      invoiceNumber: row.invoiceNumber || '',
+      amount: row.amount == null ? '' : String(row.amount),
+      notes: row.notes || '',
+      file: null,
+      removeFile: false,
+      existingFileName: row.fileName || '',
+    });
+  };
+
+  const submitEntry = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError('');
+    try {
+      await saveManualReport(entry);
+      setSelectedNorm(String(entry.number || '').trim().replace(/[\s-]/g, '').toUpperCase());
+      setEntry(null);
+      await onRefresh?.();
+    } catch (err) {
+      // Kept on screen with the form still filled in — a failed save must never
+      // be a retyped one.
+      setFormError(err?.message || 'Could not save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeEntry = async (id) => {
+    setPendingDelete(null);
+    try {
+      await deleteManualReport(id);
+      await onRefresh?.();
+    } catch (err) {
+      setFormError(err?.message || 'Could not delete that entry.');
+    }
+  };
 
   const isUnmatched = (r) => r.timesheets.length === 0 || r.visits.length === 0;
   const unmatchedCount = useMemo(() => reports.filter(isUnmatched).length, [reports]);
@@ -61,6 +122,20 @@ export default function ServiceReportLookup({
 
   const selected = useMemo(() => reports.find((r) => r.norm === selectedNorm) || null, [reports, selectedNorm]);
 
+  // Every customer name the page has already seen, for the entry form's
+  // autocomplete — typing a new spelling of an existing customer is the easiest
+  // way to make a manual record fail to line up with everything else.
+  const knownCustomers = useMemo(() => {
+    const names = new Set();
+    reports.forEach((r) => {
+      r.timesheets.forEach((t) => t.customer && names.add(t.customer));
+      r.visits.forEach((v) => v.customer && names.add(v.customer));
+    });
+    untaggedVisits.forEach((v) => v.customer && names.add(v.customer));
+    untaggedTimesheets.forEach((t) => t.customer && names.add(t.customer));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [reports, untaggedVisits, untaggedTimesheets]);
+
   const chip = (bg, color, Icon, label, title) => (
     <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: bg, color }}>
       <Icon size={11} /> {label}
@@ -74,6 +149,45 @@ export default function ServiceReportLookup({
     </a>
   );
 
+  const input = { width: '100%', padding: '8px 10px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, fontSize: 14, boxSizing: 'border-box' };
+  const fieldLabel = { display: 'block', fontSize: 12, color: colors.textSecondary, fontWeight: 600, marginBottom: 4 };
+
+  const manualBadge = (
+    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '1px 6px', borderRadius: 999, background: '#fef3c7', color: '#92400e' }}>
+      Manual
+    </span>
+  );
+
+  // Edit and delete are offered only on entries typed here. A record derived
+  // from a timesheet or a visit belongs to that app, and editing it in this
+  // window would put the two out of step with no sign that it happened.
+  const manualControls = (row) => (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <button onClick={() => editEntry(row)} title="Edit this entry"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: colors.text, cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
+        <Pencil size={13} /> Edit
+      </button>
+      {pendingDelete === row.id ? (
+        <button onClick={() => removeEntry(row.id)} title="Click again to delete"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, color: 'white', cursor: 'pointer', padding: '5px 10px', border: '1px solid #dc2626', borderRadius: 6, background: '#dc2626' }}>
+          <Trash2 size={13} /> Confirm
+        </button>
+      ) : (
+        <button onClick={() => setPendingDelete(row.id)} title="Delete this entry"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#dc2626', cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  );
+
+  const addBtn = (kind, label) => (
+    <button onClick={() => openEntry(kind, selected?.number || '')}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: '#3b82f6', cursor: 'pointer', padding: '5px 10px', border: `1px dashed ${colors.border}`, borderRadius: 6, background: 'transparent' }}>
+      <Plus size={13} /> {label}
+    </button>
+  );
+
   const sectionCard = { background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 14, marginBottom: 12 };
   const label = { fontSize: 12, color: colors.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 };
 
@@ -81,14 +195,20 @@ export default function ServiceReportLookup({
     <section>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: colors.text, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-          <FileText size={24} /> Service Report Lookup
+          <FileText size={24} /> Reports
         </h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button onClick={() => openEntry('invoice')}
+          style={{ padding: '8px 14px', background: '#3b82f6', border: '1px solid #3b82f6', borderRadius: 6, cursor: 'pointer', color: 'white', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Plus size={15} /> Add entry
+        </button>
         {onRefresh && (
           <button onClick={onRefresh} disabled={loading}
             style={{ padding: '8px 14px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 6, cursor: loading ? 'default' : 'pointer', color: colors.text, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
             <RefreshCw size={14} style={loading ? { animation: 'jti-spin 0.8s linear infinite' } : undefined} /> Refresh
           </button>
         )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -110,14 +230,14 @@ export default function ServiceReportLookup({
       </div>
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: colors.textSecondary }}>Loading service reports…</div>
+        <div style={{ padding: 40, textAlign: 'center', color: colors.textSecondary }}>Loading reports…</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 340px) 1fr', gap: 16, alignItems: 'start' }} className="srl-grid">
           {/* LEFT: list */}
           <div style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 10, overflow: 'hidden', maxHeight: '70vh', overflowY: 'auto' }}>
             {grouped.length === 0 ? (
               <div style={{ padding: 24, color: colors.textSecondary, fontSize: 14 }}>
-                No report numbers{onlyUnmatched ? ' need attention' : ' found'}. {reports.length === 0 && 'Tag visits and invoices with a service report number to populate this.'}
+                No report numbers{onlyUnmatched ? ' need attention' : ' found'}. {reports.length === 0 && 'Tag visits and invoices with a service report number, or add one by hand with Add entry.'}
               </div>
             ) : (
               grouped.map(([year, rs]) => (
@@ -152,7 +272,7 @@ export default function ServiceReportLookup({
           <div>
             {!selected ? (
               <div style={{ ...sectionCard, color: colors.textSecondary, fontSize: 14 }}>
-                Select a service report number to see its invoice, timesheet, and weigher visit.
+                Select a report number to see its invoice, timesheet and weigher visit — or use Add entry to record one that is not in either system.
               </div>
             ) : (
               <div>
@@ -165,21 +285,28 @@ export default function ServiceReportLookup({
                 <div style={sectionCard}>
                   <div style={label}><Receipt size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Invoice / Timesheet</div>
                   {selected.timesheets.length === 0 ? (
-                    <div style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <AlertTriangle size={14} /> No invoice/timesheet found for this number.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={14} /> No invoice/timesheet found for this number.
+                      </span>
+                      {addBtn('invoice', 'Add invoice')}
                     </div>
                   ) : (
                     selected.timesheets.map((t) => (
                       <div key={t.id} style={{ paddingBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 14, color: colors.text }}>
-                            <div style={{ fontWeight: 600 }}>{t.customer}</div>
+                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {t.customer} {t.manual && manualBadge}
+                            </div>
                             <div style={{ color: colors.textSecondary, fontSize: 13 }}>
-                              Invoice #{t.invoiceInfo?.invoiceNumber || '—'} · {t.entryCount} day{t.entryCount === 1 ? '' : 's'}
-                              {t.customerInfo?.purpose ? ` · ${t.customerInfo.purpose}` : ''}
+                              Invoice #{t.invoiceInfo?.invoiceNumber || '—'}
+                              {t.manual
+                                ? `${t.date ? ` · ${fmtDate(t.date)}` : ''}${t.amount != null ? ` · $${Number(t.amount).toFixed(2)}` : ''}`
+                                : ` · ${t.entryCount} day${t.entryCount === 1 ? '' : 's'}${t.customerInfo?.purpose ? ` · ${t.customerInfo.purpose}` : ''}`}
                             </div>
                           </div>
-                          {linkBtn(TIMESHEET_URL, 'Timesheet app')}
+                          {t.manual ? manualControls(t) : linkBtn(TIMESHEET_URL, 'Timesheet app')}
                         </div>
                         {t.serviceWork && t.serviceWork.length > 0 && (
                           <div style={{ marginTop: 10 }}>
@@ -195,25 +322,44 @@ export default function ServiceReportLookup({
                       </div>
                     ))
                   )}
+                  {selected.timesheets.length > 0 && (
+                    <div style={{ marginTop: 4 }}>{addBtn('invoice', 'Add another invoice')}</div>
+                  )}
                 </div>
 
                 {/* Weigher visit */}
                 <div style={sectionCard}>
-                  <div style={label}><ClipboardList size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Weigher Visit (CCW Issues)</div>
+                  <div style={label}><ClipboardList size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Service Report / Weigher Visit</div>
                   {selected.visits.length === 0 ? (
-                    <div style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <AlertTriangle size={14} /> No weigher visit tagged with this number.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={14} /> No weigher visit tagged with this number.
+                      </span>
+                      {addBtn('report', 'Add service report')}
                     </div>
                   ) : (
                     selected.visits.map((v) => (
                       <div key={v.visitId} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: selected.visits.length > 1 ? `1px solid ${colors.border}` : 'none' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 14, color: colors.text }}>
-                            <div style={{ fontWeight: 600 }}>{v.customer}{v.name ? ` — ${v.name}` : ''}</div>
-                            <div style={{ color: colors.textSecondary, fontSize: 13 }}>
-                              {fmtDate(v.date)} · {v.lineCount} line{v.lineCount === 1 ? '' : 's'}
-                              {v.lines.length ? ` (${v.lines.map((l) => l.title).join(', ')})` : ''}
+                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {v.customer}{v.name ? ` — ${v.name}` : ''} {v.manual && manualBadge}
                             </div>
+                            {/* A derived visit always has a date. A manual one
+                                may not, and an em dash sitting alone under the
+                                customer name reads as missing data rather than
+                                as nothing to say — so the line goes instead. */}
+                            {(!v.manual || v.date || v.fileName) && (
+                              <div style={{ color: colors.textSecondary, fontSize: 13 }}>
+                                {(!v.manual || v.date) && fmtDate(v.date)}
+                                {v.manual
+                                  ? (v.fileName ? `${v.date ? ' · ' : ''}${v.fileName}` : '')
+                                  : ` · ${v.lineCount} line${v.lineCount === 1 ? '' : 's'}${v.lines.length ? ` (${v.lines.map((l) => l.title).join(', ')})` : ''}`}
+                              </div>
+                            )}
+                            {v.manual && v.notes && (
+                              <div style={{ fontSize: 13, color: colors.text, whiteSpace: 'pre-wrap', marginTop: 6 }}>{v.notes}</div>
+                            )}
                           </div>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {v.serviceReportUrl && (
@@ -223,16 +369,135 @@ export default function ServiceReportLookup({
                               </button>
                             )}
                             {v.serviceReportUrl && linkBtn(v.serviceReportUrl, 'Open PDF')}
-                            {linkBtn(`${CCW_URL}/?customerId=${encodeURIComponent(v.customerId)}&visitId=${encodeURIComponent(v.visitId)}`, 'Open visit')}
+                            {v.manual
+                              ? manualControls(v)
+                              : linkBtn(`${CCW_URL}/?customerId=${encodeURIComponent(v.customerId)}&visitId=${encodeURIComponent(v.visitId)}`, 'Open visit')}
                           </div>
                         </div>
                       </div>
                     ))
                   )}
+                  {selected.visits.length > 0 && (
+                    <div style={{ marginTop: 4 }}>{addBtn('report', 'Add another service report')}</div>
+                  )}
                 </div>
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Manual entry form */}
+      {entry && (
+        <div onClick={() => !saving && setEntry(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <form onClick={(e) => e.stopPropagation()} onSubmit={submitEntry}
+            style={{ background: colors.cardBg, borderRadius: 10, width: 'min(560px, 100%)', maxHeight: '90vh', overflowY: 'auto', border: `1px solid ${colors.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${colors.border}` }}>
+              <span style={{ fontWeight: 600, color: colors.text, fontSize: 16 }}>
+                {entry.id ? 'Edit entry' : 'Add entry'}
+              </span>
+              <button type="button" onClick={() => setEntry(null)} aria-label="Close"
+                style={{ background: 'transparent', border: 0, cursor: 'pointer', color: colors.textSecondary, display: 'flex' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* What this record is. Switching it changes which fields matter,
+                  so it sits first and reads as a choice, not a filter. */}
+              <div>
+                <div style={fieldLabel}>This is an</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['invoice', 'Invoice', Receipt], ['report', 'Service report', ClipboardList]].map(([k, lbl, Icon]) => (
+                    <button key={k} type="button" onClick={() => setEntry({ ...entry, kind: k })}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px', fontSize: 14, fontWeight: 500, cursor: 'pointer', borderRadius: 8, border: `1px solid ${entry.kind === k ? '#3b82f6' : colors.border}`, background: entry.kind === k ? '#3b82f6' : colors.cardBg, color: entry.kind === k ? 'white' : colors.text }}>
+                      <Icon size={14} /> {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={fieldLabel} htmlFor="mr-number">Service report number *</label>
+                  <input id="mr-number" required value={entry.number} onChange={(e) => setEntry({ ...entry, number: e.target.value })}
+                    placeholder="2026012" style={input} />
+                </div>
+                <div>
+                  <label style={fieldLabel} htmlFor="mr-date">Date</label>
+                  <input id="mr-date" type="date" value={entry.date} onChange={(e) => setEntry({ ...entry, date: e.target.value })} style={input} />
+                </div>
+              </div>
+
+              <div>
+                <label style={fieldLabel} htmlFor="mr-customer">Customer *</label>
+                <input id="mr-customer" required list="mr-customers" value={entry.customer}
+                  onChange={(e) => setEntry({ ...entry, customer: e.target.value })} placeholder="Customer name" style={input} />
+                {/* Names already in the data, so a manual entry lands under the
+                    same spelling the rest of the dashboard uses. */}
+                <datalist id="mr-customers">
+                  {knownCustomers.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+
+              {entry.kind === 'invoice' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={fieldLabel} htmlFor="mr-inv">Invoice number</label>
+                    <input id="mr-inv" value={entry.invoiceNumber} onChange={(e) => setEntry({ ...entry, invoiceNumber: e.target.value })} style={input} />
+                  </div>
+                  <div>
+                    <label style={fieldLabel} htmlFor="mr-amt">Amount</label>
+                    <input id="mr-amt" type="number" step="0.01" min="0" value={entry.amount}
+                      onChange={(e) => setEntry({ ...entry, amount: e.target.value })} placeholder="0.00" style={input} />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={fieldLabel} htmlFor="mr-notes">
+                  {entry.kind === 'invoice' ? 'Notes' : 'Work performed'}
+                </label>
+                <textarea id="mr-notes" rows={3} value={entry.notes} onChange={(e) => setEntry({ ...entry, notes: e.target.value })}
+                  style={{ ...input, resize: 'vertical', fontFamily: 'inherit' }} />
+              </div>
+
+              {entry.kind === 'report' && (
+                <div>
+                  <div style={fieldLabel}>PDF (optional)</div>
+                  {entry.existingFileName && !entry.file && !entry.removeFile ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: colors.text }}>
+                      <Paperclip size={14} /> {entry.existingFileName}
+                      <button type="button" onClick={() => setEntry({ ...entry, removeFile: true })}
+                        style={{ background: 'transparent', border: 0, color: '#dc2626', cursor: 'pointer', fontSize: 13 }}>Remove</button>
+                    </div>
+                  ) : (
+                    <input type="file" accept="application/pdf,.pdf"
+                      onChange={(e) => setEntry({ ...entry, file: e.target.files?.[0] || null, removeFile: false })}
+                      style={{ ...input, padding: 8 }} />
+                  )}
+                </div>
+              )}
+
+              {formError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 6, padding: '8px 10px', fontSize: 13 }}>
+                  {formError}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: `1px solid ${colors.border}` }}>
+              <button type="button" onClick={() => setEntry(null)} disabled={saving}
+                style={{ padding: '9px 14px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, fontSize: 14, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #3b82f6', background: '#3b82f6', color: 'white', fontSize: 14, fontWeight: 500, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : entry.id ? 'Save changes' : 'Add entry'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

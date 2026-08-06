@@ -1244,7 +1244,7 @@ function App() {
               }}
             >
               <FileText size={16} />
-              Service Reports
+              Reports
             </button>
             <button
               onClick={handleRefresh}
@@ -1461,7 +1461,7 @@ function App() {
 
         {/* Service Report Lookup View */}
         {showServiceReports && (
-          <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading service reports…</div>}>
+          <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading reports…</div>}>
             <ServiceReportLookup
               reports={serviceReports.reports}
               years={serviceReports.years}

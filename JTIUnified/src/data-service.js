@@ -1,5 +1,5 @@
-import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { ref, getDownloadURL, getBlob } from 'firebase/storage';
+import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
@@ -492,6 +492,98 @@ export const fetchTimesheetData = async () => {
 // Joins timesheets (invoiceInfo.invoiceNumber == service report #) with CCW
 // Issues visits (globalData.serviceReportNumber) on a normalized number, so a
 // single report number surfaces its invoice/timesheet AND its weigher visit.
+// ============================================
+// Manually entered invoices and service reports
+// ============================================
+// The Reports page joins two systems that generate their own records: invoices
+// come from the timesheet app, weigher visits from CCW Issues. Plenty of real
+// work lives in neither — an invoice raised outside the timesheet app, a report
+// written up for a job that was never logged as a visit — and until now there
+// was no way to say so. The number showed up half-matched forever, or not at
+// all, and the "unmatched" filter was full of things that were not actually
+// missing.
+//
+// These live in their own collection rather than being written into the
+// timesheet or CCW collections: a hand-typed invoice is not a timesheet, and a
+// fake visit would appear in CCW Issues as a machine record that never
+// happened. They are merged into the join at read time, flagged `manual` so the
+// page can label them and offer edit and delete — a derived record cannot be
+// edited here, but one you typed should be.
+export const MANUAL_REPORTS = 'unified_manual_reports';
+
+const normalizeReportNumber = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
+
+export const fetchManualReports = async () => {
+  const snap = await getDocs(collection(jobsMasterDb, MANUAL_REPORTS));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
+
+// The PDF is optional and goes to the same project the collection lives in.
+// Named by document id, so replacing a file never collides with another entry's.
+const uploadManualFile = async (docId, file) => {
+  const safe = String(file.name || 'attachment.pdf').replace(/[^A-Za-z0-9._-]/g, '_');
+  const path = `manual-reports/${docId}/${safe}`;
+  await uploadBytes(ref(jobsStorage, path), file, { contentType: file.type || 'application/pdf' });
+  return { filePath: path, fileName: safe, fileUrl: await getDownloadURL(ref(jobsStorage, path)) };
+};
+
+export const saveManualReport = async ({ id, kind, number, customer, date, invoiceNumber, amount, notes, file, removeFile }) => {
+  const trimmedNumber = String(number || '').trim();
+  if (!trimmedNumber) throw new Error('A service report number is required.');
+  if (kind !== 'invoice' && kind !== 'report') throw new Error('Unknown entry type.');
+  if (!String(customer || '').trim()) throw new Error('A customer is required.');
+
+  const parsedAmount = amount === '' || amount == null ? null : Number(amount);
+  if (parsedAmount != null && !Number.isFinite(parsedAmount)) throw new Error('Amount must be a number.');
+
+  const base = {
+    kind,
+    number: trimmedNumber,
+    norm: normalizeReportNumber(trimmedNumber),
+    customer: String(customer).trim(),
+    date: date || '',
+    invoiceNumber: String(invoiceNumber || '').trim(),
+    amount: parsedAmount,
+    notes: String(notes || '').trim(),
+    updatedAt: serverTimestamp(),
+  };
+
+  let docId = id;
+  if (docId) {
+    await updateDoc(doc(jobsMasterDb, MANUAL_REPORTS, docId), base);
+  } else {
+    const created = await addDoc(collection(jobsMasterDb, MANUAL_REPORTS), { ...base, createdAt: serverTimestamp() });
+    docId = created.id;
+  }
+
+  // File handling runs after the document exists so the path can be keyed to
+  // its id. A failure here must not lose what was typed, so it is reported
+  // separately rather than rolling the whole save back.
+  if (removeFile && !file) {
+    const existing = id ? (await getDoc(doc(jobsMasterDb, MANUAL_REPORTS, docId))).data() : null;
+    if (existing?.filePath) {
+      try { await deleteObject(ref(jobsStorage, existing.filePath)); } catch (e) { console.warn('Could not delete attachment:', e); }
+    }
+    await updateDoc(doc(jobsMasterDb, MANUAL_REPORTS, docId), { filePath: null, fileName: null, fileUrl: null });
+  } else if (file) {
+    const meta = await uploadManualFile(docId, file);
+    await updateDoc(doc(jobsMasterDb, MANUAL_REPORTS, docId), meta);
+  }
+
+  clearDataCache();
+  return docId;
+};
+
+export const deleteManualReport = async (id) => {
+  const snap = await getDoc(doc(jobsMasterDb, MANUAL_REPORTS, id));
+  const data = snap.exists() ? snap.data() : null;
+  if (data?.filePath) {
+    try { await deleteObject(ref(jobsStorage, data.filePath)); } catch (e) { console.warn('Could not delete attachment:', e); }
+  }
+  await deleteDoc(doc(jobsMasterDb, MANUAL_REPORTS, id));
+  clearDataCache();
+};
+
 export const fetchServiceReports = async () => {
   // Normalize for the JOIN only (strip spaces/dashes, upper-case) so small
   // formatting differences ("2025-016" vs "2025016") still match. Original text
@@ -556,6 +648,28 @@ export const fetchServiceReports = async () => {
     }));
     const visits = perCustomer.flat();
 
+    // --- Manually entered records ---
+    // Read separately so one failure here (a permission problem, an offline
+    // moment) leaves the derived halves of the page intact rather than blanking
+    // the whole screen. `manual: true` is what the UI keys edit/delete off.
+    let manual = [];
+    try {
+      manual = (await fetchManualReports()).map((m) => ({
+        ...m,
+        manual: true,
+        kind: m.kind === 'invoice' ? 'manual-invoice' : 'manual-report',
+        norm: m.norm || normalize(m.number),
+        // The two sides render different fields; give each the shape its
+        // section already expects so nothing downstream special-cases them.
+        ...(m.kind === 'invoice'
+          ? { invoiceInfo: { invoiceNumber: m.invoiceNumber || '' }, entryCount: 0,
+              serviceWork: m.notes ? [{ date: m.date, text: m.notes }] : [] }
+          : { visitId: m.id, lineCount: 0, lines: [], serviceReportUrl: m.fileUrl || null }),
+      }));
+    } catch (e) {
+      console.warn('Could not load manually entered reports:', e);
+    }
+
     // --- Join by normalized number ---
     const map = new Map();
     const add = (item, side) => {
@@ -567,6 +681,10 @@ export const fetchServiceReports = async () => {
     };
     timesheets.forEach((t) => add(t, 'timesheets'));
     visits.forEach((v) => add(v, 'visits'));
+    // A manual entry counts as its side being present, so a number that was
+    // only ever half-recorded stops being reported as unmatched once you say
+    // what the other half was.
+    manual.forEach((m) => add(m, m.kind === 'manual-invoice' ? 'timesheets' : 'visits'));
 
     const reports = [...map.values()].sort((a, b) => b.norm.localeCompare(a.norm));
     const years = [...new Set(reports.map((r) => r.year))].sort((a, b) => b.localeCompare(a));
