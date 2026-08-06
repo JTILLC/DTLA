@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import {
   DollarSign,
   Clock,
@@ -24,62 +24,30 @@ import {
   ChevronRight,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  LogOut,
+  MapPin,
+  Navigation,
+  Wrench,
+  ShieldCheck
 } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports } from './data-service';
+import { useAuth } from './context/AuthContext';
+import { jobsMasterAuth } from './firebase-config';
+const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
+const FactoryMapView = lazy(() => import('./components/FactoryMapView'));
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const ServiceReportLookup = lazy(() => import('./components/ServiceReportLookup'));
+import StatCard from './components/StatCard';
+import AppCard from './components/AppCard';
+import ActivityItem from './components/ActivityItem';
+import SearchResults from './components/SearchResults';
+import CustomerDetailView from './components/CustomerDetailView';
+import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
-// Helper function to check if job is paid (handles various formats)
-const isPaid = (paidValue) => {
-  if (paidValue === true || paidValue === 1) return true;
-  if (typeof paidValue === 'string') {
-    const lower = paidValue.toLowerCase().trim();
-    return lower === 'yes' || lower === 'true' || lower === '1' || lower === 'paid';
-  }
-  return false;
-};
-
-// Helper function to highlight search term in text
-const HighlightText = ({ text, searchTerm }) => {
-  if (!searchTerm || !text) return <>{text}</>;
-
-  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.toString().split(regex);
-
-  return (
-    <>
-      {parts.map((part, index) =>
-        regex.test(part) ? (
-          <mark key={index} style={{
-            backgroundColor: '#fef08a',
-            padding: '1px 2px',
-            borderRadius: '2px',
-            fontWeight: '600'
-          }}>
-            {part}
-          </mark>
-        ) : (
-          <span key={index}>{part}</span>
-        )
-      )}
-    </>
-  );
-};
-
-// Helper function to format relative time
-const formatRelativeTime = (date) => {
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-
-  if (diffSecs < 60) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
 
 function App() {
+  const { logout } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [stats, setStats] = useState({
     totalIncome: 0,
@@ -99,11 +67,68 @@ function App() {
     const saved = localStorage.getItem('jti-unified-search-term');
     return saved || '';
   });
-  const [searchResults, setSearchResults] = useState(() => {
-    const saved = localStorage.getItem('jti-unified-search-results');
-    return saved ? JSON.parse(saved) : null;
-  });
+  // Search results are not persisted — the whole result set (full job/timesheet
+  // objects) could be large and slow to serialize. The search *term* is
+  // persisted below, and the debounced search effect re-runs it on mount.
+  const [searchResults, setSearchResults] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jti-unified-recent-searches');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [pinnedSearches, setPinnedSearches] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jti-unified-pinned-searches');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const searchInputRef = useRef(null);
+
+  // `/` focuses search (skip when typing in another input or contenteditable).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const pushRecentSearch = useCallback((term) => {
+    const t = (term || '').trim();
+    if (!t) return;
+    setRecentSearches((prev) => {
+      const next = [t, ...prev.filter((x) => x.toLowerCase() !== t.toLowerCase())].slice(0, 8);
+      try { localStorage.setItem('jti-unified-recent-searches', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    try { localStorage.removeItem('jti-unified-recent-searches'); } catch {}
+  };
+
+  const togglePinSearch = (term) => {
+    const t = (term || '').trim();
+    if (!t) return;
+    setPinnedSearches((prev) => {
+      const exists = prev.some((p) => p.toLowerCase() === t.toLowerCase());
+      const next = exists
+        ? prev.filter((p) => p.toLowerCase() !== t.toLowerCase())
+        : [t, ...prev].slice(0, 12);
+      try { localStorage.setItem('jti-unified-pinned-searches', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const isPinned = (term) => pinnedSearches.some((p) => p.toLowerCase() === (term || '').toLowerCase().trim());
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [customerData, setCustomerData] = useState(null);
@@ -128,6 +153,99 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
 
+  // Troubleshoot pane state
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
+  const [troubleshootTimesheets, setTroubleshootTimesheets] = useState([]);
+  const [troubleshootTimesheetsLoading, setTroubleshootTimesheetsLoading] = useState(false);
+
+  const loadTroubleshootTimesheets = useCallback(async () => {
+    setTroubleshootTimesheetsLoading(true);
+    try {
+      const data = await fetchTimesheetData();
+      setTroubleshootTimesheets(data?.timesheets || []);
+    } catch (e) {
+      console.error('Failed to load timesheets for troubleshoot:', e);
+    } finally {
+      setTroubleshootTimesheetsLoading(false);
+    }
+  }, []);
+
+  const toggleTroubleshoot = () => {
+    const next = !showTroubleshoot;
+    setShowTroubleshoot(next);
+    if (next) {
+      setShowCalendar(false);
+      setShowMap(false);
+      setShowServiceReports(false);
+      if (troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
+    }
+  };
+
+  // Service Report Lookup state
+  const [showServiceReports, setShowServiceReports] = useState(false);
+  const [serviceReports, setServiceReports] = useState({ reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] });
+  const [serviceReportsLoading, setServiceReportsLoading] = useState(false);
+
+  const loadServiceReports = useCallback(async () => {
+    setServiceReportsLoading(true);
+    try {
+      const data = await fetchServiceReports();
+      setServiceReports(data);
+    } catch (e) {
+      console.error('Failed to load service reports:', e);
+    } finally {
+      setServiceReportsLoading(false);
+    }
+  }, []);
+
+  const toggleServiceReports = () => {
+    const next = !showServiceReports;
+    setShowServiceReports(next);
+    if (next) {
+      setShowCalendar(false);
+      setShowMap(false);
+      setShowTroubleshoot(false);
+      setSelectedCustomer('');
+      setSearchResults(null);
+      setSearchTerm('');
+      if (serviceReports.reports.length === 0) loadServiceReports();
+    }
+  };
+
+  // Factory Map state
+  const [showMap, setShowMap] = useState(false);
+  const [factories, setFactories] = useState([]);
+  const [factoriesLoading, setFactoriesLoading] = useState(true);
+  const [newFactory, setNewFactory] = useState({ name: '', address: '', lat: '', lng: '', notes: '' });
+  const [editingFactory, setEditingFactory] = useState(null);
+  const [mapCenter, setMapCenter] = useState([39.8283, -98.5795]);
+  const [mapZoom, setMapZoom] = useState(4);
+  const [geocoding, setGeocoding] = useState(false);
+
+  // Load factory locations from Firebase - wait for jobsMasterAuth to be ready
+  useEffect(() => {
+    const loadFactories = async () => {
+      setFactoriesLoading(true);
+      try {
+        // Wait for jobsMasterAuth to be ready (it authenticates in parallel during login)
+        if (!jobsMasterAuth.currentUser) {
+          await new Promise((resolve) => {
+            const unsub = jobsMasterAuth.onAuthStateChanged((u) => { unsub(); resolve(u); });
+          });
+        }
+        const data = await fetchFactoryLocations();
+        setFactories(data);
+      } catch (error) {
+        console.error('Error loading factories:', error);
+        const saved = localStorage.getItem('jti-factory-locations');
+        if (saved) setFactories(JSON.parse(saved));
+      } finally {
+        setFactoriesLoading(false);
+      }
+    };
+    loadFactories();
+  }, []);
+
   // Handle search
   const handleSearch = async (term) => {
     if (!term || term.trim() === '') {
@@ -138,6 +256,7 @@ function App() {
     setSearchLoading(true);
     try {
       const results = await searchUnified(term);
+      if (results && results.totalResults > 0) pushRecentSearch(term);
 
       // Filter by selected customer if search scope is 'customer'
       if (searchScope === 'customer' && selectedCustomer) {
@@ -152,9 +271,22 @@ function App() {
           ),
           timesheets: results.timesheets.filter(timesheet =>
             (timesheet.customer || timesheet.visitName || '').toLowerCase().includes(customerLower)
-          )
+          ),
+          parts: (results.parts || []).filter(p =>
+            (Array.isArray(p.customers) ? p.customers.join(' ') : '').toLowerCase().includes(customerLower)
+          ),
+          boards: (results.boards || []).filter(b =>
+            (Array.isArray(b.customers) ? b.customers.join(' ') : '').toLowerCase().includes(customerLower)
+          ),
+          diagrams: (results.diagrams || []).filter(d =>
+            (d.customer || '').toLowerCase().includes(customerLower)
+          ),
+          headHistory: results.headHistory || [],
         };
-        filteredResults.totalResults = filteredResults.jobs.length + filteredResults.issues.length + filteredResults.timesheets.length;
+        filteredResults.totalResults =
+          filteredResults.jobs.length + filteredResults.issues.length +
+          filteredResults.timesheets.length + filteredResults.parts.length +
+          filteredResults.boards.length + filteredResults.diagrams.length;
         setSearchResults(filteredResults);
       } else {
         setSearchResults(results);
@@ -184,19 +316,10 @@ function App() {
     }
   }, [searchTerm]);
 
-  useEffect(() => {
-    if (searchResults) {
-      localStorage.setItem('jti-unified-search-results', JSON.stringify(searchResults));
-    } else {
-      localStorage.removeItem('jti-unified-search-results');
-    }
-  }, [searchResults]);
-
   const clearSearch = () => {
     setSearchTerm('');
     setSearchResults(null);
     localStorage.removeItem('jti-unified-search-term');
-    localStorage.removeItem('jti-unified-search-results');
   };
 
   // Load calendar events
@@ -214,13 +337,103 @@ function App() {
 
   // Toggle calendar view
   const toggleCalendar = () => {
-    if (!showCalendar && calendarEvents.length === 0) {
+    // Refresh every time the calendar is opened, not just the first time. The
+    // old `calendarEvents.length === 0` guard meant a visit saved in the
+    // timesheet app never appeared until the whole page was reloaded — the
+    // calendar looked like it had simply lost the visit.
+    if (!showCalendar) {
       loadCalendarEvents();
     }
     setShowCalendar(!showCalendar);
+    setShowMap(false);
+    setShowServiceReports(false);
     setSelectedCustomer('');
     setSearchResults(null);
     setSearchTerm('');
+  };
+
+  // Toggle map view
+  const toggleMap = () => {
+    setShowMap(!showMap);
+    setShowCalendar(false);
+    setShowServiceReports(false);
+    setSelectedCustomer('');
+    setSearchResults(null);
+    setSearchTerm('');
+  };
+
+  // Helper to save factories
+  const saveFactories = useCallback((newFactories) => {
+    setFactories(newFactories);
+    saveFactoryLocations(newFactories);
+  }, []);
+
+  // Geocode address to get coordinates
+  const geocodeAddress = async (address) => {
+    setGeocoding(true);
+    try {
+      const queries = [
+        `${address}, USA`,
+        address,
+        address.replace(/\./g, '').replace(/,/g, ' '),
+      ];
+      for (const query of queries) {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=us&limit=5`,
+          { headers: { 'User-Agent': 'JTI-Unified-Dashboard/1.0' } }
+        );
+        const data = await response.json();
+        if (data && data.length > 0) {
+          return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), displayName: data[0].display_name };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      return null;
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const lookupAddress = async () => {
+    if (!newFactory.address) { alert('Please enter an address to look up'); return; }
+    const result = await geocodeAddress(newFactory.address);
+    if (result) {
+      setNewFactory({ ...newFactory, lat: result.lat.toFixed(6), lng: result.lng.toFixed(6) });
+      alert(`Found: ${result.displayName}\n\nCoordinates: ${result.lat.toFixed(6)}, ${result.lng.toFixed(6)}`);
+    } else {
+      alert('Could not find this address. Try removing abbreviations or adding city and state.');
+    }
+  };
+
+  const addFactory = async () => {
+    if (!newFactory.name || !newFactory.address) { alert('Please enter a factory name and address'); return; }
+    let coords = { lat: parseFloat(newFactory.lat), lng: parseFloat(newFactory.lng) };
+    if (!coords.lat || !coords.lng || isNaN(coords.lat) || isNaN(coords.lng)) {
+      const geocoded = await geocodeAddress(newFactory.address);
+      if (geocoded) { coords = geocoded; } else { alert('Could not find coordinates. Please enter them manually.'); return; }
+    }
+    const factory = { id: Date.now(), name: newFactory.name, address: newFactory.address, lat: coords.lat, lng: coords.lng, notes: newFactory.notes, addedDate: new Date().toISOString() };
+    saveFactories([...factories, factory]);
+    setNewFactory({ name: '', address: '', lat: '', lng: '', notes: '' });
+  };
+
+  const updateFactory = async () => {
+    if (!editingFactory) return;
+    let coords = { lat: parseFloat(editingFactory.lat), lng: parseFloat(editingFactory.lng) };
+    if (!coords.lat || !coords.lng || isNaN(coords.lat) || isNaN(coords.lng)) {
+      const geocoded = await geocodeAddress(editingFactory.address);
+      if (geocoded) { coords = geocoded; } else { alert('Could not find coordinates.'); return; }
+    }
+    saveFactories(factories.map(f => f.id === editingFactory.id ? { ...editingFactory, lat: coords.lat, lng: coords.lng } : f));
+    setEditingFactory(null);
+  };
+
+  const deleteFactory = (id) => {
+    if (confirm('Delete this factory location?')) {
+      saveFactories(factories.filter(f => f.id !== id));
+    }
   };
 
   // Handle customer selection
@@ -251,9 +464,11 @@ function App() {
     setSearchScope('all'); // Reset search scope when customer is cleared
   };
 
-  // Fetch real data from Firebase
+  // Fetch real data from Firebase. Stale-while-revalidate: if anything is
+  // already cached, render whatever we have right now and refresh quietly in
+  // the background instead of blanking the dashboard with a spinner.
   const loadData = async () => {
-    setLoading(true);
+    if (!hasAnyCache()) setLoading(true);
     setLoadError(null);
     try {
       // Fetch all data in parallel
@@ -268,15 +483,7 @@ function App() {
       // Calculate paid income (not quotes) - use actual if available
       const currentYear = new Date().getFullYear().toString();
       const currentYearJobs = jobsData.jobs.filter(job => job.year === currentYear);
-      const currentYearPaidIncome = currentYearJobs.reduce((sum, job) => {
-        if (isPaid(job.paid)) {
-          const actual = parseFloat(job.actual || 0);
-          const quote = parseFloat(job.quote || 0);
-          const amount = actual > 0 ? actual : quote;
-          return sum + amount;
-        }
-        return sum;
-      }, 0);
+      const currentYearPaidIncome = sumIncome(currentYearJobs, { paidOnly: true });
 
       // Find current/most recent SR (by SR number - highest number is most recent)
       const sortedJobs = [...jobsData.jobs].sort((a, b) => {
@@ -285,9 +492,6 @@ function App() {
         return srB - srA;
       });
       const currentJob = sortedJobs[0];
-      console.log('Total jobs loaded:', jobsData.jobs.length);
-      console.log('Current job (highest SR):', currentJob);
-      console.log('Unpaid jobs count:', jobsData.jobs.filter(job => !isPaid(job.paid)).length);
 
       // Get unpaid jobs for display
       const unpaidJobsList = jobsData.jobs.filter(job => !isPaid(job.paid));
@@ -348,9 +552,7 @@ function App() {
           if (!isNaN(date.getTime())) {
             const month = date.getMonth();
             // Use actual cost if available, otherwise use quote
-            const actual = parseFloat(job.actual || 0);
-            const quote = parseFloat(job.quote || 0);
-            const amount = actual > 0 ? actual : quote;
+            const amount = jobAmount(job);
             if (isPaid(job.paid)) {
               monthlyPaid[month] += amount;
             } else {
@@ -410,6 +612,24 @@ function App() {
     loadData();
   }, []);
 
+  // Real-time updates: when jobs or timesheets change in Firestore, the
+  // dashboard quietly refreshes itself without blanking the page.
+  useEffect(() => {
+    const unsub = subscribeAllUpdates(() => {
+      loadData();
+      // The calendar is fed by its own fetch, so refreshing the dashboard alone
+      // left it stale. Only refetch while it's on screen — no point paying for
+      // the read otherwise.
+      if (showCalendarRef.current) loadCalendarEvents();
+    });
+    return unsub;
+  }, []);
+
+  // The subscription callback is created once, so it reads the live value
+  // through a ref rather than closing over a stale `showCalendar`.
+  const showCalendarRef = useRef(showCalendar);
+  useEffect(() => { showCalendarRef.current = showCalendar; }, [showCalendar]);
+
   // Recalculate monthly income when filters change
   useEffect(() => {
     if (allJobsData.length === 0) return;
@@ -435,9 +655,7 @@ function App() {
         if (!isNaN(date.getTime())) {
           const month = date.getMonth();
           // Use actual cost if available, otherwise use quote
-          const actual = parseFloat(job.actual || 0);
-          const quote = parseFloat(job.quote || 0);
-          const amount = actual > 0 ? actual : quote;
+          const amount = jobAmount(job);
           if (isPaid(job.paid)) {
             monthlyPaid[month] += amount;
           } else {
@@ -453,7 +671,7 @@ function App() {
     {
       id: 'jobs',
       name: 'Jobs Tracker',
-      url: 'https://jtidt.netlify.app/',
+      url: 'https://jti-jobs.pages.dev/',
       icon: <img src="/jtijobs.png" alt="Jobs" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
       color: '#3b82f6',
       description: 'Manage quotes, invoices, and job tracking'
@@ -461,7 +679,7 @@ function App() {
     {
       id: 'downtime',
       name: 'Shearers DTL',
-      url: 'https://shearersjtidowntime.netlify.app/',
+      url: 'https://jti-shearers.pages.dev/',
       icon: <img src="/shearersdowntime.png" alt="Downtime" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
       color: '#ef4444',
       description: 'Track equipment downtime events'
@@ -469,7 +687,7 @@ function App() {
     {
       id: 'timesheet',
       name: 'Time Sheet',
-      url: 'https://jti-ts3.netlify.app/',
+      url: 'https://jti-timesheet.pages.dev/',
       icon: <img src="/timesheet.png" alt="TimeSheet" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
       color: '#10b981',
       description: 'Employee time tracking and payroll'
@@ -477,7 +695,7 @@ function App() {
     {
       id: 'weigher',
       name: 'Weigher Issues',
-      url: 'https://jti-ccwlog.netlify.app/',
+      url: 'https://jti-issues.pages.dev/',
       icon: <img src="/mdtl.png" alt="Weigher" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
       color: '#f59e0b',
       description: 'Ishida weigher issue logging'
@@ -485,1756 +703,37 @@ function App() {
     {
       id: 'servicequote',
       name: 'Service Quote',
-      url: 'https://jtiservicequote.netlify.app/',
+      url: 'https://jti-quotes.pages.dev/',
       icon: <img src="/servicequote.png" alt="Quote" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
       color: '#8b5cf6',
       description: 'Create and manage service quotes'
+    },
+    {
+      id: 'inventory',
+      name: 'JTI Inventory',
+      url: 'https://jti-inventory.pages.dev/',
+      icon: <img src="/jtiinventory.png" alt="Inventory" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
+      color: '#06b6d4',
+      description: 'Parts and circuit board inventory'
+    },
+    {
+      id: 'partsmanual',
+      name: 'Parts Manual',
+      url: 'https://jti-parts.pages.dev/',
+      icon: <img src="/partsmanual.png" alt="Parts Manual" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />,
+      color: '#ec4899',
+      description: 'Interactive parts diagram viewer'
+    },
+    {
+      id: 'mdvalidation',
+      name: 'MD Validation',
+      url: 'https://jti-validation.pages.dev/',
+      icon: <ShieldCheck size={32} />,
+      color: '#6366f1',
+      description: 'Metal detection validation forms & records'
     }
   ];
 
-  const StatCard = ({ icon, title, value, color, trend, onClick }) => (
-    <div
-      onClick={onClick}
-      style={{
-        background: colors.cardBg,
-        borderRadius: '12px',
-        padding: '24px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'transform 0.2s, box-shadow 0.2s'
-      }}
-      onMouseEnter={(e) => {
-        if (onClick) {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: '10px',
-          background: `${color}20`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: color
-        }}>
-          {icon}
-        </div>
-        {trend && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: trend > 0 ? '#10b981' : '#ef4444',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}>
-            <TrendingUp size={16} style={{ transform: trend < 0 ? 'rotate(180deg)' : 'none' }} />
-            {Math.abs(trend)}%
-          </div>
-        )}
-      </div>
-      <div>
-        <div style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '4px' }}>{title}</div>
-        <div style={{ fontSize: '28px', fontWeight: '700', color: colors.text }}>{value}</div>
-      </div>
-    </div>
-  );
-
-  const AppCard = ({ app }) => (
-    <div style={{
-      background: colors.cardBg,
-      borderRadius: '12px',
-      padding: '24px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      border: '2px solid transparent'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-4px)';
-      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-      e.currentTarget.style.borderColor = app.color;
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'translateY(0)';
-      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-      e.currentTarget.style.borderColor = 'transparent';
-    }}
-    onClick={() => window.open(app.url, '_blank')}>
-      <div style={{ display: 'flex', alignItems: 'start', gap: '16px' }}>
-        <div style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '12px',
-          background: `${app.color}20`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: app.color,
-          flexShrink: 0
-        }}>
-          {app.icon}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '8px'
-          }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: colors.text }}>
-              {app.name}
-            </h3>
-            <ExternalLink size={16} style={{ color: colors.textSecondary }} />
-          </div>
-          <p style={{ fontSize: '14px', color: colors.textSecondary, lineHeight: '1.5' }}>
-            {app.description}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ActivityItem = ({ item, colors }) => {
-    const typeColors = {
-      job: '#3b82f6',
-      downtime: '#ef4444',
-      timesheet: '#10b981',
-      issue: '#f59e0b'
-    };
-
-    return (
-      <div
-        onClick={() => item.url && window.open(item.url, '_blank')}
-        style={{
-          display: 'flex',
-          gap: '12px',
-          borderBottom: `1px solid ${colors?.border || '#f3f4f6'}`,
-          cursor: item.url ? 'pointer' : 'default',
-          transition: 'background 0.2s',
-          margin: '0 -8px',
-          padding: '12px 8px',
-          borderRadius: '6px'
-        }}
-        onMouseEnter={(e) => {
-          if (item.url) e.currentTarget.style.background = colors?.hover || '#f9fafb';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-        }}
-      >
-        <div style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: typeColors[item.type],
-          marginTop: '6px',
-          flexShrink: 0
-        }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '14px', color: colors?.text || '#111827', marginBottom: '4px' }}>
-            {item.message}
-          </div>
-          <div style={{ fontSize: '12px', color: colors?.textSecondary || '#9ca3af' }}>
-            {item.time}
-          </div>
-        </div>
-        {item.url && (
-          <ExternalLink size={14} style={{ color: colors?.textSecondary || '#9ca3af', marginTop: '4px' }} />
-        )}
-      </div>
-    );
-  };
-
-  // Calendar View Component
-  const CalendarView = ({ events, currentMonth, setCurrentMonth, colors, onRefresh }) => {
-    const [selectedDay, setSelectedDay] = useState(null);
-    const [dayEvents, setDayEvents] = useState([]);
-    const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [deleting, setDeleting] = useState(false);
-
-    // Handle delete entry
-    const handleDelete = async (event) => {
-      setDeleting(true);
-      try {
-        await deleteTimesheetEntry(event.id, event.date);
-        // Remove from local state
-        setDayEvents(prev => prev.filter(e => !(e.id === event.id && e.date === event.date)));
-        setDeleteConfirm(null);
-        // Refresh calendar events
-        if (onRefresh) onRefresh();
-      } catch (error) {
-        alert('Failed to delete entry: ' + error.message);
-      }
-      setDeleting(false);
-    };
-
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    // Get days in month
-    const getDaysInMonth = (date) => {
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      const daysInMonth = lastDay.getDate();
-      const startingDay = firstDay.getDay();
-      return { daysInMonth, startingDay };
-    };
-
-    // Navigate months
-    const prevMonth = () => {
-      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-    };
-
-    const nextMonth = () => {
-      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-    };
-
-    // Get events for a specific date
-    const getEventsForDate = (day) => {
-      const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      return events.filter(event => event.date === dateStr);
-    };
-
-    // Handle day click - allow clicking any day
-    const handleDayClick = (day) => {
-      const evts = getEventsForDate(day);
-      setSelectedDay(day);
-      setDayEvents(evts);
-    };
-
-    const { daysInMonth, startingDay } = getDaysInMonth(currentMonth);
-
-    return (
-      <div>
-        {/* Calendar Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px'
-        }}>
-          <button
-            onClick={prevMonth}
-            style={{
-              padding: '8px 12px',
-              background: colors.cardBg,
-              border: `1px solid ${colors.border}`,
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: colors.text
-            }}
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <h2 style={{ fontSize: '20px', fontWeight: '600', color: colors.text }}>
-            {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-          </h2>
-          <button
-            onClick={nextMonth}
-            style={{
-              padding: '8px 12px',
-              background: colors.cardBg,
-              border: `1px solid ${colors.border}`,
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: colors.text
-            }}
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
-
-        {/* Day Names */}
-        <div className="calendar-day-names">
-          {dayNames.map(day => (
-            <div key={day} className="calendar-day-name" style={{
-              color: colors.textSecondary
-            }}>
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="calendar-grid">
-          {/* Empty cells for days before start of month */}
-          {Array.from({ length: startingDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="calendar-day-cell" style={{
-              background: colors.cardBg,
-              opacity: 0.3
-            }} />
-          ))}
-
-          {/* Days of the month */}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day = i + 1;
-            const dayEvents = getEventsForDate(day);
-            const hasEvents = dayEvents.length > 0;
-            const isToday = new Date().toDateString() === new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toDateString();
-
-            return (
-              <div
-                key={day}
-                onClick={() => handleDayClick(day)}
-                className="calendar-day-cell"
-                style={{
-                  background: hasEvents ? (darkMode ? '#1e3a5f' : '#e0f2fe') : colors.cardBg,
-                  border: isToday ? '2px solid #3b82f6' : `1px solid ${colors.border}`
-                }}
-              >
-                <div className="calendar-day-number" style={{
-                  fontWeight: isToday ? '700' : '500',
-                  color: isToday ? '#3b82f6' : colors.text
-                }}>
-                  {day}
-                </div>
-                {hasEvents && (
-                  <div style={{ color: colors.textSecondary, overflow: 'hidden' }}>
-                    {/* Show unique customer names */}
-                    {[...new Set(dayEvents.map(e => e.customer))].slice(0, 2).map((name, i) => (
-                      <div key={i} className="calendar-event-preview">
-                        {name}
-                      </div>
-                    ))}
-                    {[...new Set(dayEvents.map(e => e.customer))].length > 2 && (
-                      <div className="calendar-event-preview">+{[...new Set(dayEvents.map(e => e.customer))].length - 2} more</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Selected Day Events Modal */}
-        {selectedDay && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setSelectedDay(null)}
-          >
-            <div
-              style={{
-                background: colors.cardBg,
-                borderRadius: '12px',
-                padding: '24px',
-                maxWidth: '500px',
-                width: '90%',
-                maxHeight: '80vh',
-                overflow: 'auto'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '16px'
-              }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', color: colors.text }}>
-                  {monthNames[currentMonth.getMonth()]} {selectedDay}, {currentMonth.getFullYear()}
-                </h3>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    onClick={() => {
-                      window.open('https://jti-ts3.netlify.app/', '_blank');
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '12px',
-                      background: '#10b981',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <Plus size={14} /> Add
-                  </button>
-                  <button
-                    onClick={() => setSelectedDay(null)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: colors.textSecondary
-                    }}
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              {dayEvents.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '24px',
-                  color: colors.textSecondary
-                }}>
-                  <p style={{ marginBottom: '12px' }}>No entries for this day</p>
-                  <button
-                    onClick={() => {
-                      window.open('https://jti-ts3.netlify.app/', '_blank');
-                    }}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      background: '#10b981',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Plus size={16} /> Add Entry
-                  </button>
-                </div>
-              ) : (
-                dayEvents.map((event, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      padding: '12px',
-                      background: darkMode ? '#374151' : '#f3f4f6',
-                      borderRadius: '8px',
-                      marginBottom: '8px',
-                      borderLeft: `4px solid ${event.type === 'onsite' ? '#f59e0b' : '#10b981'}`
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontWeight: '600',
-                        color: colors.text
-                      }}>
-                        {event.customer}
-                      </div>
-                      {event.type === 'onsite' && (
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          {event.status && (
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 6px',
-                              background: event.status.toLowerCase() === 'offline' ? '#fee2e2' : '#d1fae5',
-                              color: event.status.toLowerCase() === 'offline' ? '#991b1b' : '#065f46',
-                              borderRadius: '4px',
-                              fontWeight: '500'
-                            }}>
-                              {event.status}
-                            </span>
-                          )}
-                          {event.repairStatus && (
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 6px',
-                              background: '#dbeafe',
-                              color: '#1e40af',
-                              borderRadius: '4px',
-                              fontWeight: '500'
-                            }}>
-                              {event.repairStatus}
-                            </span>
-                          )}
-                          {!event.status && !event.repairStatus && (
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 6px',
-                              background: '#fef3c7',
-                              color: '#92400e',
-                              borderRadius: '4px',
-                              fontWeight: '500'
-                            }}>
-                              Onsite
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {event.visitName && (
-                      <div style={{ fontSize: '12px', color: colors.textSecondary, marginBottom: '4px' }}>
-                        {event.visitName}
-                      </div>
-                    )}
-                    {event.hours > 0 && (
-                      <div style={{ fontSize: '12px', color: colors.textSecondary }}>
-                        {event.hours} hours
-                      </div>
-                    )}
-                    {event.serviceWork && (
-                      <div style={{
-                        fontSize: '12px',
-                        color: colors.textSecondary,
-                        marginTop: '8px',
-                        padding: '8px',
-                        background: darkMode ? '#1f2937' : 'white',
-                        borderRadius: '4px'
-                      }}>
-                        {event.serviceWork}
-                      </div>
-                    )}
-                    {event.type !== 'onsite' && (
-                      <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        marginTop: '8px'
-                      }}>
-                        <button
-                          onClick={() => {
-                            if (event.id) {
-                              window.open(`https://jti-ts3.netlify.app/?id=${event.id}`, '_blank');
-                            }
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            background: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Edit2 size={12} /> Edit
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(event)}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
-                      </div>
-                    )}
-                    {event.type === 'onsite' && (
-                      <div style={{
-                        marginTop: '8px',
-                        fontSize: '11px',
-                        color: colors.textSecondary
-                      }}>
-                        From Shearers Head History
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-
-              {/* Delete Confirmation Dialog */}
-              {deleteConfirm && (
-                <div style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0,0,0,0.7)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 1001
-                }}>
-                  <div style={{
-                    background: colors.cardBg,
-                    borderRadius: '12px',
-                    padding: '24px',
-                    maxWidth: '400px',
-                    width: '90%'
-                  }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', color: colors.text, marginBottom: '12px' }}>
-                      Delete Entry?
-                    </h4>
-                    <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '16px' }}>
-                      Are you sure you want to delete this entry for <strong>{deleteConfirm.customer}</strong> on {deleteConfirm.date}?
-                    </p>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => setDeleteConfirm(null)}
-                        style={{
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          background: colors.cardBg,
-                          color: colors.text,
-                          border: `1px solid ${colors.border}`,
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
-                        disabled={deleting}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleDelete(deleteConfirm)}
-                        style={{
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          background: '#ef4444',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          opacity: deleting ? 0.7 : 1
-                        }}
-                        disabled={deleting}
-                      >
-                        {deleting ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Search Results Component
-  const SearchResults = ({ results, loading }) => {
-    const [collapsedSections, setCollapsedSections] = useState({
-      jobs: false,
-      issues: false,
-      timesheets: false,
-      headHistory: false
-    });
-
-    const toggleSection = (section) => {
-      setCollapsedSections(prev => ({
-        ...prev,
-        [section]: !prev[section]
-      }));
-    };
-
-    if (loading) {
-      return (
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '40px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          textAlign: 'center',
-          color: '#6b7280'
-        }}>
-          Searching...
-        </div>
-      );
-    }
-
-    if (!results) return null;
-
-    const formatDate = (date) => {
-      if (!date) return 'N/A';
-      const d = date?.toDate?.() || new Date(date);
-      return d.toLocaleDateString();
-    };
-
-    const formatCurrency = (amount) => {
-      if (!amount) return 'N/A';
-      return `$${parseFloat(amount).toLocaleString()}`;
-    };
-
-    return (
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}>
-          <h2 style={{
-            fontSize: '20px',
-            fontWeight: '600',
-            color: '#111827',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <Search size={24} />
-            Search Results for "{results.searchTerm}"
-          </h2>
-          <span style={{ fontSize: '14px', color: '#6b7280' }}>
-            {results.totalResults} result{results.totalResults !== 1 ? 's' : ''} found
-          </span>
-        </div>
-
-        {results.totalResults === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '40px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            No results found for "{results.searchTerm}"
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Jobs Results */}
-            {results.jobs.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleSection('jobs')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#3b82f6',
-                    marginBottom: collapsedSections.jobs ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <FileText size={20} />
-                  Jobs ({results.jobs.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedSections.jobs ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedSections.jobs && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {results.jobs.map((job, index) => (
-                    <div
-                      key={job.id || index}
-                      onClick={() => {
-                        setSelectedCustomer(job.customer || job.customerName);
-                        setSearchResults(null);
-                        setSearchTerm('');
-                      }}
-                      style={{
-                        padding: '16px',
-                        background: '#f9fafb',
-                        borderRadius: '8px',
-                        borderLeft: '4px solid #3b82f6',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                            {job.customer || job.customerName || 'Unknown Customer'}
-                          </div>
-                          {(job.sr || job.invoiceNumber || job.serviceReportNumber || job.reportNumber) && (
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                              SR #: {job.sr || job.invoiceNumber || job.serviceReportNumber || job.reportNumber}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: isPaid(job.paid) ? '#10b981' : '#f59e0b'
-                        }}>
-                          {isPaid(job.paid) ? <CheckCircle size={16} /> : <Clock size={16} />}
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                            {isPaid(job.paid) ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Matched Fields with Highlighting */}
-                      {job.matchedFields && job.matchedFields.length > 0 && (
-                        <div style={{
-                          background: '#fefce8',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          marginBottom: '8px',
-                          fontSize: '12px'
-                        }}>
-                          <div style={{ fontWeight: '600', color: '#854d0e', marginBottom: '4px' }}>
-                            Matches found:
-                          </div>
-                          {job.matchedFields.slice(0, 5).map((match, i) => (
-                            <div key={i} style={{ color: '#713f12', marginBottom: '2px' }}>
-                              <span style={{ color: '#a16207' }}>{match.field}: </span>
-                              <HighlightText text={match.value} searchTerm={results.searchTerm} />
-                            </div>
-                          ))}
-                          {job.matchedFields.length > 5 && (
-                            <div style={{ color: '#a16207', fontStyle: 'italic' }}>
-                              +{job.matchedFields.length - 5} more matches
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>
-                        Click to view customer details
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-
-            {/* Issues Results */}
-            {results.issues.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleSection('issues')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#ef4444',
-                    marginBottom: collapsedSections.issues ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <AlertTriangle size={20} />
-                  Issues / Downtime ({results.issues.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedSections.issues ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedSections.issues && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {results.issues.map((issue, index) => (
-                    <div
-                      key={issue.id || index}
-                      onClick={() => {
-                        // Open weigher app with deep link
-                        if (issue.visitId) {
-                          if (confirm(`Open "${issue.customer || 'this issue'}" in Weigher Issues app?`)) {
-                            const lineParam = issue.line ? `&line=${encodeURIComponent(issue.line)}` : '';
-                            const headParam = issue.headName ? `&head=${encodeURIComponent(issue.headName)}` : '';
-                            window.open(`https://jti-ccwlog.netlify.app/?id=${issue.visitId}${lineParam}${headParam}`, '_blank');
-                          }
-                        } else {
-                          // Fallback to customer view if no ID
-                          setSelectedCustomer(issue.customer);
-                          setSearchResults(null);
-                          setSearchTerm('');
-                        }
-                      }}
-                      style={{
-                        padding: '16px',
-                        background: '#f9fafb',
-                        borderRadius: '8px',
-                        borderLeft: '4px solid #ef4444',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                            {issue.customer || 'Unknown Customer'}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                            {issue.line} • {issue.headName || 'Head'}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? '#10b981' : '#ef4444',
-                          marginLeft: '12px'
-                        }}>
-                          {issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                            {issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? 'Fixed' : 'Not Fixed'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Matched Fields with Highlighting */}
-                      {issue.matchedFields && issue.matchedFields.length > 0 && (
-                        <div style={{
-                          background: '#fefce8',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          marginBottom: '8px',
-                          fontSize: '12px'
-                        }}>
-                          <div style={{ fontWeight: '600', color: '#854d0e', marginBottom: '4px' }}>
-                            Matches found:
-                          </div>
-                          {issue.matchedFields.slice(0, 5).map((match, i) => (
-                            <div key={i} style={{ color: '#713f12', marginBottom: '2px' }}>
-                              <span style={{ color: '#a16207' }}>{match.field}: </span>
-                              <HighlightText text={match.value} searchTerm={results.searchTerm} />
-                            </div>
-                          ))}
-                          {issue.matchedFields.length > 5 && (
-                            <div style={{ color: '#a16207', fontStyle: 'italic' }}>
-                              +{issue.matchedFields.length - 5} more matches
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>
-                        Click to open in Weigher Issues app
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-
-            {/* Timesheets Results */}
-            {results.timesheets.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleSection('timesheets')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#10b981',
-                    marginBottom: collapsedSections.timesheets ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <Clock size={20} />
-                  Timesheets ({results.timesheets.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedSections.timesheets ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedSections.timesheets && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {results.timesheets.map((timesheet, index) => (
-                    <div
-                      key={timesheet.id || index}
-                      onClick={() => {
-                        // Open timesheet app with deep link
-                        if (timesheet.id) {
-                          if (confirm(`Open "${timesheet.visitName || 'this visit'}" in Timesheet app?`)) {
-                            window.open(`https://jti-ts3.netlify.app/?id=${timesheet.id}`, '_blank');
-                          }
-                        } else {
-                          // Fallback to customer view if no ID
-                          setSelectedCustomer(timesheet.customer || timesheet.visitName);
-                          setSearchResults(null);
-                          setSearchTerm('');
-                        }
-                      }}
-                      style={{
-                        padding: '16px',
-                        background: '#f9fafb',
-                        borderRadius: '8px',
-                        borderLeft: '4px solid #10b981',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    >
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                          {timesheet.customer || timesheet.visitName || 'Unknown'}
-                        </div>
-                        {timesheet.visitName && (
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                            Visit: {timesheet.visitName}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Matched Fields with Highlighting */}
-                      {timesheet.matchedFields && timesheet.matchedFields.length > 0 && (
-                        <div style={{
-                          background: '#fefce8',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          marginBottom: '8px',
-                          fontSize: '12px'
-                        }}>
-                          <div style={{ fontWeight: '600', color: '#854d0e', marginBottom: '4px' }}>
-                            Matches found:
-                          </div>
-                          {timesheet.matchedFields.slice(0, 5).map((match, i) => (
-                            <div key={i} style={{ color: '#713f12', marginBottom: '2px' }}>
-                              <span style={{ color: '#a16207' }}>{match.field}: </span>
-                              <HighlightText text={match.value} searchTerm={results.searchTerm} />
-                            </div>
-                          ))}
-                          {timesheet.matchedFields.length > 5 && (
-                            <div style={{ color: '#a16207', fontStyle: 'italic' }}>
-                              +{timesheet.matchedFields.length - 5} more matches
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <ExternalLink size={12} />
-                        Click to open in Timesheet app
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-
-            {/* Head History Results */}
-            {results.headHistory && results.headHistory.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleSection('headHistory')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#8b5cf6',
-                    marginBottom: collapsedSections.headHistory ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <Settings size={20} />
-                  Head History ({results.headHistory.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedSections.headHistory ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedSections.headHistory && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {results.headHistory.map((entry, index) => (
-                    <div
-                      key={entry.path || index}
-                      style={{
-                        padding: '16px',
-                        background: '#f9fafb',
-                        borderRadius: '8px',
-                        borderLeft: `4px solid ${entry.status?.toLowerCase() === 'offline' ? '#ef4444' : '#8b5cf6'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                            {entry.customer}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                            {entry.line ? `Line ${entry.line}` : 'Head History'} {entry.data?.head ? `• ${entry.data.head}` : ''}
-                          </div>
-                          {entry.date && (
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                              Date: {entry.date}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          {entry.status && (
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              color: entry.status.toLowerCase() === 'offline' ? '#ef4444' : '#10b981'
-                            }}>
-                              {entry.status.toLowerCase() === 'offline' ? <XCircle size={16} /> : <CheckCircle size={16} />}
-                              <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                                {entry.status}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Repair Status */}
-                      {entry.repairStatus && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: entry.repairStatus.toLowerCase() === 'fixed' ? '#92400e' : '#991b1b',
-                          marginBottom: '8px',
-                          padding: '4px 8px',
-                          background: entry.repairStatus.toLowerCase() === 'fixed' ? '#fef3c7' : '#fee2e2',
-                          borderRadius: '4px',
-                          display: 'inline-block'
-                        }}>
-                          Repair: {entry.repairStatus}
-                        </div>
-                      )}
-
-                      {/* Error */}
-                      {entry.error && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#dc2626',
-                          marginBottom: '8px',
-                          padding: '8px',
-                          background: '#fee2e2',
-                          borderRadius: '4px'
-                        }}>
-                          <strong>Error:</strong> {entry.error}
-                        </div>
-                      )}
-
-                      {/* Notes */}
-                      {entry.data?.notes && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#374151',
-                          marginBottom: '8px',
-                          padding: '8px',
-                          background: 'white',
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb'
-                        }}>
-                          <strong>Notes:</strong> {entry.data.notes}
-                        </div>
-                      )}
-
-                      {/* Machine Notes */}
-                      {entry.data?.machineNotes && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#374151',
-                          marginBottom: '8px',
-                          padding: '8px',
-                          background: 'white',
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb'
-                        }}>
-                          <strong>Machine Notes:</strong> {entry.data.machineNotes}
-                        </div>
-                      )}
-
-                      {/* Matched Fields with Highlighting */}
-                      {entry.matchedFields && entry.matchedFields.length > 0 && (
-                        <div style={{
-                          background: '#fefce8',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          fontSize: '12px'
-                        }}>
-                          <div style={{ fontWeight: '600', color: '#854d0e', marginBottom: '4px' }}>
-                            Matches found:
-                          </div>
-                          {entry.matchedFields.slice(0, 5).map((match, i) => (
-                            <div key={i} style={{ color: '#713f12', marginBottom: '2px' }}>
-                              <span style={{ color: '#a16207' }}>{match.field}: </span>
-                              <HighlightText text={match.value} searchTerm={results.searchTerm} />
-                            </div>
-                          ))}
-                          {entry.matchedFields.length > 5 && (
-                            <div style={{ color: '#a16207', fontStyle: 'italic' }}>
-                              +{entry.matchedFields.length - 5} more matches
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Customer Detail View Component
-  const CustomerDetailView = ({ data, customerName, loading, onClear }) => {
-    const [collapsedCustomerSections, setCollapsedCustomerSections] = useState({
-      jobs: false,
-      issues: false,
-      timesheets: false
-    });
-
-    const toggleCustomerSection = (section) => {
-      setCollapsedCustomerSections(prev => ({
-        ...prev,
-        [section]: !prev[section]
-      }));
-    };
-
-    if (loading) {
-      return (
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '40px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          textAlign: 'center',
-          color: '#6b7280'
-        }}>
-          Loading customer data...
-        </div>
-      );
-    }
-
-    if (!data) return null;
-
-    const formatDate = (date) => {
-      if (!date) return 'N/A';
-      const d = date?.toDate?.() || new Date(date);
-      return d.toLocaleDateString();
-    };
-
-    const formatCurrency = (amount) => {
-      if (!amount) return 'N/A';
-      return `$${parseFloat(amount).toLocaleString()}`;
-    };
-
-    return (
-      <div style={{ marginBottom: '32px' }}>
-        {/* Customer Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}>
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: '600',
-            color: '#111827',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <Users size={28} />
-            {customerName}
-          </h2>
-          <button
-            onClick={onClear}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #e5e7eb',
-              background: 'white',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <X size={16} />
-            Clear Selection
-          </button>
-        </div>
-
-        {/* Customer Summary Stats */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Total Jobs</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>{data.totalJobs}</div>
-          </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Total Income</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{formatCurrency(data.totalIncome)}</div>
-          </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Paid</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{formatCurrency(data.paidIncome)}</div>
-          </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Unpaid</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{formatCurrency(data.unpaidIncome)}</div>
-          </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Issues</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.totalIssues}</div>
-          </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '8px',
-            padding: '16px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Timesheets</div>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.totalTimesheets}</div>
-          </div>
-        </div>
-
-        {data.totalJobs === 0 && data.totalIssues === 0 && data.totalTimesheets === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '40px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            No data found for this customer
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Jobs */}
-            {data.jobs.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleCustomerSection('jobs')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#3b82f6',
-                    marginBottom: collapsedCustomerSections.jobs ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <FileText size={20} />
-                  Jobs ({data.jobs.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedCustomerSections.jobs ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedCustomerSections.jobs && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {data.jobs.map((job, index) => (
-                    <div key={job.id || index} style={{
-                      padding: '16px',
-                      background: '#f9fafb',
-                      borderRadius: '8px',
-                      borderLeft: '4px solid #3b82f6'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                            {job.customer || job.customerName || 'Unknown Customer'}
-                          </div>
-                          {(job.sr || job.invoiceNumber) && (
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                              SR #: {job.sr || job.invoiceNumber}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: isPaid(job.paid) ? '#10b981' : '#f59e0b'
-                        }}>
-                          {isPaid(job.paid) ? <CheckCircle size={16} /> : <Clock size={16} />}
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                            {isPaid(job.paid) ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </div>
-                      </div>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                        gap: '8px',
-                        fontSize: '13px'
-                      }}>
-                        {job.quote && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Quote: </span>
-                            <span style={{ color: '#111827', fontWeight: '600' }}>{formatCurrency(job.quote)}</span>
-                          </div>
-                        )}
-                        {job.actual && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Actual: </span>
-                            <span style={{ color: '#10b981', fontWeight: '600' }}>{formatCurrency(job.actual)}</span>
-                          </div>
-                        )}
-                        {job.date && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Date: </span>
-                            <span style={{ color: '#111827' }}>{job.date}</span>
-                          </div>
-                        )}
-                        {job.year && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Year: </span>
-                            <span style={{ color: '#111827' }}>{job.year}</span>
-                          </div>
-                        )}
-                        {job.customerInfo && (
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <span style={{ color: '#6b7280' }}>Info: </span>
-                            <span style={{ color: '#111827' }}>{job.customerInfo}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-
-            {/* Issues */}
-            {data.issues.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleCustomerSection('issues')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#ef4444',
-                    marginBottom: collapsedCustomerSections.issues ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <AlertTriangle size={20} />
-                  Issues / Downtime ({data.issues.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedCustomerSections.issues ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedCustomerSections.issues && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {data.issues.map((issue, index) => (
-                    <div key={issue.id || index} style={{
-                      padding: '16px',
-                      background: '#f9fafb',
-                      borderRadius: '8px',
-                      borderLeft: '4px solid #ef4444'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
-                            {issue.line} • {issue.headName || 'Head'}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? '#10b981' : '#ef4444',
-                          marginLeft: '12px'
-                        }}>
-                          {issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                            {issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? 'Fixed' : 'Not Fixed'}
-                          </span>
-                        </div>
-                      </div>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                        gap: '8px',
-                        fontSize: '13px'
-                      }}>
-                        <div>
-                          <span style={{ color: '#6b7280' }}>Date: </span>
-                          <span style={{ color: '#111827' }}>{issue.date || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: '#6b7280' }}>Visit: </span>
-                          <span style={{ color: '#111827' }}>{issue.visitId || 'N/A'}</span>
-                        </div>
-                        {issue.error && (
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <span style={{ color: '#6b7280' }}>Error: </span>
-                            <span style={{ color: '#ef4444', fontWeight: '500' }}>{issue.error}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-
-            {/* Timesheets */}
-            {data.timesheets.length > 0 && (
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <h3
-                  onClick={() => toggleCustomerSection('timesheets')}
-                  style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#10b981',
-                    marginBottom: collapsedCustomerSections.timesheets ? '0' : '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
-                >
-                  <Clock size={20} />
-                  Timesheets ({data.timesheets.length})
-                  <ChevronDown
-                    size={18}
-                    style={{
-                      marginLeft: 'auto',
-                      transform: collapsedCustomerSections.timesheets ? 'rotate(-90deg)' : 'rotate(0)',
-                      transition: 'transform 0.2s'
-                    }}
-                  />
-                </h3>
-                {!collapsedCustomerSections.timesheets && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {data.timesheets.map((timesheet, index) => (
-                    <div key={timesheet.id || index} style={{
-                      padding: '16px',
-                      background: '#f9fafb',
-                      borderRadius: '8px',
-                      borderLeft: '4px solid #10b981'
-                    }}>
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                          {timesheet.customer || timesheet.visitName || 'Unknown'}
-                        </div>
-                        {timesheet.visitName && (
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                            Visit: {timesheet.visitName}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                        gap: '8px',
-                        fontSize: '13px'
-                      }}>
-                        <div>
-                          <span style={{ color: '#6b7280' }}>Date: </span>
-                          <span style={{ fontWeight: '500', color: '#111827' }}>
-                            {formatDate(timesheet.timestamp || timesheet.date)}
-                          </span>
-                        </div>
-                        {timesheet.invoiceInfo?.invoiceNumber && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Invoice #: </span>
-                            <span style={{ fontWeight: '500', color: '#111827' }}>
-                              {timesheet.invoiceInfo.invoiceNumber}
-                            </span>
-                          </div>
-                        )}
-                        {timesheet.invoiceInfo?.amount && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Amount: </span>
-                            <span style={{ fontWeight: '500', color: '#111827' }}>
-                              {formatCurrency(timesheet.invoiceInfo.amount)}
-                            </span>
-                          </div>
-                        )}
-                        {timesheet.serviceReportData && Object.keys(timesheet.serviceReportData).length > 0 && (
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <span style={{ color: '#6b7280', fontWeight: '500' }}>Service Report: </span>
-                            <div style={{ marginTop: '8px' }}>
-                              {Object.entries(timesheet.serviceReportData).map(([date, description]) => (
-                                <div key={date} style={{
-                                  marginBottom: '8px',
-                                  padding: '8px',
-                                  background: '#e5e7eb',
-                                  borderRadius: '4px'
-                                }}>
-                                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                                    {date}
-                                  </div>
-                                  <div style={{ color: '#111827', lineHeight: '1.4' }}>
-                                    {description}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Dark mode colors
   const colors = darkMode ? {
@@ -2257,6 +756,7 @@ function App() {
     <div style={{ minHeight: '100vh', background: colors.bg, transition: 'background 0.3s' }}>
       {/* Mobile-friendly styles */}
       <style>{`
+        @keyframes jti-spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) {
           .mobile-header {
             padding: 12px 16px !important;
@@ -2364,7 +864,7 @@ function App() {
               Unified Dashboard
             </h1>
           </div>
-          <div className="header-controls" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div className="header-controls" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {/* Search Input */}
             <div className="search-container" style={{
               position: 'relative',
@@ -2378,25 +878,42 @@ function App() {
                 pointerEvents: 'none'
               }} />
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Search customer or report #..."
+                placeholder='Search… ( "/" to focus )'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={(e) => { setSearchFocused(true); e.target.style.borderColor = '#3b82f6'; }}
+                onBlur={(e) => { setTimeout(() => setSearchFocused(false), 150); e.target.style.borderColor = colors.border; }}
                 className="search-input"
                 style={{
-                  padding: '8px 36px 8px 40px',
+                  padding: '8px 56px 8px 40px',
                   borderRadius: '8px',
                   border: `1px solid ${colors.border}`,
                   fontSize: '14px',
-                  width: '280px',
+                  width: '220px',
                   outline: 'none',
                   transition: 'border-color 0.2s',
                   background: colors.cardBg,
                   color: colors.text
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                onBlur={(e) => e.target.style.borderColor = colors.border}
               />
+              {searchLoading && (
+                <span
+                  title="Searching…"
+                  style={{
+                    position: 'absolute',
+                    right: searchTerm ? '32px' : '10px',
+                    width: '14px',
+                    height: '14px',
+                    borderRadius: '50%',
+                    border: '2px solid #93c5fd',
+                    borderTopColor: '#3b82f6',
+                    animation: 'jti-spin 0.8s linear infinite',
+                    pointerEvents: 'none'
+                  }}
+                />
+              )}
               {searchTerm && (
                 <button
                   onClick={clearSearch}
@@ -2414,6 +931,79 @@ function App() {
                 >
                   <X size={16} />
                 </button>
+              )}
+              {searchFocused && !searchTerm && (pinnedSearches.length > 0 || recentSearches.length > 0) && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  right: 0,
+                  background: colors.cardBg,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 50,
+                  overflow: 'hidden'
+                }}>
+                  {pinnedSearches.length > 0 && (
+                    <>
+                      <div style={{ padding: '6px 12px', fontSize: '11px', color: colors.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ★ Pinned
+                      </div>
+                      {pinnedSearches.map((q) => (
+                        <div key={'pin-' + q} style={{ display: 'flex', alignItems: 'center' }}>
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); setSearchTerm(q); }}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 0, cursor: 'pointer', color: colors.text, fontSize: '13px', textAlign: 'left' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = colors.hover)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <span style={{ color: '#fbbf24' }}>★</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q}</span>
+                          </button>
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); togglePinSearch(q); }}
+                            title="Unpin"
+                            style={{ background: 'transparent', border: 0, color: colors.textSecondary, padding: '6px 10px', cursor: 'pointer', fontSize: '14px' }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {recentSearches.length > 0 && (
+                    <>
+                      <div style={{
+                        padding: '6px 12px', fontSize: '11px', color: colors.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        borderTop: pinnedSearches.length > 0 ? `1px solid ${colors.border}` : 'none'
+                      }}>
+                        <span>Recent searches</span>
+                        <button
+                          onMouseDown={(e) => { e.preventDefault(); clearRecentSearches(); }}
+                          style={{ background: 'transparent', border: 0, color: '#3b82f6', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                        >Clear</button>
+                      </div>
+                      {recentSearches.map((q) => (
+                        <div key={q} style={{ display: 'flex', alignItems: 'center' }}>
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); setSearchTerm(q); }}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 0, cursor: 'pointer', color: colors.text, fontSize: '13px', textAlign: 'left' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = colors.hover)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <Search size={12} style={{ color: colors.textSecondary, flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q}</span>
+                          </button>
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); togglePinSearch(q); }}
+                            title={isPinned(q) ? 'Unpin' : 'Pin'}
+                            style={{ background: 'transparent', border: 0, color: isPinned(q) ? '#fbbf24' : colors.textSecondary, padding: '6px 10px', cursor: 'pointer', fontSize: '14px' }}
+                          >★</button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
               )}
             </div>
 
@@ -2473,7 +1063,7 @@ function App() {
                   fontSize: '14px',
                   fontWeight: '500',
                   color: selectedCustomer ? 'white' : '#374151',
-                  minWidth: '180px',
+                  minWidth: '150px',
                   justifyContent: 'space-between',
                   width: '100%'
                 }}
@@ -2497,7 +1087,6 @@ function App() {
                   position: 'absolute',
                   top: '100%',
                   left: 0,
-                  right: 0,
                   marginTop: '4px',
                   background: 'white',
                   border: '1px solid #e5e7eb',
@@ -2505,7 +1094,9 @@ function App() {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   maxHeight: '300px',
                   overflowY: 'auto',
-                  zIndex: 200
+                  zIndex: 200,
+                  minWidth: '260px',
+                  maxWidth: 'calc(100vw - 32px)',
                 }}>
                   {selectedCustomer && (
                     <button
@@ -2595,6 +1186,66 @@ function App() {
               <Calendar size={16} />
               Calendar
             </button>
+            {/* Map Toggle */}
+            <button
+              onClick={toggleMap}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${showMap ? '#10b981' : colors.border}`,
+                background: showMap ? '#10b981' : colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: showMap ? 'white' : colors.text
+              }}
+            >
+              <MapPin size={16} />
+              Map
+            </button>
+            {/* Troubleshoot Toggle */}
+            <button
+              onClick={toggleTroubleshoot}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${showTroubleshoot ? '#f59e0b' : colors.border}`,
+                background: showTroubleshoot ? '#f59e0b' : colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: showTroubleshoot ? 'white' : colors.text
+              }}
+            >
+              <Wrench size={16} />
+              Troubleshoot
+            </button>
+            {/* Service Report Lookup Toggle */}
+            <button
+              onClick={toggleServiceReports}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${showServiceReports ? '#8b5cf6' : colors.border}`,
+                background: showServiceReports ? '#8b5cf6' : colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: showServiceReports ? 'white' : colors.text
+              }}
+            >
+              <FileText size={16} />
+              Service Reports
+            </button>
             <button
               onClick={handleRefresh}
               disabled={loading}
@@ -2664,6 +1315,21 @@ function App() {
               alignItems: 'center'
             }}>
               <Settings size={20} style={{ color: colors.textSecondary }} />
+            </button>
+            <button
+              onClick={logout}
+              title="Sign Out"
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                border: '1px solid #ef4444',
+                background: colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <LogOut size={20} style={{ color: '#ef4444' }} />
             </button>
           </div>
         </div>
@@ -2751,21 +1417,153 @@ function App() {
                   Loading calendar events...
                 </div>
               ) : (
-                <CalendarView
-                  events={calendarEvents}
-                  currentMonth={calendarMonth}
-                  setCurrentMonth={setCalendarMonth}
-                  colors={colors}
-                  onRefresh={loadCalendarEvents}
-                />
+                <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading calendar…</div>}>
+                  <CalendarView
+                    events={calendarEvents}
+                    currentMonth={calendarMonth}
+                    setCurrentMonth={setCalendarMonth}
+                    colors={colors}
+                    darkMode={darkMode}
+                    onRefresh={loadCalendarEvents}
+                  />
+                </Suspense>
               )}
             </div>
           </section>
         )}
 
+        {/* Troubleshoot View */}
+        {showTroubleshoot && (
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: colors.text, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Wrench size={24} />
+                Troubleshoot
+              </h2>
+              <button
+                onClick={() => setShowTroubleshoot(false)}
+                style={{ padding: '8px 16px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', color: colors.text, fontSize: '14px' }}
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading troubleshoot…</div>}>
+              <Troubleshoot
+                timesheets={troubleshootTimesheets}
+                timesheetsLoading={troubleshootTimesheetsLoading}
+                darkMode={darkMode}
+                colors={colors}
+                onRefreshTimesheets={loadTroubleshootTimesheets}
+              />
+            </Suspense>
+          </section>
+        )}
+
+        {/* Service Report Lookup View */}
+        {showServiceReports && (
+          <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading service reports…</div>}>
+            <ServiceReportLookup
+              reports={serviceReports.reports}
+              years={serviceReports.years}
+              untaggedVisits={serviceReports.untaggedVisits}
+              untaggedTimesheets={serviceReports.untaggedTimesheets}
+              loading={serviceReportsLoading}
+              colors={colors}
+              onRefresh={loadServiceReports}
+            />
+          </Suspense>
+        )}
+
+        {/* Factory Map View */}
+        {showMap && (
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: colors.text, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MapPin size={24} />
+                Factory Locations
+              </h2>
+              <button onClick={() => setShowMap(false)} style={{ padding: '8px 16px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', color: colors.text, fontSize: '14px' }}>
+                Back to Dashboard
+              </button>
+            </div>
+
+            {/* Add Factory Form */}
+            <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', color: colors.text, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={18} />
+                {editingFactory ? 'Edit Factory' : 'Add Factory Location'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                <input type="text" placeholder="Factory Name *" value={editingFactory ? editingFactory.name : newFactory.name} onChange={(e) => editingFactory ? setEditingFactory({ ...editingFactory, name: e.target.value }) : setNewFactory({ ...newFactory, name: e.target.value })} style={{ padding: '10px 12px', borderRadius: '6px', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: '14px' }} />
+                <input type="text" placeholder="Address *" value={editingFactory ? editingFactory.address : newFactory.address} onChange={(e) => editingFactory ? setEditingFactory({ ...editingFactory, address: e.target.value }) : setNewFactory({ ...newFactory, address: e.target.value })} style={{ padding: '10px 12px', borderRadius: '6px', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: '14px' }} />
+                <input type="text" placeholder="Latitude (auto-filled)" value={editingFactory ? editingFactory.lat : newFactory.lat} onChange={(e) => editingFactory ? setEditingFactory({ ...editingFactory, lat: e.target.value }) : setNewFactory({ ...newFactory, lat: e.target.value })} style={{ padding: '10px 12px', borderRadius: '6px', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: '14px' }} />
+                <input type="text" placeholder="Longitude (auto-filled)" value={editingFactory ? editingFactory.lng : newFactory.lng} onChange={(e) => editingFactory ? setEditingFactory({ ...editingFactory, lng: e.target.value }) : setNewFactory({ ...newFactory, lng: e.target.value })} style={{ padding: '10px 12px', borderRadius: '6px', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: '14px' }} />
+                <input type="text" placeholder="Notes (optional)" value={editingFactory ? editingFactory.notes : newFactory.notes} onChange={(e) => editingFactory ? setEditingFactory({ ...editingFactory, notes: e.target.value }) : setNewFactory({ ...newFactory, notes: e.target.value })} style={{ padding: '10px 12px', borderRadius: '6px', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: '14px', gridColumn: 'span 2' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                {editingFactory ? (
+                  <>
+                    <button onClick={updateFactory} disabled={geocoding} style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: geocoding ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>{geocoding ? 'Locating...' : 'Update Factory'}</button>
+                    <button onClick={() => setEditingFactory(null)} style={{ padding: '10px 20px', background: colors.cardBg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={lookupAddress} disabled={geocoding} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: geocoding ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}><Search size={16} />{geocoding ? 'Looking up...' : 'Lookup Address'}</button>
+                    <button onClick={addFactory} disabled={geocoding} style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: geocoding ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}><Plus size={16} />{geocoding ? 'Locating...' : 'Add Factory'}</button>
+                  </>
+                )}
+              </div>
+              <p style={{ marginTop: '12px', fontSize: '12px', color: colors.textSecondary }}>
+                Tip: Click "Lookup Address" first to verify the location. If not found, try full street names (e.g., "Drive" instead of "Dr").
+              </p>
+            </div>
+
+            {/* Map */}
+            <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', color: colors.text, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Navigation size={18} />
+                Map View ({factoriesLoading ? 'Loading...' : `${factories.length} location${factories.length !== 1 ? 's' : ''}`})
+              </h3>
+              {factoriesLoading ? (
+                <div style={{ height: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.textSecondary }}>Loading factory locations from Firebase...</div>
+              ) : (
+                <Suspense fallback={<div style={{ height: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.textSecondary }}>Loading map…</div>}>
+                  <FactoryMapView factories={factories} colors={colors} onEdit={setEditingFactory} onDelete={deleteFactory} mapCenter={mapCenter} mapZoom={mapZoom} />
+                </Suspense>
+              )}
+            </div>
+
+            {/* Factory List */}
+            {factories.length > 0 && (
+              <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: colors.text, marginBottom: '16px' }}>Factory List</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {factories.map(factory => (
+                    <div key={factory.id} style={{ padding: '16px', background: colors.bg, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ flex: 1, minWidth: '200px' }}>
+                        <div style={{ fontWeight: '600', color: colors.text, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <MapPin size={16} style={{ color: '#10b981' }} />
+                          {factory.name}
+                        </div>
+                        <div style={{ fontSize: '13px', color: colors.textSecondary }}>{factory.address}</div>
+                        {factory.notes && <div style={{ fontSize: '12px', color: colors.textSecondary, fontStyle: 'italic', marginTop: '4px' }}>{factory.notes}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => { setMapCenter([factory.lat, factory.lng]); setMapZoom(14); }} style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><Navigation size={14} />View</button>
+                        <button onClick={() => setEditingFactory(factory)} style={{ padding: '6px 12px', background: colors.cardBg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><Edit2 size={14} />Edit</button>
+                        <button onClick={() => deleteFactory(factory.id)} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><Trash2 size={14} />Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Search Results */}
         {(searchResults || searchLoading) && (
-          <SearchResults results={searchResults} loading={searchLoading} />
+          <SearchResults results={searchResults} loading={searchLoading} setSearchTerm={setSearchTerm} colors={colors} />
         )}
 
         {/* Customer Detail View */}
@@ -2775,11 +1573,13 @@ function App() {
             customerName={selectedCustomer}
             loading={customerLoading}
             onClear={clearCustomerSelection}
+            setSearchTerm={setSearchTerm}
+            colors={colors}
           />
         )}
 
         {/* Filters and Chart - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && (
+        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && (
           <div style={{ marginBottom: '24px' }}>
             {/* Quick Filters */}
             <div style={{
@@ -3046,9 +1846,7 @@ function App() {
                     gap: '6px'
                   }}>
                     {monthJobs.map((job, idx) => {
-                      const actual = parseFloat(job.actual || 0);
-                      const quote = parseFloat(job.quote || 0);
-                      const amount = actual > 0 ? actual : quote;
+                      const amount = jobAmount(job);
                       const paidStatus = isPaid(job.paid);
                       return (
                         <div
@@ -3100,7 +1898,7 @@ function App() {
         )}
 
         {/* Stats Grid - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && <div className="stats-grid" style={{
+        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <div className="stats-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '24px',
@@ -3115,6 +1913,7 @@ function App() {
               title={incomeDisplayMode === 0 ? "Paid Income" : incomeDisplayMode === 1 ? `${new Date().getFullYear()} Paid` : "Total Paid"}
               value={incomeDisplayMode === 0 ? "Tap to view" : `$${(incomeDisplayMode === 1 ? stats.currentYearIncome : stats.totalIncome).toLocaleString()}`}
               color="#10b981"
+              colors={colors}
             />
           </div>
           <div
@@ -3159,7 +1958,17 @@ function App() {
               {stats.unpaidJobsList && stats.unpaidJobsList.length > 0 && (
                 <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
                   {stats.unpaidJobsList.map((job, idx) => (
-                    <div key={job.sr || idx} style={{ marginBottom: '2px' }}>
+                    <div
+                      key={job.sr || idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSearchTerm(String(job.sr || ''));
+                      }}
+                      style={{ marginBottom: '2px', cursor: 'pointer' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = colors.text)}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+                      title="Click to search this job"
+                    >
                       {job.sr} - {job.customer || job.customerName || 'Unknown'}
                     </div>
                   ))}
@@ -3240,7 +2049,7 @@ function App() {
         </div>}
 
         {/* Apps Grid - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && <section style={{ marginBottom: '32px' }}>
+        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <section style={{ marginBottom: '32px' }}>
           <h2 style={{
             fontSize: '20px',
             fontWeight: '600',
@@ -3259,13 +2068,13 @@ function App() {
             gap: '24px'
           }}>
             {apps.map(app => (
-              <AppCard key={app.id} app={app} />
+              <AppCard key={app.id} app={app} colors={colors} />
             ))}
           </div>
         </section>}
 
         {/* Recent Activity - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && <section>
+        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <section>
           <h2 style={{
             fontSize: '20px',
             fontWeight: '600',

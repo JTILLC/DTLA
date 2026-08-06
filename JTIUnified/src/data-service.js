@@ -1,7 +1,123 @@
-import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, getDownloadURL, getBlob } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
-import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb } from './firebase-config';
+import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
+import serviceLog from './components/Troubleshoot/serviceLog.json';
+import { isPaid, jobAmount, sumIncome } from './utils/format';
+
+// ============================================
+// Docx-derived calendar events
+// ============================================
+// Parse date ranges like "5/5/2008 – 5/7/2008", "5/5/2008-5/7/2008",
+// or 2-digit years like "7/21/09 – 7/24/09".
+const DOCX_RANGE_RE = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*[–\-—]\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g;
+const DOCX_SINGLE_RE = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function isoDate(y, m, d) { return `${y}-${pad2(m)}-${pad2(d)}`; }
+function mdyDisplay(y, m, d) { return `${m}/${d}/${y}`; }
+// 2-digit years all map to 20YY since the master log starts in April 2008.
+function expandYear(y) {
+  const n = parseInt(y, 10);
+  if (Number.isNaN(n)) return n;
+  if (n >= 100) return n;
+  return 2000 + n;
+}
+
+function* eachDay(startY, startM, startD, endY, endM, endD) {
+  const start = new Date(startY, startM - 1, startD);
+  const end = new Date(endY, endM - 1, endD);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+  if (end < start) return;
+  // Cap absurd ranges to keep the calendar from drowning.
+  const maxDays = 60;
+  let count = 0;
+  for (let d = new Date(start); d <= end && count < maxDays; d.setDate(d.getDate() + 1), count++) {
+    yield isoDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+}
+
+function buildDocxCalendarEvents() {
+  const events = [];
+  const entries = serviceLog?.entries || [];
+  entries.forEach((entry, idx) => {
+    const bodyLines = entry.body || [];
+    const body = bodyLines.join(' ');
+    if (!body) return;
+
+    const customerLabel = entry.city
+      ? `${entry.customer} — ${entry.city}, ${entry.state}`
+      : entry.customer;
+
+    // Full body for the day-detail modal (kept as separate lines).
+    const fullBody = bodyLines;
+
+    let foundRange = false;
+    DOCX_RANGE_RE.lastIndex = 0;
+    let m;
+    while ((m = DOCX_RANGE_RE.exec(body)) !== null) {
+      foundRange = true;
+      const [, sM, sD, sY, eM, eD, eY] = m;
+      const startY = expandYear(sY);
+      const endY = expandYear(eY);
+      const rangeDisplay = `${mdyDisplay(startY, sM, sD)} – ${mdyDisplay(endY, eM, eD)}`;
+      for (const iso of eachDay(startY, +sM, +sD, endY, +eM, +eD)) {
+        events.push({
+          id: `doc:${idx}:${iso}`,
+          date: iso,
+          customer: customerLabel,
+          customerName: entry.customer,
+          city: entry.city,
+          state: entry.state,
+          period: entry.period,
+          visitName: entry.visitName || '',
+          hours: 0,
+          serviceWork: body,
+          fullBody,
+          timestamp: null,
+          invoiceNumber: '',
+          type: 'doc',
+          rangeDisplay,
+        });
+      }
+    }
+
+    if (!foundRange) {
+      // Single date fallback: use the first M/D/YY(YY) found in the body.
+      DOCX_SINGLE_RE.lastIndex = 0;
+      const single = DOCX_SINGLE_RE.exec(body);
+      if (single) {
+        const [, mo, da, yr] = single;
+        const fullYear = expandYear(yr);
+        const iso = isoDate(fullYear, +mo, +da);
+        events.push({
+          id: `doc:${idx}:${iso}`,
+          date: iso,
+          customer: customerLabel,
+          customerName: entry.customer,
+          city: entry.city,
+          state: entry.state,
+          period: entry.period,
+          visitName: entry.visitName || '',
+          hours: 0,
+          serviceWork: body,
+          fullBody,
+          timestamp: null,
+          invoiceNumber: '',
+          type: 'doc',
+          rangeDisplay: mdyDisplay(fullYear, mo, da),
+        });
+      }
+    }
+  });
+  return events;
+}
+
+let docxCalendarEventsCache = null;
+function getDocxCalendarEvents() {
+  if (!docxCalendarEventsCache) docxCalendarEventsCache = buildDocxCalendarEvents();
+  return docxCalendarEventsCache;
+}
 
 // ============================================
 // CACHING LAYER - Prevents redundant fetches
@@ -11,6 +127,8 @@ const dataCache = {
   downtime: null,
   timesheets: null,
   headHistory: null,
+  inventory: null,
+  partsManual: null,
   timestamps: {}
 };
 
@@ -33,52 +151,82 @@ export const clearDataCache = () => {
   dataCache.downtime = null;
   dataCache.timesheets = null;
   dataCache.headHistory = null;
+  dataCache.inventory = null;
+  dataCache.partsManual = null;
   dataCache.timestamps = {};
-  console.log('Data cache cleared');
 };
 
-// Helper function to check if job is paid (handles various formats)
-const isPaid = (paidValue) => {
-  if (paidValue === true || paidValue === 1) return true;
-  if (typeof paidValue === 'string') {
-    const lower = paidValue.toLowerCase().trim();
-    return lower === 'yes' || lower === 'true' || lower === '1' || lower === 'paid';
+// Synchronous cache accessors — return whatever data is in memory right now,
+// or null if nothing is cached yet. The UI uses these for stale-while-revalidate
+// so it can render instantly on a tab switch / reload while a fresh fetch runs.
+export const getCachedJobs = () => dataCache.jobs;
+export const getCachedDowntime = () => dataCache.downtime;
+export const getCachedTimesheets = () => dataCache.timesheets;
+export const getCachedActivity = () => dataCache.activity;
+export const hasAnyCache = () =>
+  !!(dataCache.jobs || dataCache.downtime || dataCache.timesheets);
+
+// Real-time subscription: invoke `callback` whenever jobs / issues /
+// timesheets change in Firestore. Skips the initial snapshot (which fires
+// immediately on subscription) and debounces bursts of changes. Returns an
+// unsubscribe function.
+export const subscribeAllUpdates = (callback, debounceMs = 1500) => {
+  const unsubs = [];
+  let initialFires = 0;
+  const expectedInitial = 2; // jobs + timesheets (downtime visits live under per-customer subcollections, skipped)
+  let timer = null;
+  const fire = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { try { callback(); } catch (e) { console.error(e); } }, debounceMs);
+  };
+  const onSnap = (label) => () => {
+    if (initialFires < expectedInitial) {
+      initialFires += 1;
+      return; // ignore initial state-load snapshots
+    }
+    // Invalidate the matching cache so the next fetch goes to network.
+    if (label === 'jobs') dataCache.jobs = null;
+    if (label === 'downtime') dataCache.downtime = null;
+    if (label === 'timesheets') dataCache.timesheets = null;
+    fire();
+  };
+  try {
+    unsubs.push(onSnapshot(collection(jobsMasterDb, 'jobs'), onSnap('jobs'), (e) => console.warn('jobs snapshot error', e)));
+    unsubs.push(onSnapshot(collection(timesheetDb, 'timesheets'), onSnap('timesheets'), (e) => console.warn('timesheets snapshot error', e)));
+  } catch (e) {
+    console.error('subscribeAllUpdates failed:', e);
   }
-  return false;
+  return () => {
+    if (timer) clearTimeout(timer);
+    unsubs.forEach((u) => { try { u(); } catch {} });
+  };
 };
 
 // Fetch Jobs Data from Firebase Storage JSON files
 export const fetchJobsData = async () => {
   // Check cache first
   if (isCacheValid('jobs')) {
-    console.log('Using cached jobs data');
     return dataCache.jobs;
   }
 
   try {
-    console.log('Fetching fresh jobs data from Firebase...');
-    // Automatically generate year list from 2022 to current year + 3 (to support future years)
+    // Automatically generate year list from 2022 to current year + 3
     const currentYear = new Date().getFullYear();
     const startYear = 2022;
-    const endYear = currentYear + 3; // Include future years (e.g., 2026, 2027, 2028)
+    const endYear = currentYear + 3;
     const years = [];
     for (let year = startYear; year <= endYear; year++) {
       years.push(year.toString());
     }
-    console.log('Fetching years:', years);
     let allJobs = [];
 
     // Fetch all year files in parallel
     const fetchPromises = years.map(async (year) => {
       try {
         const fileRef = ref(jobsStorage, `jobs-${year}.json`);
-        // Use getBlob instead of fetch for better CORS handling on mobile
         const blob = await getBlob(fileRef);
         const text = await blob.text();
         const data = JSON.parse(text);
-
-        console.log(`=== YEAR ${year} DATA FROM STORAGE ===`);
-        console.log('Data type:', Array.isArray(data) ? 'array' : typeof data);
 
         // Handle different data structures
         let jobsArray = [];
@@ -87,7 +235,6 @@ export const fetchJobsData = async () => {
         } else if (data.jobs && Array.isArray(data.jobs)) {
           jobsArray = data.jobs;
         } else if (typeof data === 'object') {
-          // Maybe it's an object with job entries
           jobsArray = Object.values(data);
         }
 
@@ -99,10 +246,8 @@ export const fetchJobsData = async () => {
           });
         });
 
-        console.log(`Jobs in ${year}:`, jobsArray.length);
         return jobsArray;
       } catch (error) {
-        console.log(`No data for year ${year}:`, error.message);
         return [];
       }
     });
@@ -111,43 +256,9 @@ export const fetchJobsData = async () => {
 
     const jobs = allJobs;
 
-    console.log('=== TOTAL JOBS LOADED ===', jobs.length);
-
-    // Log sample job structure for debugging
-    if (jobs.length > 0) {
-      console.log('=== JOBS DATA STRUCTURE ===');
-      console.log('Sample job fields:', Object.keys(jobs[0]));
-      console.log('Sample job data:', jobs[0]);
-
-      // Find a 2023 job specifically
-      const job2023 = jobs.find(j => j.year === '2023');
-      if (job2023) {
-        console.log('=== SAMPLE 2023 JOB ===');
-        console.log('2023 job fields:', Object.keys(job2023));
-        console.log('2023 job data:', job2023);
-      }
-    } else {
-      console.log('NO JOBS LOADED - check if jobs arrays exist in year documents');
-    }
-
     // Calculate statistics - use actual if available, otherwise quote
-    const totalIncome = jobs.reduce((sum, job) => {
-      const actual = parseFloat(job.actual || 0);
-      const quote = parseFloat(job.quote || 0);
-      const amount = actual > 0 ? actual : quote;
-      return sum + amount;
-    }, 0);
-
-    const paidIncome = jobs.reduce((sum, job) => {
-      if (isPaid(job.paid)) {
-        const actual = parseFloat(job.actual || 0);
-        const quote = parseFloat(job.quote || 0);
-        const amount = actual > 0 ? actual : quote;
-        return sum + amount;
-      }
-      return sum;
-    }, 0);
-
+    const totalIncome = sumIncome(jobs);
+    const paidIncome = sumIncome(jobs, { paidOnly: true });
     const unpaidIncome = totalIncome - paidIncome;
 
     const activeJobs = jobs.filter(job => {
@@ -181,97 +292,65 @@ export const fetchJobsData = async () => {
 };
 
 // Fetch CCW Issues (Downtime) Data from Firestore
-// Structure: user_files/{userId}/customers/{customerId}/lines/{lineId}/heads/{headId}
 export const fetchDowntimeData = async () => {
   // Check cache first
   if (isCacheValid('downtime')) {
-    console.log('Using cached downtime data');
     return dataCache.downtime;
   }
 
   try {
-    console.log('Fetching fresh downtime data from Firebase...');
     const userId = 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1';
-    const issues = [];
 
     // Get all customers
     const customersCollection = collection(ccwIssuesDb, 'user_files', userId, 'customers');
     const customersSnapshot = await getDocs(customersCollection);
 
-    console.log('=== FETCHING CCW DATA ===');
-    console.log('Customers found:', customersSnapshot.docs.length);
-
-    // For each customer, get visits
-    for (const customerDoc of customersSnapshot.docs) {
-      console.log('Processing customer:', customerDoc.id);
+    // Fetch every customer's visits in parallel (was an N+1 sequential loop),
+    // then flatten the per-customer issue lists into one array.
+    const perCustomerIssues = await Promise.all(customersSnapshot.docs.map(async (customerDoc) => {
       const customerName = customerDoc.id;
+      const customerIssues = [];
 
-      // Get visits for this customer
       const visitsCollection = collection(ccwIssuesDb, 'user_files', userId, 'customers', customerDoc.id, 'visits');
       const visitsSnapshot = await getDocs(visitsCollection);
-      console.log(`  Visits for ${customerDoc.id}:`, visitsSnapshot.docs.length);
 
       for (const visitDoc of visitsSnapshot.docs) {
         const visitData = visitDoc.data();
-        console.log(`    Visit ${visitDoc.id} fields:`, Object.keys(visitData));
-        console.log(`    Visit ${visitDoc.id} data:`, visitData);
+        if (!visitData.lines) continue;
 
-        // Check if lines exists in the visit data
-        if (visitData.lines) {
-          console.log(`      Lines in visit:`, Array.isArray(visitData.lines) ? visitData.lines.length : typeof visitData.lines);
+        // Handle lines - could be array or object
+        const linesArray = Array.isArray(visitData.lines) ? visitData.lines : Object.values(visitData.lines);
 
-          // Handle lines - could be array or object
-          const linesArray = Array.isArray(visitData.lines) ? visitData.lines : Object.values(visitData.lines);
+        for (const line of linesArray) {
+          if (line.heads && (Array.isArray(line.heads) ? line.heads.length > 0 : Object.keys(line.heads).length > 0)) {
+            const headsArray = Array.isArray(line.heads) ? line.heads : Object.values(line.heads);
 
-          for (const line of linesArray) {
-            console.log('        Line fields:', Object.keys(line));
-            console.log('        Line data:', line);
+            for (const head of headsArray) {
+              // Add heads that are offline OR have been fixed
+              const isOffline = head.status === 'offline' || head.status === 'Offline';
+              const isFixed = head.fixed === true || head.fixed === 'Yes' || head.fixed === 'yes' || head.fixed === 'fixed' || head.fixed === 'Fixed';
 
-            // Check if line has heads
-            console.log('        Heads field:', line.heads);
-            console.log('        Heads type:', typeof line.heads, Array.isArray(line.heads));
-
-            if (line.heads && (Array.isArray(line.heads) ? line.heads.length > 0 : Object.keys(line.heads).length > 0)) {
-              const headsArray = Array.isArray(line.heads) ? line.heads : Object.values(line.heads);
-              console.log('        Heads count:', headsArray.length);
-
-              for (const head of headsArray) {
-                // Debug: show status and fixed values
-                if (head.status || head.fixed) {
-                  console.log(`          Head: status=${head.status}, fixed=${head.fixed} (type: ${typeof head.fixed})`);
-                }
-
-                // Add heads that are offline OR have been fixed (were offline at some point)
-                const isOffline = head.status === 'offline' || head.status === 'Offline';
-                const isFixed = head.fixed === true || head.fixed === 'Yes' || head.fixed === 'yes' || head.fixed === 'fixed' || head.fixed === 'Fixed';
-
-                if (isOffline || isFixed) {
-                  issues.push({
-                    id: `${visitDoc.id}-${line.title || line.name || 'line'}-${head.name || head.id || 'head'}`,
-                    customer: customerName,
-                    line: line.title || line.name || 'Unknown Line',
-                    visitId: visitDoc.id,
-                    date: visitData.date,
-                    headName: head.name || head.id,
-                    status: head.status,
-                    error: head.error || head.errorMessage || 'No error info',
-                    fixed: head.fixed
-                  });
-                }
+              if (isOffline || isFixed) {
+                customerIssues.push({
+                  id: `${visitDoc.id}-${line.title || line.name || 'line'}-${head.name || head.id || 'head'}`,
+                  customer: customerName,
+                  line: line.title || line.name || 'Unknown Line',
+                  visitId: visitDoc.id,
+                  date: visitData.date,
+                  headName: head.name || head.id,
+                  status: head.status,
+                  error: head.error || head.errorMessage || 'No error info',
+                  fixed: head.fixed
+                });
               }
             }
           }
         }
       }
-    }
+      return customerIssues;
+    }));
 
-    // Log sample issue structure for debugging
-    if (issues.length > 0) {
-      console.log('=== HEADS DATA FROM FIRESTORE ===');
-      console.log('Sample head fields:', Object.keys(issues[0]));
-      console.log('Sample head data:', issues[0]);
-      console.log('Total heads:', issues.length);
-    }
+    const issues = perCustomerIssues.flat();
 
     // Count offline heads (active issues)
     const activeIssues = issues.filter(issue => {
@@ -282,8 +361,6 @@ export const fetchDowntimeData = async () => {
     const recentIssues = issues
       .filter(issue => issue.status === 'offline' || issue.status === 'Offline')
       .slice(0, 5);
-
-    console.log('Offline heads:', activeIssues);
 
     const result = {
       issues,
@@ -307,16 +384,59 @@ export const fetchDowntimeData = async () => {
   }
 };
 
+// ============================================
+// Inventory + Parts Manual fetchers
+// ============================================
+async function waitForUser(authObj) {
+  if (authObj.currentUser) return authObj.currentUser;
+  return new Promise((resolve) => {
+    const unsub = authObj.onAuthStateChanged((u) => { unsub(); resolve(u); });
+  });
+}
+
+export const fetchInventoryData = async () => {
+  if (isCacheValid('inventory')) return dataCache.inventory;
+  try {
+    const user = await waitForUser(ccwIssuesAuth);
+    if (!user) return { parts: [], boards: [] };
+    const userRoot = `user_files/${user.uid}`;
+    const [partsSnap, boardsSnap] = await Promise.all([
+      getDocs(collection(ccwIssuesDb, `${userRoot}/parts`)),
+      getDocs(collection(ccwIssuesDb, `${userRoot}/boards`)),
+    ]);
+    const parts = partsSnap.docs.map((d) => ({ id: d.id, type: 'part', ...d.data() }));
+    const boards = boardsSnap.docs.map((d) => ({ id: d.id, type: 'board', ...d.data() }));
+    const result = { parts, boards };
+    setCache('inventory', result);
+    return result;
+  } catch (e) {
+    console.error('Error fetching inventory:', e);
+    return { parts: [], boards: [] };
+  }
+};
+
+export const fetchPartsManualDiagrams = async () => {
+  if (isCacheValid('partsManual')) return dataCache.partsManual;
+  try {
+    await waitForUser(jobsMasterAuth);
+    const snap = await getDocs(collection(jobsMasterDb, 'parts-viewer-diagrams'));
+    const diagrams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    setCache('partsManual', diagrams);
+    return diagrams;
+  } catch (e) {
+    console.error('Error fetching parts manual diagrams:', e);
+    return [];
+  }
+};
+
 // Fetch Timesheet Data
 export const fetchTimesheetData = async () => {
   // Check cache first
   if (isCacheValid('timesheets')) {
-    console.log('Using cached timesheets data');
     return dataCache.timesheets;
   }
 
   try {
-    console.log('Fetching fresh timesheets data from Firebase...');
     const timesheetsCollection = collection(timesheetDb, 'timesheets');
     const timesheetsSnapshot = await getDocs(timesheetsCollection);
     const timesheets = timesheetsSnapshot.docs.map(doc => ({
@@ -324,18 +444,10 @@ export const fetchTimesheetData = async () => {
       ...doc.data()
     }));
 
-    // Log sample timesheet structure for debugging
-    if (timesheets.length > 0) {
-      console.log('=== TIMESHEETS DATA STRUCTURE ===');
-      console.log('Sample timesheet fields:', Object.keys(timesheets[0]));
-      console.log('Sample timesheet data:', timesheets[0]);
-      console.log('Total timesheets:', timesheets.length);
-    }
-
     // Calculate this week's hours
     const now = new Date();
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+    startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
     const hoursThisWeek = timesheets.reduce((sum, timesheet) => {
@@ -374,6 +486,103 @@ export const fetchTimesheetData = async () => {
   }
 };
 
+// ============================================
+// Service Report Lookup
+// ============================================
+// Joins timesheets (invoiceInfo.invoiceNumber == service report #) with CCW
+// Issues visits (globalData.serviceReportNumber) on a normalized number, so a
+// single report number surfaces its invoice/timesheet AND its weigher visit.
+export const fetchServiceReports = async () => {
+  // Normalize for the JOIN only (strip spaces/dashes, upper-case) so small
+  // formatting differences ("2025-016" vs "2025016") still match. Original text
+  // is preserved for display.
+  const normalize = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
+  const yearOf = (norm) => { const m = /^(\d{4})/.exec(norm); return m ? m[1] : 'Other'; };
+
+  try {
+    // --- Timesheets (reuses the cached timesheet fetch) ---
+    const tsResult = await fetchTimesheetData();
+    const timesheets = (tsResult?.timesheets || []).map((t) => {
+      const raw = t.invoiceInfo?.invoiceNumber || '';
+      // Per-day "work performed" text (serviceReportData is keyed by date string).
+      const srd = t.serviceReportData || {};
+      const dates = Array.isArray(t.entries) && t.entries.length ? t.entries.map((e) => e.date) : Object.keys(srd);
+      const serviceWork = dates
+        .map((d) => ({ date: d, text: (srd[d] || '').trim() }))
+        .filter((x) => x.text)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      return {
+        kind: 'timesheet',
+        id: t.id,
+        number: raw,
+        norm: normalize(raw),
+        customer: t.customer || t.customerInfo?.company || 'Unknown',
+        customerInfo: t.customerInfo || {},
+        invoiceInfo: t.invoiceInfo || {},
+        entryCount: Array.isArray(t.entries) ? t.entries.length : 0,
+        serviceWork,
+      };
+    });
+
+    // --- CCW Issues visits ---
+    const userId = 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1';
+    const customersSnapshot = await getDocs(collection(ccwIssuesDb, 'user_files', userId, 'customers'));
+    const perCustomer = await Promise.all(customersSnapshot.docs.map(async (customerDoc) => {
+      const customerName = customerDoc.id;
+      const visitsSnap = await getDocs(collection(ccwIssuesDb, 'user_files', userId, 'customers', customerDoc.id, 'visits'));
+      return visitsSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((v) => !v.deleted)
+        .map((v) => {
+          const raw = v.globalData?.serviceReportNumber || '';
+          const linesArr = Array.isArray(v.lines) ? v.lines : (v.lines ? Object.values(v.lines) : []);
+          return {
+            kind: 'visit',
+            visitId: v.id,
+            customerId: customerName,
+            customer: customerName,
+            number: raw,
+            norm: normalize(raw),
+            name: v.name || '',
+            date: v.date || '',
+            serviceReportUrl: v.serviceReportUrl || null,
+            lineCount: linesArr.length,
+            lines: linesArr.map((l) => ({
+              title: l.title || l.name || 'Line',
+              headCount: Array.isArray(l.heads) ? l.heads.length : (l.heads ? Object.keys(l.heads).length : 0),
+            })),
+          };
+        });
+    }));
+    const visits = perCustomer.flat();
+
+    // --- Join by normalized number ---
+    const map = new Map();
+    const add = (item, side) => {
+      if (!item.norm) return; // no number → tracked separately as untagged
+      if (!map.has(item.norm)) {
+        map.set(item.norm, { number: item.number, norm: item.norm, year: yearOf(item.norm), timesheets: [], visits: [] });
+      }
+      map.get(item.norm)[side].push(item);
+    };
+    timesheets.forEach((t) => add(t, 'timesheets'));
+    visits.forEach((v) => add(v, 'visits'));
+
+    const reports = [...map.values()].sort((a, b) => b.norm.localeCompare(a.norm));
+    const years = [...new Set(reports.map((r) => r.year))].sort((a, b) => b.localeCompare(a));
+
+    return {
+      reports,
+      years,
+      untaggedVisits: visits.filter((v) => !v.norm),
+      untaggedTimesheets: timesheets.filter((t) => !t.norm),
+    };
+  } catch (error) {
+    console.error('Error fetching service reports:', error);
+    return { reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] };
+  }
+};
+
 // Fetch all activity across all databases
 export const fetchRecentActivity = async () => {
   try {
@@ -394,7 +603,7 @@ export const fetchRecentActivity = async () => {
         message: `SR ${job.sr || 'N/A'} - ${job.customer || 'Unknown'} (${status})`,
         time: job.date || 'Recently',
         timestamp: job.date ? new Date(job.date) : new Date(),
-        url: 'https://jtidt.netlify.app/'
+        url: 'https://jti-jobs.pages.dev/'
       });
     });
 
@@ -407,7 +616,7 @@ export const fetchRecentActivity = async () => {
         message: `${issue.customer || 'Unknown'} - ${issue.line} (${fixedStatus})`,
         time: issue.date || 'Recently',
         timestamp: issue.date ? new Date(issue.date) : new Date(),
-        url: 'https://jti-ccwlog.netlify.app/'
+        url: 'https://jti-issues.pages.dev/'
       });
     });
 
@@ -426,14 +635,14 @@ export const fetchRecentActivity = async () => {
         message: `${invoiceNum} - ${timesheet.customer || timesheet.visitName || 'Unknown'}`,
         time: formatRelativeTime(timesheet.timestamp?.toDate?.() || new Date(timesheet.timestamp || 0)),
         timestamp: timesheet.timestamp?.toDate?.() || new Date(timesheet.timestamp || 0),
-        url: 'https://jti-ts3.netlify.app/'
+        url: 'https://jti-timesheet.pages.dev/'
       });
     });
 
     // Sort by timestamp (most recent first)
     activities.sort((a, b) => b.timestamp - a.timestamp);
 
-    return activities.slice(0, 10); // Return top 10 most recent
+    return activities.slice(0, 10);
   } catch (error) {
     console.error('Error fetching recent activity:', error);
     return [];
@@ -514,9 +723,6 @@ export const fetchCustomersList = async () => {
       a.name.toLowerCase().localeCompare(b.name.toLowerCase())
     );
 
-    console.log('=== CUSTOMERS LIST ===');
-    console.log('Total unique customers:', customers.length);
-
     return customers;
   } catch (error) {
     console.error('Error fetching customers list:', error);
@@ -574,26 +780,8 @@ export const fetchCustomerData = async (customerName) => {
     customerTimesheets.sort(sortByDate);
 
     // Calculate totals - use actual if available, otherwise quote
-    const totalIncome = customerJobs.reduce((sum, job) => {
-      const actual = parseFloat(job.actual || 0);
-      const quote = parseFloat(job.quote || 0);
-      const amount = actual > 0 ? actual : quote;
-      return sum + amount;
-    }, 0);
-    const paidIncome = customerJobs.reduce((sum, job) => {
-      if (isPaid(job.paid)) {
-        const actual = parseFloat(job.actual || 0);
-        const quote = parseFloat(job.quote || 0);
-        const amount = actual > 0 ? actual : quote;
-        return sum + amount;
-      }
-      return sum;
-    }, 0);
-
-    console.log(`=== CUSTOMER DATA FOR: ${customerName} ===`);
-    console.log('Jobs:', customerJobs.length);
-    console.log('Issues:', customerIssues.length);
-    console.log('Timesheets:', customerTimesheets.length);
+    const totalIncome = sumIncome(customerJobs);
+    const paidIncome = sumIncome(customerJobs, { paidOnly: true });
 
     return {
       jobs: customerJobs,
@@ -612,78 +800,73 @@ export const fetchCustomerData = async (customerName) => {
   }
 };
 
+// Lowercased JSON blob per record, memoized by object identity. Cached fetch
+// results hand back the same object references across keystrokes, so this turns
+// the per-keystroke JSON.stringify of every record into a one-time cost.
+const recordBlobCache = new WeakMap();
+const recordBlob = (rec) => {
+  if (rec === null || typeof rec !== 'object') return String(rec).toLowerCase();
+  let blob = recordBlobCache.get(rec);
+  if (blob === undefined) {
+    blob = JSON.stringify(rec).toLowerCase();
+    recordBlobCache.set(rec, blob);
+  }
+  return blob;
+};
+
 // Unified search function - search by customer name or service report number
 export const searchUnified = async (searchTerm) => {
-  console.log('=== SEARCH STARTED ===');
-  console.log('Search term:', searchTerm);
-
   if (!searchTerm || searchTerm.trim() === '') {
     return {
       jobs: [],
       issues: [],
       timesheets: [],
       headHistory: [],
+      parts: [],
+      boards: [],
+      diagrams: [],
       totalResults: 0
     };
   }
 
   const term = searchTerm.trim().toLowerCase();
-  const isReportNumber = /^\d{7}$/.test(searchTerm.trim()); // Check if it's a 7-digit number
-  console.log('Normalized term:', term);
-  console.log('Is report number:', isReportNumber);
 
-  // Generate search variations for patterns like "WH1" -> "WH 1"
+  // Generate search variations so "WH1" matches "WH 1", "100-689" matches
+  // "100 689"/"100689", and so on. Anything alphanumeric separated by
+  // hyphen/slash/underscore/space should be interchangeable.
   const getSearchVariations = (searchTerm) => {
-    const variations = [searchTerm];
-
-    // Pattern: letters followed by numbers (e.g., "WH1" -> "WH 1")
-    const withSpace = searchTerm.replace(/([A-Za-z]+)(\d+)/g, '$1 $2');
-    if (withSpace !== searchTerm) {
-      variations.push(withSpace);
-    }
-
-    // Pattern: letters space numbers (e.g., "WH 1" -> "WH1")
-    const withoutSpace = searchTerm.replace(/([A-Za-z]+)\s+(\d+)/g, '$1$2');
-    if (withoutSpace !== searchTerm) {
-      variations.push(withoutSpace);
-    }
-
-    return variations;
+    const variations = new Set([searchTerm]);
+    variations.add(searchTerm.replace(/([A-Za-z]+)(\d+)/g, '$1 $2'));
+    variations.add(searchTerm.replace(/([A-Za-z]+)\s+(\d+)/g, '$1$2'));
+    variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])[-_/.](?=[A-Za-z0-9])/g, ' '));
+    variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])[-_/.\s](?=[A-Za-z0-9])/g, ''));
+    variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])\s+(?=[A-Za-z0-9])/g, '-'));
+    return [...variations].filter(Boolean);
   };
 
   const searchVariations = getSearchVariations(term);
-  console.log('Search variations:', searchVariations);
+  // Fully-stripped form of the search term — used to compare against a
+  // similarly-stripped haystack so part numbers like "000-071-0881-06" match
+  // "000.071.0881.06", "000071088106", "000 071 0881 06", etc.
+  const stripSeparators = (s) => String(s).toLowerCase().replace(/[-_/.\s]+/g, '');
+  const termStripped = stripSeparators(term);
+  const matchesAny = (haystack) => {
+    const lower = String(haystack).toLowerCase();
+    if (searchVariations.some((v) => lower.includes(v))) return true;
+    if (termStripped && stripSeparators(lower).includes(termStripped)) return true;
+    return false;
+  };
 
   try {
     // Fetch all data in parallel
-    const [jobsData, downtimeData, timesheetData, headHistoryResults] = await Promise.all([
+    const [jobsData, downtimeData, timesheetData, headHistoryResults, inventoryData, diagramsData] = await Promise.all([
       fetchJobsData(),
       fetchDowntimeData(),
       fetchTimesheetData(),
-      searchHeadHistory(searchTerm)
+      searchHeadHistory(searchTerm),
+      fetchInventoryData(),
+      fetchPartsManualDiagrams()
     ]);
-
-    // Search jobs - by customer name, customerInfo, or invoice number
-    console.log('Total jobs to search:', jobsData.jobs.length);
-    if (jobsData.jobs.length > 0) {
-      const sampleJob = jobsData.jobs[0];
-      console.log('Sample job ALL FIELDS:', Object.keys(sampleJob));
-      console.log('Sample job FULL DATA:', sampleJob);
-      if (sampleJob.totals) {
-        console.log('Sample job TOTALS:', sampleJob.totals);
-      }
-      if (sampleJob.jobs) {
-        console.log('Sample job JOBS array:', sampleJob.jobs);
-      }
-    }
-
-    // Show some SR numbers to help debug
-    if (jobsData.jobs.length > 0) {
-      const sampleSRs = jobsData.jobs.slice(0, 5).map(j => j.sr);
-      console.log('Sample SR numbers:', sampleSRs);
-    }
-
-    console.log('Searching through', jobsData.jobs.length, 'jobs for:', searchTerm.trim());
 
     // Helper function to find matched fields in an object
     const findMatchedFields = (obj, searchTerm, prefix = '') => {
@@ -694,13 +877,11 @@ export const searchUnified = async (searchTerm) => {
 
         if (typeof value === 'string') {
           const valueLower = value.toLowerCase();
-          // Check if any variation matches
           if (searchVariations.some(variant => valueLower.includes(variant))) {
             matches.push({ field: path || key, value: value });
           }
         } else if (typeof value === 'number') {
           const numStr = value.toString().toLowerCase();
-          // Check if any variation matches
           if (searchVariations.some(variant => numStr.includes(variant))) {
             matches.push({ field: path || key, value: value.toString() });
           }
@@ -709,7 +890,6 @@ export const searchUnified = async (searchTerm) => {
             searchInValue(item, `${key}[${index}]`, `${path ? path + '.' : ''}${key}[${index}]`);
           });
         } else if (typeof value === 'object') {
-          // Skip Firestore timestamp objects
           if (value.toDate) return;
           Object.entries(value).forEach(([k, v]) => {
             searchInValue(v, k, `${path ? path + '.' : ''}${key}.${k}`);
@@ -724,34 +904,17 @@ export const searchUnified = async (searchTerm) => {
       return matches;
     };
 
-    const matchingJobs = jobsData.jobs.filter(job => {
-      const fullText = JSON.stringify(job).toLowerCase();
-      return searchVariations.some(variant => fullText.includes(variant));
-    }).map(job => ({
+    const matchingJobs = jobsData.jobs.filter(job => matchesAny(recordBlob(job))).map(job => ({
       ...job,
       matchedFields: findMatchedFields(job, term)
     }));
 
-    // Search issues - search all text fields
-    const matchingIssues = downtimeData.issues.filter(issue => {
-      const fullText = JSON.stringify(issue).toLowerCase();
-      return searchVariations.some(variant => fullText.includes(variant));
-    }).map(issue => ({
+    const matchingIssues = downtimeData.issues.filter(issue => matchesAny(recordBlob(issue))).map(issue => ({
       ...issue,
       matchedFields: findMatchedFields(issue, term)
     }));
 
-    // Log timesheet fields for debugging
-    if (timesheetData.timesheets.length > 0) {
-      const sampleTS = timesheetData.timesheets[0];
-      console.log('Sample timesheet invoiceInfo:', sampleTS.invoiceInfo);
-    }
-
-    // Search timesheets - search all text fields including nested objects
-    const matchingTimesheets = timesheetData.timesheets.filter(timesheet => {
-      const fullText = JSON.stringify(timesheet).toLowerCase();
-      return searchVariations.some(variant => fullText.includes(variant));
-    }).map(timesheet => ({
+    const matchingTimesheets = timesheetData.timesheets.filter(timesheet => matchesAny(recordBlob(timesheet))).map(timesheet => ({
       ...timesheet,
       matchedFields: findMatchedFields(timesheet, term)
     }));
@@ -771,24 +934,118 @@ export const searchUnified = async (searchTerm) => {
     });
     matchingTimesheets.sort(sortByDate);
 
-    console.log('=== SEARCH RESULTS ===');
-    console.log('Jobs found:', matchingJobs.length);
-    console.log('Issues found:', matchingIssues.length);
-    console.log('Timesheets found:', matchingTimesheets.length);
-    console.log('Head history found:', headHistoryResults.length);
-    if (matchingJobs.length > 0) {
-      console.log('First matching job:', matchingJobs[0]);
-    }
-    if (matchingTimesheets.length > 0) {
-      console.log('First matching timesheet:', matchingTimesheets[0]);
-    }
+    // Inventory parts: search across name, sku, location, notes, category, customers.
+    const matchInventoryItem = (item) => {
+      const fields = [
+        item.name, item.sku, item.partNumber, item.location, item.notes, item.category,
+        item.model, item.revision, item.serial,
+        ...(Array.isArray(item.customers) ? item.customers : []),
+      ].filter(Boolean).join(' ');
+      return matchesAny(fields);
+    };
+    const matchingParts = (inventoryData.parts || []).filter(matchInventoryItem);
+    const matchingBoards = (inventoryData.boards || []).filter(matchInventoryItem);
+
+    // Parts manual diagrams: search the diagram name AND partsData.
+    // partsData is often keyed by hotspot index (e.g., 17, 28) and the real
+    // part number is jammed into a free-text partName/description blob.
+    // Pull part numbers out of the text via regex so they can be displayed
+    // and highlighted cleanly.
+    const PN_RE = /\b\d{2,4}[-_/.\s]+\d{1,4}[-_/.\s]+\d{1,5}(?:[-_/.\s]+\d{1,4})?\b/g;
+    const extractPartNumbers = (text) => {
+      if (!text) return [];
+      const out = [];
+      const seen = new Set();
+      String(text).replace(PN_RE, (m) => {
+        const cleaned = m.trim();
+        if (!seen.has(cleaned)) { seen.add(cleaned); out.push(cleaned); }
+        return m;
+      });
+      return out;
+    };
+
+    // Walk the entire `info` value (which may itself contain a nested
+    // `parts` array, a `rows` array, or freeform fields) and harvest every
+    // string we encounter — that becomes the searchable blob and the source
+    // we mine for part numbers + part names.
+    const collectStrings = (value, out) => {
+      if (value == null) return;
+      if (typeof value === 'string' || typeof value === 'number') {
+        out.push(String(value));
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((v) => collectStrings(v, out));
+        return;
+      }
+      if (typeof value === 'object') {
+        Object.values(value).forEach((v) => collectStrings(v, out));
+      }
+    };
+
+    const matchingDiagrams = [];
+    (diagramsData || []).forEach((diagram) => {
+      const diagramName = diagram.name || '';
+      const matchedParts = [];
+      const partsData = diagram.partsData || {};
+
+      Object.entries(partsData).forEach(([key, info]) => {
+        if (info == null) return;
+        const allStrings = [];
+        collectStrings(info, allStrings);
+        const textBlob = allStrings.join(' ');
+        const pnFromText = extractPartNumbers(textBlob);
+
+        // Pull explicit metadata if present, otherwise rely on regex extraction.
+        const explicitPartNumber = (info && (info.partNumber || info.part_number || info.pn)) || '';
+        const partName = (info && (info.partName || info.part_name || info.name)) || '';
+        const desc = (info && (info.description || info.notes || info.detail)) || '';
+        const partNumber = explicitPartNumber || pnFromText[0] || '';
+
+        if (matchesAny(`${key} ${textBlob}`)) {
+          matchedParts.push({
+            hotspotKey: key,
+            partNumber,
+            allPartNumbers: pnFromText,
+            partName: partName || (textBlob.length > 200 ? textBlob.slice(0, 200) + '…' : textBlob),
+            description: desc,
+            qty: info && (info.qty || info.quantity),
+          });
+        }
+      });
+
+      // Final safety net: if no hotspot row matched but the search term IS
+      // somewhere in the diagram document, surface the diagram anyway so the
+      // user can drill in. This catches schemas we haven't anticipated.
+      const wholeDiagramStrings = [];
+      collectStrings(diagram, wholeDiagramStrings);
+      const diagramBlob = wholeDiagramStrings.join(' ');
+      const diagramHits = matchesAny(diagramBlob);
+
+      if (matchedParts.length > 0 || diagramHits) {
+        matchingDiagrams.push({
+          id: diagram.id,
+          name: diagram.name || 'Untitled diagram',
+          customer: diagram.customer || diagram.customerName || '',
+          matchedParts,
+          totalParts: Object.keys(partsData).length,
+          updatedAt: diagram.updatedAt || diagram.createdAt || null,
+        });
+      }
+    });
 
     return {
       jobs: matchingJobs,
       issues: matchingIssues,
       timesheets: matchingTimesheets,
       headHistory: headHistoryResults,
-      totalResults: matchingJobs.length + matchingIssues.length + matchingTimesheets.length + headHistoryResults.length,
+      parts: matchingParts,
+      boards: matchingBoards,
+      diagrams: matchingDiagrams,
+      totalResults:
+        matchingJobs.length + matchingIssues.length + matchingTimesheets.length +
+        headHistoryResults.length + matchingParts.length + matchingBoards.length +
+        matchingDiagrams.length,
       searchTerm: searchTerm.trim()
     };
   } catch (error) {
@@ -798,6 +1055,9 @@ export const searchUnified = async (searchTerm) => {
       issues: [],
       timesheets: [],
       headHistory: [],
+      parts: [],
+      boards: [],
+      diagrams: [],
       totalResults: 0,
       error: error.message
     };
@@ -813,18 +1073,47 @@ export const fetchCalendarEvents = async () => {
     const timesheetsCollection = collection(timesheetDb, 'timesheets');
     const timesheetsSnapshot = await getDocs(timesheetsCollection);
 
+    // Normalize any of the date formats we might find ("4/21/2008",
+    // "04/21/2008", "4/21/08", "2008-04-21", Firestore Timestamp, Date) into
+    // an ISO YYYY-MM-DD string the calendar grid can match.
+    const toIsoDateString = (raw) => {
+      if (!raw) return null;
+      if (raw?.toDate) {
+        const d = raw.toDate();
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      }
+      if (raw instanceof Date) {
+        return `${raw.getFullYear()}-${pad2(raw.getMonth() + 1)}-${pad2(raw.getDate())}`;
+      }
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+        const m = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+        if (m) {
+          const [, mo, da, yr] = m;
+          return `${expandYear(yr)}-${pad2(+mo)}-${pad2(+da)}`;
+        }
+        const d = new Date(trimmed);
+        if (!Number.isNaN(d.getTime())) {
+          return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        }
+      }
+      return null;
+    };
+
     timesheetsSnapshot.docs.forEach(doc => {
       const data = doc.data();
       const customer = data.customer || data.visitName || 'Unknown';
       const visitName = data.visitName || '';
       const entries = data.entries || [];
 
-      // Extract dates from entries
+      // Extract dates from entries (normalize whatever format is stored).
       entries.forEach(entry => {
-        if (entry.date) {
+        const iso = toIsoDateString(entry.date);
+        if (iso) {
           events.push({
             id: doc.id,
-            date: entry.date,
+            date: iso,
             customer: customer,
             visitName: visitName,
             hours: entry.hours || 0,
@@ -839,7 +1128,9 @@ export const fetchCalendarEvents = async () => {
       // If no entries but has timestamp, use that as the date
       if (entries.length === 0 && data.timestamp) {
         const date = data.timestamp?.toDate?.() || new Date(data.timestamp);
-        const dateStr = date.toISOString().split('T')[0];
+        // Local, not toISOString() — that's UTC, so a visit saved after 5pm in
+        // Arizona landed on the following day in the grid.
+        const dateStr = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
         events.push({
           id: doc.id,
           date: dateStr,
@@ -858,13 +1149,14 @@ export const fetchCalendarEvents = async () => {
     const headHistoryData = await fetchHeadHistoryData();
     if (headHistoryData.calendarEvents && headHistoryData.calendarEvents.length > 0) {
       events.push(...headHistoryData.calendarEvents);
-      console.log('Added', headHistoryData.calendarEvents.length, 'onsite events from Shearers database');
     }
+
+    // Add historical visits parsed from Service Work Master List.docx.
+    events.push(...getDocxCalendarEvents());
 
     // Sort by date descending
     events.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    console.log('Calendar events loaded:', events.length, '(timesheets + onsite)');
     return events;
   } catch (error) {
     console.error('Error fetching calendar events:', error);
@@ -895,14 +1187,12 @@ export const deleteTimesheetEntry = async (docId, entryDate) => {
     // If no entries left, delete the whole document
     if (updatedEntries.length === 0) {
       await deleteDoc(docRef);
-      console.log('Deleted entire timesheet (no entries left):', docId);
     } else {
       // Update the document with remaining entries
       await updateDoc(docRef, {
         entries: updatedEntries,
         serviceReportData: serviceReportData
       });
-      console.log('Deleted entry from timesheet:', docId, entryDate);
     }
 
     return true;
@@ -917,7 +1207,6 @@ export const deleteTimesheet = async (docId) => {
   try {
     const docRef = doc(timesheetDb, 'timesheets', docId);
     await deleteDoc(docRef);
-    console.log('Deleted timesheet:', docId);
     return true;
   } catch (error) {
     console.error('Error deleting timesheet:', error);
@@ -929,16 +1218,14 @@ export const deleteTimesheet = async (docId) => {
 export const fetchHeadHistoryData = async () => {
   // Check cache first
   if (isCacheValid('headHistory')) {
-    console.log('Using cached head history data');
     return dataCache.headHistory;
   }
 
   try {
-    console.log('Fetching fresh head history data from Firebase...');
     const entries = [];
     const calendarEvents = [];
 
-    // Specific paths to query (based on actual database structure)
+    // Specific paths to query
     const pathsToQuery = [
       'jti-downtime/head-history',
       'jti-downtime/main-logger/data'
@@ -948,15 +1235,14 @@ export const fetchHeadHistoryData = async () => {
     const normalizeDate = (dateVal) => {
       if (!dateVal) return null;
 
-      // If it's already in YYYY-MM-DD format
       if (typeof dateVal === 'string' && dateVal.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return dateVal;
       }
 
-      // Try to parse and convert
       const dateObj = new Date(dateVal);
       if (!isNaN(dateObj.getTime())) {
-        return dateObj.toISOString().split('T')[0];
+        // Local date — UTC would shift evening entries onto the next day.
+        return `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`;
       }
 
       return null;
@@ -966,7 +1252,6 @@ export const fetchHeadHistoryData = async () => {
     const extractDates = (obj, path = '', source = '') => {
       if (!obj || typeof obj !== 'object') return;
 
-      // Check for date field at this level
       if (obj.date || obj.visitDate || obj.timestamp) {
         const dateStr = normalizeDate(obj.date || obj.visitDate || obj.timestamp);
         if (dateStr) {
@@ -977,7 +1262,6 @@ export const fetchHeadHistoryData = async () => {
           };
           entries.push(entry);
 
-          // Build service work text with all relevant info
           let serviceWorkParts = [];
           if (obj.notes) serviceWorkParts.push(obj.notes);
           if (obj.machineNotes) serviceWorkParts.push(`Machine Notes: ${obj.machineNotes}`);
@@ -1004,7 +1288,6 @@ export const fetchHeadHistoryData = async () => {
         }
       }
 
-      // Process arrays
       if (Array.isArray(obj)) {
         obj.forEach((item, idx) => {
           extractDates(item, `${path}[${idx}]`, source);
@@ -1012,7 +1295,6 @@ export const fetchHeadHistoryData = async () => {
         return;
       }
 
-      // Recursively process nested objects
       for (const key in obj) {
         if (obj[key] && typeof obj[key] === 'object') {
           extractDates(obj[key], path ? `${path}/${key}` : key, source);
@@ -1021,33 +1303,21 @@ export const fetchHeadHistoryData = async () => {
     };
 
     // Query each path
-    console.log('Querying paths:', pathsToQuery);
     for (const pathName of pathsToQuery) {
       try {
-        console.log(`Attempting to fetch: ${pathName}`);
         const pathRef = dbRef(shearersRealtimeDb, pathName);
         const snapshot = await get(pathRef);
 
         if (snapshot.exists()) {
           const data = snapshot.val();
-          console.log(`=== SHEARERS PATH: ${pathName} ===`);
-          console.log('Data type:', Array.isArray(data) ? 'array' : typeof data);
-          console.log('Sample data:', JSON.stringify(data).substring(0, 500));
-          if (typeof data === 'object' && !Array.isArray(data)) {
-            console.log('Keys:', Object.keys(data).slice(0, 10));
-          }
-
           extractDates(data, '', pathName);
-          console.log(`After processing ${pathName}: ${entries.length} entries, ${calendarEvents.length} events`);
-        } else {
-          console.log(`Path ${pathName} has no data (snapshot.exists() = false)`);
         }
       } catch (err) {
-        console.error(`Error querying ${pathName}:`, err.message, err);
+        // Path doesn't exist or access denied
       }
     }
 
-    // Remove duplicate dates (same date from different sources)
+    // Remove duplicate dates
     const uniqueEvents = [];
     const seenDates = new Set();
     calendarEvents.forEach(event => {
@@ -1057,8 +1327,6 @@ export const fetchHeadHistoryData = async () => {
         uniqueEvents.push(event);
       }
     });
-
-    console.log('Head history loaded:', entries.length, 'entries,', uniqueEvents.length, 'unique calendar events');
 
     const result = { entries, calendarEvents: uniqueEvents };
 
@@ -1075,51 +1343,36 @@ export const fetchHeadHistoryData = async () => {
 // Search Head History for notes and machine notes
 export const searchHeadHistory = async (searchTerm) => {
   try {
-    console.log('=== SEARCHING HEAD HISTORY ===');
-    console.log('Search term:', searchTerm);
-
     const results = [];
     const term = searchTerm.toLowerCase();
-    const seenPaths = new Set(); // Avoid duplicates
+    const seenPaths = new Set();
 
-    // Specific paths to query (based on actual database structure)
     const pathsToQuery = [
       'jti-downtime/head-history',
       'jti-downtime/main-logger/data'
     ];
 
+    // Generate search variations (mirrors searchUnified's logic).
+    const getSearchVariations = (searchTerm) => {
+      const variations = new Set([searchTerm]);
+      variations.add(searchTerm.replace(/([A-Za-z]+)(\d+)/g, '$1 $2'));
+      variations.add(searchTerm.replace(/([A-Za-z]+)\s+(\d+)/g, '$1$2'));
+      variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])[-_/](?=[A-Za-z0-9])/g, ' '));
+      variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])[-_/\s](?=[A-Za-z0-9])/g, ''));
+      variations.add(searchTerm.replace(/(?<=[A-Za-z0-9])\s+(?=[A-Za-z0-9])/g, '-'));
+      return [...variations].filter(Boolean);
+    };
+
+    const searchVariations = getSearchVariations(term);
+
     const searchInObject = (obj, path = '', source = '') => {
       if (!obj || typeof obj !== 'object') return;
 
-      // Check for matching fields
       const matchedFields = [];
 
-      // Generate search variations for patterns like "WH1" -> "WH 1"
-      const getSearchVariations = (searchTerm) => {
-        const variations = [searchTerm];
-
-        // Pattern: letters followed by numbers (e.g., "WH1" -> "WH 1")
-        const withSpace = searchTerm.replace(/([A-Za-z]+)(\d+)/g, '$1 $2');
-        if (withSpace !== searchTerm) {
-          variations.push(withSpace);
-        }
-
-        // Pattern: letters space numbers (e.g., "WH 1" -> "WH1")
-        const withoutSpace = searchTerm.replace(/([A-Za-z]+)\s+(\d+)/g, '$1$2');
-        if (withoutSpace !== searchTerm) {
-          variations.push(withoutSpace);
-        }
-
-        return variations;
-      };
-
-      const searchVariations = getSearchVariations(term);
-
-      // Search all text fields with pattern matching
       const checkField = (fieldName, value) => {
         if (value && typeof value === 'string') {
           const valueLower = value.toLowerCase();
-          // Check if any variation matches
           if (searchVariations.some(variant => valueLower.includes(variant))) {
             matchedFields.push({ field: fieldName, value: value });
           }
@@ -1144,10 +1397,6 @@ export const searchHeadHistory = async (searchTerm) => {
         if (!seenPaths.has(uniqueKey)) {
           seenPaths.add(uniqueKey);
 
-          // Log the object to see all available fields
-          console.log('Head History entry fields:', Object.keys(obj));
-          console.log('Head History entry data:', obj);
-
           results.push({
             path: path,
             source: source,
@@ -1165,7 +1414,6 @@ export const searchHeadHistory = async (searchTerm) => {
         }
       }
 
-      // Process arrays
       if (Array.isArray(obj)) {
         obj.forEach((item, idx) => {
           searchInObject(item, `${path}[${idx}]`, source);
@@ -1173,7 +1421,6 @@ export const searchHeadHistory = async (searchTerm) => {
         return;
       }
 
-      // Recursively search nested objects
       for (const key in obj) {
         if (obj[key] && typeof obj[key] === 'object') {
           searchInObject(obj[key], path ? `${path}/${key}` : key, source);
@@ -1184,36 +1431,86 @@ export const searchHeadHistory = async (searchTerm) => {
     // Query each path
     for (const pathName of pathsToQuery) {
       try {
-        console.log(`Searching path: ${pathName}`);
         const pathRef = dbRef(shearersRealtimeDb, pathName);
         const snapshot = await get(pathRef);
 
         if (snapshot.exists()) {
           const data = snapshot.val();
-          console.log(`Data found in ${pathName}, type:`, Array.isArray(data) ? 'array' : typeof data);
-          if (typeof data === 'object' && !Array.isArray(data)) {
-            console.log(`Keys in ${pathName}:`, Object.keys(data).slice(0, 10));
-          }
           searchInObject(data, '', pathName);
-          console.log(`Results after ${pathName}:`, results.length);
-        } else {
-          console.log(`No data in ${pathName}`);
         }
       } catch (err) {
-        console.error(`Error searching ${pathName}:`, err.message);
+        // Path doesn't exist or access denied
       }
     }
 
-    console.log('=== HEAD HISTORY SEARCH COMPLETE ===');
-    console.log('Total results:', results.length);
-    if (results.length > 0) {
-      console.log('Sample result object:', results[0]);
-      console.log('Sample result data keys:', Object.keys(results[0].data || {}));
-      console.log('Sample result FULL DATA:', JSON.stringify(results[0].data, null, 2));
-    }
     return results;
   } catch (error) {
     console.error('Error searching head history:', error);
     return [];
+  }
+};
+
+// ============================================
+// FACTORY LOCATIONS - Firebase Persistence
+// ============================================
+
+const FACTORY_LOCATIONS_DOC = 'jti-unified-settings';
+const FACTORY_LOCATIONS_COLLECTION = 'settings';
+
+// Fetch factory locations from Firebase
+export const fetchFactoryLocations = async () => {
+  try {
+    const docRef = doc(jobsMasterDb, FACTORY_LOCATIONS_COLLECTION, FACTORY_LOCATIONS_DOC);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return data.factoryLocations || [];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching factory locations:', error);
+    const saved = localStorage.getItem('jti-factory-locations');
+    return saved ? JSON.parse(saved) : [];
+  }
+};
+
+// Save factory locations to Firebase
+export const saveFactoryLocations = async (factories) => {
+  try {
+    const docRef = doc(jobsMasterDb, FACTORY_LOCATIONS_COLLECTION, FACTORY_LOCATIONS_DOC);
+    await setDoc(docRef, {
+      factoryLocations: factories,
+      lastUpdated: new Date().toISOString()
+    }, { merge: true });
+
+    localStorage.setItem('jti-factory-locations', JSON.stringify(factories));
+    return true;
+  } catch (error) {
+    console.error('Error saving factory locations to Firebase:', error);
+    localStorage.setItem('jti-factory-locations', JSON.stringify(factories));
+    return false;
+  }
+};
+
+// Subscribe to factory locations changes (real-time updates)
+export const subscribeToFactoryLocations = (callback) => {
+  try {
+    const docRef = doc(jobsMasterDb, FACTORY_LOCATIONS_COLLECTION, FACTORY_LOCATIONS_DOC);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        callback(data.factoryLocations || []);
+      } else {
+        callback([]);
+      }
+    }, (error) => {
+      console.error('Error in factory locations subscription:', error);
+      const saved = localStorage.getItem('jti-factory-locations');
+      callback(saved ? JSON.parse(saved) : []);
+    });
+  } catch (error) {
+    console.error('Error setting up factory locations subscription:', error);
+    return null;
   }
 };

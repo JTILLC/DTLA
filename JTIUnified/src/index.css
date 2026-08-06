@@ -26,6 +26,40 @@ body {
   }
 }
 
+/* Leaflet Map Fixes */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+  background: #e5e5e5;
+}
+
+.leaflet-tile-container img {
+  width: 256px !important;
+  height: 256px !important;
+}
+
+.leaflet-tile-pane {
+  z-index: 1;
+}
+
+.leaflet-overlay-pane {
+  z-index: 2;
+}
+
+.leaflet-marker-pane {
+  z-index: 3;
+}
+
+.leaflet-popup-pane {
+  z-index: 4;
+}
+
+/* Fix for Leaflet default icon */
+.leaflet-default-icon-path {
+  background-image: url('https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png');
+}
+
 /* Calendar Responsive Styles */
 .calendar-grid {
   display: grid;
