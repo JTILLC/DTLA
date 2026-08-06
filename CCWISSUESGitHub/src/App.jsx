@@ -1429,6 +1429,41 @@ const AppContent = () => {
     toast.success('Local storage cleared! All data reset.');
   };
 
+  // Archiving, because deleting was the only way to get a plant out of the
+  // picker and it takes every visit, photo and service report with it.
+  // A customer who stopped buying is not a customer who never existed: the
+  // history is the whole point of the app, and plants come back. Archived
+  // customers keep everything and simply stop cluttering the list.
+  const setCustomerArchived = async (custId, archived) => {
+    const name = customers.find(c => c.id === custId)?.name || 'this customer';
+    if (archived) {
+      const ok = await dialog.confirm(
+        `Archive "${name}"? Their visits, photos and service reports are all kept — `
+        + `they just come off the customer list. You can bring them back any time.`,
+        { title: 'Archive Customer', confirmText: 'Archive' },
+      );
+      if (!ok) return;
+    }
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files')
+        .doc(user.uid)
+        .collection('customers')
+        .doc(custId)
+        .set({ profile: { archived, archivedAt: archived ? new Date().toISOString() : null } }, { merge: true });
+
+      // Leaving an archived customer selected would keep them on screen with no
+      // way back to them once the picker drops them.
+      if (archived && currentCustomer?.id === custId) handleSelectCustomer('');
+      await refreshCustomers();
+      toast.success(archived ? `${name} archived` : `${name} restored`);
+    } catch (err) {
+      console.error('Archive failed:', err);
+      toast.error(`Could not ${archived ? 'archive' : 'restore'} ${name}`);
+    }
+  };
+
   const deleteCustomerFromCloud = async (custId) => {
     const name = customers.find(c => c.id === custId)?.name || 'this customer';
     const ok = await dialog.confirm(`Delete customer "${name}" and all its visits?`, {
@@ -2396,7 +2431,7 @@ const AppContent = () => {
       .doc(user.uid)
       .collection('customers')
       .get();
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data().profile }));
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data().profile, archived: !!d.data().profile?.archived }));
     setCustomers(list);
   };
 
@@ -2934,11 +2969,22 @@ const AppContent = () => {
             className="form-select form-select-sm"
           >
             <option value="">-- Select Customer --</option>
-            {customers.map(c => (
+            {customers.filter(c => !c.archived).map(c => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
+            {/* Still selectable — archiving hides a plant from the working list,
+                it does not put their history behind a door. */}
+            {customers.some(c => c.archived) && (
+              <optgroup label="Archived">
+                {customers.filter(c => c.archived).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
 
           {currentCustomer && (
@@ -3254,17 +3300,37 @@ const AppContent = () => {
           </div>
           <div className="row g-3">
             <div className="col-md-6">
-              <label className="form-label"><strong>Delete Customer:</strong></label>
+              <label className="form-label"><strong>Customer:</strong></label>
               <div className="d-flex gap-2">
                 <select value={customerToDelete} onChange={(e) => setCustomerToDelete(e.target.value)} className="form-select form-select-sm">
                   <option value="">-- Select --</option>
-                  {customers.map(c => (
+                  {customers.filter(c => !c.archived).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
+                  {customers.some(c => c.archived) && (
+                    <optgroup label="Archived">
+                      {customers.filter(c => c.archived).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
+                {customerToDelete && (
+                  customers.find(c => c.id === customerToDelete)?.archived ? (
+                    <button onClick={() => { setCustomerArchived(customerToDelete, false); setCustomerToDelete(''); }} className="btn btn-outline-success btn-sm text-nowrap">Restore</button>
+                  ) : (
+                    <button onClick={() => { setCustomerArchived(customerToDelete, true); setCustomerToDelete(''); }} className="btn btn-outline-secondary btn-sm text-nowrap">Archive</button>
+                  )
+                )}
                 {customerToDelete && (
                   <button onClick={() => { deleteCustomerFromCloud(customerToDelete); setCustomerToDelete(''); }} className="btn btn-danger btn-sm">Delete</button>
                 )}
+              </div>
+              {/* Said plainly, because the two buttons sit next to each other and
+                  only one of them can be undone. */}
+              <div className="form-text">
+                <strong>Archive</strong> keeps every visit and photo and just hides the plant.
+                <strong> Delete</strong> destroys them permanently.
               </div>
             </div>
             {currentCustomer && (
