@@ -2197,17 +2197,44 @@ const AppContent = () => {
     if (!user) { setRole(null); setRoleLoaded(false); setRoleError(''); return; }
     let active = true;
     setRoleError('');
-    firebase.firestore().collection('app_roles').doc(user.uid).get()
+
+    // FROM THE SERVER, not the cache.
+    //
+    // Offline persistence is on, and a plain .get() falls back to the local
+    // cache whenever the round-trip does not complete. A cache MISS returns a
+    // snapshot with exists === false and throws nothing — indistinguishable
+    // from "this account has no role". So one flaky moment on the first sign-in
+    // of a device locked the owner out of his own app while the record sat in
+    // Firestore, correct, the whole time.
+    //
+    // This one read decides what the account may see, so it is worth a
+    // guaranteed server answer. If the network really is gone we fall back to
+    // the cache deliberately, and if even that has nothing we say we could not
+    // check rather than inventing a "no access" answer.
+    const ref = firebase.firestore().collection('app_roles').doc(user.uid);
+    ref.get({ source: 'server' })
       .then((doc) => {
         if (!active) return;
         setRole(doc.exists ? doc.data() : { admin: false, customerId: null });
         setRoleLoaded(true);
       })
-      .catch((err) => {
-        console.error('Failed to load role:', err);
+      .catch(async (err) => {
+        console.warn('Role read from server failed, trying cache:', err);
+        if (!active) return;
+        try {
+          const cached = await ref.get({ source: 'cache' });
+          if (!active) return;
+          if (cached.exists) {
+            setRole(cached.data());
+            setRoleLoaded(true);
+            return;
+          }
+        } catch (cacheErr) {
+          console.warn('No cached role either:', cacheErr);
+        }
         if (!active) return;
         setRole({ admin: false, customerId: null });
-        setRoleError(err?.message || 'Could not read your access.');
+        setRoleError(err?.message || 'Could not reach the server to check your access.');
         setRoleLoaded(true);
       });
     return () => { active = false; };
