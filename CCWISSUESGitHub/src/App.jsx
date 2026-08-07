@@ -290,6 +290,7 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   // Preload all issue photos into JPEG data URLs (keyed by URL) so the
   // synchronous render loop below can drop them in via doc.addImage.
   const photoMap = new Map();
+  const photoStats = { requested: 0, embedded: 0 };
   if (includePhotos) {
     const found = [];
     migratedLines.forEach(line => (line.heads || []).forEach(head => {
@@ -300,8 +301,16 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
     const byKey = new Map();
     found.forEach(p => { if (!byKey.has(photoKey(p))) byKey.set(photoKey(p), p); });
     const keys = [...byKey.keys()];
-    const loaded = await Promise.all(keys.map(k => loadPhotoForPdf(byKey.get(k))));
-    keys.forEach((k, i) => { if (loaded[i]) photoMap.set(k, loaded[i]); });
+    // allSettled, not all: one rejected photo used to reject the whole export,
+    // and the export had nobody catching it.
+    const loaded = await Promise.allSettled(keys.map(k => loadPhotoForPdf(byKey.get(k))));
+    keys.forEach((k, i) => {
+      const r = loaded[i];
+      if (r.status === 'fulfilled' && r.value) photoMap.set(k, r.value);
+      else if (r.status === 'rejected') console.warn('Photo failed to load for PDF:', k, r.reason);
+    });
+    photoStats.requested = keys.length;
+    photoStats.embedded = photoMap.size;
   }
 
   const drawPageHeader = () => {
@@ -331,7 +340,10 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
     photos.forEach(key => {
       const im = photoMap.get(key);
       const dispW = boxW;
-      const dispH = Math.min(maxH, boxW * (im.h / im.w));
+      // A zero or missing width makes this NaN, and jsPDF throws on a NaN
+      // dimension — one odd photo taking the whole export down with it.
+      const ratio = im.w > 0 && im.h > 0 ? im.h / im.w : 0.75;
+      const dispH = Math.min(maxH, boxW * ratio);
       if (x + dispW > rightEdge) { x = 14; y += rowH + 4; rowH = 0; }
       if (y + dispH > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; x = 14; rowH = 0; }
       doc.addImage(im.dataUrl, 'JPEG', x, y, dispW, dispH);
@@ -445,6 +457,7 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   });
 
   doc.save(`${globalData.customer || 'ishida'}-dashboard.pdf`);
+  return photoStats;
 };
 
 // Renders the line report onto the current page of `doc` (so it can be merged with other sections)
@@ -861,6 +874,7 @@ const AppContent = () => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [exportingPhotos, setExportingPhotos] = useState(false);
 
   // Cloud autosave status for the currently-loaded visit
   const [cloudState, setCloudState] = useState('idle'); // idle | saving | saved | error
@@ -3146,19 +3160,54 @@ const AppContent = () => {
             </button>
             <ul className="dropdown-menu">
               <li>
-                <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => exportDashboardToPDF(lines, globalData)}>
+                <button
+                  className="dropdown-item d-flex align-items-center gap-2"
+                  onClick={async () => {
+                    try {
+                      await exportDashboardToPDF(lines, globalData);
+                    } catch (err) {
+                      console.error('Export failed:', err);
+                      toast.error(`Could not export the PDF: ${err?.message || err}`);
+                    }
+                  }}
+                >
                   <FileText className="w-4 h-4" /> Dashboard PDF
                 </button>
               </li>
               <li>
                 <button
                   className="dropdown-item d-flex align-items-center gap-2"
+                  disabled={exportingPhotos}
                   onClick={async () => {
+                    // Nothing caught this before. Every way the export could
+                    // fail — a photo the broker would not serve, a stalled
+                    // request, a bad image — ended as an unhandled rejection:
+                    // a toast saying photos were loading, then silence, and no
+                    // PDF. The failure has to reach the person who clicked.
+                    setExportingPhotos(true);
                     toast.success('Loading photos into PDF…');
-                    await exportDashboardToPDF(lines, globalData, true);
+                    try {
+                      const stats = await exportDashboardToPDF(lines, globalData, true);
+                      if (stats && stats.requested > stats.embedded) {
+                        // The PDF still saved. Say what is missing from it
+                        // rather than letting it look complete.
+                        toast.error(
+                          `PDF saved, but ${stats.requested - stats.embedded} of ${stats.requested} photos could not be loaded.`
+                        );
+                      } else if (stats && stats.requested === 0) {
+                        toast.success('PDF saved — no photos on this visit.');
+                      } else {
+                        toast.success(`PDF saved with ${stats?.embedded ?? 0} photo${stats?.embedded === 1 ? '' : 's'}.`);
+                      }
+                    } catch (err) {
+                      console.error('Export with photos failed:', err);
+                      toast.error(`Could not export the PDF: ${err?.message || err}`);
+                    } finally {
+                      setExportingPhotos(false);
+                    }
                   }}
                 >
-                  <FileText className="w-4 h-4" /> Dashboard PDF (with Photos)
+                  <FileText className="w-4 h-4" /> {exportingPhotos ? 'Building PDF…' : 'Dashboard PDF (with Photos)'}
                 </button>
               </li>
               <li>

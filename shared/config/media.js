@@ -24,13 +24,38 @@ export const usingBroker = () => !!MEDIA_BROKER_BASE;
 
 const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
 
+// A fetch that is guaranteed to finish.
+//
+// A bare fetch() waits forever. That is survivable for one photo on screen —
+// it just never appears — but the PDF export awaits Promise.all over every
+// photo, so ONE stalled request hangs the whole export with no error, no PDF
+// and nothing on screen after "Loading photos into PDF…". A request that
+// cannot be answered has to become a failure, because a failure can be
+// reported and a hang cannot.
+const MEDIA_TIMEOUT_MS = 20000;
+
+const fetchWithTimeout = async (url, init = {}, ms = MEDIA_TIMEOUT_MS) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`media timed out after ${Math.round(ms / 1000)}s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 // Fetch one object through the broker and return an object URL for it.
 // Callers MUST revoke the returned URL when done (see useAuthedMedia).
 export async function fetchAuthedMedia(path) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error('not signed in');
   const idToken = await user.getIdToken();       // refreshes automatically when stale
-  const res = await fetch(`${MEDIA_BROKER_BASE}/a/${encodePath(path)}`, {
+  const res = await fetchWithTimeout(`${MEDIA_BROKER_BASE}/a/${encodePath(path)}`, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!res.ok) throw new Error(`media ${res.status}`);
@@ -44,7 +69,7 @@ export async function fetchAuthedDataUrl(path) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error('not signed in');
   const idToken = await user.getIdToken();
-  const res = await fetch(`${MEDIA_BROKER_BASE}/a/${encodePath(path)}`, {
+  const res = await fetchWithTimeout(`${MEDIA_BROKER_BASE}/a/${encodePath(path)}`, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!res.ok) throw new Error(`media ${res.status}`);
