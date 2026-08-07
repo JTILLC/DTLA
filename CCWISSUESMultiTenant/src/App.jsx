@@ -875,6 +875,12 @@ const AppContent = () => {
   //   null while loading; { admin:false, customerId:null } if no role doc (no access)
   const [role, setRole] = useState(null);
   const [roleLoaded, setRoleLoaded] = useState(false);
+  // Whether the role LOOKUP failed, as opposed to coming back empty. Those are
+  // different problems with different fixes and they were rendering the same
+  // screen: "you have no access yet" is a setup task, "we couldn't read your
+  // access" is a rules or network fault, and telling someone the first when it
+  // is the second sends them to the wrong person.
+  const [roleError, setRoleError] = useState('');
   const isAdmin = !!role?.admin;
   const scopedCustomerId = !isAdmin ? (role?.customerId || null) : null;
 
@@ -2188,8 +2194,9 @@ const AppContent = () => {
 
   // Load the signed-in user's multi-tenant role from app_roles/{uid}.
   useEffect(() => {
-    if (!user) { setRole(null); setRoleLoaded(false); return; }
+    if (!user) { setRole(null); setRoleLoaded(false); setRoleError(''); return; }
     let active = true;
+    setRoleError('');
     firebase.firestore().collection('app_roles').doc(user.uid).get()
       .then((doc) => {
         if (!active) return;
@@ -2200,6 +2207,7 @@ const AppContent = () => {
         console.error('Failed to load role:', err);
         if (!active) return;
         setRole({ admin: false, customerId: null });
+        setRoleError(err?.message || 'Could not read your access.');
         setRoleLoaded(true);
       });
     return () => { active = false; };
@@ -3017,12 +3025,23 @@ const AppContent = () => {
   if (roleLoaded && !isAdmin && !scopedCustomerId) {
     return (
       <div className="text-center p-5">
-        <h4 className="mb-3">Account not set up yet</h4>
-        <p className="text-muted">
-          You're signed in as <strong>{user.email}</strong>, but this account hasn't been
-          granted access to a customer yet. Send JTI the ID below and they can
-          finish setup in a moment.
-        </p>
+        <h4 className="mb-3">{roleError ? "Couldn't check your access" : 'Account not set up yet'}</h4>
+        {roleError ? (
+          <p className="text-muted">
+            You're signed in as <strong>{user.email}</strong>, but reading this account's
+            access failed — so this is not necessarily a setup problem. Worth a retry
+            before anything else.
+            <br />
+            <span className="small font-monospace text-danger">{roleError}</span>
+          </p>
+        ) : (
+          <p className="text-muted">
+            You're signed in as <strong>{user.email}</strong>, and that account has no
+            access record yet — access here is granted per account, so having a login
+            is not the same as having access. Send JTI the ID below and they can
+            finish setup in a moment.
+          </p>
+        )}
 
         {/* The account ID, shown because linking an account needs it and the
             person staring at this screen is the only one who can see it. It was
