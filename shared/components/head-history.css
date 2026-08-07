@@ -29,6 +29,12 @@
 }
 .hh-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
+/* Reading a head's past is not editing it. While a JTI visit is open the whole
+   lines area is set `pointer-events: none` to stop edits, which also swallowed
+   the click on this button — the one control on a read-only screen that is
+   supposed to work. A descendant can opt back in. */
+.hh-btn { pointer-events: auto; }
+
 /* A head with prior faults is worth noticing before you open anything, so the
    button carries the weight rather than staying uniform. */
 .hh-btn--has {

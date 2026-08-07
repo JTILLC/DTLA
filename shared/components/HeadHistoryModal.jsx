@@ -13,6 +13,7 @@
 // So it moves to a button on the head itself and opens over the top, the way
 // the Shearers logger does it. Nothing is recomputed: same buildHeadIssueHistory,
 // same entries, more of each one shown.
+import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '../utils/useBodyScrollLock.js';
 import './line-issues.css';
 import './head-history.css';
@@ -36,8 +37,19 @@ const when = (iso) => {
 export default function HeadHistoryModal({ lineTitle, headNo, history = [], onClose }) {
   useBodyScrollLock(true);
 
-  return (
-    <>
+  // Rendered into <body> rather than where it sits in the tree.
+  //
+  // It is a child of Line, and Line is inside the wrapper that goes
+  // `pointer-events: none; opacity: .7` while a JTI visit is being read. That
+  // wrapper is meant to stop edits, but it also dimmed this modal to 70% and
+  // swallowed every click in it — including Close. Reading history is not
+  // editing, so it does not belong inside the thing that blocks editing.
+  //
+  // A portal also settles the position: `fixed` resolves against the viewport
+  // instead of any ancestor that happens to carry a transform or a filter,
+  // which is what puts a modal off-screen on a phone.
+  return createPortal(
+    (<>
       <div className="modal-backdrop fade show" onClick={onClose} />
       <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true"
            aria-label={`History for head ${headNo}`}>
@@ -96,6 +108,7 @@ export default function HeadHistoryModal({ lineTitle, headNo, history = [], onCl
           </div>
         </div>
       </div>
-    </>
+    </>),
+    document.body,
   );
 }
