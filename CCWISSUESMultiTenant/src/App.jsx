@@ -22,7 +22,7 @@ async function ensurePdfLibs() {
   autoTable = typeof fn === 'function' ? fn : (fn?.default || fn);
 }
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash, Lock } from 'lucide-react';
+import { Save, CloudUpload, CloudDownload, Copy, RefreshCw, Trash2, Edit3, Plus, Download, Upload, FileText, History, Settings, Eye, HelpCircle, Factory, List, Share2, Hash, Lock, User } from 'lucide-react';
 import ShareModal from '@shared/components/ShareModal.jsx';
 import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -3195,6 +3195,24 @@ const AppContent = () => {
           padding: 0.55rem 0.85rem;
           white-space: nowrap;
         }
+        .acct-badge {
+          background: var(--bg-secondary);
+          color: var(--text-secondary);
+          border: 1px solid var(--border-color);
+          font-weight: 600;
+          max-width: 260px;
+          overflow: hidden;
+        }
+        .acct-badge .acct-who {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        /* The address is the confirmation; the role is the answer. On a narrower
+           toolbar the address goes and the role stays. */
+        @media (max-width: 1200px) {
+          .acct-badge .acct-email { display: none; }
+        }
         /* Below 900px: drop text labels, keep icon-only buttons + tooltips */
         @media (max-width: 900px) {
           .control-bar {
@@ -3400,6 +3418,28 @@ const AppContent = () => {
                   : cloudState === 'error'
                   ? '⚠ Offline — will retry'
                   : `✓ Saved${lastSavedAt ? ' ' + lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`}
+              </span>
+            )}
+
+            {/* WHICH ACCOUNT this browser is signed in as.
+                Not the same question as the PIN badge beside it: that says who
+                is logging entries right now, this says whose login the app is
+                running under. Nothing on screen answered the second one, and
+                the difference matters — a plant login and JTI's own account see
+                different data, and working out which you were took a support
+                conversation. The role is spelled out rather than implied,
+                because "admin" of the Firebase project and admin in here are
+                unrelated things that share a word. */}
+            {user && (
+              <span
+                className="badge d-inline-flex align-items-center gap-1 acct-badge"
+                title={`Signed in as ${user.email}${isAdmin ? ' — JTI account, sees every customer' : currentCustomer?.name ? ` — plant login for ${currentCustomer.name}` : ' — plant login'}`}
+              >
+                <User className="w-4 h-4" />
+                <span className="btn-label acct-who">
+                  {isAdmin ? 'JTI' : (currentCustomer?.name || 'Plant')}
+                  <span className="acct-email"> · {user.email}</span>
+                </span>
               </span>
             )}
 
