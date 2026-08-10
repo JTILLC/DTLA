@@ -69,3 +69,31 @@
   .pin-session-lede { display: none; }
   .pin-session-off span { display: none; }
 }
+
+/* The 12ch cap above exists to stop an arbitrary NAME shoving the sign-off
+   button off a phone. This state is a fixed phrase, not user data, so capping
+   it just truncates a sentence we wrote ourselves. */
+.pin-session--none .pin-session-label strong { max-width: none; }
+
+/* Nobody signed in. Quiet on purpose — it is a statement of fact, not a
+   warning: plenty of work at a plant does not need a PIN, and a badge that
+   nags about it would be trained out within a shift. */
+.pin-session--none {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+.pin-session--none .pin-session-icon { opacity: 0.7; }
+
+/* The role, which is the part that decides what happens next. Set apart from
+   the name so it reads as a fact about them rather than part of it. */
+.pin-session-role {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-card, rgba(0,0,0,0.06));
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
