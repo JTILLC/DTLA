@@ -4567,6 +4567,9 @@ const AppContent = () => {
                 currentVisitId={currentVisitId}
                 user={user}
                 readOnly={readOnly}
+                /* Recorded on the layout, so a plant opening one JTI plotted
+                   for them is told so rather than left guessing. */
+                author={isAdmin ? 'JTI' : (currentCustomer?.name || 'Plant')}
                 onNavigateToLine={(lineId) => {
                   setActiveLineId(lineId);
                   setShowDashboardView(false);

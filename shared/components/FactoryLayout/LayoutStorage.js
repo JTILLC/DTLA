@@ -66,9 +66,18 @@ export const pickAdoptableLayout = (docs = []) => {
   return [...candidates].sort((a, b) => when(b) - when(a))[0];
 };
 
+// updatedAt/updatedBy are kept on the loaded layout: they say who drew this and
+// when, and the timestamp is the baseline a later save is checked against.
 const clean = (data) => {
-  const { _isVisitSpecific, _visitId, updatedAt, ...rest } = data || {};
-  return { ...DEFAULT_LAYOUT, ...rest, canvasSettings: { ...DEFAULT_LAYOUT.canvasSettings } };
+  const { _isVisitSpecific, _visitId, ...rest } = data || {};
+  return {
+    ...DEFAULT_LAYOUT,
+    ...rest,
+    canvasSettings: { ...DEFAULT_LAYOUT.canvasSettings },
+    updatedAt: data?.updatedAt || null,
+    updatedBy: data?.updatedBy || null,
+    rev: data?.rev ?? null,
+  };
 };
 
 /**
@@ -89,27 +98,84 @@ export const loadLayout = async (userId, customerId) => {
     const adopted = pickAdoptableLayout(snap.docs.map((d) => ({ id: d.id, data: d.data() })));
     if (!adopted) return doc.exists ? clean(doc.data()) : { ...DEFAULT_LAYOUT };
 
+    // Adopt once; next load finds it as the plant's own. Whoever drew it keeps
+    // the credit — adoption is a move, not a new drawing.
     const layout = clean(adopted.data);
-    await saveLayout(userId, customerId, layout);   // adopt once; next load finds it here
-    return layout;
+    const written = await saveLayout(userId, customerId, layout, { author: layout.updatedBy, force: true });
+    return { ...layout, rev: written?.rev ?? null, updatedAt: written?.updatedAt ?? layout.updatedAt };
   } catch (error) {
     console.error('Error loading factory layout:', error);
     return { ...DEFAULT_LAYOUT };
   }
 };
 
-/** Save the plant's layout. */
-export const saveLayout = async (userId, customerId, layout) => {
+/**
+ * Save the plant's layout.
+ *
+ * One document now has two authors: JTI plots a floor for a plant, and the
+ * plant may then adjust it. Whoever saves last would otherwise win outright,
+ * so a save carries the timestamp it was working from. If the stored layout has
+ * moved on since, this refuses rather than overwrites and hands back the newer
+ * copy — losing an afternoon of somebody's plotting to a stray drag is not a
+ * trade the app gets to make on its own.
+ *
+ * `author` is a display name ('JTI', or the plant's), recorded so the screen
+ * can say where the layout came from.
+ *
+ * The version token is a counter, not the timestamp. Timestamps come from each
+ * client's own clock and only have millisecond resolution, so two saves close
+ * together can carry the SAME stamp — and a guard that compares stamps would
+ * wave the second one straight through, which is the exact case it exists to
+ * catch. A counter incremented inside the transaction cannot collide.
+ *
+ * Returns { ok, rev } on success, or { ok: false, conflict: true, theirs } when
+ * the stored copy has moved on. Pass force to overwrite deliberately.
+ */
+export const saveLayout = async (userId, customerId, layout, options = {}) => {
+  const { author = null, baseRev = null, force = false } = options;
+  const ref = getLayoutRef(userId, customerId);
+  const { _isVisitSpecific, _visitId, updatedAt, updatedBy, rev, ...layoutData } = layout || {};
+
+  const stamp = (nextRev) => ({
+    ...layoutData,
+    rev: nextRev,
+    updatedAt: new Date().toISOString(),
+    updatedBy: author,
+  });
+
   try {
-    const { _isVisitSpecific, _visitId, ...layoutData } = layout || {};
-    await getLayoutRef(userId, customerId).set({
-      ...layoutData,
-      updatedAt: new Date().toISOString()
+    if (force || baseRev === null) {
+      // No baseline to check against: a first write, an adoption, or somebody
+      // who has already been asked and said replace it.
+      let written;
+      await firebase.firestore().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        written = stamp(((snap.exists && snap.data()?.rev) || 0) + 1);
+        tx.set(ref, written);
+      });
+      return { ok: true, rev: written.rev, updatedAt: written.updatedAt };
+    }
+
+    let conflict = null;
+    let written = null;
+    await firebase.firestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const theirs = snap.exists ? snap.data() : null;
+      // A missing rev means nobody has saved since this document was last
+      // written by an older build — not a clash.
+      if (theirs?.rev != null && theirs.rev !== baseRev) {
+        conflict = clean(theirs);
+        return;
+      }
+      written = stamp((theirs?.rev || 0) + 1);
+      tx.set(ref, written);
     });
-    return true;
+
+    if (conflict) return { ok: false, conflict: true, theirs: conflict };
+    return { ok: true, rev: written?.rev ?? null, updatedAt: written?.updatedAt ?? null };
   } catch (error) {
     console.error('Error saving factory layout:', error);
-    return false;
+    return { ok: false, error };
   }
 };
 

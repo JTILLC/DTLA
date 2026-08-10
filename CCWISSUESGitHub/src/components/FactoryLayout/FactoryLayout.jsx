@@ -21,7 +21,11 @@ const FactoryLayout = ({
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  // JTI is the one plotting floors here, so this side opens ready to draw.
   const [isEditMode, setIsEditMode] = useState(true);
+  // The revision this screen is working from, so a save can tell whether the
+  // plant has changed the layout underneath it.
+  const baseRevRef = useRef(null);
   const saveTimeoutRef = useRef(null);
 
   // Load layout when customer or visit changes
@@ -34,7 +38,10 @@ const FactoryLayout = ({
 
     setIsLoading(true);
     loadLayout(user.uid, currentCustomer.id)
-      .then(setLayout)
+      .then((loaded) => {
+        setLayout(loaded);
+        baseRevRef.current = loaded.rev ?? null;
+      })
       .finally(() => setIsLoading(false));
     // Deliberately not keyed on the open log: the floor does not change
     // because somebody opened a different one.
@@ -51,11 +58,38 @@ const FactoryLayout = ({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
 
-      await saveLayout(user.uid, currentCustomer.id, newLayout);
+      // Plotted as JTI. The plant sees the same document and may adjust it, so
+      // a save that would land on top of newer work asks first.
+      const res = await saveLayout(user.uid, currentCustomer.id, newLayout, {
+        author: 'JTI',
+        baseRev: baseRevRef.current,
+      });
+
+      if (res?.conflict) {
+        const whose = res.theirs?.updatedBy || 'The plant';
+        const keepMine = await dialog.confirm(
+          `${whose} changed this layout while you had it open.\n\n`
+          + 'Keep your version and replace theirs, or discard your changes and load theirs?',
+          { title: 'Layout changed elsewhere', confirmText: 'Keep mine', cancelText: 'Load theirs', variant: 'warning' },
+        );
+        if (keepMine) {
+          const forced = await saveLayout(user.uid, currentCustomer.id, newLayout, { author: 'JTI', force: true });
+          baseRevRef.current = forced?.rev ?? null;
+          toast.success('Your layout is saved.');
+        } else {
+          setLayout(res.theirs);
+          baseRevRef.current = res.theirs?.rev ?? null;
+          toast.info(`Loaded ${whose}'s layout.`);
+        }
+      } else if (res?.ok) {
+        baseRevRef.current = res.rev ?? null;
+      } else {
+        toast.error('Could not save the layout — it may not have reached the cloud.');
+      }
 
       setIsSaving(false);
     }, 500);
-  }, [user, currentCustomer]);
+  }, [user, currentCustomer, dialog, toast]);
 
   // Update layout and trigger auto-save
   const handleUpdateLayout = useCallback((newLayout) => {

@@ -29,6 +29,7 @@ import LoginScreen from './components/LoginScreen.jsx';
 import { ToastProvider, AlertShim, useToast } from '@shared/components/Toast.jsx';
 import VisitsSidebar from './components/VisitsSidebar.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
+import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import BackfillPanel from './components/BackfillPanel.jsx';
 import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
@@ -2964,6 +2965,9 @@ const AppContent = () => {
 
   return (
     <div className="container-fluid p-0">
+      {/* A tab left open for a week keeps running the build it opened with.
+          This is what tells somebody the screen in front of them is old. */}
+      <UpdateBanner />
       {/* Offline status indicator */}
       <OfflineIndicator pendingPhotos={pendingPhotos} />
 

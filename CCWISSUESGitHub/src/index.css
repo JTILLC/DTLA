@@ -593,13 +593,16 @@ h1, h3 {
   animation: pulse 1.5s infinite;
 }
 
-.layout-scope-indicator {
-  background: #17a2b8;
-  color: white;
-  padding: 4px 12px;
-  font-size: 0.75rem;
+/* Where the floor plan came from. Quiet — it is context, not a warning. */
+.layout-provenance {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 5px 12px;
+  font-size: 0.78rem;
   text-align: center;
 }
+.layout-provenance strong { color: var(--text-primary); }
 
 /* Layout Toolbar */
 .layout-toolbar {
