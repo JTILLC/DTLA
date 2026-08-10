@@ -84,7 +84,16 @@ export default function SetupLinesModal({
       return;
     }
     if (added.length === 0 && !orderChanged(lines, draft)) { onClose(); return; }
-    onSave(draft);
+    // Close only once the save has actually been handed over. If it throws,
+    // the modal stays open holding the work and says so — closing on a failed
+    // save is how a list of lines somebody just typed disappears with no trace
+    // of where it went.
+    try {
+      onSave(draft);
+    } catch (err) {
+      setError(`Could not save these lines: ${err?.message || err}. Nothing was lost — try Done again.`);
+      return;
+    }
     onClose();
   };
 
