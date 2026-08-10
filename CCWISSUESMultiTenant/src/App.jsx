@@ -57,6 +57,7 @@ import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
 import PinSession from '@shared/components/PinSession.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
+import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { screenGate, tierOf, TIER, TIER_LABEL } from '@shared/utils/screenAccess.js';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
@@ -1104,20 +1105,21 @@ const AppContent = () => {
   // this app writes dailyLogs, and a visit lives in another collection that the
   // plant's rules refuse in writing. An editor that appeared to accept changes
   // and then dropped them would be worse than one that says it is read-only.
+  //
+  // That — a JTI visit, reached through viewingJtiId — is the ONLY read-only
+  // case. There used to be a second one: a dailyLog with no `shift` on it was
+  // taken for "one of JTI's records in the same collection" and refused. It is
+  // not. JTI's visits live in the `visits` collection, and the security rules
+  // let a plant write every collection under its own customer except that one,
+  // shift or no shift. So the check refused writes the database would have
+  // accepted — and because only the autosave believed it, the screen stayed
+  // editable and dropped every save in silence. That is the bug behind "I add
+  // lines and they don't save": an older log with no shift field was a
+  // permanent, invisible dead end.
   const readOnlyRef = useRef(false);
-  const [logUnsaveable, setLogUnsaveable] = useState(false);
   useEffect(() => {
-    const lv = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
-    // A plant cannot write a log with no shift on it — that is one of JTI's
-    // records living in the same collection.
-    const blocked = !isAdmin && !!lv && !lv.shift;
-    readOnlyRef.current = !!viewingJtiId || blocked;
-    // Surfaced, because this used to be the autosave's private opinion: the
-    // screen stayed fully editable, lines could be added, chips appeared — and
-    // every save was dropped on the floor without a word. Work that looks
-    // accepted and is not is worse than work that is refused.
-    setLogUnsaveable(blocked);
-  }, [visits, currentVisitId, isAdmin, viewingJtiId]);
+    readOnlyRef.current = !!viewingJtiId;
+  }, [viewingJtiId]);
 
   // The crew roster, so a destructive action can be authorised by a named
   // person rather than by a secret the whole plant shares.
@@ -3291,17 +3293,18 @@ const AppContent = () => {
     );
   }
 
-  // A "JTI visit" (a service visit logged by JTI) has no shift. For customer
-  // logins those are view-only so they can see what JTI did without altering it.
-  const loadedVisitObj = currentVisitId ? visits.find(v => v.id === currentVisitId) : null;
-  const isJtiVisit = !!loadedVisitObj && !loadedVisitObj.shift;
   // Viewing one of JTI's own visits is read-only for everyone, including JTI:
   // this app writes dailyLogs, and the visit lives elsewhere.
+  //
+  // A missing `shift` used to mark a log as JTI's and lock a plant out of it.
+  // It never meant that — see readOnlyRef above — and it made older logs
+  // silently unwritable. One rule, one source, and it matches what the
+  // database will actually accept.
   const viewedJtiVisit = viewingJtiId ? jtiVisits.find(v => v.id === viewingJtiId) : null;
   const barName = viewingJtiId
     ? (viewedJtiVisit?.visitName || viewedJtiVisit?.name || 'JTI service visit')
     : (currentVisitName || 'Untitled log');
-  const readOnly = !!viewingJtiId || (!isAdmin && isJtiVisit) || logUnsaveable;
+  const readOnly = !!viewingJtiId;
 
   // "What's down" summary for the loaded log: an offline head still needs
   // attention unless all its issues are marked Fixed (Fixed = running/working).
@@ -3318,6 +3321,9 @@ const AppContent = () => {
 
   return (
     <div className="container-fluid p-0">
+      {/* A tab left open for a week keeps running the build it opened with.
+          This is what tells somebody the screen in front of them is old. */}
+      <UpdateBanner />
       {/* Offline status indicator */}
       <OfflineIndicator pendingPhotos={pendingPhotos} />
 
@@ -4267,21 +4273,9 @@ const AppContent = () => {
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
-            {/* The log the app will not write to. Said plainly and at the top,
-                because the alternative — which is what happened — is somebody
-                adding four lines, watching them appear, and losing them. */}
-            {logUnsaveable && (
-              <div className="alert alert-danger d-flex flex-wrap align-items-center gap-2 py-2">
-                <span>
-                  <strong>This log can't be edited.</strong> It has no shift recorded, so it belongs to
-                  JTI rather than to the plant — anything added here would not be saved. Start a log for
-                  this shift and it will be yours to fill in.
-                </span>
-                <button type="button" className="btn btn-sm btn-primary ms-auto" onClick={() => setShowNewLogModal(true)}>
-                  Start a log for this shift
-                </button>
-              </div>
-            )}
+            {/* The "this log can't be edited" banner that stood here is gone
+                with the rule that produced it: a plant's own log is always
+                theirs to write, whether or not a shift was recorded on it. */}
 
             {shiftEndedAt && !readOnly && (
               <div className="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2">

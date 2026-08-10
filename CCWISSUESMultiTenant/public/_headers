@@ -1,0 +1,26 @@
+# Which build a browser actually gets.
+#
+# index.html is the only file whose name never changes, and it is the file that
+# names every other one. Cached, it pins a browser to whatever build was current
+# when it was stored — the app keeps loading old JavaScript from a server that
+# has been serving the fix for hours, and there is nothing on screen to say so.
+#
+# That is not theoretical: a fix for lines not saving was deployed and verified
+# live, and the tablet under test kept running a build three deploys old.
+# Adding ?bust9=1 to the URL worked because a new query string is a new cache
+# key — which is the workaround, not the fix. This is the fix.
+#
+# The default (max-age=0, must-revalidate) is not enough on its own: it governs
+# the browser, while the copy being handed out is held at Cloudflare's edge.
+# no-store settles both.
+/
+  Cache-Control: no-store
+/index.html
+  Cache-Control: no-store
+
+# Everything under /assets is content-hashed by Vite — a changed file gets a new
+# name — so these can be kept forever and never revalidated. This is what pays
+# for the uncached HTML above: one small document is fetched each load, and the
+# megabytes behind it are not.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
