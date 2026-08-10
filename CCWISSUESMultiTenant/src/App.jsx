@@ -934,6 +934,41 @@ const AppContent = () => {
     }
   };
 
+  // The way back.
+  //
+  // A shift gets ended early, or sanitation is held up and the line keeps
+  // running. Without this the only options are to re-walk every line for no
+  // reason or to work around the app, and the second one is how a plant stops
+  // trusting it.
+  //
+  // Ending a shift asks for MORE checking, which is the safe direction and
+  // costs nothing if it was a mistake. Continuing removes a check that is
+  // currently required, so it takes a supervisor or Site Lead PIN and it is
+  // written down — the reopening stays on the record even though the boundary
+  // it cancels does not.
+  const continueShift = async () => {
+    if (!currentVisitId || !currentCustomer) return;
+    if (!(await requireDestructiveAuth('continue this shift'))) return;
+    const who = verifiedPerson?.name || (isAdmin ? 'JTI' : 'Plant staff');
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files').doc(WORKSPACE_UID)
+        .collection('customers').doc(currentCustomer.id)
+        .collection(DAILY_LOGS).doc(currentVisitId)
+        .set({
+          shiftEndedAt: null,
+          shiftEndedBy: null,
+          shiftReopenedAt: new Date().toISOString(),
+          shiftReopenedBy: who,
+        }, { merge: true });
+      toast.success('Shift continued — earlier pre-start checks count again');
+    } catch (err) {
+      console.error('Could not continue the shift:', err);
+      toast.error('Could not continue the shift: ' + err.message);
+    }
+  };
+
   const openSetupLines = async () => {
     // Adding or reordering lines describes the plant itself and everything
     // filed against it afterwards, so it takes the plant's own top role rather
@@ -1023,6 +1058,13 @@ const AppContent = () => {
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [editTimestamp, setEditTimestamp] = useState('');
   const [currentVisitId, setCurrentVisitId] = useState(null);
+
+  const currentLog = useMemo(
+    () => (currentVisitId ? visits.find((v) => v.id === currentVisitId) || null : null),
+    [visits, currentVisitId],
+  );
+  const shiftEndedAt = currentLog?.shiftEndedAt || null;
+
   // The customer whose log list has actually arrived from the subscription.
   // Distinguishes "no logs" from "not loaded yet" for the Current Log decision.
   const [visitsLoadedFor, setVisitsLoadedFor] = useState(null);
@@ -4169,9 +4211,23 @@ const AppContent = () => {
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
+            {shiftEndedAt && !readOnly && (
+              <div className="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2">
+                <span>
+                  <strong>Shift ended — handed to sanitation</strong>
+                  {currentLog?.shiftEndedBy ? ` by ${currentLog.shiftEndedBy}` : ''}
+                  {' '}at {new Date(shiftEndedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+                  {' '}Every line needs its pre-start walk again before it runs.
+                </span>
+                <button type="button" className="btn btn-sm btn-outline-dark ms-auto" onClick={continueShift}>
+                  Shift is continuing — undo
+                </button>
+              </div>
+            )}
+
             {lines.length > 0 && !readOnly && (
               <div className="d-flex justify-content-end align-items-center gap-2 mb-1">
-                {currentVisitId && (
+                {currentVisitId && !shiftEndedAt && (
                   <button type="button" className="btn btn-sm btn-outline-secondary" onClick={endShiftForSanitation}>
                     End shift → sanitation
                   </button>
