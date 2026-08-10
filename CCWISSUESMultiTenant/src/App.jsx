@@ -57,6 +57,7 @@ import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
 import PinSession from '@shared/components/PinSession.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
+import { screenGate, tierOf, TIER } from '@shared/utils/screenAccess.js';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
@@ -74,6 +75,8 @@ import photoQueue from '@shared/utils/photoQueue.js';
 import PlantLoginsPage from '@shared/components/PlantLoginsPage.jsx';
 import AdminLoginsPanel from '@shared/components/AdminLoginsPanel.jsx';
 import PinPrompt from '@shared/components/PinPrompt.jsx';
+import { hasPin } from '@shared/utils/pin.js';
+import { useVerifiedPerson } from '@shared/utils/useVerifiedPerson.js';
 import { subscribeCrew } from '@shared/services/logs.js';
 import { isSiteLead } from '@shared/utils/roles.js';
 import { chooseOpeningLog, logLabel, daysOld } from '@shared/utils/todaysLog.js';
@@ -877,7 +880,10 @@ const AppContent = () => {
   // rather than on every tap inside.
   const [showSetupLines, setShowSetupLines] = useState(false);
   const openSetupLines = async () => {
-    if (!(await requireDestructiveAuth('set up this plant\'s lines'))) return;
+    // Adding or reordering lines describes the plant itself and everything
+    // filed against it afterwards, so it takes the plant's own top role rather
+    // than any supervisor.
+    if (!(await requireSiteLeadAuth('set up this plant\'s lines'))) return;
     setShowSetupLines(true);
   };
 
@@ -1104,6 +1110,44 @@ const AppContent = () => {
   const updateLineStable = useCallback((updated) => {
     setLines(prev => prev.map(l => l.id === updated.id ? updated : l));
   }, []);
+
+  // Who the PIN session says is at this tablet. The stored record is only
+  // { id, name }, so the roster is what turns it into a role.
+  const { person: verifiedPerson, remember: rememberVerified } = useVerifiedPerson(currentCustomer?.id);
+
+  // A Site Lead PIN specifically. Building or reordering lines describes the
+  // plant itself and everything filed against it afterwards, so it is not a
+  // thing any supervisor should be able to wave through.
+  const requireSiteLeadAuth = useCallback(async (actionLabel = 'make this change') => {
+    if (isAdminRef.current) return true;
+    const leads = crewPeopleRef.current.filter((p) => isSiteLead(p) && p.pinHash);
+    if (!leads.length) {
+      toast.error('Building lines needs a Site Lead PIN. Set one on the Crew tab, or ask JTI to.');
+      return false;
+    }
+    return new Promise((resolve) => setPinGate({ actionLabel, resolve, siteLeadOnly: true }));
+  }, [toast]);
+
+  // Which screens this tablet may open, by the PIN currently active.
+  //
+  // Nothing is hidden. A tab above the active person's level asks for a PIN
+  // rather than disappearing, so an operator who needs Parts/Boards hands the
+  // tablet to maintenance instead of concluding the app cannot do it.
+  //
+  // JTI is exempt: a JTI account is not plant crew, and its limits live in the
+  // security rules rather than here.
+  const [screenGateReq, setScreenGateReq] = useState(null);
+  const activeCrewPerson = useMemo(
+    () => (verifiedPerson?.id ? crewPeople.find((p) => p.id === verifiedPerson.id) || null : null),
+    [verifiedPerson?.id, crewPeople],
+  );
+
+  const requestTab = useCallback((tab) => {
+    if (isAdmin) { setActiveTab(tab); return; }
+    const gate = screenGate(tab, activeCrewPerson, crewPeople, hasPin);
+    if (gate.action !== 'ask') { setActiveTab(tab); return; }
+    setScreenGateReq({ tab, need: gate.need, label: gate.label });
+  }, [isAdmin, activeCrewPerson, crewPeople]);
 
   const handleRemoveLine = useCallback(async (id) => {
     if (!(await requireDestructiveAuth('remove this line'))) return;
@@ -3589,9 +3633,11 @@ const AppContent = () => {
       {pinGate && (
         <PinPrompt
           customerId={currentCustomer?.id}
-          people={crewPeople.filter(canAuthorise)}
-          title="Supervisor or Site Lead"
-          message={`Enter a supervisor or Site Lead PIN to ${pinGate.actionLabel}.`}
+          people={crewPeople.filter(pinGate.siteLeadOnly ? (p) => isSiteLead(p) && p.pinHash : canAuthorise)}
+          title={pinGate.siteLeadOnly ? 'Site Lead' : 'Supervisor or Site Lead'}
+          message={pinGate.siteLeadOnly
+            ? `Enter a Site Lead PIN to ${pinGate.actionLabel}.`
+            : `Enter a supervisor or Site Lead PIN to ${pinGate.actionLabel}.`}
           onVerified={() => {
             // Deliberately not remembered as the person at this tablet: a
             // supervisor authorising one action must not leave the device
@@ -3605,6 +3651,26 @@ const AppContent = () => {
             setPinGate(null);
             done(false);
           }}
+        />
+      )}
+
+      {/* A screen above the active PIN's level. Unlike the action gate above,
+          the person who unlocks it BECOMES the person at this tablet: they are
+          not authorising one thing and walking away, they are taking the tablet
+          over, and everything logged next is theirs. */}
+      {screenGateReq && (
+        <PinPrompt
+          customerId={currentCustomer?.id}
+          people={crewPeople.filter((p) => tierOf(p) >= screenGateReq.need && hasPin(p))}
+          title={`${screenGateReq.label} PIN needed`}
+          message={`That screen is for ${screenGateReq.label} and above. Whoever unlocks it will be the name this tablet logs under.`}
+          onVerified={(person) => {
+            const { tab } = screenGateReq;
+            setScreenGateReq(null);
+            rememberVerified({ id: person.id, name: person.name });
+            setActiveTab(tab);
+          }}
+          onCancel={() => setScreenGateReq(null)}
         />
       )}
 
@@ -3902,7 +3968,7 @@ const AppContent = () => {
         <main className="workspace-main">
       <AppNav
         active={activeTab}
-        onSelect={setActiveTab}
+        onSelect={requestTab}
         counts={navCounts}
         groups={navGroups({ noun: 'log', extras: (!isAdmin && role?.customerId) ? [{ key: 'logins', title: 'Logins' }] : [] })}
       />
@@ -3916,7 +3982,7 @@ const AppContent = () => {
               customerId={currentCustomer?.id}
               lines={lines}
               visits={visits}
-              onGo={setActiveTab}
+              onGo={requestTab}
             />
           </div>
         </div>
