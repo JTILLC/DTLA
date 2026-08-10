@@ -1095,6 +1095,10 @@ const AppContent = () => {
   const isAdminRef = useRef(isAdmin);
   useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
 
+  // Is the person currently proven at this tablet a Site Lead? Set from an
+  // effect below, once the roster and the PIN session are both in scope.
+  const activeSiteLeadRef = useRef(null);
+
   // Backstop: never autosave a JTI service visit opened by a customer (view-only).
   // Looking at one of JTI's visits is view-only for EVERYONE here, JTI included:
   // this app writes dailyLogs, and a visit lives in another collection that the
@@ -1173,6 +1177,15 @@ const AppContent = () => {
   // as authorising this, and permission must not accumulate on a shared tablet.
   const requireDestructiveAuth = useCallback(async (actionLabel = 'make this change') => {
     if (isAdminRef.current) return true;
+    // A Site Lead who keyed their PIN a moment ago is not asked again.
+    //
+    // The gate used to ask every time, on the reasoning that identifying
+    // yourself is not the same as authorising this. That is right for a
+    // supervisor stepping in to approve somebody else's action — and wrong for
+    // the Site Lead setting the plant up, who was being asked to key a PIN for
+    // every line they added. The session is the proof, it is five minutes of
+    // inactivity long, and the header says whose it is the whole time.
+    if (activeSiteLeadRef.current) { touchVerified(); return true; }
     const eligible = crewPeopleRef.current.filter(canAuthorise);
     if (!eligible.length) {
       toast.error(
@@ -1210,13 +1223,14 @@ const AppContent = () => {
 
   // Who the PIN session says is at this tablet. The stored record is only
   // { id, name }, so the roster is what turns it into a role.
-  const { person: verifiedPerson, remember: rememberVerified } = useVerifiedPerson(currentCustomer?.id);
+  const { person: verifiedPerson, remember: rememberVerified, touch: touchVerified } = useVerifiedPerson(currentCustomer?.id);
 
   // A Site Lead PIN specifically. Building or reordering lines describes the
   // plant itself and everything filed against it afterwards, so it is not a
   // thing any supervisor should be able to wave through.
   const requireSiteLeadAuth = useCallback(async (actionLabel = 'make this change') => {
     if (isAdminRef.current) return true;
+    if (activeSiteLeadRef.current) { touchVerified(); return true; }
     const leads = crewPeopleRef.current.filter((p) => isSiteLead(p) && p.pinHash);
     if (!leads.length) {
       toast.error('Building lines needs a Site Lead PIN. Set one on the Crew tab, or ask JTI to.');
@@ -1238,6 +1252,10 @@ const AppContent = () => {
     () => (verifiedPerson?.id ? crewPeople.find((p) => p.id === verifiedPerson.id) || null : null),
     [verifiedPerson?.id, crewPeople],
   );
+
+  useEffect(() => {
+    activeSiteLeadRef.current = activeCrewPerson ? isSiteLead(activeCrewPerson) : null;
+  }, [activeCrewPerson]);
 
   const requestTab = useCallback((tab) => {
     if (isAdmin) { setActiveTab(tab); return; }
