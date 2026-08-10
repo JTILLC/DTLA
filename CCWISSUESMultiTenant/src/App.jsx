@@ -895,6 +895,45 @@ const AppContent = () => {
     toast.success(`${built.length} line${built.length === 1 ? '' : 's'} added`);
   };
 
+  // End of shift: the machines go to sanitation.
+  //
+  // This is the real boundary in a plant's day. Sanitation strips, washes and
+  // rebuilds them, so nothing checked before it still describes what is on the
+  // floor — which is what makes the next shift's pre-start walk compulsory
+  // rather than a reminder they can wave off. Recording the moment is what
+  // enforces it; there is no separate switch to forget to set.
+  const endShiftForSanitation = async () => {
+    if (!currentVisitId || !currentCustomer) return;
+    const openIssues = lines.reduce(
+      (n, l) => n + (l.heads || []).filter((h) => h.status === 'offline' || (h.issues || []).length).length, 0);
+
+    const ok = await dialog.confirm(
+      `Hand ${currentCustomer.name} over to sanitation and close this shift?\n\n`
+      + (openIssues
+        ? `${openIssues} head${openIssues === 1 ? '' : 's'} still logged — carry them over when the next shift starts and they stay on the record.\n\n`
+        : '')
+      + 'Every line will need its pre-start walk again before it runs, because sanitation will have had the machines.',
+      { title: 'End shift', confirmText: 'End shift' },
+    );
+    if (!ok) return;
+
+    // Attributed like anything else that changes the record — "who closed the
+    // shift" is exactly the sort of thing asked about the morning after.
+    const who = verifiedPerson?.name || (isAdmin ? 'JTI' : 'Plant staff');
+    try {
+      await firebase
+        .firestore()
+        .collection('user_files').doc(WORKSPACE_UID)
+        .collection('customers').doc(currentCustomer.id)
+        .collection(DAILY_LOGS).doc(currentVisitId)
+        .set({ shiftEndedAt: new Date().toISOString(), shiftEndedBy: who }, { merge: true });
+      toast.success('Shift ended — pre-start is required again before these lines run');
+    } catch (err) {
+      console.error('Could not end the shift:', err);
+      toast.error('Could not end the shift: ' + err.message);
+    }
+  };
+
   const openSetupLines = async () => {
     // Adding or reordering lines describes the plant itself and everything
     // filed against it afterwards, so it takes the plant's own top role rather
@@ -4131,7 +4170,12 @@ const AppContent = () => {
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
             {lines.length > 0 && !readOnly && (
-              <div className="d-flex justify-content-end mb-1">
+              <div className="d-flex justify-content-end align-items-center gap-2 mb-1">
+                {currentVisitId && (
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={endShiftForSanitation}>
+                    End shift → sanitation
+                  </button>
+                )}
                 <button type="button" className="btn btn-sm btn-link text-decoration-none" onClick={openSetupLines}>
                   Set up lines
                 </button>

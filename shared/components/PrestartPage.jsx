@@ -27,7 +27,7 @@ import {
   subscribePrestartTemplate, savePrestartTemplate, LOG_PRESTART,
 } from '../services/logs.js';
 import { PRESTART_PRESET, presetItems } from '../config/prestartPreset.js';
-import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, photoCount, allPhotos } from '../utils/prestart.js';
+import { lastHandoverAt, boardFor, outstandingLines, issueCount, buildSubmission, unanswered, photoCount, allPhotos } from '../utils/prestart.js';
 import PhotoStrip from './PhotoStrip.jsx';
 import { useToast } from './Toast.jsx';
 import { useDialog } from './DialogSystem.jsx';
@@ -122,7 +122,13 @@ export default function PrestartPage({
       .forEach((v) => (v.lines || []).forEach((l) => { if (l?.title) seen.add(l.title); }));
     return [...seen];
   }, [lines, visits]);
-  const board = useMemo(() => boardFor(lineTitles, entries), [lineTitles, entries]);
+  // Sanitation strips and rebuilds the machines, so checks signed before the
+  // last handover no longer describe what is on the floor.
+  const handoverAt = useMemo(() => lastHandoverAt(visits), [visits]);
+  const board = useMemo(
+    () => boardFor(lineTitles, entries, new Date(), handoverAt),
+    [lineTitles, entries, handoverAt],
+  );
   const outstanding = outstandingLines(board);
 
   // Same identity plumbing as every other log: who is filing, and may they file
