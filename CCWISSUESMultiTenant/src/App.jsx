@@ -57,7 +57,7 @@ import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
 import PinSession from '@shared/components/PinSession.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
-import { screenGate, tierOf, TIER } from '@shared/utils/screenAccess.js';
+import { screenGate, tierOf, TIER, TIER_LABEL } from '@shared/utils/screenAccess.js';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
@@ -3555,7 +3555,13 @@ const AppContent = () => {
             {/* Who this tablet is currently logging as, and how to hand over.
                 In the header rather than inside a form: the person who needs it
                 is the one who has just walked up, before they open anything. */}
-            <PinSession customerId={currentCustomer?.id} />
+            <PinSession
+              customerId={currentCustomer?.id}
+              roleLabel={activeCrewPerson
+                ? (isSiteLead(activeCrewPerson) ? 'Site Lead' : (TIER_LABEL[tierOf(activeCrewPerson)] || ''))
+                : ''}
+              anyoneCanSignIn={crewPeople.some(hasPin)}
+            />
             {currentVisitId && (
               <button
                 type="button"
