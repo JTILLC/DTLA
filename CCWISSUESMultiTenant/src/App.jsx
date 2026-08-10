@@ -3337,17 +3337,32 @@ const AppContent = () => {
           z-index: 1000;
           /* no overflow here — otherwise dropdown menus get clipped */
         }
-        /* Single-row toolbar. We override Bootstrap's .flex-wrap utility
-           (which uses !important) by targeting the class we apply ourselves. */
+        /* The toolbar wraps rather than overflows.
+           It used to be pinned to one row at every width above a phone, on the
+           assumption the contents would always fit. They stopped fitting when
+           the PIN badge arrived: the row ran off the right-hand edge, taking
+           the account badge and the whole overflow menu — Add Customer, logins,
+           the settings — off-screen with no scrollbar and no way back. A second
+           row is a much smaller cost than a button nobody can reach. */
         .control-bar .toolbar-row {
           display: flex !important;
-          flex-wrap: nowrap !important;
+          flex-wrap: wrap !important;
           gap: 6px;
           align-items: center;
           min-width: 0;
         }
         .control-bar .toolbar-row > * {
           flex: 0 0 auto;
+          min-width: 0;
+        }
+        /* The right-hand group takes the slack and wraps inside itself, so the
+           items that do fit stay on the first row against the right edge. */
+        .control-bar .toolbar-right {
+          flex: 1 1 auto;
+          min-width: 0;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          row-gap: 6px;
         }
         /* Buttons shouldn't expand to fill row */
         .control-bar .toolbar-row .btn {
@@ -3388,6 +3403,11 @@ const AppContent = () => {
           font-weight: 600;
           max-width: 260px;
           overflow: hidden;
+          /* Shrinks to an ellipsis before it will push anything off the row.
+             A truncated address still answers "which login is this?"; a gear
+             icon pushed past the edge answers nothing. */
+          flex: 0 1 auto;
+          min-width: 0;
         }
         .acct-badge .acct-who {
           overflow: hidden;
@@ -3427,12 +3447,11 @@ const AppContent = () => {
             margin-left: 4px;
           }
         }
-        /* Narrow phones (portrait): let the toolbar wrap onto multiple rows
-           instead of overflowing off-screen. The customer picker takes its own
-           full-width first row; the icon buttons flow onto the row(s) below. */
+        /* Narrow phones (portrait): the customer picker takes its own
+           full-width first row; the icon buttons flow onto the row(s) below.
+           (Wrapping itself is no longer conditional — see .toolbar-row above.) */
         @media (max-width: 640px) {
           .control-bar .toolbar-row {
-            flex-wrap: wrap !important;
             row-gap: 6px;
           }
           .control-bar .form-select-sm {
@@ -3577,7 +3596,7 @@ const AppContent = () => {
           </div>
 
           {/* Spacer pushes saving indicator + overflow menu to the right */}
-          <div className="ms-auto d-flex align-items-center gap-2">
+          <div className="toolbar-right ms-auto d-flex align-items-center gap-2">
             {/* Who this tablet is currently logging as, and how to hand over.
                 In the header rather than inside a form: the person who needs it
                 is the one who has just walked up, before they open anything. */}
