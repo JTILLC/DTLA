@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, allPhotos, photoCount } from './prestart.js';
+import { boardFor, outstandingLines, issueCount, buildSubmission, unanswered, allPhotos, photoCount, lastHandoverAt } from './prestart.js';
 
 const NOW = new Date(2026, 7, 3, 9, 0);            // Mon 3 Aug 2026, 09:00
 const at = (d, h = 6, m = 0) => new Date(2026, 7, d, h, m).toISOString();
@@ -145,5 +145,60 @@ describe('photos on a submission', () => {
   it('counts nothing for an entry with no photos', () => {
     expect(photoCount({ items: [{ label: 'x' }] })).toBe(0);
     expect(photoCount(null)).toBe(0);
+  });
+});
+
+
+// Sanitation is a boundary, not a nuisance. They strip, wash and rebuild the
+// machines, so a check signed before the wash-down was made against a machine
+// that no longer exists in that state — and two shifts plus a wash-down all
+// happen on one calendar day, which is why the day rule alone could not see it.
+describe('handover boundary', () => {
+  const at = (iso) => ({ lineTitle: 'Line 1', performedAt: iso, items: [] });
+  const now = new Date('2026-08-10T14:00:00');
+
+  it('counts a check made after the handover', () => {
+    const board = boardFor(['Line 1'], [at('2026-08-10T13:00:00')], now, '2026-08-10T12:00:00');
+    expect(board[0].doneToday).toBe(true);
+  });
+
+  it('stops counting a check made BEFORE the handover, same day', () => {
+    // 1st shift walked it at 06:00, sanitation had the machines at 12:00.
+    // 2nd shift must walk it again.
+    const board = boardFor(['Line 1'], [at('2026-08-10T06:00:00')], now, '2026-08-10T12:00:00');
+    expect(board[0].doneToday).toBe(false);
+  });
+
+  it('behaves as before when there has been no handover', () => {
+    expect(boardFor(['Line 1'], [at('2026-08-10T06:00:00')], now, null)[0].doneToday).toBe(true);
+    expect(boardFor(['Line 1'], [at('2026-08-10T06:00:00')], now)[0].doneToday).toBe(true);
+  });
+
+  it('still refuses a check from a previous day', () => {
+    expect(boardFor(['Line 1'], [at('2026-08-09T23:50:00')], now, null)[0].doneToday).toBe(false);
+  });
+
+  it('ignores an unparseable handover rather than blocking everything', () => {
+    expect(boardFor(['Line 1'], [at('2026-08-10T06:00:00')], now, 'not a date')[0].doneToday).toBe(true);
+  });
+});
+
+describe('lastHandoverAt', () => {
+  it('takes the most recent one', () => {
+    expect(lastHandoverAt([
+      { shiftEndedAt: '2026-08-10T06:00:00.000Z' },
+      { shiftEndedAt: '2026-08-10T14:00:00.000Z' },
+      { shiftEndedAt: '2026-08-09T22:00:00.000Z' },
+    ])).toBe('2026-08-10T14:00:00.000Z');
+  });
+
+  it('ignores logs that never ended, and deleted ones', () => {
+    expect(lastHandoverAt([{ id: 'a' }, { shiftEndedAt: null }])).toBeNull();
+    expect(lastHandoverAt([{ shiftEndedAt: '2026-08-10T14:00:00.000Z', deleted: true }])).toBeNull();
+  });
+
+  it('survives rubbish', () => {
+    expect(lastHandoverAt()).toBeNull();
+    expect(lastHandoverAt([{ shiftEndedAt: 'nonsense' }])).toBeNull();
   });
 });

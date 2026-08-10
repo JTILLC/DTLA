@@ -28,7 +28,21 @@ const byNewest = (a, b) => {
  * Returns [{ lineTitle, entry, doneToday }] in the order the lines were given,
  * so the board reads in the same order as everything else in the app.
  */
-export function boardFor(lines = [], entries = [], now = new Date()) {
+export function boardFor(lines = [], entries = [], now = new Date(), since = null) {
+  // `since` is the last time the plant handed the machines over — sanitation
+  // strips, washes and rebuilds them, so a check signed before that was made
+  // against a machine that no longer exists in that state. The day boundary
+  // alone could not see this: two shifts and a wash-down all happen on one
+  // calendar day, and the second shift was being told the walk was already
+  // done by people who had gone home.
+  const cut = since ? new Date(since).getTime() : null;
+  const stillCounts = (e) => {
+    const at = new Date(e?.performedAt).getTime();
+    if (Number.isNaN(at)) return false;
+    if (!isSameDay(e.performedAt, now)) return false;
+    return cut == null || Number.isNaN(cut) ? true : at > cut;
+  };
+
   const byLine = new Map();
   [...entries].sort(byNewest).forEach((e) => {
     const t = String(e?.lineTitle ?? '').trim();
@@ -41,10 +55,29 @@ export function boardFor(lines = [], entries = [], now = new Date()) {
     return {
       lineTitle,
       entry,
-      doneToday: !!entry && isSameDay(entry.performedAt, now),
+      // Named for the question it answers on screen — "does this still need
+      // walking?" — rather than for the calendar.
+      doneToday: !!entry && stillCounts(entry),
     };
   });
 }
+
+/**
+ * The most recent handover across a plant's logs, or null.
+ *
+ * Written when a shift is ended and the machines go to sanitation. Everything
+ * checked before it stops counting, which is what makes the next shift's walk
+ * compulsory rather than advisory.
+ */
+export const lastHandoverAt = (logs = []) => {
+  const times = logs
+    .filter((v) => !v?.deleted)
+    .map((v) => v?.shiftEndedAt)
+    .filter(Boolean)
+    .map((t) => new Date(t).getTime())
+    .filter((t) => !Number.isNaN(t));
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+};
 
 export const outstandingLines = (board = []) => board.filter((b) => !b.doneToday).map((b) => b.lineTitle);
 

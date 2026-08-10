@@ -11,7 +11,7 @@
 // writes, so this screen cannot drift out of step with them.
 import { useEffect, useMemo, useState } from 'react';
 import { linesFromHistory } from '../utils/linesFromHistory.js';
-import { boardFor, outstandingLines } from '../utils/prestart.js';
+import { boardFor, outstandingLines, lastHandoverAt } from '../utils/prestart.js';
 import {
   LOG_SPAN, LOG_PM, LOG_PRESTART, subscribeLog, dueStatus, sinceLabel,
 } from '../services/logs.js';
@@ -152,15 +152,18 @@ export default function OverviewPage({
   // Lines not yet walked today. The pre-start screen has always known this;
   // the Overview did not, so the one check a plant is meant to do every shift
   // was the one thing "Needs attention" never mentioned.
+  const handoverAt = useMemo(() => lastHandoverAt(visits), [visits]);
   const prestartOutstanding = useMemo(
-    () => outstandingLines(boardFor(lines, prestartLog)),
-    [lines, prestartLog],
+    () => outstandingLines(boardFor(lines, prestartLog, new Date(), handoverAt)),
+    [lines, prestartLog, handoverAt],
   );
   if (prestartOutstanding.length) {
     items.push({
-      sev: 'due',
+      sev: handoverAt ? 'critical' : 'due',
       title: `Pre-start not done on ${prestartOutstanding.length} line${prestartOutstanding.length === 1 ? '' : 's'}`,
-      detail: prestartOutstanding.join(' · '),
+      detail: handoverAt
+        ? `Sanitation had the machines — every line needs walking again. ${prestartOutstanding.join(' · ')}`
+        : prestartOutstanding.join(' · '),
       go: 'prestart', goLabel: 'Pre-Start',
     });
   }
