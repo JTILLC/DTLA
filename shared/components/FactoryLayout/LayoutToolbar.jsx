@@ -12,10 +12,6 @@ const LayoutToolbar = ({
   hasSelection,
   isEditMode,
   setIsEditMode,
-  layoutScope,
-  onSaveAsVisitLayout,
-  onUseDefaultLayout,
-  hasVisitLayout
 }) => {
   const tools = [
     { id: 'select', icon: MousePointer, label: 'Select', shortcut: 'V' },
@@ -115,30 +111,10 @@ const LayoutToolbar = ({
             </button>
           </div>
 
-          <div className="toolbar-divider" />
-
-          {/* Layout Scope */}
-          <div className="toolbar-group">
-            {hasVisitLayout ? (
-              <button
-                className="toolbar-btn"
-                onClick={onUseDefaultLayout}
-                title="Switch to default customer layout"
-              >
-                <Save size={18} />
-                <span className="toolbar-label">Use Default</span>
-              </button>
-            ) : (
-              <button
-                className="toolbar-btn"
-                onClick={onSaveAsVisitLayout}
-                title="Save this layout for current visit only"
-              >
-                <Save size={18} />
-                <span className="toolbar-label">Save for Visit</span>
-              </button>
-            )}
-          </div>
+          {/* The "Save for Visit" / "Use Default" switch that stood here is
+              gone. There is one layout per plant now — the floor plan is a
+              fact about the building, not about the log that happens to be
+              open — so there is no second place to save one. */}
         </>
       )}
 

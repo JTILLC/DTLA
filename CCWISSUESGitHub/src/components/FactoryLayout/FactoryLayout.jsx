@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import FactoryCanvas from '@shared/components/FactoryLayout/FactoryCanvas.jsx';
 import LayoutToolbar from '@shared/components/FactoryLayout/LayoutToolbar.jsx';
 import LineBoxPalette from '@shared/components/FactoryLayout/LineBoxPalette.jsx';
-import { loadLayout, saveDefaultLayout, saveVisitLayout, deleteVisitLayout, DEFAULT_LAYOUT } from '@shared/components/FactoryLayout/LayoutStorage.js';
+import { loadLayout, saveLayout, DEFAULT_LAYOUT } from '@shared/components/FactoryLayout/LayoutStorage.js';
 import { useToast } from '@shared/components/Toast.jsx';
 import { useDialog } from '@shared/components/DialogSystem.jsx';
 
@@ -22,7 +22,6 @@ const FactoryLayout = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(true);
-  const [hasVisitLayout, setHasVisitLayout] = useState(false);
   const saveTimeoutRef = useRef(null);
 
   // Load layout when customer or visit changes
@@ -34,13 +33,12 @@ const FactoryLayout = ({
     }
 
     setIsLoading(true);
-    loadLayout(user.uid, currentCustomer.id, currentVisitId)
-      .then((loaded) => {
-        setLayout(loaded);
-        setHasVisitLayout(loaded._isVisitSpecific || false);
-      })
+    loadLayout(user.uid, currentCustomer.id)
+      .then(setLayout)
       .finally(() => setIsLoading(false));
-  }, [user, currentCustomer, currentVisitId]);
+    // Deliberately not keyed on the open log: the floor does not change
+    // because somebody opened a different one.
+  }, [user, currentCustomer]);
 
   // Auto-save layout with debounce
   const saveLayoutDebounced = useCallback((newLayout) => {
@@ -53,16 +51,11 @@ const FactoryLayout = ({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
 
-      // Save to visit-specific or default based on current state
-      if (newLayout._isVisitSpecific && currentVisitId) {
-        await saveVisitLayout(user.uid, currentCustomer.id, currentVisitId, newLayout);
-      } else {
-        await saveDefaultLayout(user.uid, currentCustomer.id, newLayout);
-      }
+      await saveLayout(user.uid, currentCustomer.id, newLayout);
 
       setIsSaving(false);
     }, 500);
-  }, [user, currentCustomer, currentVisitId]);
+  }, [user, currentCustomer]);
 
   // Update layout and trigger auto-save
   const handleUpdateLayout = useCallback((newLayout) => {
@@ -126,50 +119,9 @@ const FactoryLayout = ({
     }
   }, [layout, handleUpdateLayout, dialog]);
 
-  // Save current layout as visit-specific
-  const handleSaveAsVisitLayout = useCallback(async () => {
-    if (!currentVisitId) {
-      toast.error('No active visit. Please make sure you have a current visit selected.');
-      return;
-    }
-
-    const confirmed = await dialog.confirm('Save this layout for the current visit only? This will create a separate layout that only applies to this visit.', {
-      title: 'Save Visit Layout',
-      confirmText: 'Save'
-    });
-    if (confirmed) {
-      const visitLayout = {
-        ...layout,
-        _isVisitSpecific: true,
-        _visitId: currentVisitId
-      };
-
-      setIsSaving(true);
-      await saveVisitLayout(user.uid, currentCustomer.id, currentVisitId, visitLayout);
-      setLayout(visitLayout);
-      setHasVisitLayout(true);
-      setIsSaving(false);
-    }
-  }, [layout, currentVisitId, user, currentCustomer, dialog, toast]);
-
-  // Revert to default layout (delete visit-specific)
-  const handleUseDefaultLayout = useCallback(async () => {
-    const confirmed = await dialog.confirm('Switch back to the default customer layout? This will delete the visit-specific layout.', {
-      title: 'Use Default Layout',
-      confirmText: 'Switch',
-      variant: 'warning'
-    });
-    if (confirmed) {
-      setIsSaving(true);
-      await deleteVisitLayout(user.uid, currentCustomer.id, currentVisitId);
-
-      // Reload default layout
-      const defaultLayout = await loadLayout(user.uid, currentCustomer.id, null);
-      setLayout(defaultLayout);
-      setHasVisitLayout(false);
-      setIsSaving(false);
-    }
-  }, [user, currentCustomer, currentVisitId, dialog]);
+  // The "Save for this visit" / "Use default" pair that stood here is gone:
+  // there is one layout per plant now, so there is no second place to put
+  // one and nothing to switch between.
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -237,16 +189,8 @@ const FactoryLayout = ({
         hasSelection={!!selectedId}
         isEditMode={isEditMode}
         setIsEditMode={setIsEditMode}
-        hasVisitLayout={hasVisitLayout}
-        onSaveAsVisitLayout={handleSaveAsVisitLayout}
-        onUseDefaultLayout={handleUseDefaultLayout}
       />
 
-      {hasVisitLayout && (
-        <div className="layout-scope-indicator">
-          Using visit-specific layout
-        </div>
-      )}
 
       <div className="factory-layout-content">
         {isEditMode && (
