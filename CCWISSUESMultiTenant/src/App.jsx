@@ -56,6 +56,8 @@ import { useBodyScrollLock } from '@shared/utils/useBodyScrollLock.js';
 import SpanAdjustPage from '@shared/components/SpanAdjustPage.jsx';
 import OpenLogCard from '@shared/components/OpenLogCard.jsx';
 import PinSession from '@shared/components/PinSession.jsx';
+import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
+import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
 import { withFreshIds } from '@shared/utils/importLines.js';
@@ -237,30 +239,6 @@ const loadPhotoForPdf = async (p) => {
 // value (which may be another editor's change). Deletions this client made are
 // honored; lines it newly added are appended. Only when BOTH edit the SAME line
 // in the same window does this fall back to this client's version.
-function mergeLinesArrays(baseline, local, remote) {
-  const ser = (l) => JSON.stringify(l);
-  const base = baseline || [];
-  const loc = local || [];
-  const rem = remote || [];
-  const baseSer = new Map(base.map((l) => [l.id, ser(l)]));
-  const baseIds = new Set(base.map((l) => l.id));
-  const locById = new Map(loc.map((l) => [l.id, l]));
-  const locIds = new Set(locById.keys());
-  const dirty = new Set(loc.filter((l) => ser(l) !== baseSer.get(l.id)).map((l) => l.id));
-  const removed = new Set(base.filter((l) => !locIds.has(l.id)).map((l) => l.id));
-
-  const out = [];
-  const placed = new Set();
-  rem.forEach((rl) => {
-    if (removed.has(rl.id)) return; // this client deleted it
-    placed.add(rl.id);
-    out.push(dirty.has(rl.id) && locById.has(rl.id) ? locById.get(rl.id) : rl);
-  });
-  loc.forEach((ll) => {
-    if (!placed.has(ll.id) && dirty.has(ll.id) && !baseIds.has(ll.id)) out.push(ll); // newly added
-  });
-  return out;
-}
 
 // Best-effort recursive delete of a Storage folder (compat SDK listAll only
 // returns one level, so recurse into child prefixes).
@@ -894,6 +872,14 @@ const AppContent = () => {
   // Dialog system for proper modals instead of window.prompt/alert
   const dialog = useDialog();
   const [showAddLineDialog, setShowAddLineDialog] = useState(false);
+  // Building and ordering lines. Gated like any other change to the record:
+  // an admin passes straight through, a plant is asked once on the way in
+  // rather than on every tap inside.
+  const [showSetupLines, setShowSetupLines] = useState(false);
+  const openSetupLines = async () => {
+    if (!(await requireDestructiveAuth('set up this plant\'s lines'))) return;
+    setShowSetupLines(true);
+  };
 
   // Daily-log creation: pick date (default today) + shift.
   const SHIFT_OPTIONS = ['1st Shift', '2nd Shift', '3rd Shift'];
@@ -4046,6 +4032,13 @@ const AppContent = () => {
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
+            {lines.length > 0 && !readOnly && (
+              <div className="d-flex justify-content-end mb-1">
+                <button type="button" className="btn btn-sm btn-link text-decoration-none" onClick={openSetupLines}>
+                  Set up lines
+                </button>
+              </div>
+            )}
             {lines.length > 0 && (
               <div className="line-chips" role="tablist" aria-label="Equipment lines">
                 {lines.map(line => (
@@ -4067,14 +4060,28 @@ const AppContent = () => {
             {/* A log with no lines and a JTI visit to take them from. This is
                 the state a plant is in on day one at a site JTI has serviced for
                 years — the equipment layout exists, just not in their app. */}
-            {currentVisitId && !readOnly && lines.length === 0 && jtiVisits.length > 0 && (
+            {currentVisitId && !readOnly && lines.length === 0 && (
               <div className="alert alert-info d-flex flex-wrap align-items-center gap-2">
                 <span>
-                  <strong>No lines on this log yet.</strong> JTI has this plant&apos;s lines on record.
+                  <strong>No lines on this log yet.</strong>{' '}
+                  {jtiVisits.length > 0
+                    ? "JTI has this plant's lines on record, or you can build them yourself."
+                    : 'Add them once and every log from here on starts with them.'}
                 </span>
-                <button type="button" className="btn btn-sm btn-primary ms-auto" onClick={() => setShowImportLines(true)}>
-                  <Download size={14} /> Add lines from a JTI visit
-                </button>
+                <div className="d-flex gap-2 ms-auto">
+                  {/* Building them yourself is offered even when JTI has a
+                      record to copy: a plant that has changed its floor since
+                      JTI last visited should not have to import a stale layout
+                      and then correct it. */}
+                  <button type="button" className="btn btn-sm btn-primary" onClick={openSetupLines}>
+                    <Plus size={14} /> Build your lines
+                  </button>
+                  {jtiVisits.length > 0 && (
+                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setShowImportLines(true)}>
+                      <Download size={14} /> Copy from a JTI visit
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -4715,6 +4722,20 @@ const AppContent = () => {
       )}
 
       {/* Dialog System (confirm/alert/prompt dialogs and toasts) */}
+      <SetupLinesModal
+        isOpen={showSetupLines}
+        lines={lines}
+        defaultHeadCount={DEFAULT_HEAD_COUNT}
+        onClose={() => setShowSetupLines(false)}
+        onSave={(next) => {
+          // Autosave watches `lines`, so the new order and any additions
+          // persist through the same path every other edit uses.
+          setLines(next);
+          if (!next.some((l) => l.id === activeLineId)) setActiveLineId(next[0]?.id ?? null);
+          toast.success('Lines updated');
+        }}
+      />
+
       {dialog.DialogComponent}
     </div>
   );
