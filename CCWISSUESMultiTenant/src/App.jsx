@@ -4794,6 +4794,12 @@ const AppContent = () => {
         defaultHeadCount={DEFAULT_HEAD_COUNT}
         onClose={() => setShowSetupLines(false)}
         onSave={(next) => {
+          if (!currentVisitId) {
+            // Lines live on a log. With none open there is nothing to save them
+            // into, and they would look added right up until the next render.
+            toast.error('Open today\'s log first — lines are saved with the log.');
+            return;
+          }
           // Autosave watches `lines`, so the new order and any additions
           // persist through the same path every other edit uses.
           setLines(next);

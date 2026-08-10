@@ -190,3 +190,16 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* The no-lines state carries an action, so it needs to lay out as a row rather
+   than as the single sentence the all-clear is. */
+.ccw-ov-nolines {
+  /* Not green: the stripe is the fastest thing read on this screen, and a
+     no-lines log is unset-up, not all-clear. */
+  border-left-color: var(--warning, #b8821a);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ccw-ov-nolines strong { color: var(--text-primary); }
