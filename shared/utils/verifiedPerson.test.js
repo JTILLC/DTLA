@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // hook needs a DOM to run, but the rule that matters — when a remembered
 // person lapses — is pure and worth pinning on its own.
 const KEY = 'ccw-verified-person:cust1';
-const IDLE_MS = 15 * 60 * 1000;
+const IDLE_MS = 5 * 60 * 1000;   // mirrors useVerifiedPerson.js
 
 const store = new Map();
 beforeEach(() => {
@@ -36,7 +36,7 @@ const touch = () => {
 
 describe('how long a confirmed person is remembered', () => {
   it('holds while someone is working', () => {
-    remember('J. Rodriguez', Date.now() - 5 * 60 * 1000);   // 5 minutes ago
+    remember('J. Rodriguez', Date.now() - 2 * 60 * 1000);   // 2 minutes ago
     expect(read()?.name).toBe('J. Rodriguez');
   });
 
@@ -54,7 +54,7 @@ describe('how long a confirmed person is remembered', () => {
   });
 
   it('is kept alive by use, so continuous work never re-prompts', () => {
-    remember('J. Rodriguez', Date.now() - 14 * 60 * 1000);  // nearly lapsed
+    remember('J. Rodriguez', Date.now() - (IDLE_MS - 5000));  // nearly lapsed
     touch();                                                // ...then they file something
     expect(read()?.name).toBe('J. Rodriguez');
   });

@@ -20,9 +20,18 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const EVENT = 'ccw-verified-person-changed';
-// Long enough to cross a line and keep working; short enough that a tablet
-// put down and picked up by someone else asks again.
-const IDLE_MS = 15 * 60 * 1000;
+// Long enough to cross a line and keep working; short enough that a tablet put
+// down and picked up by someone else asks again. Five minutes of INACTIVITY —
+// the clock is reset by the person actually using the device, so it never
+// interrupts somebody mid-job and never survives them walking away.
+const IDLE_MS = 5 * 60 * 1000;
+
+// Don't write to storage on every keystroke; once every few seconds keeps the
+// clock honest without the churn.
+const TOUCH_THROTTLE_MS = 5000;
+// How often to notice that the session has lapsed. The badge saying "Logging as
+// X" when X expired four minutes ago is worse than no badge at all.
+const EXPIRY_TICK_MS = 10000;
 const key = (customerId) => `ccw-verified-person:${customerId || 'none'}`;
 
 const read = (customerId) => {
@@ -68,8 +77,8 @@ export function useVerifiedPerson(customerId) {
   }, [customerId]);
 
   // Called when the remembered identity is actually USED to attribute
-  // something. Pushes the idle clock out, so continuous work never
-  // re-prompts while an idle tablet still lapses.
+  // something, and by the activity listener below. Pushes the idle clock out,
+  // so continuous work never re-prompts while an idle tablet still lapses.
   //
   // Storage only — deliberately no setState. This runs inside the same click
   // that is about to save, and re-rendering the tree mid-save would be a lot of
@@ -83,6 +92,42 @@ export function useVerifiedPerson(customerId) {
       localStorage.setItem(key(customerId), JSON.stringify({ ...v, at: Date.now() }));
     } catch { /* a missed touch only means asking again sooner */ }
   }, [customerId]);
+
+  // INACTIVITY means inactivity.
+  //
+  // The clock used to move only when the identity was USED to save something,
+  // which was survivable at fifteen minutes and would be maddening at five: a
+  // fitter typing a note for six minutes would be asked to prove who they are
+  // again before they could file it. Real input counts.
+  //
+  // Only while somebody is signed in — no listeners on a device nobody has
+  // identified themselves on.
+  useEffect(() => {
+    if (!person) return undefined;
+    let last = 0;
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - last < TOUCH_THROTTLE_MS) return;
+      last = now;
+      touch();
+    };
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, onActivity));
+  }, [person, touch]);
+
+  // Notice the lapse rather than waiting for the next render to happen by
+  // chance, so the header stops naming somebody who has gone.
+  useEffect(() => {
+    if (!person) return undefined;
+    const id = setInterval(() => {
+      if (!read(customerId)) {
+        setPerson(null);
+        window.dispatchEvent(new CustomEvent(EVENT, { detail: { customerId } }));
+      }
+    }, EXPIRY_TICK_MS);
+    return () => clearInterval(id);
+  }, [person, customerId]);
 
   return { person, remember, forget, touch };
 }
