@@ -10,6 +10,7 @@
 // Nothing new is stored. Every figure is derived from logs the app already
 // writes, so this screen cannot drift out of step with them.
 import { useEffect, useMemo, useState } from 'react';
+import { linesFromHistory } from '../utils/linesFromHistory.js';
 import {
   LOG_SPAN, LOG_PM, subscribeLog, dueStatus, sinceLabel,
 } from '../services/logs.js';
@@ -48,16 +49,16 @@ export default function OverviewPage({
   customerName, workspaceId, customerId, lines = [], visits = [], onGo,
   // 'log' for a plant's shift record, 'visit' for JTI's service call.
   noun = 'log',
+  // Given the lines rebuilt from this plant's own history, put them on the
+  // open record. Absent → only the manual route is offered.
+  onAdoptLines,
 }) {
   // Every line title this plant has ever had, across all records. Span Adjust
   // and Pre-Start already work this way; Overview looked only at the open log,
   // which is why a plant with four lines on record saw them on two screens and
   // not on this one.
-  const knownLineTitles = useMemo(() => {
-    const seen = new Set();
-    visits.forEach((v) => (v.lines || []).forEach((l) => { if (l?.title) seen.add(l.title); }));
-    return [...seen];
-  }, [visits]);
+  const historyLines = useMemo(() => linesFromHistory(visits), [visits]);
+  const knownLineTitles = historyLines.map((l) => l.title);
 
   const [spanLog, setSpanLog] = useState([]);
   const [pmLog, setPmLog] = useState([]);
@@ -173,8 +174,26 @@ export default function OverviewPage({
           {knownLineTitles.length > 0
             ? `${knownLineTitles.length} line${knownLineTitles.length === 1 ? '' : 's'} on record for this plant — ${knownLineTitles.slice(0, 4).join(', ')}${knownLineTitles.length > 4 ? '…' : ''}. Nothing is being tracked until they are on this ${noun}.`
             : 'Add them once and every log from here on starts with them.'}
-          <button type="button" className="btn btn-sm btn-primary ms-2" onClick={() => onGo?.('current')}>
-            Set them up →
+          {/* The names are already on screen; offering them as a button is the
+              difference between telling somebody what they have and giving it
+              to them. Head counts come from the same records, so a 16-head line
+              comes back as 16 — and because history is matched on the title,
+              a line rebuilt this way inherits its own past. */}
+          {onAdoptLines && historyLines.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-sm btn-primary ms-2"
+              onClick={() => onAdoptLines(historyLines)}
+            >
+              Add {historyLines.length === 1 ? 'this line' : `these ${historyLines.length} lines`}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`btn btn-sm ${onAdoptLines && historyLines.length > 0 ? 'btn-outline-secondary' : 'btn-primary'} ms-2`}
+            onClick={() => onGo?.('current')}
+          >
+            {onAdoptLines && historyLines.length > 0 ? 'Set up manually' : 'Set them up →'}
           </button>
         </div>
       ) : items.length === 0 ? (

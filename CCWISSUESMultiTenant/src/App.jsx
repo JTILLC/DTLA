@@ -879,6 +879,22 @@ const AppContent = () => {
   // an admin passes straight through, a plant is asked once on the way in
   // rather than on every tap inside.
   const [showSetupLines, setShowSetupLines] = useState(false);
+  // Rebuild this plant's lines from its own previous logs, in one press.
+  // Same gate as building them by hand — it is the same decision, and the
+  // shortcut must not be the way round the gate.
+  const adoptHistoryLines = async (built) => {
+    if (!currentVisitId) {
+      toast.error('Open today\'s log first — lines are saved with the log.');
+      return;
+    }
+    if (!built?.length) return;
+    if (!(await requireSiteLeadAuth('add this plant\'s lines to the log'))) return;
+    setLines(built);
+    setActiveLineId(built[0]?.id ?? null);
+    setActiveTab('current');
+    toast.success(`${built.length} line${built.length === 1 ? '' : 's'} added`);
+  };
+
   const openSetupLines = async () => {
     // Adding or reordering lines describes the plant itself and everything
     // filed against it afterwards, so it takes the plant's own top role rather
@@ -3983,6 +3999,7 @@ const AppContent = () => {
               lines={lines}
               visits={visits}
               onGo={requestTab}
+              onAdoptLines={adoptHistoryLines}
             />
           </div>
         </div>
