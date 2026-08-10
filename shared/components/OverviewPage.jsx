@@ -46,7 +46,19 @@ function headList(nums, max = 6) {
 
 export default function OverviewPage({
   customerName, workspaceId, customerId, lines = [], visits = [], onGo,
+  // 'log' for a plant's shift record, 'visit' for JTI's service call.
+  noun = 'log',
 }) {
+  // Every line title this plant has ever had, across all records. Span Adjust
+  // and Pre-Start already work this way; Overview looked only at the open log,
+  // which is why a plant with four lines on record saw them on two screens and
+  // not on this one.
+  const knownLineTitles = useMemo(() => {
+    const seen = new Set();
+    visits.forEach((v) => (v.lines || []).forEach((l) => { if (l?.title) seen.add(l.title); }));
+    return [...seen];
+  }, [visits]);
+
   const [spanLog, setSpanLog] = useState([]);
   const [pmLog, setPmLog] = useState([]);
 
@@ -150,7 +162,22 @@ export default function OverviewPage({
         </span>
       </div>
 
-      {items.length === 0 ? (
+      {/* "Nothing outstanding" over ZERO lines is not reassurance, it is a false
+          all-clear: every one of those checks passes vacuously when there is
+          nothing to check. A log with no lines has to say so, and say where the
+          plant's lines went, because they are still visible on Span Adjust and
+          Pre-Start — which read every record rather than just the open one. */}
+      {lines.length === 0 ? (
+        <div className="ccw-ov-clear ccw-ov-nolines">
+          <strong>No lines on this {noun} yet.</strong>{' '}
+          {knownLineTitles.length > 0
+            ? `${knownLineTitles.length} line${knownLineTitles.length === 1 ? '' : 's'} on record for this plant — ${knownLineTitles.slice(0, 4).join(', ')}${knownLineTitles.length > 4 ? '…' : ''}. Nothing is being tracked until they are on this ${noun}.`
+            : 'Add them once and every log from here on starts with them.'}
+          <button type="button" className="btn btn-sm btn-primary ms-2" onClick={() => onGo?.('current')}>
+            Set them up →
+          </button>
+        </div>
+      ) : items.length === 0 ? (
         <div className="ccw-ov-clear">
           Nothing outstanding — no heads down, no PM overdue, every line has a span record.
         </div>

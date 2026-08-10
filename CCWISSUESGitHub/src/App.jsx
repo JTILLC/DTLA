@@ -3776,6 +3776,7 @@ const AppContent = () => {
              aria-labelledby="ccw-tab-overview" hidden={activeTab !== 'overview'}>
           <div className="tab-content p-3">
             <OverviewPage
+              noun="visit"
               customerName={currentCustomer?.name}
               workspaceId={user?.uid}
               customerId={currentCustomer?.id}
@@ -3847,10 +3848,10 @@ const AppContent = () => {
             {/* Line picker: a scrollable chip strip rather than a native picker
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
-            {lines.length > 0 && (
+            {currentVisitId && (
               <div className="d-flex justify-content-end mb-1">
                 <button type="button" className="btn btn-sm btn-link text-decoration-none" onClick={() => setShowSetupLines(true)}>
-                  Set up lines
+                  {lines.length === 0 ? 'Build your lines' : 'Set up lines'}
                 </button>
               </div>
             )}
@@ -4400,6 +4401,13 @@ const AppContent = () => {
         defaultHeadCount={DEFAULT_HEAD_COUNT}
         onClose={() => setShowSetupLines(false)}
         onSave={(next) => {
+          if (!currentVisitId) {
+            // Lines live on a visit. Accepting them with none open put them in
+            // state with nothing to save them into, so they looked added and
+            // were gone by the next render.
+            toast.error('Open or start a visit first — lines are saved with the visit.');
+            return;
+          }
           setLines(next);
           if (!next.some((l) => l.id === activeLineId)) setActiveLineId(next[0]?.id ?? null);
           toast.success('Lines updated');
