@@ -2216,12 +2216,27 @@ const AppContent = () => {
     const priorLog = [...visits].filter(v => !v.deleted)
       .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     const prior = newLogCarry ? (priorLog || jtiVisits[0] || null) : null;
+    const startedFresh = !newLogCarry;      // captured before the reset below
     setShowNewLogModal(false);
     setShowVisitsModal(false);
     await startNewVisit(iso, newLogShift, prior);
     setNewLogDate(todayYMD());
     setNewLogShift(SHIFT_OPTIONS[0]);
     setNewLogCarry(true);
+
+    // A shift that starts fresh has nothing carried over — no known-good state,
+    // no open issues, nothing said about the machines. That is exactly the shift
+    // where the walk round matters, and the moment to ask is now, while the
+    // person is still standing at the tablet having just started it. Asked, not
+    // forced: a plant mid-changeover has reasons, and a prompt that cannot be
+    // declined gets clicked through without reading.
+    if (startedFresh) {
+      const go = await dialog.confirm(
+        'Nothing has been carried over, so no machine has been checked on this shift yet. Walk the pre-start checks now?',
+        { title: 'Pre-start checks', confirmText: 'Do pre-start', cancelText: 'Not now' },
+      );
+      if (go) requestTab('prestart');
+    }
   };
 
   // saveAllToCloud / loadAllFromCloud were removed here (2026-08-05).
