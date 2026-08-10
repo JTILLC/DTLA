@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import FactoryCanvas from '@shared/components/FactoryLayout/FactoryCanvas.jsx';
 import LayoutToolbar from '@shared/components/FactoryLayout/LayoutToolbar.jsx';
 import LineBoxPalette from '@shared/components/FactoryLayout/LineBoxPalette.jsx';
-import { loadLayout, saveLayout, DEFAULT_LAYOUT } from '@shared/components/FactoryLayout/LayoutStorage.js';
+import { loadLayout, saveLayout, isEmptyLayout, DEFAULT_LAYOUT } from '@shared/components/FactoryLayout/LayoutStorage.js';
 import { WORKSPACE_UID } from '../../config/constants';
 import { useToast } from '@shared/components/Toast.jsx';
 import { useDialog } from '@shared/components/DialogSystem.jsx';
@@ -13,7 +13,9 @@ const FactoryLayout = ({
   currentVisitId,
   user,
   onNavigateToLine,
-  readOnly = false
+  readOnly = false,
+  // Recorded against the layout so the screen can say where it came from.
+  author = 'Plant',
 }) => {
   const toast = useToast();
   const dialog = useDialog();
@@ -23,10 +25,17 @@ const FactoryLayout = ({
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(!readOnly);
+  // Starts in Navigate whenever there is already a floor to look at — see the
+  // load effect. A plant opening a layout JTI plotted for them is there to use
+  // it, and landing in Edit mode means the first stray drag moves a machine.
+  const [isEditMode, setIsEditMode] = useState(false);
+  // The revision this screen is working from, so a save can tell whether the
+  // stored copy has moved on underneath it.
+  const baseRevRef = useRef(null);
+
   const saveTimeoutRef = useRef(null);
 
-  // Load layout when customer or visit changes
+  // Load layout when the customer changes
   useEffect(() => {
     if (!user || !currentCustomer) {
       setLayout(DEFAULT_LAYOUT);
@@ -36,11 +45,17 @@ const FactoryLayout = ({
 
     setIsLoading(true);
     loadLayout(WORKSPACE_UID, currentCustomer.id)
-      .then(setLayout)
+      .then((loaded) => {
+        setLayout(loaded);
+        baseRevRef.current = loaded.rev ?? null;
+        // Nothing drawn yet → Edit, because there is nothing to look at and
+        // drawing is the only useful thing to do. Otherwise → Navigate.
+        setIsEditMode(!readOnly && isEmptyLayout(loaded));
+      })
       .finally(() => setIsLoading(false));
     // Deliberately not keyed on the open log: the floor does not change
     // because somebody opened a different one.
-  }, [user, currentCustomer]);
+  }, [user, currentCustomer, readOnly]);
 
   // Auto-save layout with debounce
   const saveLayoutDebounced = useCallback((newLayout) => {
@@ -53,11 +68,39 @@ const FactoryLayout = ({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
 
-      await saveLayout(WORKSPACE_UID, currentCustomer.id, newLayout);
+      const res = await saveLayout(WORKSPACE_UID, currentCustomer.id, newLayout, {
+        author,
+        baseRev: baseRevRef.current,
+      });
+
+      if (res?.conflict) {
+        // Somebody else saved while this screen was open. Both versions still
+        // exist at this point; which one survives is the person's call, not
+        // ours, and the question names who they are up against.
+        const whose = res.theirs?.updatedBy || 'Someone else';
+        const keepMine = await dialog.confirm(
+          `${whose} changed this layout while you had it open.\n\n`
+          + 'Keep your version and replace theirs, or discard your changes and load theirs?',
+          { title: 'Layout changed elsewhere', confirmText: 'Keep mine', cancelText: 'Load theirs', variant: 'warning' },
+        );
+        if (keepMine) {
+          const forced = await saveLayout(WORKSPACE_UID, currentCustomer.id, newLayout, { author, force: true });
+          baseRevRef.current = forced?.rev ?? null;
+          toast.success('Your layout is saved.');
+        } else {
+          setLayout(res.theirs);
+          baseRevRef.current = res.theirs?.rev ?? null;
+          toast.info(`Loaded ${whose}'s layout.`);
+        }
+      } else if (res?.ok) {
+        baseRevRef.current = res.rev ?? null;
+      } else {
+        toast.error('Could not save the layout — it may not have reached the cloud.');
+      }
 
       setIsSaving(false);
     }, 500);
-  }, [user, currentCustomer, readOnly]);
+  }, [user, currentCustomer, readOnly, author, dialog, toast]);
 
   // Update layout and trigger auto-save
   const handleUpdateLayout = useCallback((newLayout) => {
@@ -193,6 +236,34 @@ const FactoryLayout = ({
         setIsEditMode={setIsEditMode}
       />
 
+      {/* Where this floor plan came from.
+          A plant that has had its layout plotted for it should be told so,
+          rather than left to wonder whether somebody on their shift drew it —
+          and told, in the same breath, that changing it is theirs to do. */}
+      {!isEmptyLayout(layout) && (
+        <div className="layout-provenance">
+          {layout.updatedBy === 'JTI' ? (
+            <>
+              <strong>Plotted by JTI</strong>
+              {layout.updatedAt && ` · ${new Date(layout.updatedAt).toLocaleDateString()}`}
+              {' — '}
+              {isEditMode
+                ? 'you are editing it. Switch to Navigate to just use it.'
+                : 'switch to Edit if anything on your floor has moved.'}
+            </>
+          ) : (
+            <>
+              <strong>Your plant&rsquo;s layout</strong>
+              {/* An older layout carries no author — it predates recording one —
+                  so it says when, and does not invent a who. */}
+              {layout.updatedBy
+                ? ` · last changed by ${layout.updatedBy}`
+                : ' · last changed'}
+              {layout.updatedAt && ` ${new Date(layout.updatedAt).toLocaleDateString()}`}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="factory-layout-content">
         {isEditMode && (

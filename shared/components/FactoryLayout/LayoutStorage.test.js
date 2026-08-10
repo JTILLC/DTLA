@@ -59,3 +59,4 @@ describe('pickAdoptableLayout', () => {
     expect(pickAdoptableLayout()).toBeNull();
   });
 });
+
