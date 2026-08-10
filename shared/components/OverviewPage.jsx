@@ -11,8 +11,9 @@
 // writes, so this screen cannot drift out of step with them.
 import { useEffect, useMemo, useState } from 'react';
 import { linesFromHistory } from '../utils/linesFromHistory.js';
+import { boardFor, outstandingLines } from '../utils/prestart.js';
 import {
-  LOG_SPAN, LOG_PM, subscribeLog, dueStatus, sinceLabel,
+  LOG_SPAN, LOG_PM, LOG_PRESTART, subscribeLog, dueStatus, sinceLabel,
 } from '../services/logs.js';
 import './overview.css';
 
@@ -62,10 +63,16 @@ export default function OverviewPage({
 
   const [spanLog, setSpanLog] = useState([]);
   const [pmLog, setPmLog] = useState([]);
+  const [prestartLog, setPrestartLog] = useState([]);
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
     return subscribeLog(workspaceId, customerId, LOG_SPAN, setSpanLog);
+  }, [workspaceId, customerId]);
+
+  useEffect(() => {
+    if (!workspaceId || !customerId) return undefined;
+    return subscribeLog(workspaceId, customerId, LOG_PRESTART, setPrestartLog);
   }, [workspaceId, customerId]);
 
   useEffect(() => {
@@ -140,6 +147,21 @@ export default function OverviewPage({
       detail: lineStates.filter((l) => l.issues)
         .map((l) => `${l.title} · ${headList(l.issueHeads)}`).join('  ·  '),
       go: 'current', goLabel: 'Current Visit',
+    });
+  }
+  // Lines not yet walked today. The pre-start screen has always known this;
+  // the Overview did not, so the one check a plant is meant to do every shift
+  // was the one thing "Needs attention" never mentioned.
+  const prestartOutstanding = useMemo(
+    () => outstandingLines(boardFor(lines, prestartLog)),
+    [lines, prestartLog],
+  );
+  if (prestartOutstanding.length) {
+    items.push({
+      sev: 'due',
+      title: `Pre-start not done on ${prestartOutstanding.length} line${prestartOutstanding.length === 1 ? '' : 's'}`,
+      detail: prestartOutstanding.join(' · '),
+      go: 'prestart', goLabel: 'Pre-Start',
     });
   }
   if (linesNeverSpanned.length) {
