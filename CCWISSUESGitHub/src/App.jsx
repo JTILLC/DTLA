@@ -1027,6 +1027,19 @@ const AppContent = () => {
   };
 
 
+  // Rebuild this customer's lines from their previous visits, in one press.
+  const adoptHistoryLines = (built) => {
+    if (!currentVisitId) {
+      toast.error('Open or start a visit first — lines are saved with the visit.');
+      return;
+    }
+    if (!built?.length) return;
+    setLines(built);
+    setActiveLineId(built[0]?.id ?? null);
+    setActiveTab('current');
+    toast.success(`${built.length} line${built.length === 1 ? '' : 's'} added`);
+  };
+
   const handleAddLine = (lineName, headCount) => {
     createLine(lineName, headCount, (updater) => {
       setLines((prev) => {
@@ -3777,6 +3790,7 @@ const AppContent = () => {
           <div className="tab-content p-3">
             <OverviewPage
               noun="visit"
+              onAdoptLines={adoptHistoryLines}
               customerName={currentCustomer?.name}
               workspaceId={user?.uid}
               customerId={currentCustomer?.id}
