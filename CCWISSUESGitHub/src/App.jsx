@@ -28,6 +28,8 @@ import ServiceReportUpload from '@shared/components/ServiceReportUpload.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import { ToastProvider, AlertShim, useToast } from '@shared/components/Toast.jsx';
 import VisitsSidebar from './components/VisitsSidebar.jsx';
+import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
+import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import BackfillPanel from './components/BackfillPanel.jsx';
 import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
 import {
@@ -221,30 +223,6 @@ const loadPhotoForPdf = async (p) => {
 // value (which may be another editor's change). Deletions this client made are
 // honored; lines it newly added are appended. Only when BOTH edit the SAME line
 // in the same window does this fall back to this client's version.
-function mergeLinesArrays(baseline, local, remote) {
-  const ser = (l) => JSON.stringify(l);
-  const base = baseline || [];
-  const loc = local || [];
-  const rem = remote || [];
-  const baseSer = new Map(base.map((l) => [l.id, ser(l)]));
-  const baseIds = new Set(base.map((l) => l.id));
-  const locById = new Map(loc.map((l) => [l.id, l]));
-  const locIds = new Set(locById.keys());
-  const dirty = new Set(loc.filter((l) => ser(l) !== baseSer.get(l.id)).map((l) => l.id));
-  const removed = new Set(base.filter((l) => !locIds.has(l.id)).map((l) => l.id));
-
-  const out = [];
-  const placed = new Set();
-  rem.forEach((rl) => {
-    if (removed.has(rl.id)) return;
-    placed.add(rl.id);
-    out.push(dirty.has(rl.id) && locById.has(rl.id) ? locById.get(rl.id) : rl);
-  });
-  loc.forEach((ll) => {
-    if (!placed.has(ll.id) && dirty.has(ll.id) && !baseIds.has(ll.id)) out.push(ll);
-  });
-  return out;
-}
 
 // Best-effort recursive delete of a Storage folder (compat listAll returns one
 // level, so recurse into child prefixes).
@@ -886,6 +864,7 @@ const AppContent = () => {
   // Dialog system for proper modals instead of window.prompt/alert
   const dialog = useDialog();
   const [showAddLineDialog, setShowAddLineDialog] = useState(false);
+  const [showSetupLines, setShowSetupLines] = useState(false);
 
   // Dark mode state - defaults to dark
   const [isDark, setIsDark] = useState(() => {
@@ -3869,6 +3848,13 @@ const AppContent = () => {
                 wheel — one tap to switch, and each chip's dot shows the line's
                 status at a glance while walking the plant. */}
             {lines.length > 0 && (
+              <div className="d-flex justify-content-end mb-1">
+                <button type="button" className="btn btn-sm btn-link text-decoration-none" onClick={() => setShowSetupLines(true)}>
+                  Set up lines
+                </button>
+              </div>
+            )}
+            {lines.length > 0 && (
               <div className="line-chips" role="tablist" aria-label="Equipment lines">
                 {lines.map(line => (
                   <button
@@ -4408,6 +4394,18 @@ const AppContent = () => {
       />
 
       {/* Dialog System (confirm/alert/prompt dialogs and toasts) */}
+      <SetupLinesModal
+        isOpen={showSetupLines}
+        lines={lines}
+        defaultHeadCount={DEFAULT_HEAD_COUNT}
+        onClose={() => setShowSetupLines(false)}
+        onSave={(next) => {
+          setLines(next);
+          if (!next.some((l) => l.id === activeLineId)) setActiveLineId(next[0]?.id ?? null);
+          toast.success('Lines updated');
+        }}
+      />
+
       {dialog.DialogComponent}
     </div>
   );
