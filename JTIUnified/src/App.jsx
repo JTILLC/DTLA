@@ -1661,6 +1661,7 @@ function App() {
             colors={colors}
             serviceReports={serviceReports.reports}
             customerRecords={customerRecords}
+            customers={customers}
             onClose={() => setShowPacket(false)}
           />
         )}
