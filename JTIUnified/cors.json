@@ -1,6 +1,5 @@
 [
   {
-    "_comment": "Reading bytes cross-origin — which is what merging a PDF into a job packet does — needs the bucket to say so. Without this a file downloads fine in a browser tab and is invisible to the app that wants to bind it into a packet.",
     "origin": [
       "https://jti-dashboard.pages.dev",
       "https://jti-issues.pages.dev",
@@ -15,8 +14,16 @@
       "http://localhost:5174",
       "http://localhost:5175"
     ],
-    "method": ["GET", "HEAD"],
+    "method": [
+      "GET",
+      "HEAD"
+    ],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"]
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges"
+    ]
   }
 ]
