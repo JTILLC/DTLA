@@ -1,0 +1,322 @@
+// src/components/JobPacketBuilder.jsx
+//
+// Build one PDF for a job and send it to accounts payable.
+//
+// The service report number is the key: the job, the invoice and the service
+// report already share it, so picking one number is enough to find most of the
+// packet. What the system already holds is filled in automatically and labelled
+// as such — the point is to stop somebody hunting for a file the app is already
+// holding.
+//
+// What is missing is shown the whole time, not at the end. A packet is rejected
+// by AP for being incomplete far more often than for being wrong, and the
+// moment to learn the PO is missing is before sending it.
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Trash2, Upload } from 'lucide-react';
+import {
+  fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
+} from '../data-service';
+import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
+import { matchCustomer } from '../utils/customerMatch';
+
+const KINDS = [
+  { key: 'po', label: 'Purchase order', hint: 'What the customer authorised' },
+  { key: 'invoice', label: 'Invoice', hint: 'What we are asking for' },
+  { key: 'serviceReport', label: 'Service report', hint: 'What we did' },
+  { key: 'receipts', label: 'Receipts', hint: 'What it cost us', many: true },
+];
+
+export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], onClose }) {
+  const [sr, setSr] = useState('');
+  const [packet, setPacket] = useState({ files: [] });
+  const [sources, setSources] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [notes, setNotes] = useState('');
+  const [result, setResult] = useState(null);
+
+  const job = useMemo(
+    () => serviceReports.find((r) => String(r.number) === String(sr)) || null,
+    [serviceReports, sr]);
+
+  // The report entry has no customer of its own — it is on the visits and
+  // timesheets joined to it, and fetchPacketSources resolves the same way.
+  const customerName = sources?.customer
+    || (job?.visits || []).find((v) => v.customer)?.customer
+    || (job?.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer
+    || '';
+  const record = useMemo(
+    () => (customerName ? matchCustomer(customerName, customerRecords) : null),
+    [customerName, customerRecords]);
+  const apEmails = record?.profile?.invoiceEmails || [];
+
+  const load = useCallback(async (number) => {
+    if (!number) { setPacket({ files: [] }); setSources(null); return; }
+    setBusy('Loading what we already have…');
+    try {
+      const [p, s] = await Promise.all([fetchPacket(number), fetchPacketSources(number)]);
+      setPacket(p);
+      setSources(s);
+      setNotes(p.notes || '');
+    } catch (err) { setError(err.message || String(err)); }
+    setBusy('');
+  }, []);
+
+  useEffect(() => { setResult(null); setError(''); load(sr); }, [sr, load]);
+
+  const uploadedOf = (kind) => (packet.files || []).filter((f) => f.kind === kind);
+
+  // What is actually in each slot: uploaded first, otherwise whatever the
+  // system already holds.
+  const slotState = (kind) => {
+    const uploaded = uploadedOf(kind);
+    if (uploaded.length) return { from: 'uploaded', files: uploaded };
+    if (kind === 'serviceReport' && sources?.serviceReportUrl) {
+      return { from: 'system', files: [{ name: sources.serviceReportName || 'Service report', url: sources.serviceReportUrl, type: 'application/pdf' }] };
+    }
+    if (kind === 'invoice' && sources?.invoiceUrl) {
+      return { from: 'system', files: [{ name: sources.invoiceName || 'Invoice', url: sources.invoiceUrl, type: 'application/pdf' }] };
+    }
+    return { from: null, files: [] };
+  };
+
+  const onUpload = async (kind, fileList) => {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    const bad = files.map(describeUnsupported).filter(Boolean);
+    if (bad.length) { setError(bad.join(' ')); return; }
+    setError('');
+    setBusy(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
+    try {
+      for (const f of files) await addPacketFile(sr, kind, f);
+      setPacket(await fetchPacket(sr));
+    } catch (err) { setError(err.message || String(err)); }
+    setBusy('');
+  };
+
+  const build = async () => {
+    setBusy('Building the packet…');
+    setError('');
+    try {
+      const parts = {};
+      // A file the browser cannot read is the dangerous case: the slot shows a
+      // green tick because the file exists, and it would drop out of the packet
+      // without a word. Collected and said out loud below.
+      const unreadable = [];
+      for (const k of KINDS) {
+        const { files, from } = slotState(k.key);
+        const loaded = [];
+        for (const f of files) {
+          const bytes = await fetchFileBytes(f.path || f.url);
+          if (bytes) loaded.push({ name: f.name, type: f.type, bytes });
+          else unreadable.push({ name: f.name, from });
+        }
+        if (k.many) parts[k.key] = loaded;
+        else parts[k.key] = loaded[0] || null;
+      }
+      if (unreadable.length) {
+        const fromSystem = unreadable.some((u) => u.from === 'system');
+        setError(
+          `Left out of the packet — could not be read: ${unreadable.map((u) => u.name).join(', ')}.`
+          + (fromSystem
+            ? ' Files held by the CCW app are blocked by that storage bucket\'s CORS rules.'
+              + ' Until that is set, download the service report and add it here with Replace.'
+            : ''),
+        );
+      }
+
+      const meta = {
+        sr,
+        customer: customerName,
+        invoiceNumber: sources?.invoiceNumber || job?.invoiceNumber || '',
+        date: sources?.date || '',
+        amount: sources?.amount ?? job?.amount ?? '',
+        notes,
+      };
+      const built = await buildPacket(meta, parts);
+      const blob = new Blob([built.bytes], { type: 'application/pdf' });
+      setResult({ ...built, meta, url: URL.createObjectURL(blob), fileName: packetFileName(meta) });
+      await markPacketBuilt(sr, { notes });
+    } catch (err) { setError(err.message || String(err)); }
+    setBusy('');
+  };
+
+  const card = { background: colors.cardBg, borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
+  const label = { fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: colors.textSecondary, display: 'block', marginBottom: '6px' };
+  const input = { padding: '8px 10px', borderRadius: '6px', border: `1px solid ${colors.border || '#d1d5db'}`, background: colors.inputBg || colors.cardBg, color: colors.text, fontSize: '14px' };
+
+  const missing = KINDS.filter((k) => slotState(k.key).files.length === 0).map((k) => k.label);
+
+  return (
+    <div style={{ marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 600, color: colors.text, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Paperclip size={22} /> Job packet
+        </h2>
+        {onClose && (
+          <button type="button" onClick={onClose} style={{ ...input, cursor: 'pointer' }}>Close</button>
+        )}
+      </div>
+
+      <div style={card}>
+        <label style={label} htmlFor="packet-sr">Service report</label>
+        <select id="packet-sr" value={sr} onChange={(e) => setSr(e.target.value)} style={{ ...input, minWidth: '280px', maxWidth: '100%' }}>
+          <option value="">Choose a service report…</option>
+          {serviceReports.map((r) => (
+            <option key={r.number} value={r.number}>
+              {r.number}
+              {(() => {
+                const c = (r.visits || []).find((v) => v.customer)?.customer
+                  || (r.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer;
+                return c ? ` — ${c}` : '';
+              })()}
+            </option>
+          ))}
+        </select>
+        {sr && (
+          <div style={{ marginTop: '10px', fontSize: '14px', color: colors.textSecondary }}>
+            {customerName || 'Unknown customer'}
+            {apEmails.length > 0
+              ? <> · invoices go to <strong style={{ color: colors.text }}>{apEmails.join(', ')}</strong></>
+              : <> · <span style={{ color: '#f59e0b' }}>no invoice email on this customer — add one on their record first</span></>}
+          </div>
+        )}
+      </div>
+
+      {sr && (
+        <>
+          {KINDS.map((k) => {
+            const state = slotState(k.key);
+            const present = state.files.length > 0;
+            return (
+              <div key={k.key} style={card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: colors.text, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {present ? <Check size={16} color="#10b981" /> : <AlertTriangle size={16} color="#f59e0b" />}
+                      {k.label}
+                      {state.from === 'system' && (
+                        <span style={{ fontSize: '12px', fontWeight: 400, color: '#3b82f6' }}>already in the system</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '13px', color: colors.textSecondary, marginTop: '2px' }}>{k.hint}</div>
+                  </div>
+                  <label style={{ ...input, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Upload size={14} /> {present && !k.many ? 'Replace' : 'Add'}
+                    <input
+                      type="file"
+                      multiple={!!k.many}
+                      accept="application/pdf,image/jpeg,image/png"
+                      onChange={(e) => { onUpload(k.key, e.target.files); e.target.value = ''; }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+
+                {state.files.length > 0 && (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {state.files.map((f, i) => (
+                      <div key={f.path || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textSecondary }}>
+                        <FileText size={14} />
+                        <a href={f.url} target="_blank" rel="noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }}>{f.name}</a>
+                        {f.path && (
+                          <button
+                            type="button" aria-label={`Remove ${f.name}`}
+                            onClick={async () => { setBusy('Removing…'); await removePacketFile(sr, f.path); setPacket(await fetchPacket(sr)); setBusy(''); }}
+                            style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={card}>
+            <label style={label} htmlFor="packet-notes">Notes for the cover sheet (optional)</label>
+            <textarea
+              id="packet-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              placeholder="Anything AP should know — PO raised late, partial billing, etc."
+              style={{ ...input, width: '100%', resize: 'vertical' }}
+            />
+          </div>
+
+          {missing.length > 0 && (
+            <div style={{ ...card, borderLeft: '4px solid #f59e0b', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+              <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <div style={{ color: colors.text, fontSize: '14px' }}>
+                <strong>Still missing: {missing.join(', ')}.</strong>
+                <div style={{ color: colors.textSecondary, marginTop: '2px' }}>
+                  You can still build the packet — the cover sheet will say what is not in it.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ ...card, borderLeft: '4px solid #ef4444', color: '#ef4444', fontSize: '14px' }}>{error}</div>}
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button" onClick={build} disabled={!!busy}
+              style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 600, cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Paperclip size={16} /> {busy || 'Build the packet'}
+            </button>
+
+            {result && (
+              <>
+                <a
+                  href={result.url} download={result.fileName}
+                  style={{ padding: '10px 18px', borderRadius: '8px', background: '#10b981', color: 'white', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <Download size={16} /> Download PDF
+                </a>
+                <a
+                  href={packetEmail(result.meta, apEmails).href}
+                  style={{
+                    padding: '10px 18px', borderRadius: '8px', fontWeight: 600, textDecoration: 'none',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: apEmails.length ? '#8b5cf6' : '#9ca3af', color: 'white',
+                    pointerEvents: apEmails.length ? 'auto' : 'none',
+                  }}
+                  title={apEmails.length ? `Email ${apEmails.join(', ')}` : 'No invoice email on this customer'}
+                >
+                  <Mail size={16} /> Email accounts payable
+                </a>
+              </>
+            )}
+          </div>
+
+          {result && (
+            <div style={{ ...card, marginTop: '16px', borderLeft: '4px solid #10b981' }}>
+              <div style={{ color: colors.text, fontSize: '14px', fontWeight: 600 }}>
+                Packet built — {result.fileName}
+              </div>
+              {/* Said plainly: a mailto cannot carry a file, and an email that
+                  says "attached" with nothing attached is worse than none. */}
+              <div style={{ color: colors.textSecondary, fontSize: '13px', marginTop: '4px' }}>
+                Download it first, then press Email — your mail client opens addressed to
+                {' '}{apEmails.length ? apEmails.join(', ') : 'accounts payable'} with the details filled in,
+                and you attach the PDF you just downloaded.
+              </div>
+              {result.missing.length > 0 && (
+                <div style={{ color: '#f59e0b', fontSize: '13px', marginTop: '6px' }}>
+                  The cover sheet records that {result.missing.join(', ').toLowerCase()} {result.missing.length === 1 ? 'is' : 'are'} not included.
+                </div>
+              )}
+              {result.problems.length > 0 && (
+                <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '6px' }}>
+                  {result.problems.join(' ')}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
