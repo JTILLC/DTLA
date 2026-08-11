@@ -31,7 +31,7 @@ import {
   Wrench,
   ShieldCheck
 } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
 const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
@@ -132,6 +132,8 @@ function App() {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [customerData, setCustomerData] = useState(null);
+  // Every customer record JTI holds, for linking a name to one by hand.
+  const [customerRecords, setCustomerRecords] = useState([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -436,6 +438,36 @@ function App() {
     }
   };
 
+  // Save part of a customer's record (address, contacts, invoice emails).
+  //
+  // The record is shared with CCW Issues and Headcount, so this merges rather
+  // than replaces, and refreshes what is on screen from what was actually
+  // written rather than assuming the write matched the form.
+  const handleSaveCustomerProfile = async (customerId, patch) => {
+    const saved = await saveCustomerProfile(customerId, patch);
+    setCustomerData((prev) => (prev?.record
+      ? { ...prev, record: { ...prev.record, profile: { ...prev.record.profile, ...saved } } }
+      : prev));
+    setCustomerRecords((prev) => prev.map((r) => (
+      r.id === customerId ? { ...r, profile: { ...r.profile, ...saved } } : r)));
+  };
+
+  // Link the name this app knows a customer by to the record it belongs to.
+  //
+  // Stored as an alias on the record, so the join is made once by a person and
+  // then holds — rather than being re-guessed, differently, on every load.
+  const handleLinkCustomer = async (customerId) => {
+    const record = customerRecords.find((r) => r.id === customerId);
+    const aliases = Array.from(new Set([...(record?.profile?.aliases || []), selectedCustomer]));
+    await saveCustomerProfile(customerId, { aliases });
+    const [data, records] = await Promise.all([
+      fetchCustomerData(selectedCustomer),
+      fetchCustomerRecords(),
+    ]);
+    setCustomerData(data);
+    setCustomerRecords(records);
+  };
+
   // Handle customer selection
   const handleCustomerSelect = async (customer) => {
     setSelectedCustomer(customer);
@@ -446,8 +478,12 @@ function App() {
     if (customer) {
       setCustomerLoading(true);
       try {
-        const data = await fetchCustomerData(customer);
+        const [data, records] = await Promise.all([
+          fetchCustomerData(customer),
+          fetchCustomerRecords(),
+        ]);
         setCustomerData(data);
+        setCustomerRecords(records);
       } catch (error) {
         console.error('Error fetching customer data:', error);
       } finally {
@@ -1575,6 +1611,9 @@ function App() {
             onClear={clearCustomerSelection}
             setSearchTerm={setSearchTerm}
             colors={colors}
+            customerRecords={customerRecords}
+            onSaveProfile={handleSaveCustomerProfile}
+            onLinkCustomer={handleLinkCustomer}
           />
         )}
 

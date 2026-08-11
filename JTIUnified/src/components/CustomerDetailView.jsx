@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle, ChevronDown, Clock, FileText, Search, Users, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle, ChevronDown, Clock, FileText, Search, Users, X, XCircle } from 'lucide-react';
+import CustomerRecordCard from './CustomerRecordCard';
 import { isPaid } from '../utils/format';
 import { extractMachines } from './Troubleshoot/facets';
 import { exportAccountStatement } from '../utils/exportAccountStatement';
 
-  const CustomerDetailView = ({ data, customerName, loading, onClear, setSearchTerm, colors }) => {
+  const CustomerDetailView = ({
+    data, customerName, loading, onClear, setSearchTerm, colors,
+    customerRecords = [], onSaveProfile, onLinkCustomer,
+  }) => {
     const [collapsedCustomerSections, setCollapsedCustomerSections] = useState({
       jobs: false,
       issues: false,
-      timesheets: false
+      timesheets: false,
+      visits: false
     });
 
     const toggleCustomerSection = (section) => {
@@ -86,6 +91,17 @@ import { exportAccountStatement } from '../utils/exportAccountStatement';
             Clear Selection
           </button>
         </div>
+
+        {/* Who this customer is — address, contacts, invoice emails. Above the
+            money, because it is what somebody ringing the plant came for. */}
+        <CustomerRecordCard
+          customerName={customerName}
+          record={data.record}
+          colors={colors}
+          onSave={onSaveProfile}
+          onLink={onLinkCustomer}
+          allRecords={customerRecords}
+        />
 
         {/* Customer Summary Stats */}
         <div style={{
@@ -456,6 +472,78 @@ import { exportAccountStatement } from '../utils/exportAccountStatement';
                       </div>
                     </div>
                   ))}
+                </div>
+                )}
+              </div>
+            )}
+
+            {/* Visit log — JTI's own service visits to this plant. Kept next
+                to the jobs and issues they produced, so one screen answers
+                "when were we last there, and what came of it?". */}
+            {(data.visits || []).length > 0 && (
+              <div style={{
+                background: colors.cardBg,
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              }}>
+                <h3
+                  onClick={() => toggleCustomerSection('visits')}
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: '#8b5cf6',
+                    marginBottom: collapsedCustomerSections.visits ? '0' : '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                  }}
+                >
+                  <CalendarDays size={20} />
+                  Visit log ({data.visits.length})
+                  <ChevronDown
+                    size={18}
+                    style={{
+                      marginLeft: 'auto',
+                      transform: collapsedCustomerSections.visits ? 'rotate(-90deg)' : 'rotate(0)',
+                      transition: 'transform 0.2s'
+                    }}
+                  />
+                </h3>
+                {!collapsedCustomerSections.visits && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {data.visits.map((visit, index) => {
+                    const lineCount = (visit.lines || []).length;
+                    const headsDown = (visit.lines || []).reduce(
+                      (n, l) => n + (l.heads || []).filter((h) => h.status === 'offline').length, 0);
+                    const reportNo = visit.globalData?.serviceReportNumber || visit.serviceReportNumber || '';
+                    return (
+                      <div key={visit.id || index} style={{
+                        padding: '14px 16px',
+                        background: colors.hover,
+                        borderRadius: '8px',
+                        borderLeft: '4px solid #8b5cf6'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'baseline' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: colors.text }}>
+                            {visit.visitName || visit.name || 'Service visit'}
+                          </div>
+                          <div style={{ fontSize: '13px', color: colors.textSecondary }}>
+                            {formatDate(visit.date)}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '13px', color: colors.textSecondary, marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          {lineCount > 0 && <span>{lineCount} line{lineCount === 1 ? '' : 's'}</span>}
+                          {/* Only worth saying when it is not zero — "0 heads
+                              down" is noise on every clean visit. */}
+                          {headsDown > 0 && <span style={{ color: '#ef4444' }}>{headsDown} head{headsDown === 1 ? '' : 's'} down</span>}
+                          {reportNo && <span>Service Report: <strong style={{ color: colors.text }}>{reportNo}</strong></span>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 )}
               </div>
