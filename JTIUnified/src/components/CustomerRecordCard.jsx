@@ -56,7 +56,7 @@ export default function CustomerRecordCard({
   // from the customer being looked at onto the next one.
   useEffect(() => {
     setDraft({
-      address: '', cityState: '', contacts: [], invoiceEmails: [], aliases: [], notes: '', ...(record?.profile || {}),
+      address: '', cityState: '', miles: null, contacts: [], invoiceEmails: [], aliases: [], notes: '', ...(record?.profile || {}),
     });
     setEditing(false);
     setError('');
@@ -150,6 +150,8 @@ export default function CustomerRecordCard({
       const cleaned = {
         address: (draft.address || '').trim(),
         cityState: (draft.cityState || '').trim(),
+        // Stored as a number so it can be summed and compared; '' clears it.
+        miles: draft.miles === '' || draft.miles == null ? null : Number(draft.miles),
         notes: (draft.notes || '').trim(),
         contacts: contacts
           .map((c) => ({ name: (c.name || '').trim(), role: (c.role || '').trim(), phone: (c.phone || '').trim(), email: (c.email || '').trim() }))
@@ -228,6 +230,18 @@ export default function CustomerRecordCard({
             {editing
               ? <input style={inputStyle(colors)} value={draft.cityState || ''} onChange={(e) => setDraft({ ...draft, cityState: e.target.value })} placeholder="City, ST" />
               : <div style={{ color: draft.cityState ? colors.text : colors.textSecondary, fontSize: '14px' }}>{draft.cityState || 'Not recorded'}</div>}
+          </div>
+          <div>
+            {/* The round trip somebody has agreed for this plant. A default for
+                the timesheet, not a rule — a job run from somewhere else has
+                different mileage and must stay editable there. */}
+            <label style={labelStyle(colors)}>Mileage (round trip)</label>
+            {editing
+              ? <input type="number" min="0" style={inputStyle(colors)} value={draft.miles ?? ''}
+                       onChange={(e) => setDraft({ ...draft, miles: e.target.value })} placeholder="e.g. 240" />
+              : <div style={{ color: (draft.miles || draft.miles === 0) ? colors.text : colors.textSecondary, fontSize: '14px' }}>
+                  {(draft.miles || draft.miles === 0) ? `${draft.miles} miles` : 'Not recorded'}
+                </div>}
           </div>
         </Row>
       </div>

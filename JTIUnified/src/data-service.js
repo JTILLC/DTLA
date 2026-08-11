@@ -5,6 +5,7 @@ import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, 
 import serviceLog from './components/Troubleshoot/serviceLog.json';
 import { isPaid, jobAmount, sumIncome } from './utils/format';
 import { matchCustomer, consolidateCustomers, normalizeCustomerName } from './utils/customerMatch';
+import { customerDefaults, missingDefaults } from './utils/customerDefaults';
 
 // ============================================
 // Docx-derived calendar events
@@ -1963,4 +1964,33 @@ export const markPacketSent = async (sr, to = []) => {
   await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
     { sr: key, sentAt: new Date().toISOString(), sentTo: to }, { merge: true });
   return true;
+};
+
+/**
+ * Everything another app needs about a job, from its service report number.
+ *
+ * The point of the dashboard being the centre: a timesheet asks for one number
+ * and gets the customer and their standing details back, instead of somebody
+ * retyping eight fields per visit and spelling the plant differently each time.
+ *
+ * `defaults` is already in the shape a timesheet's customer form expects, so
+ * the caller copies rather than translates. `missing` says which fields the
+ * record could not supply, so a half-filled form can say why.
+ */
+export const lookupJobDefaults = async (sr) => {
+  const key = String(sr || '').trim();
+  if (!key) return null;
+  const [sources, records, started] = await Promise.all([
+    fetchPacketSources(key), fetchCustomerRecords(), fetchUnifiedJobs(),
+  ]);
+  const name = sources?.customer || started.find((j) => String(j.sr) === key)?.customer || '';
+  const record = name ? matchCustomer(name, records) : null;
+  return {
+    sr: key,
+    customer: record?.name || name || '',
+    date: sources?.date || '',
+    invoiceNumber: sources?.invoiceNumber || '',
+    defaults: customerDefaults(record),
+    missing: missingDefaults(record),
+  };
 };
