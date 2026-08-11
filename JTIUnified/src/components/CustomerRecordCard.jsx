@@ -13,7 +13,7 @@
 // nobody meant to touch.
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Building2, Check, Mail, Phone, Plus, Trash2, X } from 'lucide-react';
-import { looksLikeADifferentSite } from '../utils/customerMatch';
+import { looksLikeADifferentSite } from '@shared/utils/customerMatch.js';
 
 const BLANK_CONTACT = { name: '', role: '', phone: '', email: '' };
 

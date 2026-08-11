@@ -19,7 +19,7 @@ import {
 } from '../data-service';
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
-import { matchCustomer } from '../utils/customerMatch';
+import { matchCustomer } from '@shared/utils/customerMatch.js';
 
 const KINDS = [
   { key: 'po', label: 'Purchase order', hint: 'What the customer authorised' },

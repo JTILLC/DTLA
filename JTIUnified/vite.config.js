@@ -37,4 +37,13 @@ export default defineConfig({
       },
     },
   },
+  // The shared tests live with the shared code, and this app runs them too.
+  // That is the entire point of moving customer identity into ../shared: a
+  // rule three apps must agree on cannot have its only test in one app's
+  // suite, or a change made in another app passes its own tests, ships, and
+  // the guard never executes. That exact failure white-screened Headcount
+  // earlier this month.
+  test: {
+    include: ['src/**/*.test.{js,jsx}', '../shared/utils/customer*.test.{js,jsx}'],
+  },
 })

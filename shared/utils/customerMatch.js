@@ -1,4 +1,4 @@
-// src/utils/customerMatch.js
+// shared/utils/customerMatch.js
 //
 // Tying a customer NAME to the customer RECORD it belongs to.
 //

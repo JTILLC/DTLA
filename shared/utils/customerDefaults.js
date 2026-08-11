@@ -1,4 +1,4 @@
-// src/utils/customerDefaults.js
+// shared/utils/customerDefaults.js
 //
 // The customer record, in the shape a timesheet wants it.
 //

@@ -4,8 +4,8 @@ import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
 import { isPaid, jobAmount, sumIncome } from './utils/format';
-import { matchCustomer, consolidateCustomers, normalizeCustomerName } from './utils/customerMatch';
-import { customerDefaults, missingDefaults } from './utils/customerDefaults';
+import { matchCustomer, consolidateCustomers, normalizeCustomerName } from '@shared/utils/customerMatch.js';
+import { customerDefaults, missingDefaults } from '@shared/utils/customerDefaults.js';
 
 // ============================================
 // Docx-derived calendar events
