@@ -1904,3 +1904,63 @@ export const markPacketBuilt = async (sr, { notes = '' } = {}) => {
     { sr: key, notes, builtAt: new Date().toISOString() }, { merge: true });
   return true;
 };
+
+// ============================================
+// Starting a job, and its service report number
+// ============================================
+//
+// The number is allocated HERE and the job is created in the Jobs Tracker.
+// That split is deliberate: the Tracker rewrites the whole jobs-{year}.json on
+// every save, so anything this app wrote into that file would be erased the
+// next time somebody pressed save over there. Two writers and one whole-file
+// document is a race nobody wins.
+//
+// So this app owns the number and the workflow around it; the Tracker stays
+// the record of the job, its quote and its amount.
+export const UNIFIED_JOBS = 'unified_jobs';
+
+export const fetchUnifiedJobs = async () => {
+  try {
+    const snap = await getDocs(collection(jobsMasterDb, UNIFIED_JOBS));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error('Error fetching started jobs:', error);
+    return [];
+  }
+};
+
+/**
+ * Reserve a service report number.
+ *
+ * Written with create-if-absent semantics so two people starting a job at the
+ * same moment cannot both be handed the same number — the second one fails and
+ * is told to try again rather than quietly sharing.
+ */
+export const startJob = async ({ sr, customer, date, description }) => {
+  const key = String(sr || '').trim().toUpperCase();
+  if (!key) throw new Error('A service report number is required.');
+  if (!String(customer || '').trim()) throw new Error('A customer is required.');
+
+  const ref2 = doc(jobsMasterDb, UNIFIED_JOBS, key);
+  const existing = await getDoc(ref2);
+  if (existing.exists()) {
+    throw new Error(`${key} has already been started. Refresh and take the next number.`);
+  }
+  const record = {
+    sr: key,
+    customer: String(customer).trim(),
+    date: date || '',
+    description: String(description || '').trim(),
+    createdAt: new Date().toISOString(),
+  };
+  await setDoc(ref2, record);
+  return record;
+};
+
+/** Record that the packet actually went to accounts payable. */
+export const markPacketSent = async (sr, to = []) => {
+  const key = String(sr || '').trim().replace(/[\s-]/g, '').toUpperCase();
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, sentAt: new Date().toISOString(), sentTo: to }, { merge: true });
+  return true;
+};

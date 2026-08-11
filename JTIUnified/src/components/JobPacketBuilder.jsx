@@ -12,10 +12,12 @@
 // by AP for being incomplete far more often than for being wrong, and the
 // moment to learn the PO is missing is before sending it.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
+  fetchUnifiedJobs, startJob, markPacketSent,
 } from '../data-service';
+import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '../utils/customerMatch';
 
@@ -26,8 +28,10 @@ const KINDS = [
   { key: 'receipts', label: 'Receipts', hint: 'What it cost us', many: true },
 ];
 
-export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], onClose }) {
+export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], onClose }) {
   const [sr, setSr] = useState('');
+  const [started, setStarted] = useState([]);
+  const [newJob, setNewJob] = useState(null);   // the form, when open
   const [packet, setPacket] = useState({ files: [] });
   const [sources, setSources] = useState(null);
   const [busy, setBusy] = useState('');
@@ -44,6 +48,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
   const customerName = sources?.customer
     || (job?.visits || []).find((v) => v.customer)?.customer
     || (job?.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer
+    || started.find((j) => String(j.sr) === String(sr))?.customer
     || '';
   const record = useMemo(
     () => (customerName ? matchCustomer(customerName, customerRecords) : null),
@@ -63,6 +68,25 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
   }, []);
 
   useEffect(() => { setResult(null); setError(''); load(sr); }, [sr, load]);
+  useEffect(() => { fetchUnifiedJobs().then(setStarted).catch(() => {}); }, []);
+
+  // Every number in play: the ones with history, plus the ones started here
+  // that the Jobs Tracker has not seen yet.
+  const allNumbers = useMemo(() => {
+    const seen = new Set(serviceReports.map((r) => String(r.number)));
+    const extra = started.filter((j) => !seen.has(String(j.sr)))
+      .map((j) => ({ number: j.sr, visits: [], timesheets: [], startedHere: true, customer: j.customer }));
+    return [...extra, ...serviceReports];
+  }, [serviceReports, started]);
+
+  const steps = useMemo(() => jobFlowSteps({
+    job: job || started.find((j) => String(j.sr) === String(sr)) || null,
+    sources,
+    packet,
+    manualInvoice: null,
+  }), [job, started, sr, sources, packet]);
+  const progress = flowProgress(steps);
+  const todo = nextAction(steps);
 
   const uploadedOf = (kind) => (packet.files || []).filter((f) => f.kind === kind);
 
@@ -153,16 +177,84 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
         <h2 style={{ fontSize: '24px', fontWeight: 600, color: colors.text, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Paperclip size={22} /> Job packet
         </h2>
-        {onClose && (
-          <button type="button" onClick={onClose} style={{ ...input, cursor: 'pointer' }}>Close</button>
-        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setNewJob({
+              sr: nextServiceReportNumber([...allNumbers.map((r) => r.number)], new Date().getFullYear()),
+              customer: '', date: new Date().toISOString().slice(0, 10), description: '',
+            })}
+            style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: '#ec4899', color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={16} /> New job
+          </button>
+          {onClose && (
+            <button type="button" onClick={onClose} style={{ ...input, cursor: 'pointer' }}>Close</button>
+          )}
+        </div>
       </div>
+
+      {newJob && (
+        <div style={{ ...card, borderLeft: '4px solid #ec4899' }}>
+          <div style={{ fontWeight: 600, color: colors.text, marginBottom: '10px' }}>Start a job</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+            <div>
+              <label style={label}>Service report number</label>
+              {/* Offered, not imposed: the next number is usually right, and
+                  the one time it is not, somebody has a paper pad that says so. */}
+              <input style={{ ...input, width: '100%' }} value={newJob.sr}
+                     onChange={(e) => setNewJob({ ...newJob, sr: e.target.value.toUpperCase() })} />
+            </div>
+            <div>
+              <label style={label}>Customer</label>
+              <input style={{ ...input, width: '100%' }} list="packet-customers" value={newJob.customer}
+                     onChange={(e) => setNewJob({ ...newJob, customer: e.target.value })} placeholder="Start typing…" />
+              <datalist id="packet-customers">
+                {customers.map((c) => <option key={c.name} value={c.name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label style={label}>Date</label>
+              <input type="date" style={{ ...input, width: '100%' }} value={newJob.date}
+                     onChange={(e) => setNewJob({ ...newJob, date: e.target.value })} />
+            </div>
+            <div>
+              <label style={label}>What the job is</label>
+              <input style={{ ...input, width: '100%' }} value={newJob.description}
+                     onChange={(e) => setNewJob({ ...newJob, description: e.target.value })} placeholder="Optional" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button" disabled={!!busy}
+              onClick={async () => {
+                setBusy('Reserving the number…'); setError('');
+                try {
+                  await startJob(newJob);
+                  setStarted(await fetchUnifiedJobs());
+                  setSr(newJob.sr);
+                  setNewJob(null);
+                } catch (err) { setError(err.message || String(err)); }
+                setBusy('');
+              }}
+              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#10b981', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Reserve {newJob.sr}
+            </button>
+            <button type="button" onClick={() => setNewJob(null)} style={{ ...input, cursor: 'pointer' }}>Cancel</button>
+            <span style={{ color: colors.textSecondary, fontSize: '13px' }}>
+              Reserves the number here. Create the job itself in the Jobs Tracker with the same number —
+              it owns the quote and the amount.
+            </span>
+          </div>
+        </div>
+      )}
 
       <div style={card}>
         <label style={label} htmlFor="packet-sr">Service report</label>
         <select id="packet-sr" value={sr} onChange={(e) => setSr(e.target.value)} style={{ ...input, minWidth: '280px', maxWidth: '100%' }}>
           <option value="">Choose a service report…</option>
-          {serviceReports.map((r) => (
+          {allNumbers.map((r) => (
             <option key={r.number} value={r.number}>
               {r.number}
               {(() => {
@@ -185,6 +277,56 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
 
       {sr && (
         <>
+          {/* Where this job has got to. Derived from the files and records
+              themselves rather than ticked by hand — a checklist somebody
+              maintains goes stale the first busy week. */}
+          <div style={card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <div style={{ fontWeight: 600, color: colors.text }}>Job {sr}</div>
+              <div style={{ color: colors.textSecondary, fontSize: '13px' }}>
+                {progress.done} of {progress.total} steps
+                {todo ? <> · next: <strong style={{ color: colors.text }}>{todo.label.toLowerCase()}</strong></>
+                      : <> · <span style={{ color: '#10b981' }}>complete</span></>}
+              </div>
+            </div>
+
+            <div style={{ height: '6px', borderRadius: '999px', background: colors.hover, overflow: 'hidden', marginBottom: '14px' }}>
+              <div style={{ width: `${progress.pct}%`, height: '100%', background: progress.pct === 100 ? '#10b981' : '#3b82f6', transition: 'width .3s' }} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {steps.map((st, i) => {
+                const isNext = todo && st.key === todo.key;
+                return (
+                  <div key={st.key} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '6px 8px', borderRadius: '6px', background: isNext ? colors.hover : 'transparent' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{
+                        width: '20px', height: '20px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: st.done ? '#10b981' : isNext ? '#3b82f6' : 'transparent',
+                        border: st.done || isNext ? 'none' : `2px solid ${colors.border || '#d1d5db'}`,
+                        color: 'white', fontSize: '11px', fontWeight: 700,
+                      }}>
+                        {st.done ? <Check size={13} /> : i + 1}
+                      </div>
+                      {/* The line between the dots is what makes it read as a
+                          sequence rather than a list of unrelated ticks. */}
+                      {i < steps.length - 1 && (
+                        <div style={{ width: '2px', flex: 1, minHeight: '10px', background: colors.border || '#e5e7eb', marginTop: '2px' }} />
+                      )}
+                    </div>
+                    <div style={{ paddingBottom: '4px' }}>
+                      <div style={{ color: st.done ? colors.textSecondary : colors.text, fontWeight: isNext ? 600 : 400, fontSize: '14px', textDecoration: st.done ? 'line-through' : 'none' }}>
+                        {st.label}
+                        {st.optional && <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px' }}> · if applicable</span>}
+                      </div>
+                      <div style={{ color: colors.textSecondary, fontSize: '12px' }}>{st.hint}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {KINDS.map((k) => {
             const state = slotState(k.key);
             const present = state.files.length > 0;
@@ -276,6 +418,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                   <Download size={16} /> Download PDF
                 </a>
                 <a
+                  onClick={() => markPacketSent(sr, apEmails).then(() => fetchPacket(sr).then(setPacket))}
                   href={packetEmail(result.meta, apEmails).href}
                   style={{
                     padding: '10px 18px', borderRadius: '8px', fontWeight: 600, textDecoration: 'none',
