@@ -154,7 +154,11 @@ export default function CustomerRecordCard({
         miles: draft.miles === '' || draft.miles == null ? null : Number(draft.miles),
         notes: (draft.notes || '').trim(),
         contacts: contacts
-          .map((c) => ({ name: (c.name || '').trim(), role: (c.role || '').trim(), phone: (c.phone || '').trim(), email: (c.email || '').trim() }))
+          .map((c) => ({
+            name: (c.name || '').trim(), role: (c.role || '').trim(),
+            phone: (c.phone || '').trim(), email: (c.email || '').trim(),
+            ...(c.primary ? { primary: true } : {}),
+          }))
           .filter((c) => c.name || c.phone || c.email),
         invoiceEmails: invoiceEmails.map((e) => (e || '').trim()).filter(Boolean),
         aliases: (draft.aliases || []).map((a) => (a || '').trim()).filter(Boolean),
@@ -248,7 +252,15 @@ export default function CustomerRecordCard({
 
       {/* Contacts */}
       <div style={{ marginBottom: '18px' }}>
-        <label style={labelStyle(colors)}>Contacts</label>
+        <label style={labelStyle(colors)}>Plant contacts</label>
+        {/* These are the plant's own people. The one marked below fills a
+            timesheet's contact, phone and email — which is a DIFFERENT thing
+            from the invoice emails lower down, and the two get confused
+            because both are addresses. */}
+        <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '-2px', marginBottom: '8px' }}>
+          Who to ask for on site. The one marked <strong>timesheet default</strong> pre-fills a
+          timesheet&rsquo;s contact, phone and email.
+        </div>
         {contacts.length === 0 && !editing && (
           <div style={{ color: colors.textSecondary, fontSize: '14px' }}>Nobody recorded</div>
         )}
@@ -261,6 +273,24 @@ export default function CustomerRecordCard({
                 <input style={{ ...inputStyle(colors), flex: '1 1 120px' }} value={c.phone} onChange={(e) => setContact(i, 'phone', e.target.value)} placeholder="Phone" />
                 <input style={{ ...inputStyle(colors), flex: '1 1 160px' }} value={c.email} onChange={(e) => setContact(i, 'email', e.target.value)} placeholder="Email" />
                 <button
+                  type="button"
+                  aria-label={`Use ${c.name || 'this contact'} on timesheets`}
+                  title="Use this person on timesheets"
+                  onClick={() => setDraft((d) => ({
+                    ...d,
+                    contacts: d.contacts.map((x, n) => ({ ...x, primary: n === i })),
+                  }))}
+                  style={{
+                    padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                    border: `1px solid ${colors.border || '#d1d5db'}`,
+                    background: (c.primary || (i === 0 && !contacts.some((x) => x.primary))) ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    color: (c.primary || (i === 0 && !contacts.some((x) => x.primary))) ? '#3b82f6' : colors.textSecondary,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  timesheet
+                </button>
+                <button
                   type="button" aria-label={`Remove ${c.name || 'contact'}`}
                   onClick={() => setDraft((d) => ({ ...d, contacts: d.contacts.filter((_, n) => n !== i) }))}
                   style={{ padding: '8px', borderRadius: '6px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}
@@ -271,6 +301,11 @@ export default function CustomerRecordCard({
             ) : (
               <div style={{ fontSize: '14px', color: colors.text, display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <strong>{c.name}</strong>
+                {(c.primary || (i === 0 && !contacts.some((x) => x.primary))) && (
+                  <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                    timesheet default
+                  </span>
+                )}
                 {c.role && <span style={{ color: colors.textSecondary }}>{c.role}</span>}
                 {c.phone && <a href={`tel:${c.phone}`} style={{ color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Phone size={13} />{c.phone}</a>}
                 {c.email && <a href={`mailto:${c.email}`} style={{ color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Mail size={13} />{c.email}</a>}
@@ -324,7 +359,13 @@ export default function CustomerRecordCard({
 
       {/* Invoice emails */}
       <div>
-        <label style={labelStyle(colors)}>Invoice emails</label>
+        <label style={labelStyle(colors)}>Invoice emails (accounts payable)</label>
+        {/* Stated because it is the one thing here that never leaves this
+            company's side: it is where WE send the invoice, not a contact a
+            technician would ask for, and it never appears on a timesheet. */}
+        <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '-2px', marginBottom: '8px' }}>
+          Where JTI sends the invoice. Used by the job packet only &mdash; never put on a timesheet.
+        </div>
         {invoiceEmails.length === 0 && !editing && (
           <div style={{ color: colors.textSecondary, fontSize: '14px' }}>None recorded</div>
         )}
