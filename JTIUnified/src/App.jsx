@@ -1,36 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import {
-  DollarSign,
-  Clock,
-  AlertTriangle,
-  FileText,
-  TrendingUp,
-  Calendar,
-  Users,
-  Settings,
-  ExternalLink,
-  Activity,
-  BarChart3,
-  RefreshCw,
-  Search,
-  X,
-  CheckCircle,
-  XCircle,
-  ChevronDown,
-  Moon,
-  Sun,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Edit2,
-  Trash2,
-  LogOut,
-  MapPin,
-  Navigation,
-  Wrench,
-  ShieldCheck
-} from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Building2, Calendar, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
 import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
@@ -43,6 +12,8 @@ import AppCard from './components/AppCard';
 import ActivityItem from './components/ActivityItem';
 import SearchResults from './components/SearchResults';
 import CustomerDetailView from './components/CustomerDetailView';
+import UpdateBanner from '@shared/components/UpdateBanner.jsx';
+import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
 
@@ -185,6 +156,8 @@ function App() {
 
   // Service Report Lookup state
   const [showServiceReports, setShowServiceReports] = useState(false);
+  // Every customer's record at once, and what each is still missing.
+  const [showRecords, setShowRecords] = useState(false);
   const [serviceReports, setServiceReports] = useState({ reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] });
   const [serviceReportsLoading, setServiceReportsLoading] = useState(false);
 
@@ -807,6 +780,10 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: colors.bg, transition: 'background 0.3s' }}>
+      {/* A tab left open all day keeps showing yesterday's build, and its
+          figures, with nothing to say so. The no-store headers only help
+          somebody who reloads. */}
+      <UpdateBanner />
       {/* Mobile-friendly styles */}
       <style>{`
         @keyframes jti-spin { to { transform: rotate(360deg); } }
@@ -1300,6 +1277,33 @@ function App() {
               Reports
             </button>
             <button
+              onClick={async () => {
+                const next = !showRecords;
+                setShowRecords(next);
+                if (next) {
+                  setSearchResults(null);
+                  clearCustomerSelection();
+                  setCustomerRecords(await fetchCustomerRecords());
+                }
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${showRecords ? '#0ea5e9' : colors.border}`,
+                background: showRecords ? '#0ea5e9' : colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: showRecords ? 'white' : colors.text
+              }}
+            >
+              <Building2 size={16} />
+              Records
+            </button>
+            <button
               onClick={handleRefresh}
               disabled={loading}
               style={{
@@ -1620,6 +1624,15 @@ function App() {
         )}
 
         {/* Customer Detail View */}
+        {showRecords && !selectedCustomer && !searchResults && (
+          <CustomerRecordsPanel
+            customers={customers}
+            records={customerRecords}
+            colors={colors}
+            onOpenCustomer={(name) => { setShowRecords(false); handleCustomerSelect(name); }}
+          />
+        )}
+
         {(selectedCustomer || customerLoading) && !searchResults && (
           <CustomerDetailView
             data={customerData}
@@ -1637,7 +1650,7 @@ function App() {
         )}
 
         {/* Filters and Chart - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && (
+        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && !showRecords && (
           <div style={{ marginBottom: '24px' }}>
             {/* Quick Filters */}
             <div style={{

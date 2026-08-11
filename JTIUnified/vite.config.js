@@ -1,8 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
+  // The same alias the CCW apps use, so genuinely shared pieces — the
+  // stale-build banner among them — exist once rather than as three copies
+  // that drift apart.
+  //
+  // The bare-package aliases are not decoration, and the CCW configs say so
+  // for the same reason: ../shared sits outside this app's root, so Node
+  // resolution walks UP from there and finds the repo-level node_modules — a
+  // second React in one bundle, whose dispatcher is null, so every hook throws
+  // "Cannot read properties of null (reading 'useState')" and the whole
+  // dashboard goes to its error boundary. Pointing them at THIS app's copies
+  // is what stops that.
+  resolve: {
+    alias: {
+      '@shared': path.resolve(__dirname, '../shared'),
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
   assetsInclude: ['**/*.md'],
   build: {
     rollupOptions: {

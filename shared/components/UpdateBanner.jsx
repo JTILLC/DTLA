@@ -11,8 +11,18 @@
 // half-typed, and doing that to somebody mid-sentence to deliver a fix they
 // did not ask for is its own kind of data loss.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { bundleFromHtml, isStale, runningBundle } from '../utils/buildVersion.js';
+
+// Inline rather than from an icon package. This component is shared by apps
+// that do not all carry the same dependencies, and one import would make a
+// four-line banner the reason a build fails.
+const RefreshIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+    <polyline points="21 3 21 9 15 9" />
+  </svg>
+);
 
 const CHECK_EVERY_MS = 10 * 60 * 1000;
 
@@ -58,19 +68,27 @@ export default function UpdateBanner({ checkEveryMs = CHECK_EVERY_MS }) {
 
   return (
     <div
-      className="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2 mb-0 rounded-0 border-0"
       role="status"
-      style={{ position: 'sticky', top: 0, zIndex: 3500 }}
+      style={{
+        position: 'sticky', top: 0, zIndex: 3500,
+        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+        padding: '8px 14px', background: '#fef3c7', color: '#78350f',
+        borderBottom: '1px solid #f59e0b', fontSize: '14px',
+      }}
     >
-      <RefreshCw size={16} aria-hidden="true" />
+      <RefreshIcon size={16} />
       <span>
         <strong>A newer version of this app is available.</strong>{' '}
         Reload to get it — anything already saved stays saved.
       </span>
       <button
         type="button"
-        className="btn btn-sm btn-warning ms-auto fw-semibold"
         onClick={() => window.location.reload()}
+        style={{
+          marginLeft: 'auto', padding: '5px 12px', borderRadius: '6px', border: 'none',
+          background: '#f59e0b', color: '#1f2937', fontWeight: 700, fontSize: '13px',
+          cursor: 'pointer',
+        }}
       >
         Reload
       </button>

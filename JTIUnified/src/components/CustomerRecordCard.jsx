@@ -56,7 +56,7 @@ export default function CustomerRecordCard({
   // from the customer being looked at onto the next one.
   useEffect(() => {
     setDraft({
-      address: '', cityState: '', contacts: [], invoiceEmails: [], notes: '', ...(record?.profile || {}),
+      address: '', cityState: '', contacts: [], invoiceEmails: [], aliases: [], notes: '', ...(record?.profile || {}),
     });
     setEditing(false);
     setError('');
@@ -155,6 +155,7 @@ export default function CustomerRecordCard({
           .map((c) => ({ name: (c.name || '').trim(), role: (c.role || '').trim(), phone: (c.phone || '').trim(), email: (c.email || '').trim() }))
           .filter((c) => c.name || c.phone || c.email),
         invoiceEmails: invoiceEmails.map((e) => (e || '').trim()).filter(Boolean),
+        aliases: (draft.aliases || []).map((a) => (a || '').trim()).filter(Boolean),
       };
       await onSave(record.id, cleaned);
       setDraft((d) => ({ ...d, ...cleaned }));
@@ -272,6 +273,39 @@ export default function CustomerRecordCard({
             <Plus size={14} /> Add contact
           </button>
         )}
+      </div>
+
+      {/* Other names this record answers to.
+          These were invisible until a bad one attributed eight jobs to the
+          wrong plant. A link nobody can see is a link nobody can undo, and
+          the merge it causes shows up as somebody else's money. */}
+      <div style={{ marginBottom: '18px' }}>
+        <label style={labelStyle(colors)}>Also known as</label>
+        {(draft.aliases || []).length === 0 && (
+          <div style={{ color: colors.textSecondary, fontSize: '14px' }}>No other names</div>
+        )}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {(draft.aliases || []).map((a, i) => (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '3px 10px', borderRadius: '999px', fontSize: '13px',
+              background: colors.hover, color: colors.text,
+              border: `1px solid ${colors.border || '#d1d5db'}`,
+            }}>
+              {a}
+              {editing && (
+                <button
+                  type="button" aria-label={`Stop treating ${a} as this customer`}
+                  title={`Stop treating "${a}" as this customer`}
+                  onClick={() => setDraft((d) => ({ ...d, aliases: d.aliases.filter((_, n) => n !== i) }))}
+                  style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Invoice emails */}
