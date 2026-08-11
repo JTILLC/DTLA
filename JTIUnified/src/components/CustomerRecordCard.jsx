@@ -12,7 +12,8 @@
 // and a screen full of input boxes invites accidental edits to a phone number
 // nobody meant to touch.
 import React, { useEffect, useState } from 'react';
-import { Building2, Check, Mail, Phone, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Building2, Check, Mail, Phone, Plus, Trash2, X } from 'lucide-react';
+import { looksLikeADifferentSite } from '../utils/customerMatch';
 
 const BLANK_CONTACT = { name: '', role: '', phone: '', email: '' };
 
@@ -66,6 +67,8 @@ export default function CustomerRecordCard({
   // and let a person make it, because matching plants by name automatically is
   // how one plant's invoice addresses end up under another plant's name.
   if (!record) {
+    const chosen = allRecords.find((r) => r.id === linkTo);
+    const siteWarning = chosen && looksLikeADifferentSite(customerName, chosen.name) ? chosen.name : null;
     return (
       <div style={{
         background: colors.cardBg, borderRadius: '12px', padding: '20px', marginBottom: '24px',
@@ -95,6 +98,15 @@ export default function CustomerRecordCard({
             type="button"
             disabled={!linkTo || saving}
             onClick={async () => {
+              // One name being the other plus a location is how two plants of
+              // one company get filed as one — and then invoices and history
+              // for Portland show under Oakland. Worth one question; not worth
+              // refusing, since "Flagstone" and "Flagstone Foods" really are
+              // one plant.
+              if (siteWarning && !window.confirm(
+                `${customerName} and ${siteWarning} may be different sites of the same company.\n\n`
+                + 'Linking them puts their addresses, invoices and history together under one record. '
+                + 'Link them anyway?')) return;
               setSaving(true);
               setError('');
               try { await onLink(linkTo); } catch (err) { setError(err.message || String(err)); }
@@ -109,6 +121,15 @@ export default function CustomerRecordCard({
             {saving ? 'Linking…' : 'Link'}
           </button>
         </div>
+        {siteWarning && (
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', marginTop: '10px', fontSize: '13px', color: '#f59e0b' }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span>
+              <strong>{customerName}</strong> and <strong>{siteWarning}</strong> may be different sites
+              of one company. Check the city before linking — separate plants should stay separate.
+            </span>
+          </div>
+        )}
         {error && <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px' }}>{error}</div>}
       </div>
     );

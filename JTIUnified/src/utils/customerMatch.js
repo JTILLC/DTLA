@@ -72,6 +72,11 @@ export const matchCustomer = (name, records = []) => {
   const exact = records.find((r) => namesFor(r).includes(target));
   if (exact) return exact;
 
+  // The same name typed differently — truncated, pluralised, or missing a
+  // space. Never a name with a word missing; see sameCustomerName.
+  const spelled = records.find((r) => namesFor(r).some((n) => sameCustomerName(n, target)));
+  if (spelled) return spelled;
+
   // A former name maps forward to what the plant is called now.
   const renamed = KNOWN_FORMER_NAMES[target];
   if (renamed) {
@@ -101,4 +106,117 @@ export const isSameCustomer = (a, b) => {
   return KNOWN_FORMER_NAMES[na] === nb || KNOWN_FORMER_NAMES[nb] === na;
 };
 
-export default { normalizeCustomerName, matchCustomer, isSameCustomer, namesFor, KNOWN_FORMER_NAMES };
+
+/**
+ * Two spellings of one name — as opposed to two plants.
+ *
+ * Sources truncate ("National Froz", "Trident Sea"), pluralise ("Oasis Date"
+ * / "Oasis Dates") and lose spaces ("FoodPharma"). All three are the same
+ * customer typed differently, and all three are safe to merge because the
+ * DISTINGUISHING word is still there and still agrees.
+ *
+ * What is deliberately NOT here is the shorter name with FEWER words:
+ * "Ajinomoto" against "Ajinomoto Portland", "Trident" against "Trident
+ * Seafoods". A missing word is where the city lives, so merging those would be
+ * the exact mistake this whole module exists to avoid — one plant's invoices
+ * under another's name. Those stay apart until a person links them.
+ */
+export const sameCustomerName = (a, b) => {
+  const na = normalizeCustomerName(a);
+  const nb = normalizeCustomerName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+
+  // Spacing only: "Food Pharma" and "FoodPharma".
+  if (na.replace(/\s/g, '') === nb.replace(/\s/g, '')) return true;
+
+  const ta = na.split(' ');
+  const tb = nb.split(' ');
+  // Same number of words, differing only in the last, one a prefix of the
+  // other: a truncated or pluralised tail. Three characters minimum, so "S"
+  // does not swallow "Seafoods".
+  if (ta.length !== tb.length) return false;
+  if (ta.slice(0, -1).join(' ') !== tb.slice(0, -1).join(' ')) return false;
+  const [la, lb] = [ta[ta.length - 1], tb[tb.length - 1]];
+  const [short, long] = la.length <= lb.length ? [la, lb] : [lb, la];
+  return short.length >= 3 && long.startsWith(short);
+};
+
+/**
+ * Collapse the customer names found across jobs, issues and timesheets into one
+ * entry per actual customer.
+ *
+ * The same plant reaches this app under several spellings — "Flagstone",
+ * "Flagstone Foods", "flagstone_foods" — because each source has its own typed
+ * or generated string. Showing all of them means picking one and seeing a third
+ * of the plant's history.
+ *
+ * Two names are the same customer when they resolve to the same customer
+ * RECORD, or, failing that, when they normalise identically. Both rules keep
+ * sites apart on their own, which is the requirement that matters here: a city
+ * or site on the end of a name is part of the name. "Ajinomoto Oakland" and
+ * "Ajinomoto Portland" normalise differently and match different records, so
+ * they never merge — and neither absorbs a bare "Ajinomoto", because nothing
+ * says which plant that one meant. Same for "Shearers" and "Shearers Brewster".
+ *
+ * `entries` is [{ name, sources }]. Returns one entry per customer, named after
+ * the record where there is one, carrying every spelling it stands for.
+ */
+export const consolidateCustomers = (entries = [], records = []) => {
+  const groups = new Map();
+
+  entries.forEach((entry) => {
+    const name = String(entry?.name || '').trim();
+    if (!name) return;
+    const record = matchCustomer(name, records);
+    // The record is the identity when there is one; otherwise the normalised
+    // name is, which merges spellings without ever merging two locations.
+    let key = record ? `rec:${record.id}` : `name:${normalizeCustomerName(name)}`;
+    // No record to anchor it: fold in with an existing unanchored group whose
+    // name is the same name typed differently.
+    if (!record) {
+      for (const [k, g] of groups) {
+        if (k.startsWith('name:') && g.variants.some((v) => sameCustomerName(v, name))) { key = k; break; }
+      }
+    }
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name: record?.name || name,
+        recordId: record?.id || null,
+        variants: [],
+        sources: [],
+      });
+    }
+    const group = groups.get(key);
+    if (!group.variants.includes(name)) group.variants.push(name);
+    (entry.sources || []).forEach((s) => { if (!group.sources.includes(s)) group.sources.push(s); });
+    // Prefer the record's name; failing that the longest spelling, which is the
+    // one that reads like a company rather than a database key.
+    if (!group.recordId && name.length > group.name.length) group.name = name;
+  });
+
+  return [...groups.values()].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+};
+
+/**
+ * Would linking these two put two different sites under one record?
+ *
+ * True when one name is the other plus extra words — "Ajinomoto" against
+ * "Ajinomoto Portland", "Shearers" against "Shearers Brewster". Not a refusal:
+ * plants really are called "Flagstone" and "Flagstone Foods". It is the
+ * difference between a link somebody meant and one worth asking about first.
+ */
+export const looksLikeADifferentSite = (name, recordName) => {
+  const a = normalizeCustomerName(name).split(' ').filter(Boolean);
+  const b = normalizeCustomerName(recordName).split(' ').filter(Boolean);
+  if (!a.length || !b.length) return false;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (shorter.length === longer.length) return false;
+  return shorter.every((tok, i) => longer[i] === tok);
+};
+
+export default {
+  normalizeCustomerName, matchCustomer, isSameCustomer, namesFor,
+  consolidateCustomers, looksLikeADifferentSite, sameCustomerName, KNOWN_FORMER_NAMES,
+};

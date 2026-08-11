@@ -4,7 +4,7 @@ import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
 import { isPaid, jobAmount, sumIncome } from './utils/format';
-import { matchCustomer } from './utils/customerMatch';
+import { matchCustomer, consolidateCustomers, normalizeCustomerName } from './utils/customerMatch';
 
 // ============================================
 // Docx-derived calendar events
@@ -837,12 +837,12 @@ export const fetchCustomersList = async () => {
       }
     });
 
-    // Convert to sorted array
-    const customers = Array.from(customersMap.values()).sort((a, b) =>
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-    );
-
-    return customers;
+    // One entry per actual customer. The raw list carries the same plant under
+    // every spelling each source happened to use; consolidation folds those
+    // together WITHOUT folding two sites of one company together — see
+    // consolidateCustomers.
+    const records = await fetchCustomerRecords();
+    return consolidateCustomers(Array.from(customersMap.values()), records);
   } catch (error) {
     console.error('Error fetching customers list:', error);
     return [];
@@ -870,25 +870,27 @@ export const fetchCustomerData = async (customerName) => {
     const record = matchCustomer(customerName, records);
     const visits = record ? await fetchCustomerVisits(record.id) : [];
 
-    const term = customerName.toLowerCase();
+    // Which spellings count as THIS customer.
+    //
+    // This used to be a substring test in both directions, which quietly made
+    // "Ajinomoto" pick up Ajinomoto Portland's jobs and Ajinomoto Oakland's
+    // hours — two plants' money under one name. A customer is its own name,
+    // every spelling recorded against its record, and nothing else.
+    const spellings = new Set([
+      normalizeCustomerName(customerName),
+      ...(record ? [normalizeCustomerName(record.name), ...(record.profile?.aliases || []).map(normalizeCustomerName)] : []),
+    ].filter(Boolean));
+    const isOurs = (value) => spellings.has(normalizeCustomerName(value));
 
     // Filter jobs for this customer
-    const customerJobs = jobsData.jobs.filter(job => {
-      const jobCustomer = (job.customer || job.customerName || '').toLowerCase();
-      return jobCustomer.includes(term) || term.includes(jobCustomer);
-    });
+    const customerJobs = jobsData.jobs.filter(job => isOurs(job.customer || job.customerName));
 
     // Filter issues for this customer
-    const customerIssues = downtimeData.issues.filter(issue => {
-      const issueCustomer = (issue.customer || '').toLowerCase();
-      return issueCustomer.includes(term) || term.includes(issueCustomer);
-    });
+    const customerIssues = downtimeData.issues.filter(issue => isOurs(issue.customer));
 
     // Filter timesheets for this customer
-    const customerTimesheets = timesheetData.timesheets.filter(timesheet => {
-      const tsCustomer = (timesheet.customer || timesheet.visitName || '').toLowerCase();
-      return tsCustomer.includes(term) || term.includes(tsCustomer);
-    });
+    const customerTimesheets = timesheetData.timesheets.filter(
+      timesheet => isOurs(timesheet.customer || timesheet.visitName));
 
     // Sort by date (most recent first)
     const sortByDate = (a, b) => {
