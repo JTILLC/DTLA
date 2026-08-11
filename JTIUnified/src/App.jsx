@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { Activity, AlertTriangle, BarChart3, Building2, Calendar, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Building2, Calendar, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
 import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
@@ -14,6 +14,7 @@ import SearchResults from './components/SearchResults';
 import CustomerDetailView from './components/CustomerDetailView';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import CustomerRecordsPanel from './components/CustomerRecordsPanel';
+import JobPacketBuilder from './components/JobPacketBuilder';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
 
@@ -158,6 +159,8 @@ function App() {
   const [showServiceReports, setShowServiceReports] = useState(false);
   // Every customer's record at once, and what each is still missing.
   const [showRecords, setShowRecords] = useState(false);
+  // PO + invoice + service report + receipts, merged into one PDF.
+  const [showPacket, setShowPacket] = useState(false);
   const [serviceReports, setServiceReports] = useState({ reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] });
   const [serviceReportsLoading, setServiceReportsLoading] = useState(false);
 
@@ -1304,6 +1307,35 @@ function App() {
               Records
             </button>
             <button
+              onClick={async () => {
+                const next = !showPacket;
+                setShowPacket(next);
+                if (next) {
+                  setShowRecords(false);
+                  setSearchResults(null);
+                  clearCustomerSelection();
+                  if (serviceReports.reports.length === 0) loadServiceReports();
+                  setCustomerRecords(await fetchCustomerRecords());
+                }
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${showPacket ? '#ec4899' : colors.border}`,
+                background: showPacket ? '#ec4899' : colors.cardBg,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: showPacket ? 'white' : colors.text
+              }}
+            >
+              <Paperclip size={16} />
+              Packet
+            </button>
+            <button
               onClick={handleRefresh}
               disabled={loading}
               style={{
@@ -1624,6 +1656,15 @@ function App() {
         )}
 
         {/* Customer Detail View */}
+        {showPacket && !selectedCustomer && !searchResults && (
+          <JobPacketBuilder
+            colors={colors}
+            serviceReports={serviceReports.reports}
+            customerRecords={customerRecords}
+            onClose={() => setShowPacket(false)}
+          />
+        )}
+
         {showRecords && !selectedCustomer && !searchResults && (
           <CustomerRecordsPanel
             customers={customers}
@@ -1650,7 +1691,7 @@ function App() {
         )}
 
         {/* Filters and Chart - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && !showRecords && (
+        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && !showRecords && !showPacket && (
           <div style={{ marginBottom: '24px' }}>
             {/* Quick Filters */}
             <div style={{

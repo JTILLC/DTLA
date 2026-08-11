@@ -1,29 +1,22 @@
 [
   {
-    "origin": ["*"],
+    "_comment": "Reading bytes cross-origin — which is what merging a PDF into a job packet does — needs the bucket to say so. Without this a file downloads fine in a browser tab and is invisible to the app that wants to bind it into a packet.",
+    "origin": [
+      "https://jti-dashboard.pages.dev",
+      "https://jti-issues.pages.dev",
+      "https://jti-issues-mt.pages.dev",
+      "https://jti-ccw-viewer.pages.dev",
+      "https://jti-validation.pages.dev",
+      "https://jti-shearers.pages.dev",
+      "https://jti-jobs.pages.dev",
+      "https://jti-inventory.pages.dev",
+      "https://jti-timesheet.pages.dev",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175"
+    ],
     "method": ["GET", "HEAD"],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Content-Length"]
-  },
-  {
-    "origin": [
-      "http://localhost:*",
-      "https://localhost:*",
-      "https://jtiapp.netlify.app",
-      "https://jtijobs.netlify.app",
-      "https://jti-ts3.netlify.app",
-      "https://jti-ccwlog.netlify.app",
-      "https://jtiinventory.netlify.app",
-      "https://shearersjtidowntime.netlify.app"
-    ],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    "maxAgeSeconds": 3600,
-    "responseHeader": [
-      "Content-Type",
-      "Authorization",
-      "Content-Length",
-      "User-Agent",
-      "X-Requested-With"
-    ]
+    "responseHeader": ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"]
   }
 ]

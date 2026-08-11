@@ -1781,3 +1781,106 @@ export const fetchCustomerVisits = async (customerId) => {
     return [];
   }
 };
+
+// ============================================
+// Job packets: PO + invoice + service report + receipts, as one PDF
+// ============================================
+//
+// Files are kept per service report number, because that is the number the
+// job, the invoice and the service report already share — the one thing every
+// system here agrees on.
+export const JOB_PACKETS = 'unified_job_packets';
+
+const packetKey = (sr) => String(sr || '').trim().replace(/[\s-]/g, '').toUpperCase();
+
+/**
+ * Bytes for a file already in the system.
+ *
+ * Uses the SDK's getBlob rather than fetch. A download URL fetched cross-origin
+ * needs a CORS rule on the bucket, and the failure is a browser-level error the
+ * app cannot even see the body of — whereas getBlob goes through the SDK's own
+ * authenticated path. The two buckets are tried in turn because a service
+ * report lives with CCW and an uploaded invoice lives with Jobs.
+ */
+export const fetchFileBytes = async (urlOrPath) => {
+  if (!urlOrPath) return null;
+  for (const store of [jobsStorage, ccwIssuesStorage]) {
+    try {
+      const blob = await getBlob(ref(store, urlOrPath));
+      return new Uint8Array(await blob.arrayBuffer());
+    } catch { /* try the other bucket */ }
+  }
+  console.warn('Could not read file for packet:', urlOrPath);
+  return null;
+};
+
+/** What the system already holds for this service report. */
+export const fetchPacketSources = async (sr) => {
+  const key = packetKey(sr);
+  const [reports, manual] = await Promise.all([fetchServiceReports(), fetchManualReports()]);
+  // A report entry carries no customer or file of its own: both live on the
+  // visits and timesheets joined to it by number.
+  const list = reports?.reports || reports || [];
+  const report = list.find((r) => packetKey(r.number) === key);
+  const visitWithFile = (report?.visits || []).find((v) => v.serviceReportUrl);
+  const invoiceEntry = (manual || []).find(
+    (m) => m.kind === 'invoice' && (packetKey(m.number) === key || packetKey(m.invoiceNumber) === key));
+  const reportEntry = (manual || []).find((m) => m.kind === 'report' && packetKey(m.number) === key);
+  return {
+    serviceReportUrl: visitWithFile?.serviceReportUrl || reportEntry?.fileUrl || null,
+    serviceReportName: visitWithFile?.serviceReportUrl ? `Service report ${sr}.pdf` : (reportEntry?.fileName || null),
+    customer: (report?.visits || []).find((v) => v.customer)?.customer
+      || (report?.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer
+      || '',
+    date: (report?.visits || [])[0]?.date || (report?.timesheets || [])[0]?.date || '',
+    invoiceUrl: invoiceEntry?.fileUrl || null,
+    invoiceName: invoiceEntry?.fileName || null,
+    invoiceNumber: invoiceEntry?.invoiceNumber || invoiceEntry?.number || null,
+    amount: invoiceEntry?.amount ?? null,
+  };
+};
+
+/** The packet record: everything uploaded against this service report. */
+export const fetchPacket = async (sr) => {
+  const snap = await getDoc(doc(jobsMasterDb, JOB_PACKETS, packetKey(sr)));
+  return snap.exists() ? { id: snap.id, files: [], ...snap.data() } : { id: packetKey(sr), files: [] };
+};
+
+/**
+ * Add a file to a packet.
+ *
+ * Stored under the service report number and stamped with the time, so
+ * uploading two receipts photographed a second apart cannot have one quietly
+ * replace the other.
+ */
+export const addPacketFile = async (sr, kind, file) => {
+  const key = packetKey(sr);
+  if (!key) throw new Error('A service report number is required.');
+  const safe = String(file.name || 'file').replace(/[^A-Za-z0-9._-]/g, '_');
+  const path = `job-packets/${key}/${kind}-${Date.now()}-${safe}`;
+  await uploadBytes(ref(jobsStorage, path), file, { contentType: file.type || 'application/octet-stream' });
+  const url = await getDownloadURL(ref(jobsStorage, path));
+  const entry = { kind, name: safe, path, url, type: file.type || '', uploadedAt: new Date().toISOString() };
+  const current = await fetchPacket(key);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, files: [...(current.files || []), entry] }, { merge: true });
+  return entry;
+};
+
+/** Remove one file from a packet, and from storage. */
+export const removePacketFile = async (sr, path) => {
+  const key = packetKey(sr);
+  const current = await fetchPacket(key);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, files: (current.files || []).filter((f) => f.path !== path) }, { merge: true });
+  try { await deleteObject(ref(jobsStorage, path)); } catch (e) { console.warn('Could not delete packet file:', e); }
+  return true;
+};
+
+/** Record that a packet was built and sent, so "did we invoice this?" has an answer. */
+export const markPacketBuilt = async (sr, { notes = '' } = {}) => {
+  const key = packetKey(sr);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, notes, builtAt: new Date().toISOString() }, { merge: true });
+  return true;
+};
