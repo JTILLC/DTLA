@@ -11,7 +11,7 @@
 // Sorted by what is missing rather than by name. A list where the finished
 // rows come first is a list nobody scrolls.
 import React, { useMemo } from 'react';
-import { AlertTriangle, Check, Link2, Mail, MapPin, Users } from 'lucide-react';
+import { AlertTriangle, Check, Link2, Mail, MapPin, Route, Users } from 'lucide-react';
 
 const has = (v) => Array.isArray(v) ? v.length > 0 : !!String(v || '').trim();
 
@@ -27,6 +27,9 @@ export const missingFrom = (profile = {}) => {
   if (!has(profile.address) && !has(profile.cityState)) gaps.push('address');
   if (!has(profile.contacts)) gaps.push('contacts');
   if (!has(profile.invoiceEmails)) gaps.push('invoice email');
+  // Mileage is what a timesheet pre-fills from, so a record without it still
+  // leaves somebody typing.
+  if (profile.miles == null || profile.miles === '') gaps.push('mileage');
   return gaps;
 };
 
@@ -83,13 +86,14 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
       </p>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '620px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
           <thead>
             <tr>
               <th style={head}>Customer</th>
               <th style={head}><MapPin size={12} style={{ verticalAlign: '-2px' }} /> Address</th>
               <th style={head}><Users size={12} style={{ verticalAlign: '-2px' }} /> Contacts</th>
               <th style={head}><Mail size={12} style={{ verticalAlign: '-2px' }} /> Invoice email</th>
+              <th style={head}><Route size={12} style={{ verticalAlign: '-2px' }} /> Mileage</th>
             </tr>
           </thead>
           <tbody>
@@ -137,6 +141,12 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
                     {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
                       : emails > 0
                         ? <Pill tone="ok" colors={colors}><Check size={11} /> {emails}</Pill>
+                        : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> none</Pill>}
+                  </td>
+                  <td style={cell}>
+                    {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
+                      : (p.miles != null && p.miles !== '')
+                        ? <span style={{ color: colors.textSecondary }}>{p.miles} mi</span>
                         : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> none</Pill>}
                   </td>
                 </tr>
