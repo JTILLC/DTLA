@@ -8,6 +8,7 @@ import { exportAccountStatement } from '../utils/exportAccountStatement';
   const CustomerDetailView = ({
     data, customerName, loading, onClear, setSearchTerm, colors,
     customerRecords = [], onSaveProfile, onLinkCustomer,
+    onMoveJob, moveTargets = [],
   }) => {
     const [collapsedCustomerSections, setCollapsedCustomerSections] = useState({
       jobs: false,
@@ -322,8 +323,32 @@ import { exportAccountStatement } from '../utils/exportAccountStatement';
                             {job.customer || job.customerName || 'Unknown Customer'}
                           </div>
                           {(job.sr || job.invoiceNumber) && (
-                            <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '2px' }}>
-                              SR #: {job.sr || job.invoiceNumber}
+                            <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span>SR #: {job.sr || job.invoiceNumber}</span>
+                              {job.customerCorrected && (
+                                <span title="Filed against this customer here, not in the Jobs Tracker"
+                                      style={{ color: '#8b5cf6' }}>· moved here</span>
+                              )}
+                              {/* One company, more than one plant: a job filed
+                                  under the bare company name can be put with
+                                  the plant it was actually done at. Recorded
+                                  here, never written back over the Jobs
+                                  Tracker's own file. */}
+                              {onMoveJob && (
+                                <select
+                                  value=""
+                                  onChange={(e) => { if (e.target.value) onMoveJob(job.sr || job.invoiceNumber, e.target.value); }}
+                                  title="File this job against a different customer"
+                                  style={{
+                                    fontSize: '11px', padding: '1px 4px', borderRadius: '4px',
+                                    border: `1px solid ${colors.border || '#d1d5db'}`,
+                                    background: 'transparent', color: colors.textSecondary, cursor: 'pointer',
+                                  }}
+                                >
+                                  <option value="">Move to…</option>
+                                  {moveTargets.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                              )}
                             </div>
                           )}
                         </div>

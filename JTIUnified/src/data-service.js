@@ -255,7 +255,15 @@ export const fetchJobsData = async () => {
 
     await Promise.all(fetchPromises);
 
-    const jobs = allJobs;
+    // Apply any corrections before anything counts or groups these jobs, so a
+    // reassigned job leaves the old customer's totals as well as joining the
+    // new one's. Applied here rather than at each call site: a correction that
+    // only some screens honoured would be worse than none.
+    const overrides = await fetchJobCustomerOverrides();
+    const jobs = overrides.size === 0 ? allJobs : allJobs.map((job) => {
+      const to = overrides.get(srKey(job.sr || job.invoiceNumber));
+      return to ? { ...job, customer: to, customerName: to, customerCorrected: true } : job;
+    });
 
     // Calculate statistics - use actual if available, otherwise quote
     const totalIncome = sumIncome(jobs);
@@ -290,6 +298,64 @@ export const fetchJobsData = async () => {
       totalJobs: 0
     };
   }
+};
+
+
+// ============================================
+// Job → customer corrections
+// ============================================
+//
+// Jobs are read from JSON files in Storage that the Jobs Tracker writes. They
+// cannot be corrected in place from here: the next export would overwrite the
+// change, and the two apps would disagree about the same job.
+//
+// So a correction is recorded ALONGSIDE the job, keyed by service report
+// number, and applied when the jobs are read. The original file stays exactly
+// as the Jobs Tracker wrote it, the correction survives the next export, and
+// undoing one is deleting a row.
+//
+// The case this exists for: a company with more than one plant, whose jobs were
+// filed under the bare company name. "Ajinomoto" alone does not say whether it
+// was Oakland or Portland, and only somebody who was there knows.
+export const JOB_CUSTOMER_OVERRIDES = 'unified_job_customer_overrides';
+
+const srKey = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
+
+export const fetchJobCustomerOverrides = async () => {
+  try {
+    const snap = await getDocs(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES));
+    const map = new Map();
+    snap.docs.forEach((d) => {
+      const v = d.data() || {};
+      if (v.customer) map.set(srKey(v.sr || d.id), v.customer);
+    });
+    return map;
+  } catch (error) {
+    console.error('Error fetching job customer overrides:', error);
+    return new Map();
+  }
+};
+
+/** File this service report's job against a different customer. */
+export const setJobCustomer = async (sr, customer, note = '') => {
+  const key = srKey(sr);
+  if (!key) throw new Error('A service report number is required.');
+  if (!String(customer || '').trim()) throw new Error('A customer is required.');
+  await setDoc(doc(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES), key), {
+    sr: key,
+    customer: String(customer).trim(),
+    note: String(note || '').trim(),
+    updatedAt: new Date().toISOString(),
+  });
+  clearDataCache();
+  return true;
+};
+
+/** Undo a correction — the job goes back to whatever the Jobs Tracker says. */
+export const clearJobCustomer = async (sr) => {
+  await deleteDoc(doc(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES), srKey(sr)));
+  clearDataCache();
+  return true;
 };
 
 // Fetch CCW Issues (Downtime) Data from Firestore

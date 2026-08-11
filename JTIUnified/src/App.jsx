@@ -31,7 +31,7 @@ import {
   Wrench,
   ShieldCheck
 } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
 const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
@@ -466,6 +466,23 @@ function App() {
     ]);
     setCustomerData(data);
     setCustomerRecords(records);
+  };
+
+  // File a job against a different customer.
+  //
+  // For a company with more than one plant whose jobs were filed under the bare
+  // company name — only somebody who was there knows which site a given service
+  // report belongs to, so it is a decision, not something to infer.
+  const handleMoveJob = async (sr, toCustomer) => {
+    if (!sr || !toCustomer) return;
+    await setJobCustomer(sr, toCustomer);
+    const [data, records] = await Promise.all([
+      fetchCustomerData(selectedCustomer),
+      fetchCustomerRecords(),
+    ]);
+    setCustomerData(data);
+    setCustomerRecords(records);
+    setCustomers(await fetchCustomersList());
   };
 
   // Handle customer selection
@@ -1614,6 +1631,8 @@ function App() {
             customerRecords={customerRecords}
             onSaveProfile={handleSaveCustomerProfile}
             onLinkCustomer={handleLinkCustomer}
+            onMoveJob={handleMoveJob}
+            moveTargets={customers.map((c) => c.name)}
           />
         )}
 
