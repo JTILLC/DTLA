@@ -4,6 +4,7 @@ import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
 import { isPaid, jobAmount, sumIncome } from './utils/format';
+import { matchCustomer } from './utils/customerMatch';
 
 // ============================================
 // Docx-derived calendar events
@@ -851,16 +852,23 @@ export const fetchCustomersList = async () => {
 // Fetch all data for a specific customer
 export const fetchCustomerData = async (customerName) => {
   if (!customerName) {
-    return { jobs: [], issues: [], timesheets: [] };
+    return { record: null, visits: [], jobs: [], issues: [], timesheets: [] };
   }
 
   try {
     // Fetch all data in parallel
-    const [jobsData, downtimeData, timesheetData] = await Promise.all([
+    const [jobsData, downtimeData, timesheetData, records] = await Promise.all([
       fetchJobsData(),
       fetchDowntimeData(),
-      fetchTimesheetData()
+      fetchTimesheetData(),
+      fetchCustomerRecords()
     ]);
+
+    // The customer RECORD — address, contacts, invoice emails — and the visits
+    // filed against it. Null when no record answers to this name, which the
+    // screen turns into "link this to a customer" rather than a blank card.
+    const record = matchCustomer(customerName, records);
+    const visits = record ? await fetchCustomerVisits(record.id) : [];
 
     const term = customerName.toLowerCase();
 
@@ -902,9 +910,12 @@ export const fetchCustomerData = async (customerName) => {
     const paidIncome = sumIncome(customerJobs, { paidOnly: true });
 
     return {
+      record,
+      visits,
       jobs: customerJobs,
       issues: customerIssues,
       timesheets: customerTimesheets,
+      totalVisits: visits.length,
       totalJobs: customerJobs.length,
       totalIssues: customerIssues.length,
       totalTimesheets: customerTimesheets.length,
@@ -914,7 +925,7 @@ export const fetchCustomerData = async (customerName) => {
     };
   } catch (error) {
     console.error('Error fetching customer data:', error);
-    return { jobs: [], issues: [], timesheets: [] };
+    return { record: null, visits: [], jobs: [], issues: [], timesheets: [] };
   }
 };
 
@@ -1630,5 +1641,75 @@ export const subscribeToFactoryLocations = (callback) => {
   } catch (error) {
     console.error('Error setting up factory locations subscription:', error);
     return null;
+  }
+};
+
+// ============================================
+// Customer records: address, contacts, invoice emails, visits
+// ============================================
+//
+// The customer record lives in the CCW database, at
+// user_files/{WORKSPACE_UID}/customers/{id}, under a `profile` map. That is
+// where CCW Issues and Headcount already keep a plant's name and address, so
+// this extends the record every app shares rather than starting a second one
+// that would immediately disagree with it.
+
+export const WORKSPACE_UID = 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1';
+
+const customersRef = () => collection(ccwIssuesDb, 'user_files', WORKSPACE_UID, 'customers');
+
+/** Every customer record JTI holds: id, name, and the profile map. */
+export const fetchCustomerRecords = async () => {
+  try {
+    const snap = await getDocs(customersRef());
+    return snap.docs.map((d) => {
+      const data = d.data() || {};
+      const profile = data.profile || {};
+      return {
+        id: d.id,
+        // The name lives on the profile in CCW; older docs kept it at the top.
+        name: profile.name || data.name || '',
+        profile: {
+          address: '', cityState: '', contacts: [], invoiceEmails: [], aliases: [], notes: '',
+          ...profile,
+        },
+      };
+    }).filter((c) => c.name);
+  } catch (error) {
+    console.error('Error fetching customer records:', error);
+    return [];
+  }
+};
+
+/**
+ * Update part of a customer's profile, leaving the rest alone.
+ *
+ * A merge rather than a write: the same document carries headCount and the
+ * name that CCW Issues and Headcount depend on, and replacing it wholesale
+ * from this screen would quietly drop whatever this screen does not know about.
+ */
+export const saveCustomerProfile = async (customerId, patch) => {
+  if (!customerId) throw new Error('No customer record to save against.');
+  const ref = doc(customersRef(), customerId);
+  const snap = await getDoc(ref);
+  const existing = (snap.exists() ? snap.data()?.profile : null) || {};
+  await setDoc(ref, {
+    profile: { ...existing, ...patch, updatedAt: new Date().toISOString() },
+  }, { merge: true });
+  return { ...existing, ...patch };
+};
+
+/** JTI's service visits for one customer, newest first. */
+export const fetchCustomerVisits = async (customerId) => {
+  if (!customerId) return [];
+  try {
+    const snap = await getDocs(collection(customersRef(), customerId, 'visits'));
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((v) => !v.deleted)
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  } catch (error) {
+    console.error('Error fetching customer visits:', error);
+    return [];
   }
 };

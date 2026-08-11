@@ -64,10 +64,31 @@ service cloud.firestore {
       allow write: if isAdmin();
 
       // The customer document itself.
+      //
+      // A plant may maintain its own record — the address moves, a contact
+      // leaves — but NOT where JTI's invoices are sent. Those addresses decide
+      // where money is asked for, and a plant login is shared around a factory
+      // floor; changing them is JTI's alone. Enforced here rather than by
+      // hiding the field, because a rule is the only version of this that a
+      // compromised or curious client cannot talk its way past.
+      // `get(key, default)` throughout: a customer document that has never had
+      // a profile, or a profile that has never had invoice emails, is the
+      // ordinary case and must read as "unchanged", not blow the rule up. On a
+      // create there is no `resource` at all, so that is answered separately —
+      // reaching for resource.data there is an error, and an erroring rule
+      // denies, which would lock a plant out of its own record.
+      function billingUnchanged() {
+        return resource == null
+          ? !request.resource.data.get('profile', {}).keys().hasAny(['invoiceEmails'])
+          : request.resource.data.get('profile', {}).get('invoiceEmails', [])
+            == resource.data.get('profile', {}).get('invoiceEmails', []);
+      }
       match /customers/{cid} {
         allow read: if isAdmin() || isCustomerOf(cid) || isSharedCustomer(cid);
         allow write: if isAdmin()
-          || (workspaceId == 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1' && isCustomerOf(cid));
+          || (workspaceId == 'tgezUokMZ1PO7iEDbLbj2U7Uwbx1'
+              && isCustomerOf(cid)
+              && billingUnchanged());
       }
 
       // Everything under a customer, with the first sub-collection bound so it

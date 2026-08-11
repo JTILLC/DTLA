@@ -1,4 +1,7 @@
-import { test } from 'node:test';
+// `test` from vitest, not node:test — under node:test this file reported
+// "no test suite found" to the vitest run, leaving the suite permanently red
+// and a real failure indistinguishable from the usual noise.
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { isPaid, jobAmount, sumIncome } from './format.js';
 
