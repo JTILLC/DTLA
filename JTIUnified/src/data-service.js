@@ -1765,6 +1765,10 @@ export const saveCustomerProfile = async (customerId, patch) => {
   await setDoc(ref, {
     profile: { ...existing, ...patch, updatedAt: new Date().toISOString() },
   }, { merge: true });
+  // Push the copy the timesheet reads. Fire-and-forget: a directory that failed
+  // to update must not make it look like the record failed to save, and the
+  // next save or the Publish button will catch it up.
+  publishToTimesheet().catch((e) => console.warn('Could not update the timesheet directory:', e));
   return { ...existing, ...patch };
 };
 
@@ -1993,4 +1997,52 @@ export const lookupJobDefaults = async (sr) => {
     defaults: customerDefaults(record),
     missing: missingDefaults(record),
   };
+};
+
+// ============================================
+// Publishing the customer directory to the timesheet app
+// ============================================
+//
+// Firebase Auth is per PROJECT. The timesheet app signs into timesheetapp-c4e54
+// and that sign-in says nothing to downtimelogger-a96fb, where the customer
+// records live — so it cannot read them, however much it would like to. Asking
+// a technician to sign into a second project to fill in a timesheet is not a
+// feature.
+//
+// So the directory is pushed to where the timesheet can already read: its own
+// project. The dashboard stays the place customers are EDITED — one record,
+// one truth — and this is a copy for reading, stamped so a stale one is
+// obvious. Nothing here is authoritative; delete it all and republish and
+// nothing is lost.
+export const CUSTOMER_DIRECTORY = 'customer_directory';
+export const SR_DIRECTORY = 'sr_directory';
+
+export const publishToTimesheet = async () => {
+  const [records, started] = await Promise.all([fetchCustomerRecords(), fetchUnifiedJobs()]);
+  const at = new Date().toISOString();
+
+  // Defaults are computed HERE so the timesheet copies rather than interprets.
+  // The rules for what a customer's details are should not be re-implemented in
+  // an app whose job is hours and mileage.
+  await Promise.all(records.map((r) => setDoc(doc(timesheetDb, CUSTOMER_DIRECTORY, r.id), {
+    id: r.id,
+    name: r.name,
+    aliases: r.profile?.aliases || [],
+    defaults: customerDefaults(r),
+    missing: missingDefaults(r),
+    updatedAt: at,
+  })));
+
+  // Jobs started in the dashboard, so a brand-new number is pickable on a
+  // timesheet before it exists anywhere else. Historical numbers need no entry:
+  // the timesheet app already has them on its own past sheets.
+  await Promise.all(started.map((j) => setDoc(doc(timesheetDb, SR_DIRECTORY, String(j.sr)), {
+    sr: String(j.sr),
+    customer: j.customer || '',
+    date: j.date || '',
+    description: j.description || '',
+    updatedAt: at,
+  })));
+
+  return { customers: records.length, jobs: started.length, at };
 };

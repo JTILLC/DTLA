@@ -10,8 +10,9 @@
 //
 // Sorted by what is missing rather than by name. A list where the finished
 // rows come first is a list nobody scrolls.
-import React, { useMemo } from 'react';
-import { AlertTriangle, Check, Link2, Mail, MapPin, Route, Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { AlertTriangle, Check, Link2, Mail, MapPin, Route, Send, Users } from 'lucide-react';
+import { publishToTimesheet } from '../data-service';
 
 const has = (v) => Array.isArray(v) ? v.length > 0 : !!String(v || '').trim();
 
@@ -44,6 +45,7 @@ const Pill = ({ children, tone, colors }) => (
 );
 
 export default function CustomerRecordsPanel({ customers = [], records = [], colors, onOpenCustomer }) {
+  const [publish, setPublish] = useState('');
   const rows = useMemo(() => {
     const byId = new Map(records.map((r) => [r.id, r]));
     const list = customers.map((c) => {
@@ -80,10 +82,29 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
           {unlinked > 0 && ` · ${unlinked} with no record to fill in`}
         </span>
       </div>
-      <p style={{ color: colors.textSecondary, fontSize: '13px', margin: '0 0 16px' }}>
-        Address, contacts and invoice emails, per customer. Click a row to open it and fill it in.
-        Anything saved here also shows in CCW Issues and Headcount.
+      <p style={{ color: colors.textSecondary, fontSize: '13px', margin: '0 0 12px' }}>
+        Address, contacts, invoice emails and mileage, per customer. Click a row to open it and fill
+        it in. Anything saved here also shows in CCW Issues and Headcount, and is published to the
+        timesheet app so a sheet can fill itself in.
       </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        {/* Saving a record republishes on its own; this is for the first run
+            and for when somebody wants to be sure rather than assume. */}
+        <button
+          type="button"
+          onClick={async () => {
+            setPublish('Publishing…');
+            try {
+              const r = await publishToTimesheet();
+              setPublish(`Sent ${r.customers} customers and ${r.jobs} job numbers to the timesheet app.`);
+            } catch (err) { setPublish(`Could not publish: ${err.message || err}`); }
+          }}
+          style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${colors.border || '#d1d5db'}`, background: 'transparent', color: colors.text, cursor: 'pointer', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Send size={14} /> Publish to timesheet app
+        </button>
+        {publish && <span style={{ color: colors.textSecondary, fontSize: '13px' }}>{publish}</span>}
+      </div>
 
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
