@@ -1804,6 +1804,26 @@ const packetKey = (sr) => String(sr || '').trim().replace(/[\s-]/g, '').toUpperC
  */
 export const fetchFileBytes = async (urlOrPath) => {
   if (!urlOrPath) return null;
+
+  // A full download URL is fetched directly. It already carries its own access
+  // token, and ref() mis-parses one — the ?alt=media&token=... query is not
+  // part of any object path, so the SDK looks for a file that does not exist
+  // and throws. That failure looked exactly like a CORS refusal and cost a
+  // bucket config being blamed for an app bug.
+  if (/^https?:\/\//i.test(urlOrPath)) {
+    try {
+      const res = await fetch(urlOrPath);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return new Uint8Array(await res.arrayBuffer());
+    } catch (err) {
+      console.warn('Could not read file for packet:', urlOrPath, err);
+      return null;
+    }
+  }
+
+  // A storage PATH goes through the SDK, which knows which bucket it is in.
+  // Both are tried because a service report lives with CCW and an uploaded
+  // receipt lives with Jobs.
   for (const store of [jobsStorage, ccwIssuesStorage]) {
     try {
       const blob = await getBlob(ref(store, urlOrPath));
