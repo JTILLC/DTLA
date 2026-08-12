@@ -1959,6 +1959,12 @@ export const startJob = async ({ sr, customer, date, description }) => {
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref2, record);
+  // Push it out immediately. Reserving a number and having it appear nowhere
+  // until somebody happened to save a customer is the same as not reserving it:
+  // the point is that the next person to need it can pick it rather than type
+  // it. Fire-and-forget — a directory that failed to update must not make it
+  // look like the number failed to reserve.
+  publishToTimesheet().catch((e) => console.warn('Could not publish the new number:', e));
   return record;
 };
 
