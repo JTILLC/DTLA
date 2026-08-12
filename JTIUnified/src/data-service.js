@@ -1962,6 +1962,23 @@ export const startJob = async ({ sr, customer, date, description }) => {
   return record;
 };
 
+/**
+ * Close a reserved service report number.
+ *
+ * A job gets cancelled and its number would otherwise sit in every picker in
+ * three apps forever. Closing hides it without deleting it — the number stays
+ * spoken for, because handing it out again would put two jobs under one number
+ * in systems that cannot tell them apart.
+ */
+export const closeJob = async (sr, closed = true) => {
+  const key = String(sr || '').trim().toUpperCase();
+  if (!key) throw new Error('A service report number is required.');
+  await setDoc(doc(jobsMasterDb, UNIFIED_JOBS, key),
+    { sr: key, closedAt: closed ? new Date().toISOString() : null }, { merge: true });
+  await publishToTimesheet().catch((e) => console.warn('Directory not updated:', e));
+  return true;
+};
+
 /** Record that the packet actually went to accounts payable. */
 export const markPacketSent = async (sr, to = []) => {
   const key = String(sr || '').trim().replace(/[\s-]/g, '').toUpperCase();
@@ -2036,7 +2053,13 @@ export const publishToTimesheet = async () => {
   // Jobs started in the dashboard, so a brand-new number is pickable on a
   // timesheet before it exists anywhere else. Historical numbers need no entry:
   // the timesheet app already has them on its own past sheets.
-  await Promise.all(started.map((j) => setDoc(doc(timesheetDb, SR_DIRECTORY, String(j.sr)), {
+  // Closed numbers stay reserved but stop cluttering the pickers — and a
+  // number closed AFTER it was published has to be removed, not merely skipped,
+  // or it sits in the other app's list forever.
+  await Promise.all(started.filter((j) => j.closedAt)
+    .map((j) => deleteDoc(doc(timesheetDb, SR_DIRECTORY, String(j.sr))).catch(() => {})));
+
+  await Promise.all(started.filter((j) => !j.closedAt).map((j) => setDoc(doc(timesheetDb, SR_DIRECTORY, String(j.sr)), {
     sr: String(j.sr),
     customer: j.customer || '',
     date: j.date || '',
@@ -2044,5 +2067,33 @@ export const publishToTimesheet = async () => {
     updatedAt: at,
   })));
 
-  return { customers: records.length, jobs: started.length, at };
+  // ...and the same job numbers into the CCW project, so a visit can be tagged
+  // by picking a number rather than typing one. Only the numbers go: CCW knows
+  // its own customers, and the addresses and invoice emails are none of its
+  // business.
+  const openJobs = started.filter((j) => !j.closedAt);
+  await Promise.all(started.filter((j) => j.closedAt)
+    .map((j) => deleteDoc(doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, String(j.sr))).catch(() => {})));
+  await Promise.all(openJobs.map((j) => setDoc(
+    doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, String(j.sr)),
+    { sr: String(j.sr), customer: j.customer || '', date: j.date || '', description: j.description || '', updatedAt: at },
+  )));
+
+  return { customers: records.length, jobs: openJobs.length, at };
+};
+
+/**
+ * Job numbers reserved in the dashboard, readable by CCW Issues.
+ *
+ * Lives under user_files/{WORKSPACE_UID} so the existing admin rules cover it
+ * without a rules change: everything under there is already JTI-only.
+ */
+export const fetchReservedJobNumbers = async () => {
+  try {
+    const snap = await getDocs(collection(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY));
+    return snap.docs.map((d) => d.data()).sort((a, b) => String(b.sr).localeCompare(String(a.sr)));
+  } catch (error) {
+    console.error('Error reading reserved job numbers:', error);
+    return [];
+  }
 };

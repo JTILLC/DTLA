@@ -850,6 +850,9 @@ const AppContent = () => {
   }, [lines]);
 
   const [showDashboardView, setShowDashboardView] = useState(false);
+  // Job numbers reserved in the dashboard, offered on the SR field so a visit
+  // is tagged by picking rather than by typing one correctly.
+  const [reservedSrs, setReservedSrs] = useState([]);
   const [activeLineId, setActiveLineId] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1196,6 +1199,20 @@ const AppContent = () => {
 
   // Use session state instead of firebase.auth().currentUser to avoid timing issues
   const user = session;
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    // Written here by the dashboard when a number is reserved. Read-only from
+    // this side: the dashboard hands out numbers, this app records the visit.
+    // Under user_files/{uid}, so the existing admin rules already cover it.
+    firebase.firestore()
+      .collection('user_files').doc(user.uid).collection('sr_directory')
+      .get()
+      .then((snap) => setReservedSrs(
+        snap.docs.map((d) => d.data()).sort((a, b) => String(b.sr).localeCompare(String(a.sr))),
+      ))
+      .catch((err) => console.warn('Reserved job numbers unavailable:', err));
+  }, [user]);
 
   // Deep link handler - load visit by ID from URL parameter
   const loadVisitByDeepLink = async (visitId, customerId, lineName, headName) => {
@@ -3839,11 +3856,32 @@ const AppContent = () => {
               type="text"
               inputMode="numeric"
               className="form-control form-control-sm report-bar-sr-input"
+              list="ccw-reserved-srs"
               value={globalData.serviceReportNumber || ''}
-              onChange={(e) => setGlobalData(prev => ({ ...prev, serviceReportNumber: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Picking a reserved number also names the customer it was
+                // reserved against — but only into a blank box. Overwriting a
+                // customer already on the visit is not a side effect a number
+                // field gets to have.
+                const hit = reservedSrs.find((r) => String(r.sr) === value.trim());
+                setGlobalData(prev => ({
+                  ...prev,
+                  serviceReportNumber: value,
+                  customer: prev.customer || (hit?.customer ?? ''),
+                }));
+              }}
               placeholder="YYYY###"
               title="Service report number — links this visit to its service report & invoice in the dashboard"
             />
+            {/* Numbers reserved in the dashboard. A datalist rather than a
+                select: the number is still free text, because a visit can carry
+                one that predates any of this, and typing must keep working. */}
+            <datalist id="ccw-reserved-srs">
+              {reservedSrs.map((r) => (
+                <option key={r.sr} value={r.sr}>{r.customer || ''}</option>
+              ))}
+            </datalist>
           </div>
           <ServiceReportUpload
             userId={user?.uid}

@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
-  fetchUnifiedJobs, startJob, markPacketSent,
+  fetchUnifiedJobs, startJob, markPacketSent, closeJob,
 } from '../data-service';
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
@@ -85,6 +85,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     packet,
     manualInvoice: null,
   }), [job, started, sr, sources, packet]);
+  const startedHere = started.find((j) => String(j.sr) === String(sr)) || null;
   const progress = flowProgress(steps);
   const todo = nextAction(steps);
 
@@ -265,6 +266,31 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
             </option>
           ))}
         </select>
+        {sr && startedHere && (
+          <div style={{ marginTop: '10px' }}>
+            {/* A cancelled job's number would otherwise sit in the pickers of
+                three apps forever. Closing hides it; it stays reserved, because
+                handing it out twice is not recoverable. */}
+            <button
+              type="button"
+              onClick={async () => {
+                const closing = !startedHere.closedAt;
+                setBusy(closing ? 'Closing…' : 'Reopening…');
+                try { await closeJob(sr, closing); setStarted(await fetchUnifiedJobs()); }
+                catch (err) { setError(err.message || String(err)); }
+                setBusy('');
+              }}
+              style={{ ...input, cursor: 'pointer', fontSize: '13px', padding: '5px 10px' }}
+            >
+              {startedHere.closedAt ? 'Reopen this number' : 'Close this number'}
+            </button>
+            {startedHere.closedAt && (
+              <span style={{ color: '#f59e0b', fontSize: '13px', marginLeft: '8px' }}>
+                Closed — hidden from the timesheet and other pickers, but still reserved.
+              </span>
+            )}
+          </div>
+        )}
         {sr && (
           <div style={{ marginTop: '10px', fontSize: '14px', color: colors.textSecondary }}>
             {customerName || 'Unknown customer'}
