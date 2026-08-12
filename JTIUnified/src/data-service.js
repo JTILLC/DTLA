@@ -2079,6 +2079,18 @@ export const publishToTimesheet = async () => {
     { sr: String(j.sr), customer: j.customer || '', date: j.date || '', description: j.description || '', updatedAt: at },
   )));
 
+  // ...and the customer directory into the Jobs project, so the Jobs app can
+  // fill a city, state and terms from the same record rather than keeping its
+  // own idea of who a customer is. It reads unified_jobs directly — same
+  // project — so the numbers need no copy there.
+  await Promise.all(records.map((r) => setDoc(doc(jobsMasterDb, CUSTOMER_DIRECTORY, r.id), {
+    id: r.id,
+    name: r.name,
+    aliases: r.profile?.aliases || [],
+    defaults: customerDefaults(r),
+    updatedAt: at,
+  })));
+
   return { customers: records.length, jobs: openJobs.length, at };
 };
 
