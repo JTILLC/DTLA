@@ -14,28 +14,13 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Building2, Check, Mail, Phone, Plus, Trash2, X } from 'lucide-react';
 import { looksLikeADifferentSite } from '@shared/utils/customerMatch.js';
+import * as ui from '../ui/theme';
 
 const BLANK_CONTACT = { name: '', role: '', phone: '', email: '' };
 
-const inputStyle = (colors) => ({
-  width: '100%',
-  padding: '8px 10px',
-  borderRadius: '6px',
-  border: `1px solid ${colors.border || '#d1d5db'}`,
-  background: colors.inputBg || colors.cardBg,
-  color: colors.text,
-  fontSize: '14px',
-});
+const inputStyle = (colors) => ui.input(colors, { width: '100%' });
 
-const labelStyle = (colors) => ({
-  fontSize: '11px',
-  fontWeight: 600,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
-  color: colors.textSecondary,
-  marginBottom: '4px',
-  display: 'block',
-});
+const labelStyle = (colors) => ui.label(colors, { marginBottom: '4px' });
 
 export default function CustomerRecordCard({
   customerName,

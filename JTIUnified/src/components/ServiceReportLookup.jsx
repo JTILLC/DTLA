@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import * as ui from '../ui/theme';
 import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip } from 'lucide-react';
 import { saveManualReport, deleteManualReport } from '../data-service';
 
@@ -149,7 +150,7 @@ export default function ServiceReportLookup({
     </a>
   );
 
-  const input = { width: '100%', padding: '8px 10px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, fontSize: 14, boxSizing: 'border-box' };
+  const input = ui.input(colors, { width: '100%' });
   const fieldLabel = { display: 'block', fontSize: 12, color: colors.textSecondary, fontWeight: 600, marginBottom: 4 };
 
   const manualBadge = (
@@ -189,7 +190,7 @@ export default function ServiceReportLookup({
   );
 
   const sectionCard = { background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 14, marginBottom: 12 };
-  const label = { fontSize: 12, color: colors.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 };
+  const label = ui.label(colors, { fontSize: 12, marginBottom: 8 });
 
   return (
     <section>
