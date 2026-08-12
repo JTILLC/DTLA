@@ -31,6 +31,7 @@ import VisitsSidebar from './components/VisitsSidebar.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
+import { shouldAdoptMerge } from '@shared/utils/mergeApply.js';
 import BackfillPanel from './components/BackfillPanel.jsx';
 import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
 import {
@@ -1700,7 +1701,26 @@ const AppContent = () => {
 
       const newBaseline = serializeVisitContent(merged, mergedGlobal, mergedName, srUrl);
       savedSnapshotRef.current = newBaseline;
-      if (newBaseline !== serializeVisitContent(localLines, localGlobal, localName, srUrl)) {
+
+      // Put the merged result on screen ONLY if nobody typed while the write
+      // was in flight.
+      //
+      // `localLines` was copied before the transaction, and a transaction is a
+      // network round trip. The old check compared the merge against that COPY,
+      // so any edit made during the write was overwritten by a merge computed
+      // without it: a head switched offline came back on, an issue type snapped
+      // back to the first option, text disappeared out of a box. All three
+      // only "sometimes", because the edit has to land inside the window — and
+      // on a plant's connection that window is long.
+      //
+      // If the screen has moved on, the newer edits stand and the next autosave
+      // carries them up. The baseline above has already advanced to what was
+      // stored, so that save merges against the truth and nothing is lost.
+      const sentSnapshot = serializeVisitContent(localLines, localGlobal, localName, srUrl);
+      const currentSnapshot = serializeVisitContent(
+        linesRef.current, globalDataRef.current, currentVisitNameRef.current, serviceReportUrlRef.current,
+      );
+      if (shouldAdoptMerge({ sentSnapshot, mergedSnapshot: newBaseline, currentSnapshot })) {
         setLines(merged);
         setGlobalData(mergedGlobal);
         setCurrentVisitName(mergedName);

@@ -118,8 +118,22 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
     updateLine(updated);
   };
 
+  // Re-seed the working copy from the prop only when the prop's CONTENT has
+  // actually changed.
+  //
+  // This effect keys on the prop's identity, and identity changes for reasons
+  // that have nothing to do with content: any setLines upstream rebuilds the
+  // array and every object in it. When that happened mid-edit the working copy
+  // was thrown away and replaced with a version that did not have the edit —
+  // a head coming back online, an issue type snapping back to Chute, text
+  // vanishing from a box. The autosave no longer sends stale content (see
+  // shouldAdoptMerge), and this makes an identity-only change harmless too.
+  //
+  // A genuine remote change still wins, which is the point: somebody else's
+  // edit to this line should appear.
   useEffect(() => {
-    setLocalLine(migrateLine(line));
+    const incoming = migrateLine(line);
+    setLocalLine((prev) => (JSON.stringify(prev) === JSON.stringify(incoming) ? prev : incoming));
   }, [line]);
 
   const handleChange = (e) => {
