@@ -13,6 +13,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Check, Link2, Mail, MapPin, Route, Send, Users } from 'lucide-react';
 import { publishToTimesheet } from '../data-service';
+import { primaryContact } from '@shared/utils/customerDefaults.js';
 
 const has = (v) => Array.isArray(v) ? v.length > 0 : !!String(v || '').trim();
 
@@ -27,11 +28,12 @@ export const missingFrom = (profile = {}) => {
   const gaps = [];
   if (!has(profile.address) && !has(profile.cityState)) gaps.push('address');
   if (!has(profile.contacts)) gaps.push('contacts');
-  // A contact with a name and no way to reach them still leaves a timesheet
-  // with two empty boxes. This page said "complete" while the timesheet said
-  // "still to add: phone or email" — two definitions of done, and the one that
-  // matters is the one that can actually fill the form.
-  else if (!(profile.contacts || []).some((c) => has(c?.phone) || has(c?.email))) {
+  // The contact the timesheet ACTUALLY uses — the one marked default, else the
+  // first — must be reachable. Checking whether *any* contact has a number was
+  // the wrong test and said "complete" for a plant whose default contact had
+  // neither: the timesheet fills from one person, and mixing that person's name
+  // with a colleague's phone number would be worse than leaving it blank.
+  else if (!(() => { const c = primaryContact(profile.contacts); return has(c?.phone) || has(c?.email); })()) {
     gaps.push('contact phone/email');
   }
   if (!has(profile.invoiceEmails)) gaps.push('invoice email');
