@@ -23,12 +23,32 @@ describe('missingFrom', () => {
       .toEqual(expect.arrayContaining(['contacts', 'invoice email']));
   });
 
-  it('is satisfied by one contact, one invoice email and a mileage', () => {
+  it('a contact with no phone or email is not a usable contact', () => {
+    // The timesheet cannot fill two of its boxes from a name alone, so this
+    // page must not call it complete while the timesheet says otherwise.
     expect(missingFrom({
       cityState: 'Yuma, AZ',
       contacts: [{ name: 'Sam' }],
       invoiceEmails: ['billing@example.com'],
       miles: 240,
+    })).toEqual(['contact phone/email']);
+  });
+
+  it('is satisfied once a contact can actually be reached', () => {
+    expect(missingFrom({
+      cityState: 'Yuma, AZ',
+      contacts: [{ name: 'Sam', phone: '555-0100' }],
+      invoiceEmails: ['billing@example.com'],
+      miles: 240,
+    })).toEqual([]);
+  });
+
+  it('one reachable contact among several is enough', () => {
+    expect(missingFrom({
+      cityState: 'Yuma, AZ',
+      contacts: [{ name: 'Sam' }, { name: 'Bea', email: 'bea@x.com' }],
+      invoiceEmails: ['b@x.com'],
+      miles: 1,
     })).toEqual([]);
   });
 
