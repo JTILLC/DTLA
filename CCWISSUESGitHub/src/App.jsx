@@ -1725,6 +1725,21 @@ const AppContent = () => {
         setGlobalData(mergedGlobal);
         setCurrentVisitName(mergedName);
       }
+
+      // Edits made WHILE this write was in flight are still only on screen.
+      //
+      // The autosave effect runs when its state changes, and those edits
+      // already had their run — the one that produced this write. Skipping the
+      // merge above leaves them unsaved with nothing scheduled to carry them
+      // up, so they would sit there until the next unrelated edit happened to
+      // trigger a save. Said plainly on the chip and written straight away.
+      if (currentSnapshot !== newBaseline) {
+        setCloudState('saving');
+        if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = setTimeout(() => { writeVisitInPlace(); }, 400);
+        return;
+      }
+
       setCloudState('saved');
       setLastSavedAt(new Date());
     } catch (err) {
@@ -3254,14 +3269,23 @@ const AppContent = () => {
             )}
             {currentVisitId && (
               <span
-                className={'badge ' + (cloudState === 'saving' ? 'bg-warning text-dark' : cloudState === 'error' ? 'bg-danger' : 'bg-success')}
+                className={'badge ' + (cloudState === 'saving' ? 'bg-warning text-dark'
+                  : cloudState === 'error' ? 'bg-danger'
+                  : cloudState === 'saved' && lastSavedAt ? 'bg-success' : 'bg-secondary')}
                 title="Changes save to the cloud automatically"
               >
+                {/* `idle` used to fall through to the ✓ Saved branch, so a
+                    visit that had never been written this session still showed
+                    a tick — and a stale time beside it read as "saved just
+                    now". A chip that cannot tell you nothing has happened is
+                    worse than no chip. */}
                 {cloudState === 'saving'
                   ? 'Saving…'
                   : cloudState === 'error'
                   ? '⚠ Offline — will retry'
-                  : `✓ Saved${lastSavedAt ? ' ' + lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`}
+                  : cloudState === 'saved' && lastSavedAt
+                  ? `✓ Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Loaded — no changes yet'}
               </span>
             )}
 
