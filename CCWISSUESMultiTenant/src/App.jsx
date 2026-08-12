@@ -1450,8 +1450,13 @@ const AppContent = () => {
           data.name || '',
           data.serviceReportUrl || null
         );
-        setCloudState('saved');
-        setLastSavedAt(data.date ? new Date(data.date) : new Date());
+        // Loading is not saving. `date` is when the VISIT is dated — for most
+        // records the moment it was created — so putting it beside a tick said
+        // "your changes are safe, as of 08:22" about a screen that had saved
+        // nothing at all, and the time never moved because the field never
+        // does. The chip now starts blank and earns its tick.
+        setCloudState('idle');
+        setLastSavedAt(null);
 
         // If head is specified, scroll to it after a short delay
         if (headName) {
@@ -1579,8 +1584,13 @@ const AppContent = () => {
         setServiceReportUrl(data.serviceReportUrl || null);
         // Baseline autosave so edits to this visit start saving automatically.
         savedSnapshotRef.current = serializeVisitContent(loadedLines, data.globalData || {}, data.name || '', data.serviceReportUrl || null);
-        setCloudState('saved');
-        setLastSavedAt(data.date ? new Date(data.date) : new Date());
+        // Loading is not saving. `date` is when the VISIT is dated — for most
+        // records the moment it was created — so putting it beside a tick said
+        // "your changes are safe, as of 08:22" about a screen that had saved
+        // nothing at all, and the time never moved because the field never
+        // does. The chip now starts blank and earns its tick.
+        setCloudState('idle');
+        setLastSavedAt(null);
         toast.success(`Loaded "${data.name || 'visit'}"`);
       } else {
         console.error('[loadVisit] not found at', path, { currentCustomerId: currentCustomer.id, visitFromList });
@@ -2767,8 +2777,12 @@ const AppContent = () => {
           // Re-baseline autosave to the remote content so it doesn't immediately
           // push the same data back.
           savedSnapshotRef.current = serializeVisitContent(remoteLines, remote.globalData || {}, remote.name || '', remote.serviceReportUrl || null);
-          setCloudState('saved');
-          setLastSavedAt(remote.date ? new Date(remote.date) : new Date());
+          // Same again: this pulled the cloud's copy in, which is not this
+          // screen having saved something. Re-stamping from remote.date is
+          // what put the visit's own date back on the chip after every real
+          // save had correctly moved it on.
+          setCloudState('idle');
+          setLastSavedAt(null);
           dismissPrompt();
         };
 
