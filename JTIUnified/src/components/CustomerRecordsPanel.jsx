@@ -27,6 +27,13 @@ export const missingFrom = (profile = {}) => {
   const gaps = [];
   if (!has(profile.address) && !has(profile.cityState)) gaps.push('address');
   if (!has(profile.contacts)) gaps.push('contacts');
+  // A contact with a name and no way to reach them still leaves a timesheet
+  // with two empty boxes. This page said "complete" while the timesheet said
+  // "still to add: phone or email" — two definitions of done, and the one that
+  // matters is the one that can actually fill the form.
+  else if (!(profile.contacts || []).some((c) => has(c?.phone) || has(c?.email))) {
+    gaps.push('contact phone/email');
+  }
   if (!has(profile.invoiceEmails)) gaps.push('invoice email');
   // Mileage is what a timesheet pre-fills from, so a record without it still
   // leaves somebody typing.
