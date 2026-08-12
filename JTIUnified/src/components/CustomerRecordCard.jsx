@@ -302,9 +302,20 @@ export default function CustomerRecordCard({
               <div style={{ fontSize: '14px', color: colors.text, display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <strong>{c.name}</strong>
                 {(c.primary || (i === 0 && !contacts.some((x) => x.primary))) && (
-                  <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
-                    timesheet default
-                  </span>
+                  <>
+                    <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '999px', background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                      timesheet default
+                    </span>
+                    {/* Said here because here is where it can be fixed: either
+                        give this person a number, or mark the colleague who has
+                        one as the default. A timesheet fills from ONE contact,
+                        so a name without a number leaves two boxes empty. */}
+                    {!c.phone && !c.email && (
+                      <span style={{ fontSize: '11px', color: '#f59e0b' }}>
+                        no phone or email — a timesheet cannot fill those from this contact
+                      </span>
+                    )}
+                  </>
                 )}
                 {c.role && <span style={{ color: colors.textSecondary }}>{c.role}</span>}
                 {c.phone && <a href={`tel:${c.phone}`} style={{ color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Phone size={13} />{c.phone}</a>}

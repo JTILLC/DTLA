@@ -43,10 +43,21 @@ describe('missingFrom', () => {
     })).toEqual([]);
   });
 
-  it('one reachable contact among several is enough', () => {
+  it('a reachable COLLEAGUE is not enough — the default contact is the one used', () => {
+    // Sam is the default and has no number; Bea does. The timesheet fills from
+    // Sam, so this record cannot fill it, whatever Bea has.
     expect(missingFrom({
       cityState: 'Yuma, AZ',
       contacts: [{ name: 'Sam' }, { name: 'Bea', email: 'bea@x.com' }],
+      invoiceEmails: ['b@x.com'],
+      miles: 1,
+    })).toEqual(['contact phone/email']);
+  });
+
+  it('is satisfied when the contact MARKED default is reachable', () => {
+    expect(missingFrom({
+      cityState: 'Yuma, AZ',
+      contacts: [{ name: 'Sam' }, { name: 'Bea', email: 'bea@x.com', primary: true }],
       invoiceEmails: ['b@x.com'],
       miles: 1,
     })).toEqual([]);
