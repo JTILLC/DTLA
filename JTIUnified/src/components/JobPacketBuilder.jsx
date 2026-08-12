@@ -20,6 +20,7 @@ import {
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
+import * as ui from '../ui/theme';
 
 const KINDS = [
   { key: 'po', label: 'Purchase order', hint: 'What the customer authorised' },
@@ -166,9 +167,9 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     setBusy('');
   };
 
-  const card = { background: colors.cardBg, borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
-  const label = { fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: colors.textSecondary, display: 'block', marginBottom: '6px' };
-  const input = { padding: '8px 10px', borderRadius: '6px', border: `1px solid ${colors.border || '#d1d5db'}`, background: colors.inputBg || colors.cardBg, color: colors.text, fontSize: '14px' };
+  const card = ui.card(colors, { marginBottom: '16px' });
+  const label = ui.label(colors);
+  const input = ui.input(colors);
 
   const missing = KINDS.filter((k) => slotState(k.key).files.length === 0).map((k) => k.label);
 

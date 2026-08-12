@@ -14,6 +14,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Check, Link2, Mail, MapPin, Route, Send, Users } from 'lucide-react';
 import { publishToTimesheet } from '../data-service';
 import { primaryContact } from '@shared/utils/customerDefaults.js';
+import * as ui from '../ui/theme';
 
 const has = (v) => Array.isArray(v) ? v.length > 0 : !!String(v || '').trim();
 
@@ -43,14 +44,12 @@ export const missingFrom = (profile = {}) => {
   return gaps;
 };
 
-const Pill = ({ children, tone, colors }) => (
-  <span style={{
-    display: 'inline-flex', alignItems: 'center', gap: '4px',
-    padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: 500,
-    background: tone === 'bad' ? 'rgba(239,68,68,0.12)' : tone === 'warn' ? 'rgba(245,158,11,0.14)' : 'rgba(16,185,129,0.12)',
-    color: tone === 'bad' ? '#ef4444' : tone === 'warn' ? '#f59e0b' : '#10b981',
-    border: `1px solid ${tone === 'bad' ? 'rgba(239,68,68,0.3)' : tone === 'warn' ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}`,
-  }}>{children}</span>
+// Tone names rather than three parallel colour ternaries, which is what this
+// was: one list of hexes for text, one for background, one for border, kept in
+// step by hand.
+const TONES = { bad: ui.TONE.bad, warn: ui.TONE.warn, ok: ui.TONE.ok };
+const Pill = ({ children, tone }) => (
+  <span style={ui.pill(TONES[tone] || ui.TONE.ok)}>{children}</span>
 );
 
 export default function CustomerRecordsPanel({ customers = [], records = [], colors, onOpenCustomer }) {
@@ -79,8 +78,11 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
   const complete = rows.filter((r) => r.gaps.length === 0).length;
   const unlinked = rows.filter((r) => r.unlinked).length;
 
-  const cell = { padding: '10px 12px', borderBottom: `1px solid ${colors.border || '#e5e7eb'}`, fontSize: '14px', verticalAlign: 'top' };
-  const head = { ...cell, fontSize: '11px', letterSpacing: '0.04em', textTransform: 'uppercase', color: colors.textSecondary, fontWeight: 600, textAlign: 'left' };
+  const cell = ui.cell(colors);
+  const head = ui.cell(colors, {
+    fontSize: '11px', letterSpacing: '0.04em', textTransform: 'uppercase',
+    color: colors.textSecondary, fontWeight: 600, textAlign: 'left',
+  });
 
   return (
     <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '20px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -151,7 +153,7 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
                     )}
                     {r.unlinked && (
                       <div style={{ marginTop: '4px' }}>
-                        <Pill tone="bad" colors={colors}><Link2 size={11} /> no record linked</Pill>
+                        <Pill tone="bad"><Link2 size={11} /> no record linked</Pill>
                       </div>
                     )}
                   </td>
@@ -159,25 +161,25 @@ export default function CustomerRecordsPanel({ customers = [], records = [], col
                     {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
                       : has(p.address) || has(p.cityState)
                         ? <span style={{ color: colors.textSecondary }}>{[p.address, p.cityState].filter(Boolean).join(', ')}</span>
-                        : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> missing</Pill>}
+                        : <Pill tone="warn"><AlertTriangle size={11} /> missing</Pill>}
                   </td>
                   <td style={cell}>
                     {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
                       : contacts > 0
-                        ? <Pill tone="ok" colors={colors}><Check size={11} /> {contacts}</Pill>
-                        : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> none</Pill>}
+                        ? <Pill tone="ok"><Check size={11} /> {contacts}</Pill>
+                        : <Pill tone="warn"><AlertTriangle size={11} /> none</Pill>}
                   </td>
                   <td style={cell}>
                     {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
                       : emails > 0
-                        ? <Pill tone="ok" colors={colors}><Check size={11} /> {emails}</Pill>
-                        : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> none</Pill>}
+                        ? <Pill tone="ok"><Check size={11} /> {emails}</Pill>
+                        : <Pill tone="warn"><AlertTriangle size={11} /> none</Pill>}
                   </td>
                   <td style={cell}>
                     {r.unlinked ? <span style={{ color: colors.textSecondary }}>—</span>
                       : (p.miles != null && p.miles !== '')
                         ? <span style={{ color: colors.textSecondary }}>{p.miles} mi</span>
-                        : <Pill tone="warn" colors={colors}><AlertTriangle size={11} /> none</Pill>}
+                        : <Pill tone="warn"><AlertTriangle size={11} /> none</Pill>}
                   </td>
                 </tr>
               );

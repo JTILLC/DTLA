@@ -13,6 +13,7 @@ import ActivityItem from './components/ActivityItem';
 import SearchResults from './components/SearchResults';
 import CustomerDetailView from './components/CustomerDetailView';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
+import * as ui from './ui/theme';
 import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import JobPacketBuilder from './components/JobPacketBuilder';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
@@ -781,6 +782,42 @@ function App() {
     hover: '#f3f4f6'
   };
 
+  // The six views, as data. Each was an eighteen-line button before, identical
+  // but for its colour and label, which is why adding one meant copying one.
+  const PANELS = [
+    { key: 'calendar', label: 'Calendar', Icon: Calendar, tone: ui.TONE.brand, active: showCalendar, onClick: toggleCalendar },
+    { key: 'map', label: 'Map', Icon: MapPin, tone: ui.TONE.ok, active: showMap, onClick: toggleMap },
+    { key: 'troubleshoot', label: 'Troubleshoot', Icon: Wrench, tone: ui.TONE.warn, active: showTroubleshoot, onClick: toggleTroubleshoot },
+    { key: 'reports', label: 'Reports', Icon: FileText, tone: ui.TONE.violet, active: showServiceReports, onClick: toggleServiceReports },
+    {
+      key: 'records', label: 'Records', Icon: Building2, tone: '#0ea5e9', active: showRecords,
+      onClick: async () => {
+        const next = !showRecords;
+        setShowRecords(next);
+        if (next) {
+          setShowPacket(false);
+          setSearchResults(null);
+          clearCustomerSelection();
+          setCustomerRecords(await fetchCustomerRecords());
+        }
+      },
+    },
+    {
+      key: 'packet', label: 'Packet', Icon: Paperclip, tone: ui.TONE.pink, active: showPacket,
+      onClick: async () => {
+        const next = !showPacket;
+        setShowPacket(next);
+        if (next) {
+          setShowRecords(false);
+          setSearchResults(null);
+          clearCustomerSelection();
+          if (serviceReports.reports.length === 0) loadServiceReports();
+          setCustomerRecords(await fetchCustomerRecords());
+        }
+      },
+    },
+  ];
+
   return (
     <div style={{ minHeight: '100vh', background: colors.bg, transition: 'background 0.3s' }}>
       {/* A tab left open all day keeps showing yesterday's build, and its
@@ -1199,142 +1236,36 @@ function App() {
                 </div>
               )}
             </div>
-            {/* Calendar Toggle - prominent position for mobile */}
-            <button
-              onClick={toggleCalendar}
+            {/* Primary navigation.
+                These six were six near-identical eighteen-line buttons sitting
+                loose among the utilities, so Calendar and Logout were drawn the
+                same and twelve controls sprawled over four rows. They are one
+                group now — they are mutually exclusive, which is the tell that
+                they were always one control — and the active one is filled, so
+                where you are is visible rather than inferred. */}
+            <nav
+              aria-label="Views"
               style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showCalendar ? '#3b82f6' : colors.border}`,
-                background: showCalendar ? '#3b82f6' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showCalendar ? 'white' : colors.text
+                display: 'flex', gap: '4px', flexWrap: 'wrap', padding: '4px',
+                borderRadius: '10px', background: colors.hover,
+                border: `1px solid ${colors.border}`,
               }}
             >
-              <Calendar size={16} />
-              Calendar
-            </button>
-            {/* Map Toggle */}
-            <button
-              onClick={toggleMap}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showMap ? '#10b981' : colors.border}`,
-                background: showMap ? '#10b981' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showMap ? 'white' : colors.text
-              }}
-            >
-              <MapPin size={16} />
-              Map
-            </button>
-            {/* Troubleshoot Toggle */}
-            <button
-              onClick={toggleTroubleshoot}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showTroubleshoot ? '#f59e0b' : colors.border}`,
-                background: showTroubleshoot ? '#f59e0b' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showTroubleshoot ? 'white' : colors.text
-              }}
-            >
-              <Wrench size={16} />
-              Troubleshoot
-            </button>
-            {/* Service Report Lookup Toggle */}
-            <button
-              onClick={toggleServiceReports}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showServiceReports ? '#8b5cf6' : colors.border}`,
-                background: showServiceReports ? '#8b5cf6' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showServiceReports ? 'white' : colors.text
-              }}
-            >
-              <FileText size={16} />
-              Reports
-            </button>
-            <button
-              onClick={async () => {
-                const next = !showRecords;
-                setShowRecords(next);
-                if (next) {
-                  setSearchResults(null);
-                  clearCustomerSelection();
-                  setCustomerRecords(await fetchCustomerRecords());
-                }
-              }}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showRecords ? '#0ea5e9' : colors.border}`,
-                background: showRecords ? '#0ea5e9' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showRecords ? 'white' : colors.text
-              }}
-            >
-              <Building2 size={16} />
-              Records
-            </button>
-            <button
-              onClick={async () => {
-                const next = !showPacket;
-                setShowPacket(next);
-                if (next) {
-                  setShowRecords(false);
-                  setSearchResults(null);
-                  clearCustomerSelection();
-                  if (serviceReports.reports.length === 0) loadServiceReports();
-                  setCustomerRecords(await fetchCustomerRecords());
-                }
-              }}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: `1px solid ${showPacket ? '#ec4899' : colors.border}`,
-                background: showPacket ? '#ec4899' : colors.cardBg,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: showPacket ? 'white' : colors.text
-              }}
-            >
-              <Paperclip size={16} />
-              Packet
-            </button>
+              {PANELS.map(({ key, label: text, Icon, tone, active, onClick }) => (
+                <button
+                  key={key}
+                  onClick={onClick}
+                  aria-pressed={active}
+                  style={ui.btn(colors, {
+                    tone, active, size: 'sm',
+                    over: { border: '1px solid transparent', background: active ? tone : 'transparent' },
+                  })}
+                >
+                  <Icon size={16} />
+                  {text}
+                </button>
+              ))}
+            </nav>
             <button
               onClick={handleRefresh}
               disabled={loading}
