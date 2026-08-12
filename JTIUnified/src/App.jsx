@@ -1957,7 +1957,7 @@ function App() {
         )}
 
         {/* Stats Grid - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <div className="stats-grid" style={{
+        {!searchResults && !selectedCustomer && route.view === HOME && <div className="stats-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '24px',
@@ -2108,7 +2108,7 @@ function App() {
         </div>}
 
         {/* Apps Grid - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <section style={{ marginBottom: '32px' }}>
+        {!searchResults && !selectedCustomer && route.view === HOME && <section style={{ marginBottom: '32px' }}>
           <h2 style={{
             fontSize: '20px',
             fontWeight: '600',
@@ -2133,7 +2133,7 @@ function App() {
         </section>}
 
         {/* Recent Activity - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showTroubleshoot && !showServiceReports && <section>
+        {!searchResults && !selectedCustomer && route.view === HOME && <section>
           <h2 style={{
             fontSize: '20px',
             fontWeight: '600',
