@@ -68,6 +68,9 @@ export const customerDefaults = (record) => {
     city,
     state,
     miles: p.miles === 0 || p.miles ? String(p.miles) : '',
+    // Standing invoice terms for this plant ("Net 30"). Belongs to the
+    // customer, not the job, so it is the same on every invoice we raise.
+    paymentTerms: p.paymentTerms || '',
     // Deliberately not defaulted: what a visit was FOR changes every time, and
     // a pre-filled purpose is one somebody forgets to correct.
     purpose: '',

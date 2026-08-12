@@ -56,7 +56,7 @@ export default function CustomerRecordCard({
   // from the customer being looked at onto the next one.
   useEffect(() => {
     setDraft({
-      address: '', cityState: '', miles: null, contacts: [], invoiceEmails: [], aliases: [], notes: '', ...(record?.profile || {}),
+      address: '', cityState: '', miles: null, paymentTerms: '', contacts: [], invoiceEmails: [], aliases: [], notes: '', ...(record?.profile || {}),
     });
     setEditing(false);
     setError('');
@@ -153,6 +153,7 @@ export default function CustomerRecordCard({
         // Stored as a number so it can be summed and compared; '' clears it.
         miles: draft.miles === '' || draft.miles == null ? null : Number(draft.miles),
         notes: (draft.notes || '').trim(),
+        paymentTerms: (draft.paymentTerms || '').trim(),
         contacts: contacts
           .map((c) => ({
             name: (c.name || '').trim(), role: (c.role || '').trim(),
@@ -376,6 +377,18 @@ export default function CustomerRecordCard({
             technician would ask for, and it never appears on a timesheet. */}
         <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '-2px', marginBottom: '8px' }}>
           Where JTI sends the invoice. Used by the job packet only &mdash; never put on a timesheet.
+        </div>
+        <div style={{ marginBottom: '12px', maxWidth: '260px' }}>
+          {/* Standing terms for this plant. They belong to the customer rather
+              than the job, so a timesheet should not be asked for them afresh
+              every time. */}
+          <label style={labelStyle(colors)}>Payment terms</label>
+          {editing
+            ? <input style={inputStyle(colors)} value={draft.paymentTerms || ''}
+                     onChange={(e) => setDraft({ ...draft, paymentTerms: e.target.value })} placeholder="e.g. Net 30" />
+            : <div style={{ color: draft.paymentTerms ? colors.text : colors.textSecondary, fontSize: '14px' }}>
+                {draft.paymentTerms || 'Not recorded'}
+              </div>}
         </div>
         {invoiceEmails.length === 0 && !editing && (
           <div style={{ color: colors.textSecondary, fontSize: '14px' }}>None recorded</div>

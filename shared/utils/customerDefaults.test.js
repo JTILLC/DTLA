@@ -58,6 +58,7 @@ describe('customerDefaults', () => {
       cityState: 'El Paso, TX',
       contacts: [{ name: 'Sam Reed', role: 'Maintenance', phone: '555-0100', email: 'sam@fs.com' }],
       miles: 240,
+      paymentTerms: 'Net 30',
     }));
     expect(d).toEqual({
       company: 'Flagstone Foods',
@@ -68,6 +69,7 @@ describe('customerDefaults', () => {
       city: 'El Paso',
       state: 'TX',
       miles: '240',
+      paymentTerms: 'Net 30',
       purpose: '',
     });
   });
