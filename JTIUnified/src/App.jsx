@@ -14,6 +14,8 @@ import SearchResults from './components/SearchResults';
 import CustomerDetailView from './components/CustomerDetailView';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import * as ui from './ui/theme';
+import useRoute from './ui/useRoute';
+import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
 import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import JobPacketBuilder from './components/JobPacketBuilder';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
@@ -122,14 +124,23 @@ function App() {
   const [monthJobs, setMonthJobs] = useState([]); // Jobs for selected month
 
   // Calendar state
-  const [showCalendar, setShowCalendar] = useState(false);
+  // The six views are derived from the URL, not held as six booleans that had
+  // to be closed by hand. See src/ui/views.js for why.
+  const [route, go] = useRoute();
+  const showCalendar = route.view === VIEWS.calendar;
+  const showMap = route.view === VIEWS.map;
+  const showTroubleshoot = route.view === VIEWS.troubleshoot;
+  const showServiceReports = route.view === VIEWS.reports;
+  const showRecords = route.view === VIEWS.records;
+  const showPacket = route.view === VIEWS.packet;
+  const openView = (v) => go({ view: v });
+  const closeView = () => go({ view: HOME });
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
 
   // Troubleshoot pane state
-  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
   const [troubleshootTimesheets, setTroubleshootTimesheets] = useState([]);
   const [troubleshootTimesheetsLoading, setTroubleshootTimesheetsLoading] = useState(false);
 
@@ -147,21 +158,14 @@ function App() {
 
   const toggleTroubleshoot = () => {
     const next = !showTroubleshoot;
-    setShowTroubleshoot(next);
-    if (next) {
-      setShowCalendar(false);
-      setShowMap(false);
-      setShowServiceReports(false);
-      if (troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
-    }
+    // No sibling flags to close: one view is open because one URL is current.
+    go({ view: next ? VIEWS.troubleshoot : HOME });
+    if (next && troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
   };
 
   // Service Report Lookup state
-  const [showServiceReports, setShowServiceReports] = useState(false);
   // Every customer's record at once, and what each is still missing.
-  const [showRecords, setShowRecords] = useState(false);
   // PO + invoice + service report + receipts, merged into one PDF.
-  const [showPacket, setShowPacket] = useState(false);
   const [serviceReports, setServiceReports] = useState({ reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] });
   const [serviceReportsLoading, setServiceReportsLoading] = useState(false);
 
@@ -179,12 +183,8 @@ function App() {
 
   const toggleServiceReports = () => {
     const next = !showServiceReports;
-    setShowServiceReports(next);
+    go({ view: next ? VIEWS.reports : HOME });
     if (next) {
-      setShowCalendar(false);
-      setShowMap(false);
-      setShowTroubleshoot(false);
-      setSelectedCustomer('');
       setSearchResults(null);
       setSearchTerm('');
       if (serviceReports.reports.length === 0) loadServiceReports();
@@ -192,7 +192,6 @@ function App() {
   };
 
   // Factory Map state
-  const [showMap, setShowMap] = useState(false);
   const [factories, setFactories] = useState([]);
   const [factoriesLoading, setFactoriesLoading] = useState(true);
   const [newFactory, setNewFactory] = useState({ name: '', address: '', lat: '', lng: '', notes: '' });
@@ -323,20 +322,14 @@ function App() {
     if (!showCalendar) {
       loadCalendarEvents();
     }
-    setShowCalendar(!showCalendar);
-    setShowMap(false);
-    setShowServiceReports(false);
-    setSelectedCustomer('');
+    go({ view: showCalendar ? HOME : VIEWS.calendar });
     setSearchResults(null);
     setSearchTerm('');
   };
 
   // Toggle map view
   const toggleMap = () => {
-    setShowMap(!showMap);
-    setShowCalendar(false);
-    setShowServiceReports(false);
-    setSelectedCustomer('');
+    go({ view: showMap ? HOME : VIEWS.map });
     setSearchResults(null);
     setSearchTerm('');
   };
@@ -464,6 +457,9 @@ function App() {
 
   // Handle customer selection
   const handleCustomerSelect = async (customer) => {
+    // An address, so "look at Flagstone Foods" is a link somebody can send and
+    // the back button leaves the customer rather than the whole app.
+    go(customer ? { view: CUSTOMER, customerSlug: toSlug(customer) } : { view: HOME });
     setSelectedCustomer(customer);
     setShowCustomerDropdown(false);
     setSearchResults(null); // Clear search results when viewing customer
@@ -489,10 +485,30 @@ function App() {
   };
 
   const clearCustomerSelection = () => {
+    if (route.view === CUSTOMER) go({ view: HOME });
     setSelectedCustomer('');
     setCustomerData(null);
     setSearchScope('all'); // Reset search scope when customer is cleared
   };
+
+  // The URL is the instruction, so a pasted link and the Back button both work.
+  // Waits for the customer list: on a cold load the slug arrives before the
+  // names it has to be matched against, and resolving it early would look like
+  // a link to a customer that does not exist.
+  useEffect(() => {
+    if (route.view !== CUSTOMER || !route.customerSlug || customers.length === 0) return;
+    const hit = customerFromSlug(route.customerSlug, customers);
+    if (!hit) return;
+    const name = hit.name ?? hit;
+    if (name === selectedCustomer) return;
+    setSelectedCustomer(name);
+    setCustomerLoading(true);
+    Promise.all([fetchCustomerData(name), fetchCustomerRecords()])
+      .then(([data, records]) => { setCustomerData(data); setCustomerRecords(records); })
+      .catch((e) => console.error('Could not open the customer from the link:', e))
+      .finally(() => setCustomerLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.view, route.customerSlug, customers]);
 
   // Fetch real data from Firebase. Stale-while-revalidate: if anything is
   // already cached, render whatever we have right now and refresh quietly in
@@ -793,11 +809,9 @@ function App() {
       key: 'records', label: 'Records', Icon: Building2, tone: '#0ea5e9', active: showRecords,
       onClick: async () => {
         const next = !showRecords;
-        setShowRecords(next);
+        go({ view: next ? VIEWS.records : HOME });
         if (next) {
-          setShowPacket(false);
           setSearchResults(null);
-          clearCustomerSelection();
           setCustomerRecords(await fetchCustomerRecords());
         }
       },
@@ -806,11 +820,9 @@ function App() {
       key: 'packet', label: 'Packet', Icon: Paperclip, tone: ui.TONE.pink, active: showPacket,
       onClick: async () => {
         const next = !showPacket;
-        setShowPacket(next);
+        go({ view: next ? VIEWS.packet : HOME });
         if (next) {
-          setShowRecords(false);
           setSearchResults(null);
-          clearCustomerSelection();
           if (serviceReports.reports.length === 0) loadServiceReports();
           setCustomerRecords(await fetchCustomerRecords());
         }
@@ -1412,7 +1424,7 @@ function App() {
                 Work Calendar
               </h2>
               <button
-                onClick={() => setShowCalendar(false)}
+                onClick={closeView}
                 style={{
                   padding: '8px 16px',
                   background: colors.cardBg,
@@ -1461,7 +1473,7 @@ function App() {
                 Troubleshoot
               </h2>
               <button
-                onClick={() => setShowTroubleshoot(false)}
+                onClick={closeView}
                 style={{ padding: '8px 16px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', color: colors.text, fontSize: '14px' }}
               >
                 Back to Dashboard
@@ -1502,7 +1514,7 @@ function App() {
                 <MapPin size={24} />
                 Factory Locations
               </h2>
-              <button onClick={() => setShowMap(false)} style={{ padding: '8px 16px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', color: colors.text, fontSize: '14px' }}>
+              <button onClick={closeView} style={{ padding: '8px 16px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '6px', cursor: 'pointer', color: colors.text, fontSize: '14px' }}>
                 Back to Dashboard
               </button>
             </div>
@@ -1593,7 +1605,7 @@ function App() {
             serviceReports={serviceReports.reports}
             customerRecords={customerRecords}
             customers={customers}
-            onClose={() => setShowPacket(false)}
+            onClose={closeView}
           />
         )}
 
@@ -1602,7 +1614,7 @@ function App() {
             customers={customers}
             records={customerRecords}
             colors={colors}
-            onOpenCustomer={(name) => { setShowRecords(false); handleCustomerSelect(name); }}
+            onOpenCustomer={(name) => handleCustomerSelect(name)}
           />
         )}
 
@@ -1623,7 +1635,10 @@ function App() {
         )}
 
         {/* Filters and Chart - Hide when searching, viewing customer, or calendar */}
-        {!searchResults && !selectedCustomer && !showCalendar && !showMap && !showTroubleshoot && !showServiceReports && !showRecords && !showPacket && (
+        {/* One condition instead of the negation of every view ever added. Seven
+            booleans describe 128 states of which 8 are legal; the URL describes
+            the 8. */}
+        {!searchResults && !selectedCustomer && route.view === HOME && (
           <div style={{ marginBottom: '24px' }}>
             {/* Quick Filters */}
             <div style={{
