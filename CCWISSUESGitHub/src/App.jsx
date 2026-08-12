@@ -861,6 +861,8 @@ const AppContent = () => {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [checkingCloud, setCheckingCloud] = useState(false); // "Check cloud" button in-flight
   const savedSnapshotRef = useRef(null);  // serialized content of the last cloud save (baseline)
+  // Read inside the snapshot callback, which closes over a stale state value.
+  const lastSavedAtRef = useRef(null);
   const autosaveTimerRef = useRef(null);
 
   // Dialog system for proper modals instead of window.prompt/alert
@@ -1058,6 +1060,7 @@ const AppContent = () => {
   // linesRef lets handlers read the latest lines without re-creating on every state change.
   const linesRef = useRef(lines);
   useEffect(() => { linesRef.current = lines; }, [lines]);
+  useEffect(() => { lastSavedAtRef.current = lastSavedAt; }, [lastSavedAt]);
   const globalDataRef = useRef(globalData);
   useEffect(() => { globalDataRef.current = globalData; }, [globalData]);
   // Latest-value refs so the debounced cloud autosave reads current values.
@@ -2398,12 +2401,13 @@ const AppContent = () => {
           // Re-baseline autosave to the remote content so it doesn't immediately
           // push the same data back.
           savedSnapshotRef.current = serializeVisitContent(remoteLines, remote.globalData || {}, remote.name || '', remote.serviceReportUrl || null);
-          // Same again: this pulled the cloud's copy in, which is not this
-          // screen having saved something. Re-stamping from remote.date is
-          // what put the visit's own date back on the chip after every real
-          // save had correctly moved it on.
-          setCloudState('idle');
-          setLastSavedAt(null);
+          // Pulling the cloud's copy in is not this screen saving something,
+          // so it must not INVENT a time — that was the visit-date bug. But it
+          // must not erase one either: this runs when our own write echoes
+          // back, and clearing the chip a second after a real save is its own
+          // kind of lie. Leave the time alone; the tick stands if this screen
+          // has actually saved, and stays blank if it has not.
+          setCloudState(lastSavedAtRef.current ? 'saved' : 'idle');
           dismissPrompt();
         };
 
