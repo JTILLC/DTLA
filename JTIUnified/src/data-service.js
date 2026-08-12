@@ -1985,6 +1985,31 @@ export const closeJob = async (sr, closed = true) => {
   return true;
 };
 
+/**
+ * Release a reserved number back into the pool.
+ *
+ * Different from closing, and deliberately so. Closing says "this job is not
+ * happening, but the number is spent" — which is right when the number has been
+ * written on something. Releasing says "this reservation should never have
+ * existed", and the number becomes the next one offered again.
+ *
+ * Only safe when NOTHING was ever filed against it. Two jobs sharing a number
+ * cannot be told apart afterwards by any of the four systems that key on it, so
+ * the caller must establish that first — see the guard in the packet screen.
+ */
+export const releaseJobNumber = async (sr) => {
+  const key = String(sr || '').trim().toUpperCase();
+  if (!key) throw new Error('A service report number is required.');
+  await deleteDoc(doc(jobsMasterDb, UNIFIED_JOBS, key));
+  // Take it out of the directories too, or it lingers in the other apps'
+  // pickers pointing at a reservation that no longer exists.
+  await Promise.all([
+    deleteDoc(doc(timesheetDb, SR_DIRECTORY, key)).catch(() => {}),
+    deleteDoc(doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, key)).catch(() => {}),
+  ]);
+  return true;
+};
+
 /** Record that the packet actually went to accounts payable. */
 export const markPacketSent = async (sr, to = []) => {
   const key = String(sr || '').trim().replace(/[\s-]/g, '').toUpperCase();

@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
-  fetchUnifiedJobs, startJob, markPacketSent, closeJob,
+  fetchUnifiedJobs, startJob, markPacketSent, closeJob, releaseJobNumber,
 } from '../data-service';
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
@@ -284,6 +284,32 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
             >
               {startedHere.closedAt ? 'Reopen this number' : 'Close this number'}
             </button>
+            {/* Releasing is only offered when nothing has been filed against
+                the number: no visit, no timesheet, no invoice, no packet file.
+                Once any of those exist the number has been written on
+                something, and putting it back in the pool would let a second
+                job take it. */}
+            {!job && !sources?.serviceReportUrl && !sources?.invoiceUrl && !(packet.files || []).length && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm(
+                    `Release ${sr} back into the pool?\n\n`
+                    + 'It becomes the next number offered again. Only do this if nothing was ever '
+                    + 'filed against it — a number written on a report or an invoice should be closed, not released.')) return;
+                  setBusy('Releasing…');
+                  try {
+                    await releaseJobNumber(sr);
+                    setStarted(await fetchUnifiedJobs());
+                    setSr('');
+                  } catch (err) { setError(err.message || String(err)); }
+                  setBusy('');
+                }}
+                style={{ ...input, cursor: 'pointer', fontSize: '13px', padding: '5px 10px', marginLeft: '8px' }}
+              >
+                Release the number
+              </button>
+            )}
             {startedHere.closedAt && (
               <span style={{ color: '#f59e0b', fontSize: '13px', marginLeft: '8px' }}>
                 Closed — hidden from the timesheet and other pickers, but still reserved.
