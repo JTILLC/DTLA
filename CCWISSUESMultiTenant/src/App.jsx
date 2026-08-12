@@ -1269,7 +1269,12 @@ const AppContent = () => {
     activeSiteLeadRef.current = activeCrewPerson ? isSiteLead(activeCrewPerson) : null;
   }, [activeCrewPerson]);
 
-  const requestTab = useCallback((tab) => {
+  // `lineId` is optional: the overview passes the line that was picked so the
+  // Current Log opens on it rather than on whichever was already selected.
+  // Selected before the gate is considered — being asked for a PIN should not
+  // lose which line you tapped.
+  const requestTab = useCallback((tab, lineId) => {
+    if (lineId != null) showLine(lineId, setShowDashboardView, setActiveLineId);
     if (isAdmin) { setActiveTab(tab); return; }
     const gate = screenGate(tab, activeCrewPerson, crewPeople, hasPin);
     if (gate.action !== 'ask') { setActiveTab(tab); return; }
@@ -1871,14 +1876,23 @@ const AppContent = () => {
         setCurrentVisitName(mergedName);
       }
 
+      // A write completed, so the time is now, whatever happens next.
+      setLastSavedAt(new Date());
+
       // Edits made WHILE this write was in flight are still only on screen.
       //
       // The autosave effect runs when its state changes, and those edits
       // already had their run — the one that produced this write. Skipping the
       // merge above leaves them unsaved with nothing scheduled to carry them
-      // up, so they would sit there until the next unrelated edit happened to
-      // trigger a save. Said plainly on the chip and written straight away.
-      if (currentSnapshot !== newBaseline) {
+      // up, so they would sit there until an unrelated edit triggered a save.
+      //
+      // The test is against what we SENT, not against the merged result. The
+      // merge legitimately differs from what we sent — that is its whole job,
+      // it folds in the other side — so comparing to it meant "there is more to
+      // do" was true on every pass: a write every 400ms forever, and the clock
+      // never reached the line below. Local versus what local was is the only
+      // question that decides whether anything is outstanding.
+      if (currentSnapshot !== sentSnapshot) {
         setCloudState('saving');
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = setTimeout(() => { writeVisitInPlace(); }, 400);
@@ -1886,7 +1900,6 @@ const AppContent = () => {
       }
 
       setCloudState('saved');
-      setLastSavedAt(new Date());
     } catch (err) {
       console.error('Autosave failed:', err);
       setCloudState('error');

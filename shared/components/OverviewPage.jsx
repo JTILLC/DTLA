@@ -91,6 +91,10 @@ export default function OverviewPage({
       .map((s, i) => (s === state ? i + 1 : 0))
       .filter(Boolean);
     return {
+      // The id travels with the row so a click can say WHICH line. Without it
+      // the overview could only ask for the Current Log tab, which then showed
+      // whichever line happened to be selected — always the first one.
+      id: line.id,
       title: line.title || 'Untitled line',
       heads,
       offlineHeads: numbersIn('offline'),
@@ -255,10 +259,10 @@ export default function OverviewPage({
           <div className="ccw-ov-lines">
             {lineStates.map((l) => (
               <button
-                key={l.title}
+                key={l.id ?? l.title}
                 type="button"
                 className="ccw-ov-line"
-                onClick={() => onGo?.('current')}
+                onClick={() => onGo?.('current', l.id)}
               >
                 {/* The same chip the line switcher uses, dot and all — one
                     visual language for "a line and how it is doing", rather
