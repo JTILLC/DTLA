@@ -76,8 +76,10 @@ describe('jobFlowSteps', () => {
     expect(keys(s)).toEqual(expect.arrayContaining(['serviceReport', 'invoice']));
   });
 
-  it('understands the several ways the Jobs Tracker has recorded paid', () => {
-    ['Yes', 'yes', true, 'PAID', 'y'].forEach((paid) => {
+  it('agrees with the definition the income totals use', () => {
+    // Deliberately the same predicate as the money — a flow chart that
+    // disagrees with the paid figure beside it makes both suspect.
+    ['Yes', 'yes', true, 'PAID', 1, '1', 'true'].forEach((paid) => {
       expect(steps({ job: { paid } }).find((x) => x.key === 'paid').done).toBe(true);
     });
     ['No', '', null, undefined, 'unpaid'].forEach((paid) => {
