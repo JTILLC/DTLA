@@ -1892,6 +1892,21 @@ export const addPacketFile = async (sr, kind, file) => {
   return entry;
 };
 
+/**
+ * Set fields on one file already in a packet — an amount, a vendor.
+ *
+ * Merged into the entry rather than written over it: the upload recorded where
+ * the file is, and losing that to save a number typed next to it would leave a
+ * receipt in the packet that nothing can find.
+ */
+export const updatePacketFile = async (sr, path, patch) => {
+  const key = packetKey(sr);
+  const current = await fetchPacket(key);
+  const files = (current.files || []).map((f) => (f.path === path ? { ...f, ...patch } : f));
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key), { sr: key, files }, { merge: true });
+  return files;
+};
+
 /** Remove one file from a packet, and from storage. */
 export const removePacketFile = async (sr, path) => {
   const key = packetKey(sr);

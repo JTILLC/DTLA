@@ -160,7 +160,6 @@ function App() {
     const next = !showTroubleshoot;
     // No sibling flags to close: one view is open because one URL is current.
     go({ view: next ? VIEWS.troubleshoot : HOME });
-    if (next && troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
   };
 
   // Service Report Lookup state
@@ -187,7 +186,6 @@ function App() {
     if (next) {
       setSearchResults(null);
       setSearchTerm('');
-      if (serviceReports.reports.length === 0) loadServiceReports();
     }
   };
 
@@ -319,9 +317,6 @@ function App() {
     // old `calendarEvents.length === 0` guard meant a visit saved in the
     // timesheet app never appeared until the whole page was reloaded — the
     // calendar looked like it had simply lost the visit.
-    if (!showCalendar) {
-      loadCalendarEvents();
-    }
     go({ view: showCalendar ? HOME : VIEWS.calendar });
     setSearchResults(null);
     setSearchTerm('');
@@ -490,6 +485,23 @@ function App() {
     setCustomerData(null);
     setSearchScope('all'); // Reset search scope when customer is cleared
   };
+
+  // A view loads what it needs when it OPENS, however it was opened.
+  //
+  // This lived in the click handlers, so a pasted link or a Back press showed
+  // the view with none of its data — /packet arrived with an empty service
+  // report picker, which reads as "there are no jobs" rather than "nothing
+  // fetched them". Data a view needs belongs to the view, not to the button.
+  useEffect(() => {
+    const v = route.view;
+    if (v === VIEWS.calendar) loadCalendarEvents();
+    if (v === VIEWS.troubleshoot && troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
+    if ((v === VIEWS.reports || v === VIEWS.packet) && serviceReports.reports.length === 0) loadServiceReports();
+    if (v === VIEWS.records || v === VIEWS.packet) {
+      fetchCustomerRecords().then(setCustomerRecords).catch((e) => console.warn('Customer records unavailable:', e));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.view]);
 
   // The URL is the instruction, so a pasted link and the Back button both work.
   // Waits for the customer list: on a cold load the slug arrives before the
@@ -810,10 +822,7 @@ function App() {
       onClick: async () => {
         const next = !showRecords;
         go({ view: next ? VIEWS.records : HOME });
-        if (next) {
-          setSearchResults(null);
-          setCustomerRecords(await fetchCustomerRecords());
-        }
+        if (next) setSearchResults(null);
       },
     },
     {
@@ -821,11 +830,7 @@ function App() {
       onClick: async () => {
         const next = !showPacket;
         go({ view: next ? VIEWS.packet : HOME });
-        if (next) {
-          setSearchResults(null);
-          if (serviceReports.reports.length === 0) loadServiceReports();
-          setCustomerRecords(await fetchCustomerRecords());
-        }
+        if (next) setSearchResults(null);
       },
     },
   ];
@@ -1605,6 +1610,7 @@ function App() {
             serviceReports={serviceReports.reports}
             customerRecords={customerRecords}
             customers={customers}
+            initialSr={route.sr || ''}
             onClose={closeView}
           />
         )}

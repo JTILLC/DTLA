@@ -43,6 +43,28 @@ export const describeUnsupported = (file) => {
   return `${file.name} is not a PDF, JPEG or PNG, so it cannot go in the packet.`;
 };
 
+/**
+ * A money value as typed, as a number.
+ *
+ * People type "$1,234.56", "1234.56", "12", and sometimes nothing. A receipt
+ * whose amount cannot be read must count as zero rather than poison the total
+ * with NaN — one unreadable figure should cost you that figure, not the sum.
+ */
+export const parseAmount = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value ?? '').replace(/[^0-9.-]/g, '');
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** What the receipts add up to. */
+export const receiptsTotal = (receipts = []) =>
+  receipts.reduce((sum, r) => sum + parseAmount(r?.amount), 0);
+
+/** Money, formatted the one way it is formatted everywhere in the packet. */
+export const money = (n) =>
+  `$${parseAmount(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /** Which sections have nothing in them — said on the cover, not discovered by AP. */
 export const missingSections = (parts = {}) =>
   SECTIONS.filter((s) => (s.many ? !(parts[s.key] || []).length : !parts[s.key])).map((s) => s.label);
@@ -81,6 +103,10 @@ const drawCover = (doc, font, bold, meta, parts) => {
     ['Date', meta.date || '—'],
     ['Amount', meta.amount != null && meta.amount !== '' ? `$${Number(meta.amount).toLocaleString()}` : '—'],
   ];
+  // Stated on the front, because "what are we being asked to reimburse?" is the
+  // question the cover exists to answer.
+  const receiptSum = receiptsTotal(parts.receipts || []);
+  if (receiptSum > 0) rows.push(['Receipts', money(receiptSum)]);
   rows.forEach(([k, v]) => {
     page.drawText(k, { x: 56, y, size: 10, font, color: rgb(0.45, 0.5, 0.56) });
     page.drawText(String(v), { x: 170, y, size: 11, font: bold, color: rgb(0.1, 0.12, 0.16) });
@@ -116,6 +142,57 @@ const drawCover = (doc, font, bold, meta, parts) => {
 
   page.drawText('Assembled by JTI', { x: 56, y: 40, size: 9, font, color: rgb(0.6, 0.64, 0.7) });
   return page;
+};
+
+/**
+ * The receipts, itemised, before the images of them.
+ *
+ * Accounts payable checks a total against a list; they do not add up
+ * photographs. Without this the packet says "here are nine pictures, work it
+ * out", which is how a reimbursement sits in someone's queue for a fortnight.
+ *
+ * Only drawn when at least one receipt carries an amount — a page of zeroes
+ * would be worse than no page.
+ */
+const drawExpenses = (doc, font, bold, receipts) => {
+  const priced = receipts.filter((r) => parseAmount(r.amount) > 0);
+  if (!priced.length) return false;
+
+  const page = doc.addPage(LETTER);
+  const { width, height } = page.getSize();
+  let y = height - 64;
+
+  page.drawText('RECEIPTS', { x: 56, y, size: 16, font: bold, color: rgb(0.1, 0.12, 0.16) });
+  y -= 28;
+
+  const col = { desc: 56, amount: width - 56 };
+  const row = (left, right, { useBold = false, color = rgb(0.1, 0.12, 0.16) } = {}) => {
+    page.drawText(String(left), { x: col.desc, y, size: 10, font: useBold ? bold : font, color });
+    const w = (useBold ? bold : font).widthOfTextAtSize(String(right), 10);
+    page.drawText(String(right), { x: col.amount - w, y, size: 10, font: useBold ? bold : font, color });
+    y -= 16;
+  };
+
+  row('Description', 'Amount', { useBold: true, color: rgb(0.45, 0.5, 0.56) });
+  page.drawLine({
+    start: { x: 56, y: y + 10 }, end: { x: width - 56, y: y + 10 },
+    thickness: 0.5, color: rgb(0.8, 0.83, 0.87),
+  });
+  y -= 4;
+
+  receipts.forEach((r) => {
+    const label = [r.vendor, r.name].filter(Boolean).join(' — ') || 'Receipt';
+    row(label.length > 68 ? `${label.slice(0, 65)}…` : label, money(r.amount));
+  });
+
+  y -= 6;
+  page.drawLine({
+    start: { x: 56, y: y + 10 }, end: { x: width - 56, y: y + 10 },
+    thickness: 0.5, color: rgb(0.8, 0.83, 0.87),
+  });
+  y -= 4;
+  row('Total receipts', money(receiptsTotal(receipts)), { useBold: true });
+  return true;
 };
 
 /** Put an image on its own page, scaled to fit with a margin. */
@@ -167,11 +244,17 @@ export const buildPacket = async (meta = {}, parts = {}) => {
 
   for (const section of SECTIONS) {
     const value = parts[section.key];
-    if (section.many) { for (const p of value || []) await append(p); }
-    else await append(value);
+    if (section.many) {
+      // The itemised list goes immediately before the images it itemises.
+      if (section.key === 'receipts') drawExpenses(doc, font, bold, value || []);
+      for (const p of value || []) await append(p);
+    } else await append(value);
   }
 
-  return { bytes: await doc.save(), problems, missing: missingSections(parts) };
+  return {
+    bytes: await doc.save(), problems, missing: missingSections(parts),
+    receiptsTotal: receiptsTotal(parts.receipts || []),
+  };
 };
 
 /** What the file should be called when it lands on somebody's desktop. */

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import {
   SECTIONS, buildPacket, missingSections, describeUnsupported,
-  packetFileName, packetEmail, wrapText,
+  packetFileName, packetEmail, wrapText, parseAmount, receiptsTotal, money,
 } from './jobPacket.js';
 
 // A real, valid PDF of n pages, so the merge is exercised rather than mocked.
@@ -140,5 +140,72 @@ describe('wrapText', () => {
 
   it('has nothing to say about nothing', () => {
     expect(wrapText('', null, 10, 200)).toEqual([]);
+  });
+});
+
+// The money. A total that is quietly wrong is worse than one that is missing:
+// it gets sent to a customer and paid, or queried, and either way somebody
+// re-adds nine photographs by hand to find out which figure was off.
+describe('parseAmount', () => {
+  it('reads the ways people actually type money', () => {
+    expect(parseAmount('$1,234.56')).toBe(1234.56);
+    expect(parseAmount('1234.56')).toBe(1234.56);
+    expect(parseAmount('12')).toBe(12);
+    expect(parseAmount(42.5)).toBe(42.5);
+  });
+
+  it('treats an unreadable amount as zero rather than poisoning the total', () => {
+    // One figure nobody typed must cost that figure, not the whole sum.
+    expect(parseAmount('')).toBe(0);
+    expect(parseAmount(null)).toBe(0);
+    expect(parseAmount(undefined)).toBe(0);
+    expect(parseAmount('n/a')).toBe(0);
+    expect(parseAmount(NaN)).toBe(0);
+  });
+
+  it('keeps a negative — a credit on a receipt is real', () => {
+    expect(parseAmount('-25.00')).toBe(-25);
+  });
+});
+
+describe('receiptsTotal', () => {
+  it('adds what is there and ignores what is not', () => {
+    expect(receiptsTotal([{ amount: '42.10' }, { amount: '$7.90' }, { amount: '' }])).toBeCloseTo(50, 2);
+  });
+
+  it('is zero for nothing', () => {
+    expect(receiptsTotal([])).toBe(0);
+    expect(receiptsTotal()).toBe(0);
+  });
+});
+
+describe('money', () => {
+  it('always shows two decimals, so a column of figures lines up', () => {
+    expect(money(12)).toBe('$12.00');
+    expect(money('7.5')).toBe('$7.50');
+    expect(money(1234.5)).toBe('$1,234.50');
+  });
+});
+
+describe('buildPacket with priced receipts', () => {
+  it('adds an itemised page and reports the total', async () => {
+    const parts = {
+      invoice: await part('invoice.pdf', 1),
+      receipts: [
+        { ...(await part('fuel.pdf', 1)), amount: '42.10', vendor: 'Shell' },
+        { ...(await part('parts.pdf', 1)), amount: '$107.90', vendor: 'Grainger' },
+      ],
+    };
+    const res = await buildPacket({ sr: '2026030' }, parts);
+    expect(res.receiptsTotal).toBeCloseTo(150, 2);
+    // cover + invoice + expenses page + two receipts
+    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(5);
+  });
+
+  it('omits the itemised page when no receipt has an amount', async () => {
+    const parts = { receipts: [await part('r.pdf', 1)] };
+    const res = await buildPacket({ sr: 'x' }, parts);
+    expect(res.receiptsTotal).toBe(0);
+    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(2); // cover + the receipt
   });
 });
