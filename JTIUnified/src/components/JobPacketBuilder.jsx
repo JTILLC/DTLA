@@ -11,7 +11,7 @@
 // What is missing is shown the whole time, not at the end. A packet is rejected
 // by AP for being incomplete far more often than for being wrong, and the
 // moment to learn the PO is missing is before sending it.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
@@ -110,9 +110,15 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     return { from: null, files: [] };
   };
 
-  // Saved on blur rather than per keystroke: each save is a document write, and
-  // one per character typed into an amount is a lot of writes to record "42.10".
-  const saveField = async (file, field, value) => {
+  // Typed values are written a beat after typing stops, and again on blur.
+  //
+  // Blur alone was not enough: it fires when you click away, and somebody who
+  // types an amount and immediately closes the tab never clicks away. One write
+  // per keystroke is the other extreme — five documents to record "42.10" — so
+  // this waits for a pause and then saves. Nothing typed survives longer than
+  // the pause without reaching the cloud.
+  const timers = useRef({});
+  const flushField = async (file, field, value) => {
     const trimmed = String(value || '').trim();
     if ((file[field] || '') === trimmed) return;
     try {
@@ -120,6 +126,28 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
       setPacket(await fetchPacket(sr));
     } catch (err) { setError(err.message || String(err)); }
   };
+  const queueField = (file, field, value) => {
+    const id = `${file.path}:${field}`;
+    clearTimeout(timers.current[id]);
+    timers.current[id] = setTimeout(() => flushField(file, field, value), 700);
+  };
+  const saveField = (file, field, value) => {
+    clearTimeout(timers.current[`${file.path}:${field}`]);
+    return flushField(file, field, value);
+  };
+
+  // The cover-sheet note had NO save of its own — it was only written as a
+  // side effect of pressing Build, so typing one and reloading lost it. It is
+  // part of the packet like everything else on this screen.
+  const queueNotes = (value) => {
+    clearTimeout(timers.current.notes);
+    timers.current.notes = setTimeout(() => {
+      markPacketBuilt(sr, { notes: value }).catch((err) => console.warn('Note not saved:', err));
+    }, 700);
+  };
+
+  // A pending write must not be dropped by navigating away mid-pause.
+  useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
 
   const onUpload = async (kind, fileList) => {
     setScanNote('');
@@ -469,6 +497,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                           <>
                             <input
                               defaultValue={f.vendor || ''}
+                              onChange={(e) => queueField(f, 'vendor', e.target.value)}
                               onBlur={(e) => saveField(f, 'vendor', e.target.value)}
                               placeholder="Vendor"
                               aria-label={`Vendor for ${f.name}`}
@@ -476,6 +505,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                             />
                             <input
                               defaultValue={f.amount || ''}
+                              onChange={(e) => queueField(f, 'amount', e.target.value)}
                               onBlur={(e) => saveField(f, 'amount', e.target.value)}
                               placeholder="0.00"
                               inputMode="decimal"
@@ -514,7 +544,9 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
           <div style={card}>
             <label style={label} htmlFor="packet-notes">Notes for the cover sheet (optional)</label>
             <textarea
-              id="packet-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              id="packet-notes" value={notes} rows={2}
+              onChange={(e) => { setNotes(e.target.value); queueNotes(e.target.value); }}
+              onBlur={(e) => { clearTimeout(timers.current.notes); markPacketBuilt(sr, { notes: e.target.value }).catch(() => {}); }}
               placeholder="Anything AP should know — PO raised late, partial billing, etc."
               style={{ ...input, width: '100%', resize: 'vertical' }}
             />
