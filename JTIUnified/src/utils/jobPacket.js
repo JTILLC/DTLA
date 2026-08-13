@@ -155,8 +155,10 @@ const drawCover = (doc, font, bold, meta, parts) => {
  * would be worse than no page.
  */
 const drawExpenses = (doc, font, bold, receipts) => {
-  const priced = receipts.filter((r) => parseAmount(r.amount) > 0);
-  if (!priced.length) return false;
+  // Drawn whenever there are receipts at all. It used to require a priced one,
+  // which meant a packet of unpriced receipts silently had no list — the exact
+  // case where somebody most needs to see what is unaccounted for.
+  if (!receipts.length) return false;
 
   const page = doc.addPage(LETTER);
   const { width, height } = page.getSize();
@@ -182,7 +184,15 @@ const drawExpenses = (doc, font, bold, receipts) => {
 
   receipts.forEach((r) => {
     const label = [r.vendor, r.name].filter(Boolean).join(' — ') || 'Receipt';
-    row(label.length > 68 ? `${label.slice(0, 65)}…` : label, money(r.amount));
+    const priced = parseAmount(r.amount) > 0;
+    // An unpriced receipt is listed as such rather than as $0.00. Accounts
+    // payable reading "$0.00" against a receipt assumes it is free; reading
+    // "not priced" asks somebody.
+    row(
+      label.length > 68 ? `${label.slice(0, 65)}…` : label,
+      priced ? money(r.amount) : 'not priced',
+      priced ? {} : { color: rgb(0.85, 0.5, 0.1) },
+    );
   });
 
   y -= 6;

@@ -539,7 +539,20 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                       <div style={{ fontSize: '12px', color: ui.TONE.brand, paddingTop: '4px' }}>{scanNote}</div>
                     )}
                     {k.key === 'receipts' && state.files.length > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', fontSize: '14px', color: colors.text, paddingTop: '6px', borderTop: `1px solid ${colors.border}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: '8px', fontSize: '14px', color: colors.text, paddingTop: '6px', borderTop: `1px solid ${colors.border}`, flexWrap: 'wrap' }}>
+                        {/* A receipt with no amount counts as zero, and a total
+                            of $0.00 beside three receipts reads as broken
+                            software rather than as three receipts nobody has
+                            priced. Say which it is. */}
+                        {(() => {
+                          const unpriced = state.files.filter((f) => !String(f.amount || '').trim()).length;
+                          return unpriced > 0 ? (
+                            <span style={{ color: ui.TONE.warn, fontSize: '13px' }}>
+                              {unpriced} of {state.files.length} {unpriced === 1 ? 'has' : 'have'} no amount yet
+                              {' '}— type it in, or re-upload to read it from the photo
+                            </span>
+                          ) : null;
+                        })()}
                         <span style={{ color: colors.textSecondary }}>Total receipts</span>
                         <strong>{money(receiptsTotal(state.files))}</strong>
                       </div>
