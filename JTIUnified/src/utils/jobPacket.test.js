@@ -60,7 +60,8 @@ describe('buildPacket', () => {
     };
     const { bytes, problems, missing } = await buildPacket({ sr: '2026024', customer: 'Flagstone Foods' }, parts);
     const out = await PDFDocument.load(bytes);
-    expect(out.getPageCount()).toBe(1 + 1 + 2 + 3 + 2); // cover + parts
+    // cover + PO + invoice(2) + service report(3) + receipts list + 2 receipts
+    expect(out.getPageCount()).toBe(1 + 1 + 2 + 3 + 1 + 2);
     expect(problems).toEqual([]);
     expect(missing).toEqual([]);
   });
@@ -79,8 +80,9 @@ describe('buildPacket', () => {
     const { bytes, problems } = await buildPacket({ sr: 'x' }, parts);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/broken\.pdf/);
-    // The invoice survived — 1 cover + 2 invoice pages.
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
+    // The invoice survived — cover + 2 invoice pages + the receipts list.
+    // The broken receipt is listed and simply has no image behind it.
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(4);
   });
 
   it('produces a valid PDF even with nothing in it at all', async () => {
@@ -202,10 +204,13 @@ describe('buildPacket with priced receipts', () => {
     expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(5);
   });
 
-  it('omits the itemised page when no receipt has an amount', async () => {
+  it('LISTS an unpriced receipt rather than pricing it at zero', async () => {
+    // "$0.00" against a receipt tells accounts payable it was free. The list
+    // has to say "not priced" so somebody asks — and it must appear even when
+    // nothing is priced, which is exactly when it is most needed.
     const parts = { receipts: [await part('r.pdf', 1)] };
     const res = await buildPacket({ sr: 'x' }, parts);
     expect(res.receiptsTotal).toBe(0);
-    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(2); // cover + the receipt
+    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(3); // cover + list + receipt
   });
 });
