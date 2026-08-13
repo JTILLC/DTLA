@@ -42,6 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+import { scanReceipt, mayScanReceipt } from './receipts.js';
 import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
 import {
   billingConfigured, summary as billingSummary, checkout as billingCheckout,
@@ -335,6 +336,57 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // --- POST /scan-receipt: read a receipt ----------------------------------
+    // Same gate as /scan-weights, and for the same reason: it spends money per
+    // call, so an unrecognised caller must not reach the model at all.
+    if (url.pathname === '/scan-receipt') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      if (!originAllowed(origin, (allowed || '').split(',').map((s) => s.trim()).filter(Boolean))) {
+        return deny(403, 'Origin not permitted.', origin, allowed);
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return deny(503, 'Receipt reading is not configured yet.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      const scanProjects = (env.SCAN_PROJECT_IDS || env.FIREBASE_PROJECT_ID)
+        .split(',').map((s) => s.trim()).filter(Boolean);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, scanProjects);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (!mayScanReceipt(claims, env.FIREBASE_PROJECT_ID)) {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return deny(400, 'Expected a JSON body.', origin, allowed);
+      }
+
+      try {
+        const result = await scanReceipt(env, claims, body);
+        console.log(`scan-receipt uid=${claims.sub} total=${result.total ?? 'null'}`);
+        return new Response(JSON.stringify(result), {
+          headers: { ...JSON_CT, ...corsHeaders(origin, allowed) },
+        });
+      } catch (err) {
+        const status = err?.status || 502;
+        if (status >= 500) console.error('scan-receipt error', err?.message, err?.cause || err);
+        return deny(status, err?.message || 'Receipt reading failed.', origin, allowed);
+      }
+    }
 
     // --- POST /scan-weights: read a weigher screen ---------------------------
     if (url.pathname === '/scan-weights') {

@@ -20,6 +20,7 @@ import {
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
+import { scanReceipt } from '../utils/scanReceipt';
 import * as ui from '../ui/theme';
 
 const KINDS = [
@@ -39,6 +40,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
   const [error, setError] = useState('');
   const [notes, setNotes] = useState('');
   const [result, setResult] = useState(null);
+  const [scanNote, setScanNote] = useState('');
 
   const job = useMemo(
     () => serviceReports.find((r) => String(r.number) === String(sr)) || null,
@@ -120,6 +122,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
   };
 
   const onUpload = async (kind, fileList) => {
+    setScanNote('');
     const files = [...(fileList || [])];
     if (!files.length) return;
     const bad = files.map(describeUnsupported).filter(Boolean);
@@ -127,8 +130,38 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     setError('');
     setBusy(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
     try {
-      for (const f of files) await addPacketFile(sr, kind, f);
+      const added = [];
+      for (const f of files) added.push({ entry: await addPacketFile(sr, kind, f), file: f });
       setPacket(await fetchPacket(sr));
+
+      // Read receipts as they arrive, while the file is still in hand. Every
+      // figure lands in an editable box and none of it is trusted: these end up
+      // on an invoice, so a person confirms them before the packet is built.
+      if (kind === 'receipts') {
+        const read = [];
+        for (const { entry, file } of added) {
+          if (!/^image\//.test(file.type || '')) continue;   // a PDF receipt is not scanned
+          setBusy(`Reading ${file.name}…`);
+          try {
+            const r = await scanReceipt(file);
+            const patch = {};
+            if (r.vendor) patch.vendor = r.vendor;
+            if (r.total != null) patch.amount = String(r.total);
+            if (Object.keys(patch).length) {
+              await updatePacketFile(sr, entry.path, patch);
+              read.push(`${file.name}: ${r.vendor || 'vendor not read'} ${r.total != null ? money(r.total) : '— amount not read'}`);
+            } else {
+              read.push(`${file.name}: nothing readable — type it in`);
+            }
+          } catch (err) {
+            // A failed scan must not lose the upload: the receipt is already
+            // attached, it just has no figures yet.
+            read.push(`${file.name}: ${err.message || 'could not be read'}`);
+          }
+        }
+        setPacket(await fetchPacket(sr));
+        if (read.length) setScanNote(`Read from the photo — check each one: ${read.join(' · ')}`);
+      }
     } catch (err) { setError(err.message || String(err)); }
     setBusy('');
   };
@@ -463,6 +496,9 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                         )}
                       </div>
                     ))}
+                    {k.key === 'receipts' && scanNote && (
+                      <div style={{ fontSize: '12px', color: ui.TONE.brand, paddingTop: '4px' }}>{scanNote}</div>
+                    )}
                     {k.key === 'receipts' && state.files.length > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', fontSize: '14px', color: colors.text, paddingTop: '6px', borderTop: `1px solid ${colors.border}` }}>
                         <span style={{ color: colors.textSecondary }}>Total receipts</span>
