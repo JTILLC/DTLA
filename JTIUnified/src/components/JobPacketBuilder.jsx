@@ -21,6 +21,7 @@ import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from 
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import { scanReceipt } from '../utils/scanReceipt';
+import BulkReceiptImport from './BulkReceiptImport';
 import * as ui from '../ui/theme';
 
 const KINDS = [
@@ -269,6 +270,14 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
           )}
         </div>
       </div>
+
+      {/* Loading historical receipts is not about the job currently selected, so
+          it sits above the picker rather than inside a slot. */}
+      <BulkReceiptImport
+        colors={colors}
+        knownSrs={allNumbers.map((r) => String(r.number))}
+        onDone={() => { if (sr) load(sr); }}
+      />
 
       {newJob && (
         <div style={{ ...card, borderLeft: '4px solid #ec4899' }}>
