@@ -9,15 +9,20 @@
 // missing is stated on the cover rather than discovered by the customer, and
 // the whole thing is one file.
 //
-// The order is the order AP reads in: what they authorised, what we are
-// asking for, what we did, and what it cost us. A cover sheet goes first
-// because a merged PDF with no contents page is a stack of paper.
+// The order is the order AP reads in: what we are asking for, what they
+// authorised it against, what we did, and what it cost us. No cover sheet —
+// the invoice already carries the customer, the number and the amount, so a
+// page in front of it repeated all three and pushed the document somebody
+// actually wants to page two.
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 /** The sections of a packet, in the order they are assembled. */
+// The order accounts payable reads in: what we are asking for, what they
+// authorised it against, what we did, and what it cost. Changing this changes
+// every packet, so it lives in one list.
 export const SECTIONS = [
-  { key: 'po', label: 'Purchase order' },
   { key: 'invoice', label: 'Invoice' },
+  { key: 'po', label: 'Purchase order' },
   { key: 'serviceReport', label: 'Service report' },
   { key: 'receipts', label: 'Receipts', many: true },
 ];
@@ -65,7 +70,7 @@ export const receiptsTotal = (receipts = []) =>
 export const money = (n) =>
   `$${parseAmount(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Which sections have nothing in them — said on the cover, not discovered by AP. */
+/** Which sections have nothing in them — said on screen before sending, not discovered by AP. */
 export const missingSections = (parts = {}) =>
   SECTIONS.filter((s) => (s.many ? !(parts[s.key] || []).length : !parts[s.key])).map((s) => s.label);
 
@@ -84,65 +89,6 @@ export const wrapText = (text, font, size, maxWidth) => {
 };
 
 const LETTER = [612, 792];
-
-const drawCover = (doc, font, bold, meta, parts) => {
-  const page = doc.addPage(LETTER);
-  const { width, height } = page.getSize();
-  let y = height - 64;
-  const line = (text, { size = 11, useBold = false, gap = 18, color = rgb(0.1, 0.12, 0.16) } = {}) => {
-    page.drawText(String(text ?? ''), { x: 56, y, size, font: useBold ? bold : font, color });
-    y -= gap;
-  };
-
-  line('JOB PACKET', { size: 22, useBold: true, gap: 30 });
-  line(meta.customer || 'Customer', { size: 15, useBold: true, gap: 26 });
-
-  const rows = [
-    ['Service report', meta.sr || '—'],
-    ['Invoice', meta.invoiceNumber || '—'],
-    ['Date', meta.date || '—'],
-    ['Amount', meta.amount != null && meta.amount !== '' ? `$${Number(meta.amount).toLocaleString()}` : '—'],
-  ];
-  // Stated on the front, because "what are we being asked to reimburse?" is the
-  // question the cover exists to answer.
-  const receiptSum = receiptsTotal(parts.receipts || []);
-  if (receiptSum > 0) rows.push(['Receipts', money(receiptSum)]);
-  rows.forEach(([k, v]) => {
-    page.drawText(k, { x: 56, y, size: 10, font, color: rgb(0.45, 0.5, 0.56) });
-    page.drawText(String(v), { x: 170, y, size: 11, font: bold, color: rgb(0.1, 0.12, 0.16) });
-    y -= 18;
-  });
-
-  y -= 14;
-  line('CONTENTS', { size: 10, useBold: true, gap: 20, color: rgb(0.45, 0.5, 0.56) });
-
-  SECTIONS.forEach((s) => {
-    const value = parts[s.key];
-    const count = s.many ? (value || []).length : (value ? 1 : 0);
-    const present = count > 0;
-    const label = s.many && present ? `${s.label} (${count})` : s.label;
-    page.drawText(present ? '•' : '–', {
-      x: 56, y, size: 11, font: bold,
-      color: present ? rgb(0.06, 0.72, 0.51) : rgb(0.85, 0.3, 0.3),
-    });
-    page.drawText(present ? label : `${label} — not included`, {
-      x: 74, y, size: 11, font,
-      color: present ? rgb(0.1, 0.12, 0.16) : rgb(0.85, 0.3, 0.3),
-    });
-    y -= 18;
-  });
-
-  if (meta.notes) {
-    y -= 14;
-    line('NOTES', { size: 10, useBold: true, gap: 18, color: rgb(0.45, 0.5, 0.56) });
-    // Wrapped explicitly: pdf-lib draws one unbroken line and lets it run off
-    // the page edge, which turns a long note into a silently truncated one.
-    wrapText(String(meta.notes), font, 10, width - 112).forEach((l) => line(l, { size: 10, gap: 14 }));
-  }
-
-  page.drawText('Assembled by JTI', { x: 56, y: 40, size: 9, font, color: rgb(0.6, 0.64, 0.7) });
-  return page;
-};
 
 /**
  * The receipts, itemised, before the images of them.
@@ -237,7 +183,9 @@ export const buildPacket = async (meta = {}, parts = {}) => {
   doc.setTitle(`Job packet ${meta.sr || ''} ${meta.customer || ''}`.trim());
   doc.setProducer('JTI Unified');
 
-  drawCover(doc, font, bold, meta, parts);
+  // No cover sheet. The invoice already carries the customer, the number and
+  // the amount, so a page in front of it repeated all of that and pushed the
+  // document somebody actually wants to page two.
 
   const append = async (part) => {
     if (!part?.bytes) return;

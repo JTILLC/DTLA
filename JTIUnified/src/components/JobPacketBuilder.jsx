@@ -226,12 +226,17 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
         else parts[k.key] = loaded[0] || null;
       }
       if (unreadable.length) {
+        // Says what happened, not why. An earlier version asserted a CORS
+        // problem for any system file that would not load — which was the
+        // wrong cause even when it was written, and sent somebody to a bucket
+        // setting that was already correct. The console carries the actual
+        // error; this says what to do about it.
         const fromSystem = unreadable.some((u) => u.from === 'system');
         setError(
           `Left out of the packet — could not be read: ${unreadable.map((u) => u.name).join(', ')}.`
           + (fromSystem
-            ? ' Files held by the CCW app are blocked by that storage bucket\'s CORS rules.'
-              + ' Until that is set, download the service report and add it here with Replace.'
+            ? ' This one is held by the CCW app. Open it from the link above, then add it here with'
+              + ' Replace — and tell me, because it should not need doing.'
             : ''),
         );
       }
@@ -574,7 +579,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
           })}
 
           <div style={card}>
-            <label style={label} htmlFor="packet-notes">Notes for the cover sheet (optional)</label>
+            <label style={label} htmlFor="packet-notes">Notes for this job (optional)</label>
             <textarea
               id="packet-notes" value={notes} rows={2}
               onChange={(e) => { setNotes(e.target.value); queueNotes(e.target.value); }}
@@ -590,7 +595,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
               <div style={{ color: colors.text, fontSize: '14px' }}>
                 <strong>Still missing: {missing.join(', ')}.</strong>
                 <div style={{ color: colors.textSecondary, marginTop: '2px' }}>
-                  You can still build the packet — the cover sheet will say what is not in it.
+                  You can still build it — nothing is invented, the packet simply will not contain them.
                 </div>
               </div>
             </div>
@@ -650,7 +655,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
               )}
               {result.missing.length > 0 && (
                 <div style={{ color: '#f59e0b', fontSize: '13px', marginTop: '6px' }}>
-                  The cover sheet records that {result.missing.join(', ').toLowerCase()} {result.missing.length === 1 ? 'is' : 'are'} not included.
+                  Not in this packet: {result.missing.join(', ').toLowerCase()}.
                 </div>
               )}
               {result.problems.length > 0 && (
