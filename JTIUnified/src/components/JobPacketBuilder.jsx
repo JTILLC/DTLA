@@ -31,7 +31,7 @@ const KINDS = [
   { key: 'receipts', label: 'Receipts', hint: 'What it cost us', many: true },
 ];
 
-export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], initialSr = '', onClose }) {
+export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], jobs = [], initialSr = '', onClose }) {
   const [sr, setSr] = useState(initialSr);
   const [started, setStarted] = useState([]);
   const [newJob, setNewJob] = useState(null);   // the form, when open
@@ -85,12 +85,22 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     return [...extra, ...serviceReports];
   }, [serviceReports, started]);
 
+  // The job in the JOBS TRACKER — the only thing that knows whether it was
+  // paid. `job` above is a service report entry, which carries visits and
+  // timesheets and no money at all, so reading `paid` off it was reading a
+  // field that never existed: the step could not tick however many times
+  // somebody ticked Paid over there.
+  const norm = (v) => String(v || '').trim().replace(/[\s-]/g, '').toUpperCase();
+  const trackerJob = useMemo(
+    () => jobs.find((j) => norm(j.sr || j.invoiceNumber) === norm(sr)) || null,
+    [jobs, sr]);
+
   const steps = useMemo(() => jobFlowSteps({
-    job: job || started.find((j) => String(j.sr) === String(sr)) || null,
+    job: trackerJob,
     sources,
     packet,
     manualInvoice: null,
-  }), [job, started, sr, sources, packet]);
+  }), [trackerJob, sources, packet]);
   const startedHere = started.find((j) => String(j.sr) === String(sr)) || null;
   const progress = flowProgress(steps);
   const todo = nextAction(steps);
@@ -373,7 +383,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 Once any of those exist the number has been written on
                 something, and putting it back in the pool would let a second
                 job take it. */}
-            {!job && !sources?.serviceReportUrl && !sources?.invoiceUrl && !(packet.files || []).length && (
+            {!trackerJob && !job && !sources?.serviceReportUrl && !sources?.invoiceUrl && !(packet.files || []).length && (
               <button
                 type="button"
                 onClick={async () => {

@@ -1610,6 +1610,7 @@ function App() {
             serviceReports={serviceReports.reports}
             customerRecords={customerRecords}
             customers={customers}
+            jobs={allJobsData}
             initialSr={route.sr || ''}
             onClose={closeView}
           />

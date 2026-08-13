@@ -10,6 +10,8 @@
 // somebody maintains is a checklist that goes stale the first busy week; one
 // that reads the actual files can only be wrong if the data is.
 
+import { isPaid } from './format.js';
+
 /** Year prefix of a service report number: 2026024 → 2026. */
 export const yearOf = (sr) => {
   const m = String(sr || '').match(/^(\d{4})/);
@@ -104,18 +106,15 @@ export const jobFlowSteps = ({ job, sources, packet, manualInvoice } = {}) => {
       key: 'paid',
       label: 'Paid',
       hint: 'Marked paid in the Jobs Tracker',
-      done: isPaidish(job),
+      done: isPaid(job?.paid),
     },
   ];
 };
 
-// The Jobs Tracker records paid in several shapes over the years.
-const isPaidish = (job) => {
-  const v = job?.paid;
-  if (v === true) return true;
-  const s = String(v ?? '').trim().toLowerCase();
-  return s === 'yes' || s === 'true' || s === 'paid' || s === 'y';
-};
+// Paid means what it means for the MONEY. There were two definitions in this
+// app — this one and the one the income totals use — differing on whether 1 and
+// "1" count. A flow chart disagreeing with the paid figure beside it is the
+// worst of both: neither can be trusted without checking the other.
 
 /** The first step still outstanding — what to do next, in one line. */
 export const nextAction = (steps = []) => steps.find((s) => !s.done && !s.optional) || null;
