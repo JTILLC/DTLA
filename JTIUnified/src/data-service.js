@@ -1810,11 +1810,9 @@ const packetKey = (sr) => String(sr || '').trim().replace(/[\s-]/g, '').toUpperC
 export const fetchFileBytes = async (urlOrPath) => {
   if (!urlOrPath) return null;
 
-  // A full download URL is fetched directly. It already carries its own access
-  // token, and ref() mis-parses one — the ?alt=media&token=... query is not
-  // part of any object path, so the SDK looks for a file that does not exist
-  // and throws. That failure looked exactly like a CORS refusal and cost a
-  // bucket config being blamed for an app bug.
+  // A full download URL is fetched directly. It carries its own access token,
+  // and ref() mis-parses one — the ?alt=media&token=... is not part of any
+  // object path, so the SDK looks for a file that does not exist and throws.
   if (/^https?:\/\//i.test(urlOrPath)) {
     try {
       const res = await fetch(urlOrPath);
@@ -1826,9 +1824,35 @@ export const fetchFileBytes = async (urlOrPath) => {
     }
   }
 
-  // A storage PATH goes through the SDK, which knows which bucket it is in.
-  // Both are tried because a service report lives with CCW and an uploaded
-  // receipt lives with Jobs.
+  // A bare STORAGE PATH. Older visits stored the service report this way, so
+  // both shapes are in the data and both have to work.
+  //
+  // CCW's bucket is tried first because that is where service reports live.
+  // And a download URL plus a plain fetch is preferred over getBlob: the
+  // tokenised URL is a simple GET that needs no preflight, where getBlob sends
+  // authorization headers and does. getBlob stays as the fallback for anything
+  // the first route cannot reach.
+  // CCW's service reports and photos are NOT readable from storage at all —
+  // the rules deny them outright and the media broker serves them with a
+  // service account. So a bare path goes through the broker, exactly as the
+  // CCW apps do.
+  //
+  // This is why one visit merged and another did not: a visit that stored a
+  // tokenised download URL worked, because a token bypasses the rules, while a
+  // visit that stored a plain path had nothing to bypass them with.
+  try {
+    const user = ccwIssuesAuth.currentUser;
+    if (user) {
+      const idToken = await user.getIdToken();
+      const encoded = String(urlOrPath).split('/').map(encodeURIComponent).join('/');
+      const res = await fetch(`https://ccw-media.josh-c80.workers.dev/a/${encoded}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());
+    }
+  } catch { /* fall through to the buckets this app owns */ }
+
+  // Jobs-project paths (packet uploads) are ordinary storage reads.
   for (const store of [jobsStorage, ccwIssuesStorage]) {
     try {
       const blob = await getBlob(ref(store, urlOrPath));

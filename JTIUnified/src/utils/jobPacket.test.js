@@ -18,7 +18,7 @@ const part = async (name, pages = 1) => ({ name, type: 'application/pdf', bytes:
 
 describe('missingSections', () => {
   it('names every empty section', () => {
-    expect(missingSections({})).toEqual(['Purchase order', 'Invoice', 'Service report', 'Receipts']);
+    expect(missingSections({})).toEqual(['Invoice', 'Purchase order', 'Service report', 'Receipts']);
   });
 
   it('an empty receipts list is missing, not satisfied', () => {
@@ -51,7 +51,7 @@ describe('describeUnsupported', () => {
 });
 
 describe('buildPacket', () => {
-  it('merges every part, in order, behind a cover page', async () => {
+  it('merges every part in the order accounts payable reads', async () => {
     const parts = {
       po: await part('po.pdf', 1),
       invoice: await part('invoice.pdf', 2),
@@ -60,15 +60,16 @@ describe('buildPacket', () => {
     };
     const { bytes, problems, missing } = await buildPacket({ sr: '2026024', customer: 'Flagstone Foods' }, parts);
     const out = await PDFDocument.load(bytes);
-    // cover + PO + invoice(2) + service report(3) + receipts list + 2 receipts
-    expect(out.getPageCount()).toBe(1 + 1 + 2 + 3 + 1 + 2);
+    // invoice(2) + PO + service report(3) + receipts list + 2 receipts.
+    // No cover sheet: the invoice leads.
+    expect(out.getPageCount()).toBe(2 + 1 + 3 + 1 + 2);
     expect(problems).toEqual([]);
     expect(missing).toEqual([]);
   });
 
   it('still produces a packet when parts are missing, and says which', async () => {
     const { bytes, missing } = await buildPacket({ sr: '2026024' }, { invoice: await part('i.pdf') });
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2); // cover + invoice
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1); // the invoice alone
     expect(missing).toEqual(['Purchase order', 'Service report', 'Receipts']);
   });
 
@@ -80,12 +81,15 @@ describe('buildPacket', () => {
     const { bytes, problems } = await buildPacket({ sr: 'x' }, parts);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/broken\.pdf/);
-    // The invoice survived — cover + 2 invoice pages + the receipts list.
-    // The broken receipt is listed and simply has no image behind it.
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(4);
+    // The invoice survived — 2 invoice pages + the receipts list. The broken
+    // receipt is listed and simply has no image behind it.
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
   });
 
   it('produces a valid PDF even with nothing in it at all', async () => {
+    // Nothing in, nothing out — but still a valid PDF rather than a crash.
+    // pdf-lib normalises a document with no pages to one blank page on save,
+    // which is its doing rather than a cover sheet sneaking back in.
     const { bytes, missing } = await buildPacket({}, {});
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
     expect(missing).toHaveLength(SECTIONS.length);
@@ -200,8 +204,8 @@ describe('buildPacket with priced receipts', () => {
     };
     const res = await buildPacket({ sr: '2026030' }, parts);
     expect(res.receiptsTotal).toBeCloseTo(150, 2);
-    // cover + invoice + expenses page + two receipts
-    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(5);
+    // invoice + expenses page + two receipts
+    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(4);
   });
 
   it('LISTS an unpriced receipt rather than pricing it at zero', async () => {
@@ -211,6 +215,6 @@ describe('buildPacket with priced receipts', () => {
     const parts = { receipts: [await part('r.pdf', 1)] };
     const res = await buildPacket({ sr: 'x' }, parts);
     expect(res.receiptsTotal).toBe(0);
-    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(3); // cover + list + receipt
+    expect((await PDFDocument.load(res.bytes)).getPageCount()).toBe(2); // list + receipt
   });
 });
