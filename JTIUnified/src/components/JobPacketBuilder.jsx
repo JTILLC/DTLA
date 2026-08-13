@@ -15,10 +15,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
-  fetchUnifiedJobs, startJob, markPacketSent, closeJob, releaseJobNumber,
+  fetchUnifiedJobs, startJob, markPacketSent, closeJob, releaseJobNumber, updatePacketFile,
 } from '../data-service';
 import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
-import { buildPacket, describeUnsupported, packetEmail, packetFileName, SECTIONS } from '../utils/jobPacket';
+import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import * as ui from '../ui/theme';
 
@@ -29,8 +29,8 @@ const KINDS = [
   { key: 'receipts', label: 'Receipts', hint: 'What it cost us', many: true },
 ];
 
-export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], onClose }) {
-  const [sr, setSr] = useState('');
+export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], initialSr = '', onClose }) {
+  const [sr, setSr] = useState(initialSr);
   const [started, setStarted] = useState([]);
   const [newJob, setNewJob] = useState(null);   // the form, when open
   const [packet, setPacket] = useState({ files: [] });
@@ -70,6 +70,8 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
 
   useEffect(() => { setResult(null); setError(''); load(sr); }, [sr, load]);
   useEffect(() => { fetchUnifiedJobs().then(setStarted).catch(() => {}); }, []);
+  // /packet/2026028 opens on that job.
+  useEffect(() => { if (initialSr) setSr(initialSr); }, [initialSr]);
 
   // Every number in play: the ones with history, plus the ones started here
   // that the Jobs Tracker has not seen yet.
@@ -106,6 +108,17 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     return { from: null, files: [] };
   };
 
+  // Saved on blur rather than per keystroke: each save is a document write, and
+  // one per character typed into an amount is a lot of writes to record "42.10".
+  const saveField = async (file, field, value) => {
+    const trimmed = String(value || '').trim();
+    if ((file[field] || '') === trimmed) return;
+    try {
+      await updatePacketFile(sr, file.path, { [field]: trimmed });
+      setPacket(await fetchPacket(sr));
+    } catch (err) { setError(err.message || String(err)); }
+  };
+
   const onUpload = async (kind, fileList) => {
     const files = [...(fileList || [])];
     if (!files.length) return;
@@ -134,7 +147,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
         const loaded = [];
         for (const f of files) {
           const bytes = await fetchFileBytes(f.path || f.url);
-          if (bytes) loaded.push({ name: f.name, type: f.type, bytes });
+          if (bytes) loaded.push({ name: f.name, type: f.type, bytes, amount: f.amount, vendor: f.vendor });
           else unreadable.push({ name: f.name, from });
         }
         if (k.many) parts[k.key] = loaded;
@@ -411,20 +424,51 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 {state.files.length > 0 && (
                   <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {state.files.map((f, i) => (
-                      <div key={f.path || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textSecondary }}>
+                      <div key={f.path || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textSecondary, flexWrap: 'wrap' }}>
                         <FileText size={14} />
-                        <a href={f.url} target="_blank" rel="noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }}>{f.name}</a>
+                        <a href={f.url} target="_blank" rel="noreferrer" style={{ color: ui.TONE.brand, textDecoration: 'none', flex: '1 1 160px' }}>{f.name}</a>
+
+                        {/* What it cost, against the receipt itself. Typed here
+                            rather than totalled on a separate sheet, because a
+                            figure kept apart from the thing it describes is a
+                            figure nobody can check. */}
+                        {k.key === 'receipts' && f.path && (
+                          <>
+                            <input
+                              defaultValue={f.vendor || ''}
+                              onBlur={(e) => saveField(f, 'vendor', e.target.value)}
+                              placeholder="Vendor"
+                              aria-label={`Vendor for ${f.name}`}
+                              style={ui.input(colors, { width: '120px', padding: '4px 8px', fontSize: '13px' })}
+                            />
+                            <input
+                              defaultValue={f.amount || ''}
+                              onBlur={(e) => saveField(f, 'amount', e.target.value)}
+                              placeholder="0.00"
+                              inputMode="decimal"
+                              aria-label={`Amount for ${f.name}`}
+                              style={ui.input(colors, { width: '90px', padding: '4px 8px', fontSize: '13px', textAlign: 'right' })}
+                            />
+                          </>
+                        )}
+
                         {f.path && (
                           <button
                             type="button" aria-label={`Remove ${f.name}`}
                             onClick={async () => { setBusy('Removing…'); await removePacketFile(sr, f.path); setPacket(await fetchPacket(sr)); setBusy(''); }}
-                            style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0 }}
+                            style={{ border: 'none', background: 'transparent', color: ui.TONE.bad, cursor: 'pointer', padding: 0 }}
                           >
                             <Trash2 size={14} />
                           </button>
                         )}
                       </div>
                     ))}
+                    {k.key === 'receipts' && state.files.length > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', fontSize: '14px', color: colors.text, paddingTop: '6px', borderTop: `1px solid ${colors.border}` }}>
+                        <span style={{ color: colors.textSecondary }}>Total receipts</span>
+                        <strong>{money(receiptsTotal(state.files))}</strong>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -499,6 +543,11 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 {' '}{apEmails.length ? apEmails.join(', ') : 'accounts payable'} with the details filled in,
                 and you attach the PDF you just downloaded.
               </div>
+              {result.receiptsTotal > 0 && (
+                <div style={{ color: colors.text, fontSize: '13px', marginTop: '4px' }}>
+                  Receipts itemised in the packet: <strong>{money(result.receiptsTotal)}</strong>
+                </div>
+              )}
               {result.missing.length > 0 && (
                 <div style={{ color: '#f59e0b', fontSize: '13px', marginTop: '6px' }}>
                   The cover sheet records that {result.missing.join(', ').toLowerCase()} {result.missing.length === 1 ? 'is' : 'are'} not included.
