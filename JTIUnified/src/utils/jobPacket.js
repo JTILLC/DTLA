@@ -183,7 +183,9 @@ const drawExpenses = (doc, font, bold, receipts) => {
   y -= 4;
 
   receipts.forEach((r) => {
-    const label = [r.vendor, r.name].filter(Boolean).join(' — ') || 'Receipt';
+    // Category first: an expense sheet is read by type, and "Fuel — Shell" is
+    // the line somebody is looking for, not "shell-diesel-aug.jpg".
+    const label = [r.category, r.vendor, r.name].filter(Boolean).join(' — ') || 'Receipt';
     const priced = parseAmount(r.amount) > 0;
     // An unpriced receipt is listed as such rather than as $0.00. Accounts
     // payable reading "$0.00" against a receipt assumes it is free; reading

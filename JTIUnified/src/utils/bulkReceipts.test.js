@@ -5,7 +5,10 @@
 // and nothing downstream can tell. So most of these tests are about what it
 // REFUSES to match.
 import { describe, it, expect } from 'vitest';
-import { detectSr, candidateSrs, planImport, summarise, IMPORTABLE } from './bulkReceipts.js';
+import {
+  detectSr, candidateSrs, planImport, summarise, IMPORTABLE,
+  guessKind, guessCategory, KINDS, CATEGORIES,
+} from './bulkReceipts.js';
 
 const known = ['2026024', '2026018', '2025042', '2022001'];
 const f = (path, name) => ({ name: name || path.split('/').pop(), webkitRelativePath: path });
@@ -118,5 +121,49 @@ describe('IMPORTABLE', () => {
 
   it('rejects what it cannot', () => {
     ['a.heic', 'a.txt', 'a.docx', 'a'].forEach((n) => expect(IMPORTABLE.test(n)).toBe(false));
+  });
+});
+
+// Classifying a folder that holds more than receipts. Filing the customer's
+// own purchase order as an expense would put it in the reimbursement total,
+// so the guess exists to be corrected, not trusted.
+describe('guessKind', () => {
+  it('recognises the documents by name', () => {
+    expect(guessKind('2026024/PO 88213.pdf')).toBe('po');
+    expect(guessKind('2026024/purchase_order.pdf')).toBe('po');
+    expect(guessKind('2026024/invoice-2026024.pdf')).toBe('invoice');
+    expect(guessKind('2026024/service report signed.pdf')).toBe('serviceReport');
+  });
+
+  it('falls back to a receipt, which is what most of a folder is', () => {
+    expect(guessKind('2026024/IMG_0421.jpg')).toBe('receipts');
+    expect(guessKind('2026024/shell.jpg')).toBe('receipts');
+  });
+});
+
+describe('guessCategory', () => {
+  it('reads the obvious ones off the name', () => {
+    expect(guessCategory('2026024/shell diesel.jpg')).toBe('Fuel');
+    expect(guessCategory('2026024/hertz.pdf')).toBe('Car rental');
+    expect(guessCategory('2026024/hampton inn.jpg')).toBe('Lodging');
+    expect(guessCategory('2026024/delta boarding pass.pdf')).toBe('Airfare');
+    expect(guessCategory('2026024/home depot.jpg')).toBe('Parts / materials');
+  });
+
+  it('says nothing rather than guessing wrong', () => {
+    expect(guessCategory('2026024/IMG_0421.jpg')).toBeNull();
+    expect(guessCategory('2026024/receipt.jpg')).toBeNull();
+  });
+});
+
+describe('planImport classification', () => {
+  it('gives every matched file a kind, and a category only for receipts', () => {
+    const plan = planImport([
+      f('2026024/PO 88213.pdf'),
+      f('2026024/shell diesel.jpg'),
+      f('2026024/IMG_9.jpg'),
+    ], known);
+    expect(plan.matched.map((m) => m.kind)).toEqual(['po', 'receipts', 'receipts']);
+    expect(plan.matched.map((m) => m.category)).toEqual([null, 'Fuel', null]);
   });
 });

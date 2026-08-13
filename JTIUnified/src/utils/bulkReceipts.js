@@ -67,6 +67,58 @@ export const detectSr = (path, knownSrs = []) => {
   return candidateSrs(fileName).find((sr) => known.has(sr)) || null;
 };
 
+
+// What a file IS, and — for an expense — what kind of expense.
+//
+// Guessed from the name and offered for correction, never applied silently. A
+// folder for one job holds the PO, the signed report and a fistful of receipts,
+// and filing all of them as "receipt" would put the customer's own purchase
+// order into the expense total.
+export const KINDS = [
+  { key: 'po', label: 'Purchase order' },
+  { key: 'invoice', label: 'Invoice' },
+  { key: 'serviceReport', label: 'Service report' },
+  { key: 'receipts', label: 'Receipt / expense' },
+];
+
+// The categories a field service job actually generates. Kept short: a list
+// nobody can scan is a list everybody leaves on the default.
+export const CATEGORIES = [
+  'Fuel', 'Airfare', 'Car rental', 'Lodging', 'Meals',
+  'Parking / tolls', 'Parts / materials', 'Shipping', 'Other',
+];
+
+const KIND_HINTS = [
+  [/\b(po|purchase[-_ ]?order)\b/i, 'po'],
+  [/\binv(oice)?\b/i, 'invoice'],
+  [/\b(sr|service[-_ ]?report|signed|report)\b/i, 'serviceReport'],
+];
+
+const CATEGORY_HINTS = [
+  [/\b(fuel|gas|diesel|petrol|shell|chevron|loves|pilot|flying[-_ ]?j)\b/i, 'Fuel'],
+  [/\b(air|flight|airline|delta|united|southwest|american)\b/i, 'Airfare'],
+  [/\b(car[-_ ]?rental|rental|hertz|avis|enterprise|budget)\b/i, 'Car rental'],
+  [/\b(hotel|motel|inn|lodging|marriott|hilton|holiday)\b/i, 'Lodging'],
+  [/\b(meal|food|lunch|dinner|breakfast|restaurant)\b/i, 'Meals'],
+  [/\b(park|parking|toll)\b/i, 'Parking / tolls'],
+  [/\b(part|parts|material|supply|supplies|grainger|fastenal|home[-_ ]?depot)\b/i, 'Parts / materials'],
+  [/\b(ship|shipping|freight|fedex|ups|postage)\b/i, 'Shipping'],
+];
+
+/** What this file looks like, from its name. Receipt is the fallback. */
+export const guessKind = (path) => {
+  const name = String(path || '').split('/').pop() || '';
+  const hit = KIND_HINTS.find(([re]) => re.test(name));
+  return hit ? hit[1] : 'receipts';
+};
+
+/** What kind of expense it looks like. Null when nothing in the name says. */
+export const guessCategory = (path) => {
+  const text = String(path || '');
+  const hit = CATEGORY_HINTS.find(([re]) => re.test(text));
+  return hit ? hit[1] : null;
+};
+
 /** Files this importer will accept. Anything else is reported, not silently dropped. */
 export const IMPORTABLE = /\.(jpe?g|png|pdf)$/i;
 
@@ -100,7 +152,11 @@ export const planImport = (files = [], knownSrs = [], existingByS = {}) => {
       skipped.push({ file, path, sr, reason: 'already on this job' });
       return;
     }
-    matched.push({ file, path, sr });
+    const kind = guessKind(path);
+    matched.push({
+      file, path, sr, kind,
+      category: kind === 'receipts' ? guessCategory(path) : null,
+    });
   });
 
   return { matched, unmatched, skipped };

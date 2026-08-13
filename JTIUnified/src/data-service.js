@@ -1878,14 +1878,14 @@ export const fetchPacket = async (sr) => {
  * uploading two receipts photographed a second apart cannot have one quietly
  * replace the other.
  */
-export const addPacketFile = async (sr, kind, file) => {
+export const addPacketFile = async (sr, kind, file, extra = {}) => {
   const key = packetKey(sr);
   if (!key) throw new Error('A service report number is required.');
   const safe = String(file.name || 'file').replace(/[^A-Za-z0-9._-]/g, '_');
   const path = `job-packets/${key}/${kind}-${Date.now()}-${safe}`;
   await uploadBytes(ref(jobsStorage, path), file, { contentType: file.type || 'application/octet-stream' });
   const url = await getDownloadURL(ref(jobsStorage, path));
-  const entry = { kind, name: safe, path, url, type: file.type || '', uploadedAt: new Date().toISOString() };
+  const entry = { kind, name: safe, path, url, type: file.type || '', uploadedAt: new Date().toISOString(), ...extra };
   const current = await fetchPacket(key);
   await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
     { sr: key, files: [...(current.files || []), entry] }, { merge: true });
