@@ -71,22 +71,31 @@ export default function BackupPanel({ colors }) {
 
       for (const p of PROJECTS) {
         setProgress(p.label);
-        const res = await fetch(`${BROKER}/admin/run-backup?only=${encodeURIComponent(p.only)}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const text = await res.text();
-        if (!res.ok) {
-          merged.results.push({ name: p.label, ok: false, error: text || `worker answered ${res.status}` });
-          continue;
+        // Each project in its OWN try. A request that dies outright — the
+        // Worker killed for memory, which no amount of error handling inside it
+        // can catch — threw here and abandoned the remaining projects, so one
+        // oversized collection cost three good backups.
+        try {
+          const res = await fetch(`${BROKER}/admin/run-backup?only=${encodeURIComponent(p.only)}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const text = await res.text();
+          if (!res.ok) {
+            merged.results.push({ name: p.label, ok: false, error: text || `worker answered ${res.status}` });
+          } else {
+            const m = JSON.parse(text);
+            if (m.fatal) merged.results.push({ name: p.label, ok: false, error: m.fatal });
+            else merged.results.push(...m.results);
+            merged.bucket = m.bucket || merged.bucket;
+            merged.retention = m.retention || merged.retention;
+          }
+        } catch (err) {
+          merged.results.push({
+            name: p.label, ok: false,
+            error: `${err.message || err} — the request died rather than answering, which usually means this project holds more data than one run can carry.`,
+          });
         }
-        const m = JSON.parse(text);
-        // A fatal from one project is that project's result, not the end of the
-        // run — the other three are still worth taking.
-        if (m.fatal) merged.results.push({ name: p.label, ok: false, error: m.fatal });
-        else merged.results.push(...m.results);
-        merged.bucket = m.bucket || merged.bucket;
-        merged.retention = m.retention || merged.retention;
         setManifest({ ...merged });
       }
     } catch (err) {
@@ -195,6 +204,11 @@ export default function BackupPanel({ colors }) {
                   {/* Collections that exist and are not being backed up. A
                       backup that looks complete and is not is the failure this
                       whole thing exists to prevent, so it is stated. */}
+                  {r.oversized?.length > 0 && (
+                    <div style={{ color: '#92400e', fontSize: '12px', marginTop: '2px' }}>
+                      Too large to include: {r.oversized.join(', ')} — these hold embedded images.
+                    </div>
+                  )}
                   {r.unconfigured?.length > 0 && (
                     <div style={{ color: '#92400e', fontSize: '12px', marginTop: '2px' }}>
                       NOT backed up: {r.unconfigured.join(', ')} — tell me and I'll add them.
