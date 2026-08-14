@@ -26,6 +26,7 @@
 
 /** Path segment ↔ view key. The empty path is the dashboard. */
 export const VIEWS = {
+  board: 'board',
   calendar: 'calendar',
   map: 'map',
   troubleshoot: 'troubleshoot',
