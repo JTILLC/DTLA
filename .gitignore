@@ -27,3 +27,11 @@ CCWISSUESMultiTenant/dist/
 JTIUnified/dist/
 ServiceQuoteWA/dist/
 ShearersClaude/dist/
+
+# Service-account keys. These grant full access to a Firebase project and are
+# the one kind of file that must never reach a remote — a key committed once is
+# in the history for good, whatever happens to the file afterwards. They belong
+# in `wrangler secret put`, not here.
+*-firebase-adminsdk-*.json
+*serviceAccount*.json
+*service-account*.json
