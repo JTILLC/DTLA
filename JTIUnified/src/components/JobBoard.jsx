@@ -11,9 +11,10 @@
 // cannot drift the way a column of cards moved by hand does.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, ClipboardList, RefreshCw } from 'lucide-react';
-import { fetchJobBoardRows } from '../data-service';
+import { AlertTriangle, ArrowRight, ClipboardList, RefreshCw, Upload } from 'lucide-react';
+import { fetchJobBoardRows, addPacketFile } from '../data-service';
 import { buildBoard, boardSummary, CHASE_AFTER_DAYS } from '../utils/jobBoard';
+import { describeUnsupported } from '../utils/jobPacket';
 import * as ui from '../ui/theme';
 
 // Each bucket gets its own colour so the shape of the backlog reads before any
@@ -33,6 +34,30 @@ export default function JobBoard({ colors, onOpen }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showDone, setShowDone] = useState(false);
+  const [uploading, setUploading] = useState(null);   // `${sr}:${kind}` in flight
+
+  // The two buckets that exist because a document is missing are the two where
+  // producing the document is the whole job. Sending somebody to another screen
+  // to do the thing this screen just asked for is the long way round.
+  const UPLOADABLE = { serviceReport: 'service report', invoice: 'invoice' };
+
+  const upload = async (sr, kind, fileList) => {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    const bad = files.map(describeUnsupported).filter(Boolean);
+    if (bad.length) { setError(bad.join(' ')); return; }
+    setError('');
+    setUploading(`${sr}:${kind}`);
+    try {
+      for (const f of files) await addPacketFile(sr, kind, f);
+      // The job moves bucket the moment the file lands, so the whole board is
+      // re-derived rather than the row being patched in place.
+      await load();
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+    setUploading(null);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -53,43 +78,76 @@ export default function JobBoard({ colors, onOpen }) {
 
   const card = ui.card(colors, { padding: '14px 16px', marginBottom: '10px' });
 
-  const Row = ({ r, tone }) => (
-    <button
-      type="button"
-      onClick={() => onOpen && onOpen(r.sr)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
-        padding: '10px 12px', marginBottom: '6px', textAlign: 'left',
-        background: colors.cardBg, color: colors.text, cursor: 'pointer',
+  const Row = ({ r, tone, groupKey }) => {
+    const kind = UPLOADABLE[groupKey];
+    const busy = uploading === `${r.sr}:${groupKey}`;
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+        marginBottom: '6px', background: colors.cardBg,
         border: `1px solid ${colors.border}`, borderLeft: `3px solid ${tone}`,
-        borderRadius: '8px', flexWrap: 'wrap',
-      }}
-    >
-      <strong style={{ fontVariantNumeric: 'tabular-nums', minWidth: '72px' }}>{r.sr}</strong>
-      <span style={{ flex: '1 1 160px', color: colors.text }}>{r.customer || 'Customer not recorded'}</span>
-      {r.date && (
-        <span style={{ color: colors.textSecondary, fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{r.date}</span>
-      )}
+        borderRadius: '8px', flexWrap: 'wrap', paddingRight: kind ? '8px' : 0,
+      }}>
+        <button
+          type="button"
+          onClick={() => onOpen && onOpen(r.sr)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 260px',
+            padding: '10px 12px', textAlign: 'left', background: 'transparent',
+            color: colors.text, cursor: 'pointer', border: 0, borderRadius: '8px', flexWrap: 'wrap',
+          }}
+        >
+          <strong style={{ fontVariantNumeric: 'tabular-nums', minWidth: '72px' }}>{r.sr}</strong>
+          <span style={{ flex: '1 1 160px', color: colors.text }}>{r.customer || 'Customer not recorded'}</span>
+          {r.date && (
+            <span style={{ color: colors.textSecondary, fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{r.date}</span>
+          )}
 
-      {/* How long it has been waiting, but only where that means something.
-          A job that has not been sent has nothing to count from. */}
-      {r.waitingDays != null && (
-        <span style={{
-          fontSize: '12px', fontVariantNumeric: 'tabular-nums',
-          color: r.chase ? ui.TONE.bad : colors.textSecondary,
-          fontWeight: r.chase ? 600 : 400,
-        }}>
-          {r.chase && <AlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: '3px' }} />}
-          {r.waitingDays} day{r.waitingDays === 1 ? '' : 's'}
-        </span>
-      )}
+          {/* How long it has been waiting, but only where that means something.
+              A job that has not been sent has nothing to count from. */}
+          {r.waitingDays != null && (
+            <span style={{
+              fontSize: '12px', fontVariantNumeric: 'tabular-nums',
+              color: r.chase ? ui.TONE.bad : colors.textSecondary,
+              fontWeight: r.chase ? 600 : 400,
+            }}>
+              {r.chase && <AlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: '3px' }} />}
+              {r.waitingDays} day{r.waitingDays === 1 ? '' : 's'}
+            </span>
+          )}
 
-      <span style={{ color: colors.textSecondary, fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>
-        {r.progress.done}/{r.progress.total}
-      </span>
-      <ArrowRight size={14} style={{ color: colors.textSecondary }} />
-    </button>
-  );
+          <span style={{ color: colors.textSecondary, fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>
+            {r.progress.done}/{r.progress.total}
+          </span>
+          <ArrowRight size={14} style={{ color: colors.textSecondary }} />
+        </button>
+
+        {/* Outside the button, not inside it: a label wrapping a file input
+            nested in a button is invalid, and its click would open the packet
+            as well as the file picker. */}
+        {kind && (
+          <label
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0,
+              fontSize: '12px', fontWeight: 600, padding: '6px 10px', borderRadius: '6px',
+              border: `1px solid ${colors.border}`, background: colors.cardBg,
+              color: busy ? colors.textSecondary : tone, cursor: busy ? 'wait' : 'pointer',
+            }}
+            title={`Upload the ${kind} for ${r.sr}`}
+          >
+            <Upload size={12} /> {busy ? 'Uploading…' : `Add ${kind}`}
+            <input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              disabled={busy}
+              onChange={(e) => { upload(r.sr, groupKey, e.target.files); e.target.value = ''; }}
+              style={{ display: 'none' }}
+            />
+          </label>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div style={{ marginBottom: '32px' }}>
@@ -136,7 +194,7 @@ export default function JobBoard({ colors, onOpen }) {
                 <strong style={{ color: colors.text, fontSize: '15px' }}>{g.label}</strong>
                 <span style={{ color: colors.textSecondary, fontSize: '13px' }}>{g.hint}</span>
               </div>
-              {g.rows.map((r) => <Row key={r.sr} r={r} tone={TONES[g.key] || ui.TONE.brand} />)}
+              {g.rows.map((r) => <Row key={r.sr} r={r} tone={TONES[g.key] || ui.TONE.brand} groupKey={g.key} />)}
             </section>
           ))}
 
