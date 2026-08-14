@@ -41,7 +41,11 @@ SHEARERS_DB_PATH   = "jti-downtime/main-logger/data"
 # Timesheets. The project is named here so the skip reason is precise about
 # what is actually missing — a service account, not the project id.
 TIMESHEET_PROJECT_ID = "timesheetapp-c4e54"
-# BACKUP_RETAIN_DAYS = "30"
+# Backups older than this are deleted by the nightly run. Deleting yields to
+# backing up: if a night's expiry would eat into the request allowance, what is
+# left waits for tomorrow. Falling a day behind on cleanup costs disk; falling
+# short on the backup costs data.
+BACKUP_RETAIN_DAYS = "30"
 
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
