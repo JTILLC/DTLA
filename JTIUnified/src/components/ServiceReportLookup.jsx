@@ -5,6 +5,7 @@ import { saveManualReport, deleteManualReport, fetchFileBytes } from '../data-se
 import { findJobsForSr } from '../utils/srMatch';
 import { isPaid, asLocalDate } from '../utils/format';
 import { isAbsoluteUrl } from '../utils/fileRef';
+import { withPacketNumbers } from '../utils/reportRows';
 
 const CCW_URL = 'https://jti-issues.pages.dev';
 // Every other link in this dashboard — SearchResults, CalendarView, App, the
@@ -148,11 +149,21 @@ export default function ServiceReportLookup({
     }
   };
 
+  // A number whose only record is its packet still belongs on this screen —
+  // otherwise there is no row to click and the invoice on it is unreachable.
+  const allReports = useMemo(() => withPacketNumbers(reports, packets), [reports, packets]);
+
+  // The year list has to cover the merged rows, or a packet-only number in a
+  // year nothing else touched would be filtered out of its own screen.
+  const allYears = useMemo(
+    () => [...new Set([...years, ...allReports.map((r) => r.year)])].sort((a, b) => String(b).localeCompare(String(a))),
+    [years, allReports]);
+
   const isUnmatched = (r) => r.timesheets.length === 0 || r.visits.length === 0;
-  const unmatchedCount = useMemo(() => reports.filter(isUnmatched).length, [reports]);
+  const unmatchedCount = useMemo(() => allReports.filter(isUnmatched).length, [allReports]);
 
   const filtered = useMemo(() => {
-    let list = reports;
+    let list = allReports;
     if (yearFilter !== 'all') list = list.filter((r) => r.year === yearFilter);
     if (onlyUnmatched) list = list.filter(isUnmatched);
     const q = search.trim().toLowerCase();
@@ -165,7 +176,7 @@ export default function ServiceReportLookup({
       );
     }
     return list;
-  }, [reports, yearFilter, onlyUnmatched, search]);
+  }, [allReports, yearFilter, onlyUnmatched, search]);
 
   const grouped = useMemo(() => {
     const g = new Map();
@@ -176,7 +187,7 @@ export default function ServiceReportLookup({
     return [...g.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [filtered]);
 
-  const selected = useMemo(() => reports.find((r) => r.norm === selectedNorm) || null, [reports, selectedNorm]);
+  const selected = useMemo(() => allReports.find((r) => r.norm === selectedNorm) || null, [allReports, selectedNorm]);
 
   // Files uploaded against this number on the packet page. Most invoices and
   // service reports live here rather than as manually typed entries, so without
@@ -186,7 +197,19 @@ export default function ServiceReportLookup({
     const p = packets?.get?.(selectedNorm);
     const files = p?.files || [];
     const of = (kind) => files.filter((f) => f.kind === kind);
-    return { all: files, invoice: of('invoice'), serviceReport: of('serviceReport'), po: of('po'), receipts: of('receipts') };
+    const known = ['invoice', 'serviceReport', 'po', 'receipts'];
+    return {
+      all: files,
+      invoice: of('invoice'),
+      serviceReport: of('serviceReport'),
+      po: of('po'),
+      receipts: of('receipts'),
+      // Anything tagged with something unexpected still gets shown. A file that
+      // is on the packet but appears nowhere on this screen is worse than one
+      // filed under the wrong heading — you cannot go looking for what you
+      // cannot see.
+      other: files.filter((f) => !known.includes(f.kind)),
+    };
   }, [packets, selectedNorm]);
 
   // One row per packet file: what it is, and the two ways to look at it.
@@ -207,14 +230,14 @@ export default function ServiceReportLookup({
   // way to make a manual record fail to line up with everything else.
   const knownCustomers = useMemo(() => {
     const names = new Set();
-    reports.forEach((r) => {
+    allReports.forEach((r) => {
       r.timesheets.forEach((t) => t.customer && names.add(t.customer));
       r.visits.forEach((v) => v.customer && names.add(v.customer));
     });
     untaggedVisits.forEach((v) => v.customer && names.add(v.customer));
     untaggedTimesheets.forEach((t) => t.customer && names.add(t.customer));
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, [reports, untaggedVisits, untaggedTimesheets]);
+  }, [allReports, untaggedVisits, untaggedTimesheets]);
 
   const chip = (bg, color, Icon, label, title) => (
     <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: bg, color }}>
@@ -324,7 +347,7 @@ export default function ServiceReportLookup({
         <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}
           style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, fontSize: 14 }}>
           <option value="all">All years</option>
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          {allYears.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         <button onClick={() => setOnlyUnmatched((v) => !v)}
           style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${onlyUnmatched ? '#f59e0b' : colors.border}`, background: onlyUnmatched ? '#f59e0b' : colors.cardBg, color: onlyUnmatched ? 'white' : colors.text, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -340,7 +363,7 @@ export default function ServiceReportLookup({
           <div style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 10, overflow: 'hidden', maxHeight: '70vh', overflowY: 'auto' }}>
             {grouped.length === 0 ? (
               <div style={{ padding: 24, color: colors.textSecondary, fontSize: 14 }}>
-                No report numbers{onlyUnmatched ? ' need attention' : ' found'}. {reports.length === 0 && 'Tag visits and invoices with a service report number, or add one by hand with Add entry.'}
+                No report numbers{onlyUnmatched ? ' need attention' : ' found'}. {allReports.length === 0 && 'Tag visits and invoices with a service report number, or add one by hand with Add entry.'}
               </div>
             ) : (
               grouped.map(([year, rs]) => (
@@ -362,6 +385,9 @@ export default function ServiceReportLookup({
                           {r.timesheets.length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#ecfdf5', active ? 'white' : '#059669', Receipt, 'Invoice', 'Invoice / timesheet exists')}
                           {r.visits.length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#eff6ff', active ? 'white' : '#2563eb', ClipboardList, 'Visit', 'Weigher visit exists')}
                           {hasPdf && chip(active ? 'rgba(255,255,255,0.2)' : '#f5f3ff', active ? 'white' : '#7c3aed', FileText, 'PDF', 'Service report PDF attached')}
+                          {/* Why an otherwise-empty number is in the list at
+                              all: its documents are on its job packet. */}
+                          {(packets?.get?.(r.norm)?.files || []).length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#fdf2f8', active ? 'white' : '#db2777', Paperclip, 'Packet', 'Files uploaded to the job packet')}
                         </div>
                       </button>
                     );
@@ -581,7 +607,7 @@ export default function ServiceReportLookup({
                     have no section of their own here, and hunting for them
                     meant opening the packet page for a number you already had
                     open. */}
-                {(packetFiles.po.length > 0 || packetFiles.receipts.length > 0) && (
+                {(packetFiles.po.length > 0 || packetFiles.receipts.length > 0 || packetFiles.other.length > 0) && (
                   <div style={sectionCard}>
                     <div style={label}>
                       <Paperclip size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Also on the job packet
@@ -593,6 +619,7 @@ export default function ServiceReportLookup({
                       // "IMG_0421.jpg" when you are looking for one receipt.
                       [f.category, f.vendor].filter(Boolean).join(' · ') || f.name,
                     ))}
+                    {packetFiles.other.map((f) => packetFileRow(f, f.name))}
                   </div>
                 )}
               </div>
