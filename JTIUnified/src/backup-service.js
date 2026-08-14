@@ -1,5 +1,5 @@
 import { collection, getDocs, setDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { ref as storageRef, getDownloadURL, uploadString } from 'firebase/storage';
+import { ref as storageRef, getDownloadURL, uploadString, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get, set } from 'firebase/database';
 import { ccwIssuesDb, timesheetDb, jobsStorage, shearersRealtimeDb } from './firebase-config';
 import { ccwCustomerSplit, planRestore, deepSame as same } from './utils/backupShape';
@@ -277,7 +277,8 @@ export async function importCCWIssues(backupData, { intoUserId = null } = {}) {
 }
 
 // Import Shearers data
-export async function importShearers(backupData, { replaceEverything = false } = {}) {
+/** @param {string} [intoPath] - write elsewhere in the tree; see verifyRestore. */
+export async function importShearers(backupData, { replaceEverything = false, intoPath = null } = {}) {
   try {
     if (!backupData.data) {
       throw new Error('Invalid Shearers backup format');
@@ -285,11 +286,13 @@ export async function importShearers(backupData, { replaceEverything = false } =
     // set() at the tree root deletes anything not in the file. A backup taken
     // this morning would erase this afternoon's work, so the caller has to say
     // that is what it means rather than arriving here by choosing a file.
-    if (!replaceEverything) {
+    // The sandbox is a different path, so it replaces nothing anybody uses and
+    // needs no such confirmation.
+    if (!intoPath && !replaceEverything) {
       throw new Error('Restoring Shearers replaces the whole downtime tree. Confirm that first.');
     }
 
-    await set(dbRef(shearersRealtimeDb, 'jti-downtime/main-logger/data'), backupData.data);
+    await set(dbRef(shearersRealtimeDb, intoPath || 'jti-downtime/main-logger/data'), backupData.data);
 
     return { success: true, message: 'Shearers data restored' };
   } catch (error) {
@@ -299,7 +302,8 @@ export async function importShearers(backupData, { replaceEverything = false } =
 }
 
 // Import Timesheet data
-export async function importTimesheet(backupData) {
+/** @param {string} [intoCollection] - write somewhere else; see verifyRestore. */
+export async function importTimesheet(backupData, { intoCollection = 'timesheets' } = {}) {
   try {
     if (!backupData.data || typeof backupData.data !== 'object') {
       throw new Error('Invalid Timesheet backup format');
@@ -308,7 +312,7 @@ export async function importTimesheet(backupData) {
     let totalRestored = 0;
 
     for (const [docId, docData] of Object.entries(backupData.data)) {
-      await setDoc(doc(timesheetDb, 'timesheets', docId), docData);
+      await setDoc(doc(timesheetDb, intoCollection, docId), docData);
       totalRestored++;
     }
 
@@ -320,7 +324,8 @@ export async function importTimesheet(backupData) {
 }
 
 // Import Jobs data
-export async function importJobs(backupData) {
+/** @param {string} [intoPrefix] - write under a folder; see verifyRestore. */
+export async function importJobs(backupData, { intoPrefix = '' } = {}) {
   try {
     if (!backupData.data || typeof backupData.data !== 'object') {
       throw new Error('Invalid Jobs backup format');
@@ -330,7 +335,7 @@ export async function importJobs(backupData) {
 
     for (const [year, jobsData] of Object.entries(backupData.data)) {
       await uploadString(
-        storageRef(jobsStorage, `jobs-${year}.json`),
+        storageRef(jobsStorage, `${intoPrefix}jobs-${year}.json`),
         JSON.stringify(jobsData, null, 2),
         'raw',
         { contentType: 'application/json' }
@@ -368,8 +373,13 @@ export const SANDBOX_UID = 'zz-restore-verification';
  * parent of it.
  */
 export async function verifyRestore(backup, onProgress, { sample = 3 } = {}) {
+  const app = backup?.app || '';
+  if (/Timesheet/i.test(app)) return finish(await verifyTimesheets(backup, onProgress, sample));
+  if (/Jobs/i.test(app)) return finish(await verifyJobs(backup, onProgress, sample));
+  if (/Shearers/i.test(app)) return finish(await verifyShearers(backup, onProgress));
+  if (!/CCW/i.test(app)) throw new Error(`No verification for a "${app}" backup.`);
+
   const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
-  if (!/CCW/i.test(backup?.app || '')) throw new Error('Verification currently covers a CCW Issues backup.');
 
   // A representative slice rather than everything: this writes and then deletes
   // real documents, and the question is whether the shape survives the trip,
@@ -428,7 +438,119 @@ export async function verifyRestore(backup, onProgress, { sample = 3 } = {}) {
     }
   }
 
-  report.ok = report.checked > 0 && report.matched === report.checked && !report.mismatches.length;
+  return finish(report);
+}
+
+/**
+ * A verification passes only if everything checked came back identical.
+ *
+ * Written once and shared, because "ok" is the whole output and four copies of
+ * the condition is four chances to write a lenient one. Errors count against
+ * it too: a cleanup that failed is not a pass, it is a pass plus a mess.
+ */
+const finish = (report) => ({
+  ...report,
+  ok: report.checked > 0
+    && report.matched === report.checked
+    && !report.mismatches.length
+    && !report.errors.length,
+});
+
+/**
+ * Timesheets: Firestore documents in their own collection.
+ *
+ * The sandbox is a separate collection rather than prefixed ids in the real
+ * one — a stray verification document sitting among live timesheets would be
+ * picked up by every query that reads them.
+ */
+async function verifyTimesheets(backup, onProgress, sample) {
+  const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
+  const entries = Object.entries(backup.data || {}).slice(0, sample);
+  if (!entries.length) throw new Error('That backup has no timesheets to verify with.');
+
+  onProgress?.(`Restoring ${entries.length} timesheets into a sandbox…`);
+  const res = await importTimesheet(
+    { ...backup, data: Object.fromEntries(entries) }, { intoCollection: SANDBOX_UID });
+  if (!res.success) throw new Error(res.error || 'The restore itself failed.');
+
+  for (const [docId, docData] of entries) {
+    try {
+      const snap = await getDoc(doc(timesheetDb, SANDBOX_UID, docId));
+      report.checked += 1;
+      if (!snap.exists()) report.mismatches.push(`${docId}: nothing was written`);
+      else if (!same(snap.data(), docData)) report.mismatches.push(`${docId}: came back different`);
+      else report.matched += 1;
+    } catch (err) { report.errors.push(`${docId}: ${err.message}`); }
+  }
+
+  onProgress?.('Removing the sandbox…');
+  for (const [docId] of entries) {
+    try { await deleteDoc(doc(timesheetDb, SANDBOX_UID, docId)); report.cleaned += 1; }
+    catch (err) { report.errors.push(`cleanup ${docId}: ${err.message}`); }
+  }
+  return report;
+}
+
+/**
+ * Jobs: whole-year JSON files in Storage, not Firestore.
+ *
+ * Read back over HTTP rather than trusting the upload, because that is how the
+ * apps read them and it is the only way to see what actually landed.
+ */
+async function verifyJobs(backup, onProgress, sample) {
+  const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
+  const years = Object.entries(backup.data || {}).slice(0, sample);
+  if (!years.length) throw new Error('That backup has no job years to verify with.');
+  const prefix = `${SANDBOX_UID}/`;
+
+  onProgress?.(`Restoring ${years.length} year files into a sandbox…`);
+  const res = await importJobs({ ...backup, data: Object.fromEntries(years) }, { intoPrefix: prefix });
+  if (!res.success) throw new Error(res.error || 'The restore itself failed.');
+
+  for (const [year, jobsData] of years) {
+    try {
+      const url = await getDownloadURL(storageRef(jobsStorage, `${prefix}jobs-${year}.json`));
+      const back = await (await fetch(url)).json();
+      report.checked += 1;
+      if (!same(back, jobsData)) report.mismatches.push(`${year}: came back different`);
+      else report.matched += 1;
+    } catch (err) { report.errors.push(`${year}: ${err.message}`); }
+  }
+
+  onProgress?.('Removing the sandbox…');
+  for (const [year] of years) {
+    try { await deleteObject(storageRef(jobsStorage, `${prefix}jobs-${year}.json`)); report.cleaned += 1; }
+    catch (err) { report.errors.push(`cleanup ${year}: ${err.message}`); }
+  }
+  return report;
+}
+
+/**
+ * Shearers: one Realtime Database tree.
+ *
+ * The sandbox sits UNDER jti-downtime so the existing rules cover it — a path
+ * at the root would be denied by default and the failure would look like the
+ * restore being broken rather than the rules not reaching it.
+ */
+async function verifyShearers(backup, onProgress) {
+  const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
+  const path = `jti-downtime/${SANDBOX_UID}`;
+
+  onProgress?.('Restoring the downtime tree into a sandbox…');
+  const res = await importShearers(backup, { intoPath: path });
+  if (!res.success) throw new Error(res.error || 'The restore itself failed.');
+
+  try {
+    const snap = await get(dbRef(shearersRealtimeDb, path));
+    report.checked = 1;
+    if (!snap.exists()) report.mismatches.push('nothing was written');
+    else if (!same(snap.val(), backup.data)) report.mismatches.push('the tree came back different');
+    else report.matched = 1;
+  } catch (err) { report.errors.push(err.message); }
+
+  onProgress?.('Removing the sandbox…');
+  try { await set(dbRef(shearersRealtimeDb, path), null); report.cleaned = 1; }
+  catch (err) { report.errors.push(`cleanup: ${err.message}`); }
   return report;
 }
 
