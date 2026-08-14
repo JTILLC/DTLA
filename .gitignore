@@ -5,3 +5,25 @@
 # than as fifty directories in the root. NOT tracked by git and never were —
 # these are the only copies, so they are ignored, not deleted.
 _archive/
+
+# ---------------------------------------------------------------------------
+# Generated files. Untracked 2026-08-14, when 216,462 node_modules files and
+# 119 build outputs made up the bulk of this repo — `git status` was unreadable
+# and every clone carried dependencies that `npm install` rebuilds from the
+# lockfiles, which ARE tracked.
+#
+# This does not shrink history: past commits keep their copies. It stops the
+# working tree lying about what is source.
+node_modules/
+
+# Build output, per app rather than a blanket `dist/`.
+#
+# JobsMASTER/dist is deliberately absent from this list: despite the name it
+# holds hand-written HTML (index.html, Jobs101525.html) and no build step makes
+# it. Ignoring it would quietly drop the only tracked copy of the Jobs app.
+CCWCustomerViewer/dist/
+CCWISSUESGitHub/dist/
+CCWISSUESMultiTenant/dist/
+JTIUnified/dist/
+ServiceQuoteWA/dist/
+ShearersClaude/dist/
