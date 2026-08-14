@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
 const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
@@ -117,6 +117,9 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [monthlyIncome, setMonthlyIncome] = useState({ paid: [], unpaid: [] });
   const [allJobsData, setAllJobsData] = useState([]);
+  // Packets keyed by service report number. The reports window shows the files
+  // held against a number, and most of them are uploaded on the packet page.
+  const [packetsBySr, setPacketsBySr] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [searchScope, setSearchScope] = useState('all'); // 'all' or 'customer'
   const [showIncomeChart, setShowIncomeChart] = useState(false); // Hidden by default
@@ -499,6 +502,9 @@ function App() {
     if (v === VIEWS.calendar) loadCalendarEvents();
     if (v === VIEWS.troubleshoot && troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
     if ((v === VIEWS.reports || v === VIEWS.packet) && serviceReports.reports.length === 0) loadServiceReports();
+    if (v === VIEWS.reports && !packetsBySr) {
+      fetchAllPackets().then(setPacketsBySr).catch((e) => console.warn('Packets unavailable:', e));
+    }
     if (v === VIEWS.records || v === VIEWS.packet) {
       fetchCustomerRecords().then(setCustomerRecords).catch((e) => console.warn('Customer records unavailable:', e));
     }
@@ -1512,6 +1518,7 @@ function App() {
             <ServiceReportLookup
               reports={serviceReports.reports}
               jobs={allJobsData}
+              packets={packetsBySr}
               years={serviceReports.years}
               untaggedVisits={serviceReports.untaggedVisits}
               untaggedTimesheets={serviceReports.untaggedTimesheets}
