@@ -1,0 +1,35 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Secrets. VITE_ variables are bundled into the client, so anything genuinely
+# secret does not belong in one at all — but the Google Vision key in here is
+# billable, and a key in git history stays in git history.
+.env
+.env.*
+!.env.example
+
+# Deploy state, local to this machine
+.netlify
+.wrangler
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
