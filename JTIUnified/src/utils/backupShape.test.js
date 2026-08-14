@@ -4,7 +4,7 @@
 // These tests are the substitute for having found that out during an actual
 // recovery — which is the only other way anyone would have.
 import { describe, it, expect } from 'vitest';
-import { ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan } from './backupShape.js';
+import { ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan, deepSame } from './backupShape.js';
 
 describe('CCW customer round trip', () => {
   // Exactly the shape Firestore holds: the document IS { profile: {...} }.
@@ -101,5 +101,43 @@ describe('describePlan', () => {
 
   it('leads with the reason when it cannot be restored', () => {
     expect(describePlan(planRestore({ hello: 1 }))).toMatch(/not a backup/i);
+  });
+});
+
+// The comparison the restore verification rests on.
+//
+// A false "identical" is the worst outcome available here: it would certify a
+// restore that silently lost data, which is worse than never checking.
+
+describe('deepSame', () => {
+  it('ignores key order, which Firestore does not preserve', () => {
+    expect(deepSame({ a: 1, b: 2 }, { b: 2, a: 1 })).toBe(true);
+    expect(deepSame({ p: { x: 1, y: 2 } }, { p: { y: 2, x: 1 } })).toBe(true);
+  });
+
+  it('notices a value that changed', () => {
+    expect(deepSame({ a: 1 }, { a: 2 })).toBe(false);
+    expect(deepSame({ profile: { city: 'X' } }, { profile: { city: 'Y' } })).toBe(false);
+  });
+
+  it('notices a field that went missing', () => {
+    // The double-wrap bug lost fields exactly like this.
+    expect(deepSame({ a: 1, b: 2 }, { a: 1 })).toBe(false);
+    expect(deepSame({ a: 1 }, { a: 1, b: 2 })).toBe(false);
+  });
+
+  it('does NOT treat a wrapped object as the same as an unwrapped one', () => {
+    // The restore bug this whole exercise started from.
+    expect(deepSame({ profile: { name: 'X' } }, { profile: { profile: { name: 'X' } } })).toBe(false);
+  });
+
+  it('respects array order, which is meaningful for lines and heads', () => {
+    expect(deepSame({ lines: [1, 2] }, { lines: [2, 1] })).toBe(false);
+    expect(deepSame({ lines: [1, 2] }, { lines: [1, 2] })).toBe(true);
+  });
+
+  it('separates 0, false, null and absent', () => {
+    expect(deepSame({ n: 0 }, { n: false })).toBe(false);
+    expect(deepSame({ n: null }, {})).toBe(false);
   });
 });

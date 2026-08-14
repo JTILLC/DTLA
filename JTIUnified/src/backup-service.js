@@ -1,8 +1,8 @@
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { ref as storageRef, getDownloadURL, uploadString } from 'firebase/storage';
 import { ref as dbRef, get, set } from 'firebase/database';
 import { ccwIssuesDb, timesheetDb, jobsStorage, shearersRealtimeDb } from './firebase-config';
-import { ccwCustomerSplit, planRestore } from './utils/backupShape';
+import { ccwCustomerSplit, planRestore, deepSame as same } from './utils/backupShape';
 
 // Helper function to download JSON
 function downloadJSON(data, filename) {
@@ -227,7 +227,13 @@ export async function backupAllApps(onProgress) {
 // ==================== IMPORT FUNCTIONS ====================
 
 // Import CCW Issues data
-export async function importCCWIssues(backupData) {
+/**
+ * @param {string} [intoUserId] - write everything under this user instead of
+ *   the ones in the file. The verification below restores into a sandbox that
+ *   no app reads, using THIS function rather than a copy of it — a rehearsal
+ *   that runs different code proves nothing about the performance.
+ */
+export async function importCCWIssues(backupData, { intoUserId = null } = {}) {
   try {
     if (!backupData.data || typeof backupData.data !== 'object') {
       throw new Error('Invalid CCW Issues backup format');
@@ -235,8 +241,9 @@ export async function importCCWIssues(backupData) {
 
     let totalRestored = 0;
 
-    for (const [userId, userData] of Object.entries(backupData.data)) {
+    for (const [sourceUserId, userData] of Object.entries(backupData.data)) {
       if (!userData.customers) continue;
+      const userId = intoUserId || sourceUserId;
 
       for (const [customerId, customerData] of Object.entries(userData.customers)) {
         // The document is written back EXACTLY as it was read. It already
@@ -339,6 +346,87 @@ export async function importJobs(backupData) {
 }
 
 // Import backup from file
+// A user id no app reads. Everything the verification writes lives under here
+// and is deleted afterwards.
+const SANDBOX_UID = '__restore_verification__';
+
+/**
+ * Prove a backup can actually be restored.
+ *
+ * Everything up to now showed the data coming OUT. This puts some of it back
+ * in, through the real importer, and reads it from Firestore to check it
+ * arrived intact — which is the only claim that matters on the day it is
+ * needed, and the only one that had never been tested.
+ *
+ * It restores into a user id no app reads, then deletes what it wrote. Live
+ * data is never touched: the sandbox is a sibling of the real workspace, not a
+ * parent of it.
+ */
+export async function verifyRestore(backup, onProgress, { sample = 3 } = {}) {
+  const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
+  if (!/CCW/i.test(backup?.app || '')) throw new Error('Verification currently covers a CCW Issues backup.');
+
+  // A representative slice rather than everything: this writes and then deletes
+  // real documents, and the question is whether the shape survives the trip,
+  // which three customers answer as well as three hundred.
+  const [sourceUid, userData] = Object.entries(backup.data)[0] || [];
+  const customers = Object.entries(userData?.customers || {}).slice(0, sample);
+  if (!customers.length) throw new Error('That backup has no customers to verify with.');
+
+  const slice = { ...backup, data: { [sourceUid]: { customers: Object.fromEntries(customers) } } };
+
+  onProgress?.(`Restoring ${customers.length} customers into a sandbox…`);
+  const res = await importCCWIssues(slice, { intoUserId: SANDBOX_UID });
+  if (!res.success) throw new Error(res.error || 'The restore itself failed.');
+
+  // Read it back through Firestore, not from memory — the round trip is the
+  // thing being tested.
+  for (const [customerId, node] of customers) {
+    const { docData, visits } = ccwCustomerSplit(node);
+    try {
+      const snap = await getDoc(doc(ccwIssuesDb, 'user_files', SANDBOX_UID, 'customers', customerId));
+      report.checked += 1;
+      if (!snap.exists()) {
+        report.mismatches.push(`${customerId}: nothing was written`);
+      } else if (!same(snap.data(), docData)) {
+        report.mismatches.push(`${customerId}: the customer record came back different`);
+      } else {
+        let visitsOk = true;
+        for (const [visitId, visitData] of Object.entries(visits)) {
+          const v = await getDoc(doc(ccwIssuesDb, 'user_files', SANDBOX_UID, 'customers', customerId, 'visits', visitId));
+          if (!v.exists() || !same(v.data(), visitData)) {
+            visitsOk = false;
+            report.mismatches.push(`${customerId}/${visitId}: visit came back different`);
+            break;
+          }
+        }
+        if (visitsOk) report.matched += 1;
+      }
+    } catch (err) {
+      report.errors.push(`${customerId}: ${err.message}`);
+    }
+  }
+
+  // Cleaned up whatever happened above, including a failure — leaving test data
+  // in a live project is its own small mess.
+  onProgress?.('Removing the sandbox…');
+  for (const [customerId, node] of customers) {
+    try {
+      for (const visitId of Object.keys(ccwCustomerSplit(node).visits)) {
+        await deleteDoc(doc(ccwIssuesDb, 'user_files', SANDBOX_UID, 'customers', customerId, 'visits', visitId));
+        report.cleaned += 1;
+      }
+      await deleteDoc(doc(ccwIssuesDb, 'user_files', SANDBOX_UID, 'customers', customerId));
+      report.cleaned += 1;
+    } catch (err) {
+      report.errors.push(`cleanup ${customerId}: ${err.message}`);
+    }
+  }
+
+  report.ok = report.checked > 0 && report.matched === report.checked && !report.mismatches.length;
+  return report;
+}
+
 /** Read and validate a file WITHOUT writing anything, so it can be shown first. */
 export async function readBackupFile(file) {
   const backup = JSON.parse(await file.text());

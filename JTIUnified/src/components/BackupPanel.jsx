@@ -16,7 +16,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, Download, HardDriveDownload, Upload } from 'lucide-react';
 import {
   backupCCWIssues, backupShearers, backupTimesheet, backupJobs, backupAllApps,
-  readBackupFile, importBackupFromFile,
+  readBackupFile, importBackupFromFile, verifyRestore,
 } from '../backup-service';
 import { describePlan } from '../utils/backupShape';
 import { auth } from '../firebase-config';
@@ -41,6 +41,24 @@ export default function BackupPanel({ colors }) {
   const [error, setError] = useState('');
   const [manifest, setManifest] = useState(null);
   const [progress, setProgress] = useState('');
+  const [verify, setVerify] = useState(null);
+
+  // Prove a file can be put back, not just taken.
+  //
+  // Everything else here shows data coming out. This puts some of it back
+  // through the real importer and reads it from Firestore to see whether it
+  // arrived intact — into a user id no app reads, deleted afterwards.
+  const runVerify = async () => {
+    setBusy('verify'); setError(''); setVerify(null);
+    try {
+      const { backup, plan } = await readBackupFile(pending?.file || null);
+      if (!plan.valid) throw new Error(describePlan(plan));
+      setVerify(await verifyRestore(backup, setProgress));
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+    setProgress(''); setBusy('');
+  };
 
   // Run the scheduled job now, rather than waiting for 02:00 to find out
   // whether it works. Authorised with the signed-in user's own token: the
@@ -281,6 +299,14 @@ export default function BackupPanel({ colors }) {
               >
                 {busy === 'restore' ? 'Restoring…' : 'Restore this file'}
               </button>
+              {/* Offered before Restore, and deliberately the safer of the two:
+                  it answers "would this work" without touching live data. */}
+              {/CCW/i.test(pending.plan.app) && (
+                <button type="button" onClick={runVerify} disabled={busy === 'verify'}
+                  style={ui.btn(colors, { tone: ui.TONE.ok, active: true })}>
+                  {busy === 'verify' ? (progress || 'Checking…') : 'Test this restore safely'}
+                </button>
+              )}
               <button type="button" onClick={() => { setPending(null); setAck(false); }} style={ui.btn(colors)}>
                 Cancel
               </button>
@@ -288,6 +314,26 @@ export default function BackupPanel({ colors }) {
           </div>
         )}
       </div>
+
+      {verify && (
+        <div style={{ ...card, borderLeft: `3px solid ${verify.ok ? ui.TONE.ok : ui.TONE.bad}` }}>
+          <div style={{ color: colors.text, fontWeight: 600, fontSize: '14px' }}>
+            {verify.ok
+              ? `Restored and read back ${verify.matched} of ${verify.checked} customers, identical.`
+              : `${verify.matched} of ${verify.checked} came back intact.`}
+          </div>
+          {verify.mismatches.map((m) => (
+            <div key={m} style={{ color: ui.TONE.bad, fontSize: '13px', marginTop: '4px' }}>{m}</div>
+          ))}
+          {verify.errors.map((m) => (
+            <div key={m} style={{ color: '#92400e', fontSize: '13px', marginTop: '4px' }}>{m}</div>
+          ))}
+          <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '8px' }}>
+            Written to a sandbox no app reads, then removed — {verify.cleaned} documents cleaned up.
+            Live data was not touched.
+          </div>
+        </div>
+      )}
 
       {error && (
         <div style={{ ...card, borderLeft: `3px solid ${ui.TONE.bad}`, color: colors.text, fontSize: '13px' }}>{error}</div>

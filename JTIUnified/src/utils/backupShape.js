@@ -107,4 +107,22 @@ export const describePlan = (plan) => {
   return `${plan.app}: ${bits.join(', ')}`;
 };
 
-export default { BACKUP_FORMAT, ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan };
+/**
+ * Deep equality for comparing restored data against its backup.
+ *
+ * Key order is normalised because Firestore does not preserve it, but nothing
+ * else is forgiven: a missing field, a changed value, a reordered array and an
+ * extra layer of wrapping all count as different. A false "identical" here
+ * would certify a restore that lost data, which is worse than not checking.
+ */
+export const deepSame = (a, b) => JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
+
+const sortKeys = (v) => {
+  if (Array.isArray(v)) return v.map(sortKeys);
+  if (v && typeof v === 'object') {
+    return Object.keys(v).sort().reduce((o, k) => { o[k] = sortKeys(v[k]); return o; }, {});
+  }
+  return v;
+};
+
+export default { BACKUP_FORMAT, deepSame, ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan };
