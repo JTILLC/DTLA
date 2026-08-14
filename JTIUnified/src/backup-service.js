@@ -2,6 +2,7 @@ import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
 import { ref as storageRef, getDownloadURL, uploadString } from 'firebase/storage';
 import { ref as dbRef, get, set } from 'firebase/database';
 import { ccwIssuesDb, timesheetDb, jobsStorage, shearersRealtimeDb } from './firebase-config';
+import { ccwCustomerSplit, planRestore } from './utils/backupShape';
 
 // Helper function to download JSON
 function downloadJSON(data, filename) {
@@ -238,15 +239,18 @@ export async function importCCWIssues(backupData) {
       if (!userData.customers) continue;
 
       for (const [customerId, customerData] of Object.entries(userData.customers)) {
-        // Restore customer profile
-        const { visits, ...customerProfile } = customerData;
+        // The document is written back EXACTLY as it was read. It already
+        // contains its own `profile` key; wrapping the remainder in another one
+        // — which this did — restored {profile:{profile:{...}}} and broke every
+        // customer it touched. ccwCustomerSplit has a round-trip test.
+        const { docData, visits } = ccwCustomerSplit(customerData);
         await setDoc(
           doc(ccwIssuesDb, 'user_files', userId, 'customers', customerId),
-          { profile: customerProfile }
+          docData
         );
 
         // Restore visits
-        if (visits && typeof visits === 'object') {
+        {
           for (const [visitId, visitData] of Object.entries(visits)) {
             await setDoc(
               doc(ccwIssuesDb, 'user_files', userId, 'customers', customerId, 'visits', visitId),
@@ -266,10 +270,16 @@ export async function importCCWIssues(backupData) {
 }
 
 // Import Shearers data
-export async function importShearers(backupData) {
+export async function importShearers(backupData, { replaceEverything = false } = {}) {
   try {
     if (!backupData.data) {
       throw new Error('Invalid Shearers backup format');
+    }
+    // set() at the tree root deletes anything not in the file. A backup taken
+    // this morning would erase this afternoon's work, so the caller has to say
+    // that is what it means rather than arriving here by choosing a file.
+    if (!replaceEverything) {
+      throw new Error('Restoring Shearers replaces the whole downtime tree. Confirm that first.');
     }
 
     await set(dbRef(shearersRealtimeDb, 'jti-downtime/main-logger/data'), backupData.data);
@@ -329,7 +339,13 @@ export async function importJobs(backupData) {
 }
 
 // Import backup from file
-export async function importBackupFromFile(file, onProgress) {
+/** Read and validate a file WITHOUT writing anything, so it can be shown first. */
+export async function readBackupFile(file) {
+  const backup = JSON.parse(await file.text());
+  return { backup, plan: planRestore(backup) };
+}
+
+export async function importBackupFromFile(file, onProgress, { replaceEverything = false } = {}) {
   try {
     const text = await file.text();
     const backup = JSON.parse(text);
@@ -337,6 +353,10 @@ export async function importBackupFromFile(file, onProgress) {
     if (!backup.app || !backup.data) {
       throw new Error('Invalid backup file format');
     }
+    // Checked here as well as in the UI: this function overwrites live data and
+    // must not depend on a caller having looked first.
+    const plan = planRestore(backup);
+    if (!plan.valid) throw new Error(plan.warnings[0] || 'This file cannot be restored.');
 
     onProgress?.(`Importing ${backup.app} backup...`);
 
@@ -346,7 +366,7 @@ export async function importBackupFromFile(file, onProgress) {
         result = await importCCWIssues(backup);
         break;
       case 'Shearers Downtime Logger':
-        result = await importShearers(backup);
+        result = await importShearers(backup, { replaceEverything });
         break;
       case 'Timesheet':
         result = await importTimesheet(backup);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, HardDriveDownload, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
 import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets, fetchUnifiedJobs } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
@@ -22,6 +22,7 @@ import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import JobPacketBuilder from './components/JobPacketBuilder';
 import JobBoard from './components/JobBoard';
 import NewJobPage from './components/NewJobPage';
+import BackupPanel from './components/BackupPanel';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
 
@@ -145,6 +146,7 @@ function App() {
   const showPacket = route.view === VIEWS.packet;
   const showBoard = route.view === VIEWS.board;
   const showNewJob = route.view === VIEWS.newJob;
+  const showBackups = route.view === VIEWS.backups;
   const openView = (v) => go({ view: v });
   const closeView = () => go({ view: HOME });
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -866,6 +868,14 @@ function App() {
       onClick: async () => {
         const next = !showRecords;
         go({ view: next ? VIEWS.records : HOME });
+        if (next) setSearchResults(null);
+      },
+    },
+    {
+      key: 'backups', label: 'Backups', Icon: HardDriveDownload, tone: ui.TONE.warn, active: showBackups,
+      onClick: () => {
+        const next = !showBackups;
+        go({ view: next ? VIEWS.backups : HOME });
         if (next) setSearchResults(null);
       },
     },
@@ -1661,6 +1671,10 @@ function App() {
         )}
 
         {/* Customer Detail View */}
+        {showBackups && !selectedCustomer && !searchResults && (
+          <BackupPanel colors={colors} />
+        )}
+
         {showNewJob && !selectedCustomer && !searchResults && (
           <NewJobPage
             colors={colors}

@@ -34,6 +34,7 @@ export const VIEWS = {
   reports: 'reports',
   records: 'records',
   packet: 'packet',
+  backups: 'backups',
 };
 
 export const HOME = 'home';
