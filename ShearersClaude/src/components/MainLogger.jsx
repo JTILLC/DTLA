@@ -801,7 +801,7 @@ export default function MainLogger({ data, setData }) {
   // its issues/fix status/notes, plus machine notes — for one date.
   const exportDailyReport = async (date) => {
     try {
-      const [{ default: jsPDF }, { default: autoTable }, { loadThumbs, drawThumbRow }] =
+      const [{ default: jsPDF }, { default: autoTable }, { loadThumbs, drawThumbGrid }] =
         await Promise.all([
           import('jspdf'),
           import('jspdf-autotable'),
@@ -960,21 +960,16 @@ export default function MainLogger({ data, setData }) {
         // caption repeated under every thumbnail — and a photo with nothing
         // written against it tells a reader nothing at all.
         if (thumbs.length) {
-          const groups = new Map();
-          thumbs.forEach((t) => {
-            const key = t.label || 'Unlabelled';
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(t);
-          });
-          const pageH = doc.internal.pageSize.getHeight();
-          groups.forEach((list, label) => {
-            // Keep a heading with its photos rather than stranding it at the
-            // foot of a page.
-            if (y + 46 > pageH - 12) { doc.addPage(); y = 20; }
-            doc.setFontSize(9);
-            doc.text(label, 14, y);
-            y = drawThumbRow(doc, list, y + 2) + 1;
-          });
+          // One grid, captioned per photo, rather than a heading per line and
+          // head. The grouping read as a single column down the page because
+          // most issues have exactly one photo: a heading, a thumbnail, a
+          // heading, a thumbnail. Sorting by label keeps a line's photos
+          // together within the grid, so nothing is lost by dropping the
+          // headings — and the caption travels with each photo, which is what
+          // the headings were protecting.
+          const ordered = [...thumbs].sort((a, b) =>
+            String(a.label || '').localeCompare(String(b.label || '')));
+          y = drawThumbGrid(doc, ordered, y + 2);
         }
         // Say what is missing rather than quietly showing fewer photos than
         // the day actually has.
