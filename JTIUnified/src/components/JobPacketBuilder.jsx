@@ -388,16 +388,31 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 Once any of those exist the number has been written on
                 something, and putting it back in the pool would let a second
                 job take it. */}
-            {!trackerJob && !job && !sources?.serviceReportUrl && !sources?.invoiceUrl && !(packet.files || []).length && (
+            {/* Files uploaded here do not block releasing — they are removed
+                with it. What blocks it is a commitment somewhere else: a job in
+                the Jobs Tracker, a service report filed in CCW, an invoice in
+                the system. Those mean the number is on somebody's paperwork and
+                cannot be handed out again. Uploading a test receipt should not
+                strand a number, which is what the old rule did. */}
+            {!trackerJob && !job && !sources?.serviceReportUrl && !sources?.invoiceUrl && (
               <button
                 type="button"
                 onClick={async () => {
+                  const files = packet.files || [];
                   if (!window.confirm(
                     `Release ${sr} back into the pool?\n\n`
+                    + (files.length
+                      ? `The ${files.length} file${files.length === 1 ? '' : 's'} attached here will be deleted.\n\n`
+                      : '')
                     + 'It becomes the next number offered again. Only do this if nothing was ever '
                     + 'filed against it — a number written on a report or an invoice should be closed, not released.')) return;
                   setBusy('Releasing…');
                   try {
+                    // Files first: releasing deletes the record that lists them,
+                    // so leaving them until after would orphan them in storage.
+                    for (const f of files) {
+                      if (f.path) await removePacketFile(sr, f.path);
+                    }
                     await releaseJobNumber(sr);
                     setStarted(await fetchUnifiedJobs());
                     setSr('');
