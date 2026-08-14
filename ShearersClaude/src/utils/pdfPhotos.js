@@ -37,6 +37,11 @@ const ATTEMPTS = 3;
 // cannot hold the whole report hostage.
 const TIMEOUT_MS = 20000;
 
+// The grid lives in ../shared: three reports draw photos and all three had the
+// same column problem, so the layout is one implementation with one set of
+// tests rather than three that drift.
+export { drawPhotoGrid as drawThumbGrid, layoutGrid, fitInCell } from '@shared/utils/photoGrid.js';
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Where a photo lives, for the failure line. Enough to tell a Storage link from
@@ -273,98 +278,4 @@ export async function loadThumbs(refs, cap = 40) {
   };
 }
 
-// Where each photo goes on a grid, in page coordinates.
-//
-// Separated from the drawing so the arithmetic can be tested without a PDF:
-// getting a cell one row too low is invisible in code review and obvious in a
-// test.
-//
-// Photos used to be grouped under a heading per line and head, which read as a
-// single column down the page because most issues have exactly one photo — a
-// heading, one thumbnail, a heading, one thumbnail. A grid puts a dozen on a
-// page instead of a dozen pages, and the label moves under each photo so
-// nothing loses its attribution in the process.
-export function layoutGrid(count, {
-  x = 14, y = 20, cols = 3, cellW = 58, imgH = 40, captionH = 5, gap = 4,
-  pageTop = 20, pageBottom = 282,
-} = {}) {
-  const cells = [];
-  const rowH = imgH + captionH + gap;
-  let row = 0;
-  let cursorY = y;
-
-  for (let i = 0; i < count; i += 1) {
-    const col = i % cols;
-    if (i > 0 && col === 0) { row += 1; cursorY += rowH; }
-    // A row that would run off the bottom starts a new page — the whole row,
-    // not just the photo that crossed the line, or one cell ends up orphaned
-    // above its neighbours.
-    if (cursorY + imgH + captionH > pageBottom) {
-      cursorY = pageTop;
-      row = 0;
-      cells.push({ index: i, x: x, y: cursorY, newPage: true, col, cellW, imgH, captionH });
-      continue;
-    }
-    cells.push({ index: i, x: x + col * (cellW + gap), y: cursorY, newPage: false, col, cellW, imgH, captionH });
-  }
-
-  // A page break mid-row leaves the cells after it on the wrong x — recompute
-  // every cell after a break from the break itself.
-  let pageStartIndex = 0;
-  return cells.map((c, i) => {
-    if (c.newPage) pageStartIndex = i;
-    const n = i - pageStartIndex;
-    const col = n % cols;
-    const rowOnPage = Math.floor(n / cols);
-    const cellY = (c.newPage ? pageTop : (cells[pageStartIndex].newPage ? pageTop : y)) + rowOnPage * rowH;
-    return { ...c, col, x: x + col * (cellW + gap), y: cellY };
-  });
-}
-
-/** Fit an image inside a cell without distorting it. */
-export const fitInCell = (w, h, cellW, cellH) => {
-  const scale = Math.min(cellW / w, cellH / h, 1e6);
-  return { w: Math.max(1, w * scale), h: Math.max(1, h * scale) };
-};
-
-// Draw the thumbnails as a grid, captioned, paginating by row.
-// Returns the y position after the last row.
-export function drawThumbGrid(doc, thumbs, startY, opts = {}) {
-  const usable = thumbs.filter((t) => t && t.dataUrl);
-  if (!usable.length) return startY;
-
-  const pageH = doc.internal.pageSize.getHeight();
-  const conf = {
-    x: 14, cols: 3, cellW: 58, imgH: 40, captionH: 5, gap: 4,
-    pageTop: 20, pageBottom: pageH - 12, ...opts,
-  };
-  const cells = layoutGrid(usable.length, { ...conf, y: startY });
-
-  let last = startY;
-  cells.forEach((cell, i) => {
-    if (cell.newPage) doc.addPage();
-    const t = usable[i];
-    const { w, h } = fitInCell(t.w, t.h, cell.cellW, cell.imgH);
-    // Centred in its cell so a portrait photo beside a landscape one still
-    // reads as a row rather than as a stagger.
-    const ix = cell.x + (cell.cellW - w) / 2;
-    const iy = cell.y + (cell.imgH - h) / 2;
-    try {
-      doc.addImage(t.dataUrl, 'JPEG', ix, iy, w, h);
-    } catch {
-      /* a single bad image must not abort the export */
-    }
-    if (t.label) {
-      doc.setFontSize(6.5);
-      // Trimmed to the cell: an untrimmed caption runs under the next photo
-      // and the two become unreadable together.
-      const text = doc.splitTextToSize(t.label, cell.cellW)[0] || '';
-      doc.text(text, cell.x, cell.y + cell.imgH + 3.5);
-    }
-    last = Math.max(last, cell.y + cell.imgH + cell.captionH);
-  });
-  doc.setFontSize(9);
-  return last + 2;
-}
-
-export default { photoToThumb, loadThumbs, drawThumbGrid, layoutGrid, fitInCell };
+export default { photoToThumb, loadThumbs };

@@ -33,4 +33,9 @@ export default defineConfig({
       },
     },
   },
+  // The shared photo-grid tests run here too: the layout is shared by three
+  // reports, so a change made in any one of them has to run its rules.
+  test: {
+    include: ['src/**/*.test.{js,jsx}', '../shared/utils/photoGrid.test.js'],
+  },
 });
