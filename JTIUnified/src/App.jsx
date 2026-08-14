@@ -13,6 +13,8 @@ import ActivityItem from './components/ActivityItem';
 import SearchResults from './components/SearchResults';
 import CustomerDetailView from './components/CustomerDetailView';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
+import DataHealthBanner from './components/DataHealthBanner';
+import { reset as resetHealth, isSignIn } from './utils/dataHealth';
 import * as ui from './ui/theme';
 import useRoute from './ui/useRoute';
 import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
@@ -546,6 +548,14 @@ function App() {
   const loadData = async () => {
     if (!hasAnyCache()) setLoading(true);
     setLoadError(null);
+    // Rebuilt from scratch on every refresh rather than cleared per source: a
+    // fetcher only reports when it FAILS, so anything that has recovered simply
+    // does not report again and drops off by itself.
+    //
+    // Sign-in failures are kept. They are recorded once at login and a data
+    // refresh does not retry them — clearing them here would hide the one thing
+    // that explains why the data is empty.
+    resetHealth(isSignIn);
     try {
       // Fetch all data in parallel
       const [jobsData, downtimeData, timesheetData, activityData, customersList] = await Promise.all([
@@ -1412,6 +1422,10 @@ function App() {
         margin: '0 auto',
         padding: '32px'
       }}>
+        {/* Anything that failed to load. loadError below is the whole-page
+            failure; this is the per-source one that used to be invisible. */}
+        <DataHealthBanner colors={colors} />
+
         {/* Error Display */}
         {loadError && (
           <div style={{

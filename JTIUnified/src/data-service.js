@@ -2,6 +2,7 @@ import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, upda
 import { showsWithoutEntries } from './utils/timesheetVisibility.js';
 import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
+import { recordFailure, recordSuccess } from './utils/dataHealth.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -293,6 +294,7 @@ export const fetchJobsData = async () => {
     return result;
   } catch (error) {
     console.error('Error fetching jobs data:', error);
+    recordFailure('jobs data', error);
     return {
       jobs: [],
       totalIncome: 0,
@@ -336,6 +338,7 @@ export const fetchJobCustomerOverrides = async () => {
     return map;
   } catch (error) {
     console.error('Error fetching job customer overrides:', error);
+    recordFailure('job customer overrides', error);
     return new Map();
   }
 };
@@ -446,6 +449,7 @@ export const fetchDowntimeData = async () => {
     return result;
   } catch (error) {
     console.error('Error fetching downtime data:', error);
+    recordFailure('downtime data', error);
     return {
       issues: [],
       activeIssues: 0,
@@ -482,6 +486,7 @@ export const fetchInventoryData = async () => {
     return result;
   } catch (e) {
     console.error('Error fetching inventory:', e);
+    recordFailure('inventory', e);
     return { parts: [], boards: [] };
   }
 };
@@ -496,6 +501,7 @@ export const fetchPartsManualDiagrams = async () => {
     return diagrams;
   } catch (e) {
     console.error('Error fetching parts manual diagrams:', e);
+    recordFailure('parts manual diagrams', e);
     return [];
   }
 };
@@ -548,6 +554,7 @@ export const fetchTimesheetData = async () => {
     return result;
   } catch (error) {
     console.error('Error fetching timesheet data:', error);
+    recordFailure('timesheet data', error);
     return {
       timesheets: [],
       hoursThisWeek: 0,
@@ -768,6 +775,7 @@ export const fetchServiceReports = async () => {
     };
   } catch (error) {
     console.error('Error fetching service reports:', error);
+    recordFailure('service reports', error);
     return { reports: [], years: [], untaggedVisits: [], untaggedTimesheets: [] };
   }
 };
@@ -834,6 +842,7 @@ export const fetchRecentActivity = async () => {
     return activities.slice(0, 10);
   } catch (error) {
     console.error('Error fetching recent activity:', error);
+    recordFailure('recent activity', error);
     return [];
   }
 };
@@ -915,6 +924,7 @@ export const fetchCustomersList = async () => {
     return consolidateCustomers(Array.from(customersMap.values()), records);
   } catch (error) {
     console.error('Error fetching customers list:', error);
+    recordFailure('customers list', error);
     return [];
   }
 };
@@ -997,6 +1007,7 @@ export const fetchCustomerData = async (customerName) => {
     };
   } catch (error) {
     console.error('Error fetching customer data:', error);
+    recordFailure('customer data', error);
     return { record: null, visits: [], jobs: [], issues: [], timesheets: [] };
   }
 };
@@ -1382,6 +1393,7 @@ export const fetchCalendarEvents = async () => {
     return events;
   } catch (error) {
     console.error('Error fetching calendar events:', error);
+    recordFailure('calendar events', error);
     return [];
   }
 };
@@ -1568,6 +1580,7 @@ export const fetchHeadHistoryData = async () => {
     return result;
   } catch (error) {
     console.error('Error fetching head history:', error);
+    recordFailure('head history', error);
     return { entries: [], calendarEvents: [] };
   }
 };
@@ -1702,6 +1715,7 @@ export const fetchFactoryLocations = async () => {
     return [];
   } catch (error) {
     console.error('Error fetching factory locations:', error);
+    recordFailure('factory locations', error);
     const saved = localStorage.getItem('jti-factory-locations');
     return saved ? JSON.parse(saved) : [];
   }
@@ -1780,6 +1794,7 @@ export const fetchCustomerRecords = async () => {
     }).filter((c) => c.name);
   } catch (error) {
     console.error('Error fetching customer records:', error);
+    recordFailure('customer records', error);
     return [];
   }
 };
@@ -1817,6 +1832,7 @@ export const fetchCustomerVisits = async (customerId) => {
       .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   } catch (error) {
     console.error('Error fetching customer visits:', error);
+    recordFailure('customer visits', error);
     return [];
   }
 };
@@ -2073,6 +2089,7 @@ export const fetchUnifiedJobs = async () => {
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (error) {
     console.error('Error fetching started jobs:', error);
+    recordFailure('started jobs', error);
     return [];
   }
 };
@@ -2305,6 +2322,7 @@ export const fetchReservedJobNumbers = async () => {
     return snap.docs.map((d) => d.data()).sort((a, b) => String(b.sr).localeCompare(String(a.sr)));
   } catch (error) {
     console.error('Error reading reserved job numbers:', error);
+    recordFailure('reserved job numbers', error);
     return [];
   }
 };
