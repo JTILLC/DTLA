@@ -491,6 +491,7 @@ export const DEFAULT_PM_SECTIONS = [
   {
     id: 'daily',
     title: 'Daily checks',
+    frequency: 'daily',
     items: [
       { id: 'd1', label: 'Product contact surfaces clean', type: 'check' },
       { id: 'd2', label: 'No product build-up in hoppers', type: 'check' },
@@ -501,6 +502,7 @@ export const DEFAULT_PM_SECTIONS = [
   {
     id: 'weekly',
     title: 'Weekly checks',
+    frequency: 'weekly',
     items: [
       { id: 'w1', label: 'Load cell covers secure', type: 'check' },
       { id: 'w2', label: 'Drive belts / feeders inspected', type: 'check' },
