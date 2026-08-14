@@ -314,17 +314,31 @@ export async function putObject(bucket, objectPath, token, body) {
  * backup. Anything not matching the exact name this system writes is left alone.
  */
 export function isExpiredBackup(name, cutoffMs) {
-  const m = /^backups\/(\d{4}-\d{2}-\d{2})\/[^/]+$/.exec(String(name || ''));
+  // Anything at any depth under a dated folder. The first version demanded a
+  // single segment, which quietly exempted every streamed chunk —
+  // backups/<day>/<project>/<collection>-<n>.json — and those are the bulk of
+  // a night's output. Retention that never reaches the biggest files is not
+  // retention.
+  const m = /^backups\/(\d{4}-\d{2}-\d{2})\/.+$/.exec(String(name || ''));
   if (!m) return false;
   const t = new Date(`${m[1]}T00:00:00Z`).getTime();
   return Number.isFinite(t) && t < cutoffMs;
 }
 
-export async function prune(bucket, token, days, now = Date.now()) {
+export async function prune(bucket, token, days, now = Date.now(), state = null) {
   if (!Number.isFinite(days) || days <= 0) return { deleted: 0, skipped: 'retention not configured' };
   const cutoff = now - days * 86400000;
   let pageToken = '';
   let deleted = 0;
+  let remaining = 0;
+
+  // Every delete is a subrequest, and a Worker has few. In a steady state a
+  // night's expiry is a dozen or more files, which would take a third of the
+  // run's allowance from the thing that actually matters — writing today's
+  // backup. So deleting yields to backing up, and what is left over is simply
+  // deleted tomorrow. Falling a day behind on cleanup costs disk; falling
+  // short on the backup costs data.
+  const canDelete = () => !state || state.requests < state.budget - 8;
 
   do {
     const list = await api(
@@ -333,6 +347,8 @@ export async function prune(bucket, token, days, now = Date.now()) {
 
     for (const item of list.items || []) {
       if (!isExpiredBackup(item.name, cutoff)) continue;
+      if (!canDelete()) { remaining += 1; continue; }
+      if (state) state.requests += 1;
       const res = await fetch(`${STORAGE}/${encodeURIComponent(bucket)}/o/${encodeURIComponent(item.name)}`,
         { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) deleted += 1;
@@ -340,7 +356,7 @@ export async function prune(bucket, token, days, now = Date.now()) {
     pageToken = list.nextPageToken || '';
   } while (pageToken);
 
-  return { deleted };
+  return remaining ? { deleted, remaining } : { deleted };
 }
 
 /**
@@ -564,7 +580,12 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
     const wToken = await writeToken();
     manifest.finishedAt = new Date().toISOString();
     manifest.requests = state.requests;
-    manifest.retention = await prune(bucket, wToken, Number(env.BACKUP_RETAIN_DAYS));
+    // Only the unnarrowed run prunes — that is the cron. The page asks for one
+    // project at a time, and pruning four times over would spend the allowance
+    // four times for one night's worth of expiry.
+    manifest.retention = only
+      ? { skipped: 'pruning runs on the nightly job' }
+      : await prune(bucket, wToken, Number(env.BACKUP_RETAIN_DAYS), Date.now(), state);
     await putObject(bucket, `backups/${day}/manifest.json`, wToken, JSON.stringify(manifest, null, 2));
     await putObject(bucket, 'backups/latest.json', wToken, JSON.stringify(manifest, null, 2));
   } catch (err) {

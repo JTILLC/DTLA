@@ -74,6 +74,13 @@ describe('isExpiredBackup', () => {
     expect(isExpiredBackup('backups/2026-07-01/manifest.json', cutoff)).toBe(true);
   });
 
+  it('reaches the streamed chunks, which are the bulk of a night', () => {
+    // These sit a level deeper. An earlier pattern demanded a single segment
+    // and so exempted exactly the biggest files, which is retention that
+    // never reclaims anything.
+    expect(isExpiredBackup('backups/2026-07-01/jobs-data-17ee4/parts-viewer-diagrams-0.json', cutoff)).toBe(true);
+  });
+
   it('keeps anything newer than the cutoff', () => {
     expect(isExpiredBackup('backups/2026-08-14/x.json', cutoff)).toBe(false);
     expect(isExpiredBackup('backups/2026-09-01/x.json', cutoff)).toBe(false);
@@ -86,7 +93,6 @@ describe('isExpiredBackup', () => {
       'user_files/abc/visit.pdf',
       'backups/latest.json',
       'backups/notadate/x.json',
-      'backups/2026-07-01/nested/deeper.json',
       'my-backups/2026-07-01/x.json',
       '',
       null,
