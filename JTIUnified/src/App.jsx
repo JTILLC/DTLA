@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets, fetchUnifiedJobs } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
 const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
@@ -121,6 +121,9 @@ function App() {
   // Packets keyed by service report number. The reports window shows the files
   // held against a number, and most of them are uploaded on the packet page.
   const [packetsBySr, setPacketsBySr] = useState(null);
+  // Numbers reserved here. For a packet-only row this is the only place its
+  // customer was ever written down.
+  const [startedJobs, setStartedJobs] = useState([]);
   const [loadError, setLoadError] = useState(null);
   const [searchScope, setSearchScope] = useState('all'); // 'all' or 'customer'
   const [showIncomeChart, setShowIncomeChart] = useState(false); // Hidden by default
@@ -504,8 +507,13 @@ function App() {
     if (v === VIEWS.calendar) loadCalendarEvents();
     if (v === VIEWS.troubleshoot && troubleshootTimesheets.length === 0) loadTroubleshootTimesheets();
     if ((v === VIEWS.reports || v === VIEWS.packet) && serviceReports.reports.length === 0) loadServiceReports();
-    if (v === VIEWS.reports && !packetsBySr) {
+    // Re-read every time the view opens, not once per page load. Uploading an
+    // invoice on the packet page and coming straight here showed the packets as
+    // they were BEFORE the upload — the file was there, this screen was holding
+    // a copy of the list from earlier in the session.
+    if (v === VIEWS.reports) {
       fetchAllPackets().then(setPacketsBySr).catch((e) => console.warn('Packets unavailable:', e));
+      fetchUnifiedJobs().then(setStartedJobs).catch((e) => console.warn('Reserved numbers unavailable:', e));
     }
     if (v === VIEWS.records || v === VIEWS.packet || v === VIEWS.newJob) {
       fetchCustomerRecords().then(setCustomerRecords).catch((e) => console.warn('Customer records unavailable:', e));
@@ -1529,12 +1537,19 @@ function App() {
               reports={serviceReports.reports}
               jobs={allJobsData}
               packets={packetsBySr}
+              startedJobs={startedJobs}
               years={serviceReports.years}
               untaggedVisits={serviceReports.untaggedVisits}
               untaggedTimesheets={serviceReports.untaggedTimesheets}
               loading={serviceReportsLoading}
               colors={colors}
-              onRefresh={loadServiceReports}
+              onRefresh={async () => {
+                await Promise.all([
+                  loadServiceReports(),
+                  fetchAllPackets().then(setPacketsBySr).catch((e) => console.warn('Packets unavailable:', e)),
+                  fetchUnifiedJobs().then(setStartedJobs).catch((e) => console.warn('Reserved numbers unavailable:', e)),
+                ]);
+              }}
             />
           </Suspense>
         )}
