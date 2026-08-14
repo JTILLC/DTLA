@@ -16,9 +16,9 @@ import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2
 import BusyOverlay from './BusyOverlay.jsx';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
-  fetchUnifiedJobs, startJob, markPacketSent, closeJob, releaseJobNumber, updatePacketFile,
+  fetchUnifiedJobs, markPacketSent, closeJob, releaseJobNumber, updatePacketFile,
 } from '../data-service';
-import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from '../utils/jobFlow';
+import { jobFlowSteps, nextAction, flowProgress } from '../utils/jobFlow';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import { scanReceipt } from '../utils/scanReceipt';
@@ -36,10 +36,9 @@ const KINDS = [
   { key: 'receipts', label: 'Receipts', hint: 'What it cost us', many: true },
 ];
 
-export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], jobs = [], initialSr = '', onClose }) {
+export default function JobPacketBuilder({ colors, serviceReports = [], customerRecords = [], customers = [], jobs = [], initialSr = '', onClose, onStartJob }) {
   const [sr, setSr] = useState(initialSr);
   const [started, setStarted] = useState([]);
-  const [newJob, setNewJob] = useState(null);   // the form, when open
   const [packet, setPacket] = useState({ files: [] });
   const [sources, setSources] = useState(null);
   const [busy, setBusy] = useState('');
@@ -314,10 +313,10 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
-            onClick={() => setNewJob({
-              sr: nextServiceReportNumber([...allNumbers.map((r) => r.number)], new Date().getFullYear()),
-              customer: '', date: new Date().toISOString().slice(0, 10), description: '',
-            })}
+            // Starting a job lives on its own page now. Two forms that both
+            // hand out numbers is one too many: they would drift, and the one
+            // asking for less would quietly become the one people used.
+            onClick={() => onStartJob?.()}
             style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: '#ec4899', color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Plus size={16} /> New job
@@ -335,62 +334,6 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
         knownSrs={allNumbers.map((r) => String(r.number))}
         onDone={() => { if (sr) load(sr); }}
       />
-
-      {newJob && (
-        <div style={{ ...card, borderLeft: '4px solid #ec4899' }}>
-          <div style={{ fontWeight: 600, color: colors.text, marginBottom: '10px' }}>Start a job</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-            <div>
-              <label style={label}>Service report number</label>
-              {/* Offered, not imposed: the next number is usually right, and
-                  the one time it is not, somebody has a paper pad that says so. */}
-              <input style={{ ...input, width: '100%' }} value={newJob.sr}
-                     onChange={(e) => setNewJob({ ...newJob, sr: e.target.value.toUpperCase() })} />
-            </div>
-            <div>
-              <label style={label}>Customer</label>
-              <input style={{ ...input, width: '100%' }} list="packet-customers" value={newJob.customer}
-                     onChange={(e) => setNewJob({ ...newJob, customer: e.target.value })} placeholder="Start typing…" />
-              <datalist id="packet-customers">
-                {customers.map((c) => <option key={c.name} value={c.name} />)}
-              </datalist>
-            </div>
-            <div>
-              <label style={label}>Date</label>
-              <input type="date" style={{ ...input, width: '100%' }} value={newJob.date}
-                     onChange={(e) => setNewJob({ ...newJob, date: e.target.value })} />
-            </div>
-            <div>
-              <label style={label}>What the job is</label>
-              <input style={{ ...input, width: '100%' }} value={newJob.description}
-                     onChange={(e) => setNewJob({ ...newJob, description: e.target.value })} placeholder="Optional" />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button" disabled={!!busy}
-              onClick={async () => {
-                setBusy('Reserving the number…'); setError('');
-                try {
-                  await startJob(newJob);
-                  setStarted(await fetchUnifiedJobs());
-                  setSr(newJob.sr);
-                  setNewJob(null);
-                } catch (err) { setError(err.message || String(err)); }
-                clearBusy();
-              }}
-              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#10b981', color: 'white', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Reserve {newJob.sr}
-            </button>
-            <button type="button" onClick={() => setNewJob(null)} style={{ ...input, cursor: 'pointer' }}>Cancel</button>
-            <span style={{ color: colors.textSecondary, fontSize: '13px' }}>
-              Reserves the number here. Create the job itself in the Jobs Tracker with the same number —
-              it owns the quote and the amount.
-            </span>
-          </div>
-        </div>
-      )}
 
       <div style={card}>
         <label style={label} htmlFor="packet-sr">Service report</label>

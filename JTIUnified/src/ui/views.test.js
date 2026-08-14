@@ -86,3 +86,19 @@ describe('customerFromSlug', () => {
     expect(customerFromSlug('utz', ['Utz', 'Simplot'])).toBe('Utz');
   });
 });
+
+describe('a view whose key differs from its path', () => {
+  it('round-trips anyway', () => {
+    // VIEWS.newJob is 'new-job'. Looking views up by key worked only while
+    // every key happened to equal its path; the first one that did not parsed
+    // as the dashboard with nothing to say so.
+    expect(parsePath('/new-job').view).toBe(VIEWS.newJob);
+    expect(toPath({ view: VIEWS.newJob })).toBe('/new-job');
+  });
+
+  it('still refuses a segment that is not a view', () => {
+    expect(parsePath('/newJob').view).toBe(HOME);
+    expect(parsePath('/nonsense').view).toBe(HOME);
+    expect(toPath({ view: 'nonsense' })).toBe('/');
+  });
+});
