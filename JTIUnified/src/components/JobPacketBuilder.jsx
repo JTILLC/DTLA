@@ -13,6 +13,7 @@
 // moment to learn the PO is missing is before sending it.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
+import BusyOverlay from './BusyOverlay.jsx';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
   fetchUnifiedJobs, startJob, markPacketSent, closeJob, releaseJobNumber, updatePacketFile,
@@ -38,6 +39,16 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
   const [packet, setPacket] = useState({ files: [] });
   const [sources, setSources] = useState(null);
   const [busy, setBusy] = useState('');
+  // What the busy message is ABOUT — the file in hand and how far through. Kept
+  // beside `busy` rather than folded into it so the message stays a short
+  // headline and the filename does not have to fit in a button.
+  const [busyDetail, setBusyDetail] = useState('');
+  const [busyProgress, setBusyProgress] = useState(null);
+
+  // Cleared together, always. Three pieces of state that have to agree, cleared
+  // at seven call sites, is a stale progress bar from the last upload showing
+  // over the next operation the first time one of them is missed.
+  const clearBusy = () => { setBusy(''); setBusyDetail(''); setBusyProgress(null); };
   const [error, setError] = useState('');
   const [notes, setNotes] = useState('');
   const [result, setResult] = useState(null);
@@ -68,7 +79,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
       setSources(s);
       setNotes(p.notes || '');
     } catch (err) { setError(err.message || String(err)); }
-    setBusy('');
+    clearBusy();
   }, []);
 
   useEffect(() => { setResult(null); setError(''); load(sr); }, [sr, load]);
@@ -168,9 +179,14 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     if (bad.length) { setError(bad.join(' ')); return; }
     setError('');
     setBusy(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
+    setBusyProgress({ done: 0, total: files.length });
     try {
       const added = [];
-      for (const f of files) added.push({ entry: await addPacketFile(sr, kind, f), file: f });
+      for (const f of files) {
+        setBusyDetail(f.name);
+        added.push({ entry: await addPacketFile(sr, kind, f), file: f });
+        setBusyProgress({ done: added.length, total: files.length });
+      }
       setPacket(await fetchPacket(sr));
 
       // Read receipts as they arrive, while the file is still in hand. Every
@@ -178,9 +194,16 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
       // on an invoice, so a person confirms them before the packet is built.
       if (kind === 'receipts') {
         const read = [];
-        for (const { entry, file } of added) {
-          if (!/^image\//.test(file.type || '')) continue;   // a PDF receipt is not scanned
-          setBusy(`Reading ${file.name}…`);
+        // Only the photos get read, so the count is of those, not of everything
+        // uploaded — a bar that stalls at "2 of 3" because the third was a PDF
+        // looks like a failure.
+        const toScan = added.filter(({ file }) => /^image\//.test(file.type || ''));
+        if (toScan.length) {
+          setBusy(toScan.length === 1 ? 'Reading the receipt…' : `Reading ${toScan.length} receipts…`);
+          setBusyProgress({ done: 0, total: toScan.length });
+        }
+        for (const { entry, file } of toScan) {
+          setBusyDetail(file.name);
           try {
             const r = await scanReceipt(file);
             const patch = {};
@@ -197,12 +220,13 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
             // attached, it just has no figures yet.
             read.push(`${file.name}: ${err.message || 'could not be read'}`);
           }
+          setBusyProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
         }
         setPacket(await fetchPacket(sr));
         if (read.length) setScanNote(`Read from the photo — check each one: ${read.join(' · ')}`);
       }
     } catch (err) { setError(err.message || String(err)); }
-    setBusy('');
+    clearBusy();
   };
 
   const build = async () => {
@@ -254,7 +278,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
       setResult({ ...built, meta, url: URL.createObjectURL(blob), fileName: packetFileName(meta) });
       await markPacketBuilt(sr, { notes });
     } catch (err) { setError(err.message || String(err)); }
-    setBusy('');
+    clearBusy();
   };
 
   const card = ui.card(colors, { marginBottom: '16px' });
@@ -265,6 +289,12 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
 
   return (
     <div style={{ marginBottom: '32px' }}>
+      {/* Every slow operation on this panel — upload, scan, build, release —
+          says so here. The message was previously only the Build button's
+          label, which is at the bottom of a long panel and nowhere near the
+          Add button that started the work. */}
+      <BusyOverlay message={busy} detail={busyDetail} progress={busyProgress} colors={colors} />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: '24px', fontWeight: 600, color: colors.text, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Paperclip size={22} /> Job packet
@@ -335,7 +365,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                   setSr(newJob.sr);
                   setNewJob(null);
                 } catch (err) { setError(err.message || String(err)); }
-                setBusy('');
+                clearBusy();
               }}
               style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#10b981', color: 'white', fontWeight: 600, cursor: 'pointer' }}
             >
@@ -377,7 +407,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 setBusy(closing ? 'Closing…' : 'Reopening…');
                 try { await closeJob(sr, closing); setStarted(await fetchUnifiedJobs()); }
                 catch (err) { setError(err.message || String(err)); }
-                setBusy('');
+                clearBusy();
               }}
               style={{ ...input, cursor: 'pointer', fontSize: '13px', padding: '5px 10px' }}
             >
@@ -417,7 +447,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                     setStarted(await fetchUnifiedJobs());
                     setSr('');
                   } catch (err) { setError(err.message || String(err)); }
-                  setBusy('');
+                  clearBusy();
                 }}
                 style={{ ...input, cursor: 'pointer', fontSize: '13px', padding: '5px 10px', marginLeft: '8px' }}
               >
@@ -557,7 +587,7 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                         {f.path && (
                           <button
                             type="button" aria-label={`Remove ${f.name}`}
-                            onClick={async () => { setBusy('Removing…'); await removePacketFile(sr, f.path); setPacket(await fetchPacket(sr)); setBusy(''); }}
+                            onClick={async () => { setBusy('Removing…'); await removePacketFile(sr, f.path); setPacket(await fetchPacket(sr)); clearBusy(); }}
                             style={{ border: 'none', background: 'transparent', color: ui.TONE.bad, cursor: 'pointer', padding: 0 }}
                           >
                             <Trash2 size={14} />
