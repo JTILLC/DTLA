@@ -19,7 +19,11 @@ import {
   readBackupFile, importBackupFromFile,
 } from '../backup-service';
 import { describePlan } from '../utils/backupShape';
+import { auth } from '../firebase-config';
 import * as ui from '../ui/theme';
+
+// The Worker that holds the service accounts and runs the nightly job.
+const BROKER = 'https://ccw-media.josh-c80.workers.dev';
 
 const APPS = [
   { key: 'all', label: 'Everything', hint: 'All four, one file each', fn: backupAllApps },
@@ -35,6 +39,30 @@ export default function BackupPanel({ colors }) {
   const [pending, setPending] = useState(null);   // { file, backup, plan }
   const [ack, setAck] = useState(false);
   const [error, setError] = useState('');
+  const [manifest, setManifest] = useState(null);
+
+  // Run the scheduled job now, rather than waiting for 02:00 to find out
+  // whether it works. Authorised with the signed-in user's own token: the
+  // Worker checks the same `admin` claim it uses for creating logins, because
+  // this reads every collection in two projects.
+  const runNightlyNow = async () => {
+    setBusy('nightly'); setError(''); setManifest(null);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Sign in first.');
+      const token = await user.getIdToken();
+      const res = await fetch(`${BROKER}/admin/run-backup`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `The worker answered ${res.status}.`);
+      setManifest(JSON.parse(text));
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+    setBusy('');
+  };
 
   const say = (m) => setLog((l) => [m, ...l].slice(0, 8));
 
@@ -101,6 +129,45 @@ export default function BackupPanel({ colors }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={card}>
+        <div style={ui.label(colors)}>Nightly backup</div>
+        <p style={{ color: colors.textSecondary, fontSize: '13px', margin: '8px 0 12px' }}>
+          Runs by itself at 02:00 Arizona time, into the CCW storage bucket under
+          <code style={{ margin: '0 4px' }}>backups/</code>. Run it now to see whether it works,
+          rather than finding out on the night you need it.
+        </p>
+        <button type="button" onClick={runNightlyNow} disabled={!!busy}
+          style={ui.btn(colors, { over: { display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: busy ? 0.6 : 1 } })}>
+          <HardDriveDownload size={14} /> {busy === 'nightly' ? 'Running… this can take a minute' : 'Run the nightly backup now'}
+        </button>
+
+        {manifest && (
+          <div style={{ marginTop: '14px' }}>
+            {manifest.results.map((r) => (
+              <div key={r.name} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '6px 0', borderTop: `1px solid ${colors.border}` }}>
+                <span style={{
+                  flexShrink: 0, fontSize: '12px', fontWeight: 700, marginTop: '1px',
+                  color: r.ok ? ui.TONE.ok : r.skipped ? colors.textSecondary : ui.TONE.bad,
+                }}>
+                  {r.ok ? 'OK' : r.skipped ? 'SKIPPED' : 'FAILED'}
+                </span>
+                <span style={{ fontSize: '13px', color: colors.text, flex: 1 }}>
+                  <strong>{r.name}</strong>
+                  {r.ok && <> — {r.documents} documents → <code>{r.path}</code></>}
+                  {r.authenticated === false && <span style={{ color: '#92400e' }}> (read without credentials)</span>}
+                  {r.truncated && <span style={{ color: '#92400e' }}> — stopped early ({r.truncated})</span>}
+                  {(r.reason || r.error) && <span style={{ color: colors.textSecondary }}> — {r.reason || r.error}</span>}
+                  {r.failed?.length > 0 && <div style={{ color: '#92400e', fontSize: '12px' }}>{r.failed.join('; ')}</div>}
+                </span>
+              </div>
+            ))}
+            <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '8px' }}>
+              Written to {manifest.bucket} · {manifest.retention?.skipped || `${manifest.retention?.deleted ?? 0} old files removed`}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ ...card, borderLeft: `3px solid ${ui.TONE.warn}` }}>
