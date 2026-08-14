@@ -1,5 +1,6 @@
 import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { showsWithoutEntries } from './utils/timesheetVisibility.js';
+import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -1024,6 +1025,8 @@ export const searchUnified = async (searchTerm) => {
       parts: [],
       boards: [],
       diagrams: [],
+      packets: [],
+      customers: [],
       totalResults: 0
     };
   }
@@ -1058,13 +1061,18 @@ export const searchUnified = async (searchTerm) => {
 
   try {
     // Fetch all data in parallel
-    const [jobsData, downtimeData, timesheetData, headHistoryResults, inventoryData, diagramsData] = await Promise.all([
+    const [jobsData, downtimeData, timesheetData, headHistoryResults, inventoryData, diagramsData,
+           packetsMap, customerRecords] = await Promise.all([
       fetchJobsData(),
       fetchDowntimeData(),
       fetchTimesheetData(),
       searchHeadHistory(searchTerm),
       fetchInventoryData(),
-      fetchPartsManualDiagrams()
+      fetchPartsManualDiagrams(),
+      // Packets and the customer directory — the two sources the box could not
+      // see. Both are single collection reads, in the same parallel batch.
+      fetchAllPackets().catch(() => new Map()),
+      fetchCustomerRecords().catch(() => []),
     ]);
 
     // Helper function to find matched fields in an object
@@ -1233,6 +1241,11 @@ export const searchUnified = async (searchTerm) => {
       }
     });
 
+    // Reuses matchesAny, so a receipt or a contact is found by the same
+    // "WH1" = "WH 1" rules as everything else in the box.
+    const matchingPackets = matchPackets([...packetsMap.values()], matchesAny);
+    const matchingCustomers = matchCustomerRecords(customerRecords, matchesAny);
+
     return {
       jobs: matchingJobs,
       issues: matchingIssues,
@@ -1241,10 +1254,12 @@ export const searchUnified = async (searchTerm) => {
       parts: matchingParts,
       boards: matchingBoards,
       diagrams: matchingDiagrams,
+      packets: matchingPackets,
+      customers: matchingCustomers,
       totalResults:
         matchingJobs.length + matchingIssues.length + matchingTimesheets.length +
         headHistoryResults.length + matchingParts.length + matchingBoards.length +
-        matchingDiagrams.length,
+        matchingDiagrams.length + matchingPackets.length + matchingCustomers.length,
       searchTerm: searchTerm.trim()
     };
   } catch (error) {
@@ -1257,6 +1272,8 @@ export const searchUnified = async (searchTerm) => {
       parts: [],
       boards: [],
       diagrams: [],
+      packets: [],
+      customers: [],
       totalResults: 0,
       error: error.message
     };
@@ -1880,13 +1897,14 @@ export const fetchFileBytes = async (urlOrPath) => {
 };
 
 /** What the system already holds for this service report. */
-export const fetchPacketSources = async (sr) => {
+// Resolve one report's sources from lists already in hand.
+//
+// Split out so the packet page and the job board read a job the same way. When
+// this was inline, the only way to ask "does 2026028 have an invoice?" for
+// thirty jobs was to call the single-job version thirty times — or to write a
+// second copy of these rules that would drift from this one.
+const sourcesFromLists = (sr, report, manual) => {
   const key = packetKey(sr);
-  const [reports, manual] = await Promise.all([fetchServiceReports(), fetchManualReports()]);
-  // A report entry carries no customer or file of its own: both live on the
-  // visits and timesheets joined to it by number.
-  const list = reports?.reports || reports || [];
-  const report = list.find((r) => packetKey(r.number) === key);
   const visitWithFile = (report?.visits || []).find((v) => v.serviceReportUrl);
   const invoiceEntry = (manual || []).find(
     (m) => m.kind === 'invoice' && (packetKey(m.number) === key || packetKey(m.invoiceNumber) === key));
@@ -1903,6 +1921,75 @@ export const fetchPacketSources = async (sr) => {
     invoiceNumber: invoiceEntry?.invoiceNumber || invoiceEntry?.number || null,
     amount: invoiceEntry?.amount ?? null,
   };
+};
+
+export const fetchPacketSources = async (sr) => {
+  const key = packetKey(sr);
+  const [reports, manual] = await Promise.all([fetchServiceReports(), fetchManualReports()]);
+  // A report entry carries no customer or file of its own: both live on the
+  // visits and timesheets joined to it by number.
+  const list = reports?.reports || reports || [];
+  return sourcesFromLists(sr, list.find((r) => packetKey(r.number) === key), manual);
+};
+
+/** Every packet in one read, keyed by service report number. */
+export const fetchAllPackets = async () => {
+  const snap = await getDocs(collection(jobsMasterDb, JOB_PACKETS));
+  const byKey = new Map();
+  snap.docs.forEach((d) => byKey.set(d.id, { id: d.id, files: [], ...d.data() }));
+  return byKey;
+};
+
+/**
+ * Everything the job board needs, in a fixed number of reads.
+ *
+ * One read for the packets and the usual cached fetches for the rest — NOT a
+ * per-job round trip. A board that costs a Firestore read per job is a board
+ * that gets slower every month it is used, which is the surest way to stop
+ * anybody opening it.
+ */
+export const fetchJobBoardRows = async () => {
+  const [reports, manual, packets, started, jobsData] = await Promise.all([
+    fetchServiceReports(),
+    fetchManualReports(),
+    fetchAllPackets(),
+    fetchUnifiedJobs(),
+    fetchJobsData(),
+  ]);
+  const list = reports?.reports || reports || [];
+  const trackerJobs = jobsData?.jobs || jobsData || [];
+  const trackerFor = (sr) => trackerJobs.find(
+    (j) => packetKey(j.sr || j.invoiceNumber) === packetKey(sr)) || null;
+
+  // Numbers with history, plus ones started here the tracker has not seen. A
+  // job reserved this morning belongs on the board today, not once it has been
+  // through another app.
+  const seen = new Set(list.map((r) => packetKey(r.number)));
+  const rows = list.map((r) => {
+    const sources = sourcesFromLists(r.number, r, manual);
+    return {
+      sr: r.number,
+      customer: sources.customer,
+      date: sources.date,
+      job: trackerFor(r.number),
+      sources,
+      packet: packets.get(packetKey(r.number)) || { files: [] },
+    };
+  });
+
+  (started || []).forEach((j) => {
+    if (seen.has(packetKey(j.sr))) return;
+    rows.push({
+      sr: j.sr,
+      customer: j.customer || '',
+      date: j.date || '',
+      job: trackerFor(j.sr),
+      sources: sourcesFromLists(j.sr, null, manual),
+      packet: packets.get(packetKey(j.sr)) || { files: [] },
+    });
+  });
+
+  return rows;
 };
 
 /** The packet record: everything uploaded against this service report. */

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { AlertTriangle, CheckCircle, ChevronDown, Clock, ExternalLink, FileText, Search, Settings, XCircle } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle, ChevronDown, Clock, ExternalLink, FileText, Paperclip, Search, Settings, XCircle } from 'lucide-react';
 import { isPaid } from '../utils/format';
 import HighlightText from './HighlightText';
 
@@ -12,6 +12,8 @@ import HighlightText from './HighlightText';
       parts: false,
       boards: false,
       diagrams: false,
+      packets: false,
+      customers: false,
     });
     const [expandedId, setExpandedId] = useState(null);
 
@@ -88,10 +90,14 @@ import HighlightText from './HighlightText';
     const filteredParts = results?.parts || [];
     const filteredBoards = results?.boards || [];
     const filteredDiagrams = results?.diagrams || [];
+    // Packets and customer records have no single date to filter on either — a
+    // packet spans the whole job and a customer record is not an event.
+    const filteredPackets = results?.packets || [];
+    const filteredCustomers = results?.customers || [];
     const filteredTotal =
       filteredJobs.length + filteredIssues.length + filteredTimesheets.length +
       filteredHistory.length + filteredParts.length + filteredBoards.length +
-      filteredDiagrams.length;
+      filteredDiagrams.length + filteredPackets.length + filteredCustomers.length;
 
     // camelCase → "Title Case"; snake_case → "Title Case"
     const humanize = (key) => {
@@ -1263,6 +1269,96 @@ import HighlightText from './HighlightText';
                     </div>
                   );})}
                 </div>
+                )}
+              </div>
+            )}
+
+            {/* Job packets — receipts, invoices and POs held against a job.
+                A receipt is findable by the vendor read off the photo, so
+                "where did that Hertz charge go?" has an answer. */}
+            {filteredPackets.length > 0 && (
+              <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <h3
+                  onClick={() => toggleSection('packets')}
+                  style={{ fontSize: '16px', fontWeight: '600', color: '#db2777', marginBottom: collapsedSections.packets ? '0' : '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <Paperclip size={20} />
+                  Job Packets ({filteredPackets.length})
+                  <ChevronDown size={18} style={{ marginLeft: 'auto', transform: collapsedSections.packets ? 'rotate(-90deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                </h3>
+                {!collapsedSections.packets && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {filteredPackets.map((pk) => (
+                      <a
+                        key={pk.sr}
+                        href={`/packet/${pk.sr}`}
+                        style={{ padding: '14px', background: colors.inputBg || colors.cardBg, borderRadius: '8px', borderLeft: '4px solid #db2777', display: 'block', textDecoration: 'none' }}
+                      >
+                        <div style={{ fontSize: '15px', fontWeight: '600', color: '#db2777' }}>
+                          <HighlightText text={pk.sr} searchTerm={results.searchTerm} />
+                          <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px', marginLeft: '8px' }}>
+                            {pk.fileCount} file{pk.fileCount === 1 ? '' : 's'}
+                            {pk.sentAt ? ' · sent' : pk.builtAt ? ' · built' : ''}
+                          </span>
+                        </div>
+                        {pk.files.map((f, i) => (
+                          <div key={i} style={{ fontSize: '12px', color: colors.text, marginTop: '5px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            <span style={{ color: colors.textSecondary }}>{f.kind === 'receipts' ? 'Receipt' : f.kind}</span>
+                            {f.vendor && <strong><HighlightText text={f.vendor} searchTerm={results.searchTerm} /></strong>}
+                            {f.category && <span><HighlightText text={f.category} searchTerm={results.searchTerm} /></span>}
+                            {f.amount && <span style={{ fontVariantNumeric: 'tabular-nums' }}>${f.amount}</span>}
+                            <span style={{ color: colors.textSecondary }}><HighlightText text={f.name} searchTerm={results.searchTerm} /></span>
+                          </div>
+                        ))}
+                        {pk.matches.map((m, i) => (
+                          <div key={`m${i}`} style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '4px' }}>
+                            {m.field}: <HighlightText text={m.value} searchTerm={results.searchTerm} />
+                          </div>
+                        ))}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* The customer directory. Searching a contact or an AP email
+                should name the customer they belong to. */}
+            {filteredCustomers.length > 0 && (
+              <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <h3
+                  onClick={() => toggleSection('customers')}
+                  style={{ fontSize: '16px', fontWeight: '600', color: '#0ea5e9', marginBottom: collapsedSections.customers ? '0' : '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <Building2 size={20} />
+                  Customers ({filteredCustomers.length})
+                  <ChevronDown size={18} style={{ marginLeft: 'auto', transform: collapsedSections.customers ? 'rotate(-90deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                </h3>
+                {!collapsedSections.customers && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {filteredCustomers.map((c, ci) => (
+                      <div
+                        key={`${c.name}-${ci}`}
+                        onClick={() => setSearchTerm && setSearchTerm(c.name)}
+                        style={{ padding: '14px', background: colors.inputBg || colors.cardBg, borderRadius: '8px', borderLeft: '4px solid #0ea5e9', cursor: 'pointer' }}
+                      >
+                        <div style={{ fontSize: '15px', fontWeight: '600', color: '#0369a1' }}>
+                          <HighlightText text={c.name} searchTerm={results.searchTerm} />
+                          {(c.city || c.state) && (
+                            <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px', marginLeft: '8px' }}>
+                              {[c.city, c.state].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        {c.matches.map((m, i) => (
+                          <div key={i} style={{ fontSize: '12px', color: colors.text, marginTop: '4px' }}>
+                            <span style={{ color: colors.textSecondary }}>{m.field}: </span>
+                            <HighlightText text={m.value} searchTerm={results.searchTerm} />
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

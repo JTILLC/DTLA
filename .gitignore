@@ -1,2 +1,7 @@
 # Local Netlify folder
 .netlify
+
+# Dated snapshots of past app states, kept out of the way in one place rather
+# than as fifty directories in the root. NOT tracked by git and never were —
+# these are the only copies, so they are ignored, not deleted.
+_archive/

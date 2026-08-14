@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { Activity, AlertTriangle, BarChart3, Building2, Calendar, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
 import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
@@ -18,6 +18,7 @@ import useRoute from './ui/useRoute';
 import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
 import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import JobPacketBuilder from './components/JobPacketBuilder';
+import JobBoard from './components/JobBoard';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
 
@@ -133,6 +134,7 @@ function App() {
   const showServiceReports = route.view === VIEWS.reports;
   const showRecords = route.view === VIEWS.records;
   const showPacket = route.view === VIEWS.packet;
+  const showBoard = route.view === VIEWS.board;
   const openView = (v) => go({ view: v });
   const closeView = () => go({ view: HOME });
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -813,6 +815,14 @@ function App() {
   // The six views, as data. Each was an eighteen-line button before, identical
   // but for its colour and label, which is why adding one meant copying one.
   const PANELS = [
+    {
+      key: 'board', label: 'Open jobs', Icon: ClipboardList, tone: ui.TONE.warn, active: showBoard,
+      onClick: () => {
+        const next = !showBoard;
+        go({ view: next ? VIEWS.board : HOME });
+        if (next) setSearchResults(null);
+      },
+    },
     { key: 'calendar', label: 'Calendar', Icon: Calendar, tone: ui.TONE.brand, active: showCalendar, onClick: toggleCalendar },
     { key: 'map', label: 'Map', Icon: MapPin, tone: ui.TONE.ok, active: showMap, onClick: toggleMap },
     { key: 'troubleshoot', label: 'Troubleshoot', Icon: Wrench, tone: ui.TONE.warn, active: showTroubleshoot, onClick: toggleTroubleshoot },
@@ -1604,6 +1614,15 @@ function App() {
         )}
 
         {/* Customer Detail View */}
+        {showBoard && !selectedCustomer && !searchResults && (
+          <JobBoard
+            colors={colors}
+            // A row opens that job's packet — the board says what needs doing
+            // and this is where it gets done.
+            onOpen={(sr) => go({ view: VIEWS.packet, sr })}
+          />
+        )}
+
         {showPacket && !selectedCustomer && !searchResults && (
           <JobPacketBuilder
             colors={colors}
