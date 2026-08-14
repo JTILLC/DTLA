@@ -209,6 +209,7 @@ export default function BackupPanel({ colors }) {
                   {r.chunks && Object.keys(r.chunks).length > 0 && (
                     <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '2px' }}>
                       {Object.entries(r.chunks).map(([c, n]) => `${c}: ${n} file${n === 1 ? '' : 's'}`).join(' · ')}
+                      {r.streamedMegabytes ? `, ${r.streamedMegabytes} MB` : ''}
                     </div>
                   )}
                   {r.oversized?.length > 0 && (
