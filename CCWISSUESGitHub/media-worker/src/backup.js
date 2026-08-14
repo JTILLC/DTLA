@@ -385,6 +385,10 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
         documents: dump.documents, truncated: dump.truncated, failed: dump.failed,
+        // Collections that exist and were not fetched. The whole point of this
+        // system is knowing what is covered, so a collection nobody listed has
+        // to surface rather than be absent from a file that looks complete.
+        unconfigured: dump.unconfigured,
       });
     } catch (err) {
       manifest.results.push({ name: t.name, ok: false, error: String(err.message || err) });
