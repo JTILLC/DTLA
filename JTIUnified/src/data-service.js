@@ -1,4 +1,5 @@
 import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { showsWithoutEntries } from './utils/timesheetVisibility.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -1323,8 +1324,13 @@ export const fetchCalendarEvents = async () => {
         }
       });
 
-      // If no entries but has timestamp, use that as the date
-      if (entries.length === 0 && data.timestamp) {
+      // If no entries but has timestamp, use that as the date — so a timesheet
+      // saved before day rows existed still shows up rather than vanishing.
+      //
+      // Unless its days were deleted on purpose: that is an empty timesheet
+      // somebody emptied, and redrawing it here on its save date would undo the
+      // deletion in front of them.
+      if (entries.length === 0 && showsWithoutEntries(data)) {
         const date = data.timestamp?.toDate?.() || new Date(data.timestamp);
         // Local, not toISOString() — that's UTC, so a visit saved after 5pm in
         // Arizona landed on the following day in the grid.
@@ -1382,16 +1388,26 @@ export const deleteTimesheetEntry = async (docId, entryDate) => {
     const serviceReportData = { ...(data.serviceReportData || {}) };
     delete serviceReportData[entryDate];
 
-    // If no entries left, delete the whole document
-    if (updatedEntries.length === 0) {
-      await deleteDoc(docRef);
-    } else {
-      // Update the document with remaining entries
-      await updateDoc(docRef, {
-        entries: updatedEntries,
-        serviceReportData: serviceReportData
-      });
-    }
+    // Remove the DAY. Never the timesheet.
+    //
+    // Deleting the last day used to delete the whole document, and the dialog
+    // that asked only ever said "delete this entry for <customer> on <date>".
+    // Everything else on that record went with it — the invoice number, the
+    // customer details, the machines, every service note — with no undo and no
+    // warning that it was even at risk. Removing the one day somebody logged by
+    // mistake is not a request to destroy the job's paperwork.
+    //
+    // An emptied timesheet is kept, and `deleteTimesheet` remains the way to
+    // remove a whole record deliberately.
+    await updateDoc(docRef, {
+      entries: updatedEntries,
+      serviceReportData: serviceReportData,
+      // Marks the empty state as INTENDED. The calendar dates a timesheet with
+      // no entries by its save timestamp so old records aren't invisible —
+      // without this the day just deleted would come straight back, sitting on
+      // whatever date the timesheet happened to be saved.
+      ...(updatedEntries.length === 0 ? { entriesEmptiedAt: new Date().toISOString() } : {}),
+    });
 
     return true;
   } catch (error) {

@@ -1,0 +1,35 @@
+rules_version = '2';
+
+// Firebase Storage rules for the jobs-data-17ee4 bucket.
+//
+// This bucket holds the year files (jobs-2022.json … jobs-2026.json) — every
+// job, invoice number and payment status — the packet files the JTI dashboard
+// uploads (invoices, purchase orders, receipts), and the parts diagram images.
+//
+// Every one of those is money or customer paperwork, and every app that reads
+// them signs in first: the Jobs tracker, both parts viewers and the dashboard
+// all use email/password. So requiring a signed-in caller costs nothing and is
+// the floor.
+//
+// THIS FILE PREVIOUSLY READ `allow read, write: if true` ON EVERY PATH, with a
+// comment noting it. It was not deployed — the live bucket refuses anonymous
+// reads — but it sat one `firebase deploy` away from publishing all of the
+// above as world read AND write, from the directory you would naturally run
+// that command in. The comment was not a safeguard; this is.
+//
+// NOTE: these rules are written from what the apps need, not read back from the
+// deployed bucket. Deploying them is a deliberate act — check the live rules in
+// the Firebase console first, because they may well be stricter than this.
+//
+// A signed-in caller is only a meaningful bar while self-registration is off.
+// Public signup is currently ENABLED on this project, so anyone can create an
+// account and satisfy `request.auth != null`. Turn it off under
+// Authentication → Settings → User actions in the Firebase console; until then
+// these rules are a lock on a door that hands out keys.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
