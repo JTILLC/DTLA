@@ -40,27 +40,59 @@ export default function BackupPanel({ colors }) {
   const [ack, setAck] = useState(false);
   const [error, setError] = useState('');
   const [manifest, setManifest] = useState(null);
+  const [progress, setProgress] = useState('');
 
   // Run the scheduled job now, rather than waiting for 02:00 to find out
   // whether it works. Authorised with the signed-in user's own token: the
   // Worker checks the same `admin` claim it uses for creating logins, because
   // this reads every collection in two projects.
+  // One project per request, in sequence.
+  //
+  // All four in a single call needed more subrequests than a Worker invocation
+  // is allowed. When it blew the limit, Cloudflare answered with an error page
+  // carrying no CORS headers, so the browser said only "failed to fetch" — a
+  // message that describes the symptom and hides the cause. Asking for one
+  // project at a time keeps each call well inside the allowance, and shows each
+  // result as it lands instead of after the lot.
+  const PROJECTS = [
+    { only: 'downtimelogger-a96fb', label: 'CCW Issues' },
+    { only: 'jobs-data-17ee4', label: 'Jobs and packets' },
+    { only: 'timesheetapp-c4e54', label: 'Timesheets' },
+    { only: 'shearers-4c4b4', label: 'Shearers downtime' },
+  ];
+
   const runNightlyNow = async () => {
     setBusy('nightly'); setError(''); setManifest(null);
+    const merged = { results: [], bucket: '', retention: null };
     try {
       const user = auth.currentUser;
       if (!user) throw new Error('Sign in first.');
       const token = await user.getIdToken();
-      const res = await fetch(`${BROKER}/admin/run-backup`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error(text || `The worker answered ${res.status}.`);
-      setManifest(JSON.parse(text));
+
+      for (const p of PROJECTS) {
+        setProgress(p.label);
+        const res = await fetch(`${BROKER}/admin/run-backup?only=${encodeURIComponent(p.only)}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          merged.results.push({ name: p.label, ok: false, error: text || `worker answered ${res.status}` });
+          continue;
+        }
+        const m = JSON.parse(text);
+        // A fatal from one project is that project's result, not the end of the
+        // run — the other three are still worth taking.
+        if (m.fatal) merged.results.push({ name: p.label, ok: false, error: m.fatal });
+        else merged.results.push(...m.results);
+        merged.bucket = m.bucket || merged.bucket;
+        merged.retention = m.retention || merged.retention;
+        setManifest({ ...merged });
+      }
     } catch (err) {
       setError(err.message || String(err));
     }
+    setProgress('');
     setBusy('');
   };
 
@@ -140,7 +172,7 @@ export default function BackupPanel({ colors }) {
         </p>
         <button type="button" onClick={runNightlyNow} disabled={!!busy}
           style={ui.btn(colors, { over: { display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: busy ? 0.6 : 1 } })}>
-          <HardDriveDownload size={14} /> {busy === 'nightly' ? 'Running… this can take a minute' : 'Run the nightly backup now'}
+          <HardDriveDownload size={14} /> {busy === 'nightly' ? `Backing up ${progress || '…'}` : 'Run the nightly backup now'}
         </button>
 
         {manifest && (

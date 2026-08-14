@@ -587,7 +587,19 @@ export default {
       }
 
       if (url.pathname === '/admin/run-backup') {
-        const manifest = await runBackup(env, mintToken);
+        // ?only=<project id> backs up one project. Every project in a single
+        // request exceeded the Worker's subrequest allowance, and an exception
+        // there is answered by Cloudflare with an error page carrying no CORS
+        // headers — which the browser reports as "failed to fetch", telling you
+        // nothing about what actually went wrong.
+        const only = url.searchParams.get('only') || '';
+        let manifest;
+        try {
+          manifest = await runBackup(env, mintToken, { only });
+        } catch (err) {
+          // Answered as JSON, with CORS, so the reason survives the trip.
+          manifest = { fatal: String(err?.message || err), results: [] };
+        }
         // The manifest is the answer whether or not everything worked — a run
         // where two projects failed is exactly what somebody needs to see, so
         // it comes back 200 with the detail rather than as an error.
