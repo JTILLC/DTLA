@@ -1,22 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import InteractiveDiagramViewer from './InteractiveDiagramViewer';
+import ShareModal from './ShareModal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveImage, getImage, saveImagesBatch, clearAllImages, saveDiagrams, loadDiagrams } from '../utils/imageStorage';
 import { getCustomerNames, loadDiagramsByCustomer, loadDiagramImagesForExport } from '../firebase/diagramService';
 
-const CustomerViewer = () => {
+const readLS = (key, fallback) => {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+};
+const readLSJSON = (key, fallback) => {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : JSON.parse(v);
+  } catch {
+    return fallback;
+  }
+};
+
+const CustomerViewer = ({ onLogout }) => {
   const [diagrams, setDiagrams] = useState({});
+  const [initializing, setInitializing] = useState(true); // True until the first IndexedDB load resolves
   const [currentDiagramId, setCurrentDiagramId] = useState(null);
   const [customerName, setCustomerName] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState('All Folders');
-  const [globalOrderList, setGlobalOrderList] = useState({});
-  const [darkMode, setDarkMode] = useState(true);
+  const [selectedFolder, setSelectedFolder] = useState(() => readLS('selectedFolder', 'All Folders'));
+  const [globalOrderList, setGlobalOrderList] = useState(() => readLSJSON('orderList', {}));
+  const [darkMode, setDarkMode] = useState(() => readLS('darkMode', 'true') === 'true');
   const [collapsedFolders, setCollapsedFolders] = useState({});
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [diagramSelectorOpen, setDiagramSelectorOpen] = useState(false);
   const [showPartsListSource, setShowPartsListSource] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState(null);
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false);
+  const [availableCustomers, setAvailableCustomers] = useState([]);
+  const [selectedCustomerToLoad, setSelectedCustomerToLoad] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // Parts search query
+  const [searchResults, setSearchResults] = useState([]); // Parts search results
+  const [showSearchResults, setShowSearchResults] = useState(false); // Show search results panel
+  const [orderCustomerName, setOrderCustomerName] = useState(() => readLS('orderCustomerName', ''));
+  const [orderCompanyName, setOrderCompanyName] = useState(() => readLS('orderCompanyName', ''));
+  const [orderAttn, setOrderAttn] = useState(() => readLS('orderAttn', ''));
+  const [orderStreet, setOrderStreet] = useState(() => readLS('orderStreet', ''));
+  const [orderCityStateZip, setOrderCityStateZip] = useState(() => readLS('orderCityStateZip', ''));
+  const [orderModel, setOrderModel] = useState(() => readLS('orderModel', ''));
+  const [orderSerial, setOrderSerial] = useState(() => readLS('orderSerial', ''));
+  const [orderJob, setOrderJob] = useState(() => readLS('orderJob', ''));
+  const [showOrderInfo, setShowOrderInfo] = useState(false); // Show order info input form
+  const [showShareModal, setShowShareModal] = useState(false); // Show share modal
+
+  // Ref for scrolling to diagram
+  const diagramViewerRef = React.useRef(null);
 
   // Load diagrams from IndexedDB on mount
   useEffect(() => {
@@ -47,23 +85,10 @@ const CustomerViewer = () => {
         }
       } catch (error) {
         console.error('Failed to load diagrams:', error);
+      } finally {
+        setInitializing(false);
       }
 
-      // Load other data from localStorage
-      const savedOrder = localStorage.getItem('orderList');
-      if (savedOrder) {
-        setGlobalOrderList(JSON.parse(savedOrder));
-      }
-
-      const savedDarkMode = localStorage.getItem('darkMode');
-      if (savedDarkMode !== null) {
-        setDarkMode(savedDarkMode === 'true');
-      }
-
-      const savedFolder = localStorage.getItem('selectedFolder');
-      if (savedFolder) {
-        setSelectedFolder(savedFolder);
-      }
     };
 
     initializeDiagrams();
@@ -92,6 +117,41 @@ const CustomerViewer = () => {
   useEffect(() => {
     localStorage.setItem('selectedFolder', selectedFolder);
   }, [selectedFolder]);
+
+  // Save customer name
+  useEffect(() => {
+    localStorage.setItem('orderCustomerName', orderCustomerName);
+  }, [orderCustomerName]);
+
+  // Save order company name
+  useEffect(() => {
+    localStorage.setItem('orderCompanyName', orderCompanyName);
+  }, [orderCompanyName]);
+
+  // Save order address fields
+  useEffect(() => {
+    localStorage.setItem('orderAttn', orderAttn);
+  }, [orderAttn]);
+
+  useEffect(() => {
+    localStorage.setItem('orderStreet', orderStreet);
+  }, [orderStreet]);
+
+  useEffect(() => {
+    localStorage.setItem('orderCityStateZip', orderCityStateZip);
+  }, [orderCityStateZip]);
+
+  useEffect(() => {
+    localStorage.setItem('orderModel', orderModel);
+  }, [orderModel]);
+
+  useEffect(() => {
+    localStorage.setItem('orderSerial', orderSerial);
+  }, [orderSerial]);
+
+  useEffect(() => {
+    localStorage.setItem('orderJob', orderJob);
+  }, [orderJob]);
 
   // Track window resize for mobile responsiveness
   useEffect(() => {
@@ -212,169 +272,205 @@ const CustomerViewer = () => {
 
     console.log('[Import] Selected file:', file.name, 'Size:', file.size, 'bytes');
 
-    const reader = new FileReader();
+    try {
+      // Try using the modern File API text() method instead of FileReader
+      // This is more reliable for large files
+      console.log('[Import] Reading file using File.text() API...');
+      const fileText = await file.text();
 
-    reader.onerror = (error) => {
-      console.error('[Import] FileReader error:', error);
-      alert(`Failed to read file.\n\nError: ${error.message || 'Unknown error'}\n\nFile: ${file.name}`);
-    };
+      console.log('[Import] File read successfully, parsing JSON...');
+      const importData = JSON.parse(fileText);
+      console.log('[Import] JSON parsed:', {
+        customer: importData.customer,
+        diagramCount: importData.diagramCount,
+        hasCustomer: !!importData.customer,
+        hasDiagrams: !!importData.diagrams,
+        isArray: Array.isArray(importData.diagrams)
+      });
 
-    reader.onload = async (event) => {
-      try {
-        console.log('[Import] File loaded successfully, parsing JSON...');
-        const importData = JSON.parse(event.target.result);
-        console.log('[Import] JSON parsed:', {
-          customer: importData.customer,
-          diagramCount: importData.diagramCount,
-          hasCustomer: !!importData.customer,
-          hasDiagrams: !!importData.diagrams,
-          isArray: Array.isArray(importData.diagrams)
-        });
-
-        if (!importData.customer || !importData.diagrams || !Array.isArray(importData.diagrams)) {
-          console.error('[Import] Invalid format:', importData);
-          alert('Invalid import file format.\n\nRequired fields:\n- customer (string)\n- diagrams (array)');
-          return;
-        }
-
-        // Get existing customers and folders
-        const existingCustomers = Array.from(new Set(
-          Object.values(diagrams).map(d => d.customer || 'General')
-        )).sort();
-
-        // Prompt for customer (allow creating new or selecting existing)
-        let targetCustomer = prompt(
-          `Import ${importData.diagramCount} diagram(s) into which customer?\n\n` +
-          `Current customers: ${existingCustomers.join(', ')}\n\n` +
-          `Enter customer name (or create new):`,
-          importData.customer
-        );
-
-        if (!targetCustomer || !targetCustomer.trim()) {
-          alert('Import cancelled - no customer specified.');
-          e.target.value = '';
-          return;
-        }
-        targetCustomer = targetCustomer.trim();
-
-        // Get existing folders for this customer
-        const existingFolders = Array.from(new Set(
-          Object.values(diagrams)
-            .filter(d => (d.customer || 'General') === targetCustomer)
-            .map(d => d.folder || 'General')
-        )).sort();
-
-        // Prompt for folder (allow creating new or selecting existing)
-        let targetFolder = prompt(
-          `Import into which folder (machine type) under "${targetCustomer}"?\n\n` +
-          (existingFolders.length > 0
-            ? `Existing folders: ${existingFolders.join(', ')}\n\n`
-            : 'No existing folders for this customer.\n\n') +
-          `Enter folder name (or create new):`,
-          importData.diagrams[0]?.folder || 'General'
-        );
-
-        if (!targetFolder || !targetFolder.trim()) {
-          alert('Import cancelled - no folder specified.');
-          e.target.value = '';
-          return;
-        }
-        targetFolder = targetFolder.trim();
-
-        const confirm = window.confirm(
-          `Import ${importData.diagramCount} diagram(s)?\n\n` +
-          `Customer: ${targetCustomer}\n` +
-          `Folder: ${targetFolder}\n\n` +
-          `Existing diagrams will be preserved.`
-        );
-
-        if (!confirm) {
-          e.target.value = '';
-          return;
-        }
-
-        // Show loading message
-        const loadingMsg = document.createElement('div');
-        loadingMsg.id = 'import-loading';
-        loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#333;color:white;padding:20px;border-radius:8px;z-index:10000;text-align:center;';
-        loadingMsg.innerHTML = '<div>Importing diagrams...</div><div id="import-progress" style="margin-top:10px;font-size:14px;">0%</div>';
-        document.body.appendChild(loadingMsg);
-
-        try {
-          // Prepare images for IndexedDB
-          const imagesToSave = [];
-          const newDiagramsObj = {};
-
-          importData.diagrams.forEach(diagram => {
-            const id = diagram.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-            // Extract pdfData (image) and store separately
-            const { pdfData, ...diagramMetadata } = diagram;
-
-            if (pdfData) {
-              imagesToSave.push({ id, imageData: pdfData });
-            }
-
-            // Store only metadata with updated customer and folder
-            newDiagramsObj[id] = {
-              ...diagramMetadata,
-              id,
-              customer: targetCustomer,
-              folder: targetFolder,
-              hasImage: !!pdfData
-            };
-          });
-
-          // Save NEW images to IndexedDB (don't clear existing ones)
-          await saveImagesBatch(imagesToSave, (current, total) => {
-            const progressEl = document.getElementById('import-progress');
-            if (progressEl) {
-              const percent = Math.round((current / total) * 100);
-              progressEl.textContent = `${percent}% (${current}/${total} images)`;
-            }
-          });
-
-          // MERGE with existing diagrams instead of replacing
-          setDiagrams(prev => ({
-            ...prev,
-            ...newDiagramsObj
-          }));
-
-          // Update customer name if this is the first import
-          if (Object.keys(diagrams).length === 0) {
-            setCustomerName(targetCustomer);
-          }
-
-          // Select first imported diagram
-          const firstId = Object.keys(newDiagramsObj)[0];
-          if (firstId) {
-            setCurrentDiagramId(firstId);
-          }
-
-          // Remove loading message
-          document.body.removeChild(loadingMsg);
-
-          alert(
-            `Successfully imported ${importData.diagrams.length} diagram(s).\n\n` +
-            `Customer: ${targetCustomer}\n` +
-            `Folder: ${targetFolder}\n\n` +
-            `Images stored in browser IndexedDB.`
-          );
-        } catch (error) {
-          console.error('Import error:', error);
-          const loadingEl = document.getElementById('import-loading');
-          if (loadingEl) document.body.removeChild(loadingEl);
-          alert('Failed to import diagrams.\n\nError: ' + error.message);
-        }
-      } catch (error) {
-        console.error('[Import] Parse error:', error);
-        alert(`Failed to import diagrams.\n\nError: ${error.message}\n\nPlease ensure the file is valid JSON.`);
+      if (!importData.customer || !importData.diagrams || !Array.isArray(importData.diagrams)) {
+        console.error('[Import] Invalid format:', importData);
+        alert('Invalid import file format.\n\nRequired fields:\n- customer (string)\n- diagrams (array)');
+        e.target.value = '';
+        return;
       }
-    };
 
-    console.log('[Import] Starting to read file...');
-    reader.readAsText(file);
-    e.target.value = '';
+      // Continue with import process
+      try {
+        await processImport(importData, e);
+      } catch (error) {
+        console.error('[Import] Process error:', error);
+        alert(`Failed to import diagrams.\n\nError: ${error.message}`);
+        e.target.value = '';
+      }
+    } catch (error) {
+      console.error('[Import] File read error:', error);
+      alert(
+        `Failed to read file.\n\n` +
+        `File: ${file.name}\n` +
+        `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n` +
+        `Error: ${error.message || error.name || 'Unknown error'}\n\n` +
+        `Try:\n` +
+        `1. Close the file if it's open in another program\n` +
+        `2. Copy the file to your desktop and try again\n` +
+        `3. Make sure the file isn't corrupted`
+      );
+      e.target.value = '';
+    }
+  };
+
+  // Separate function to process the import after reading file
+  const processImport = async (importData, e) => {
+    // Get existing customers and folders
+    const existingCustomers = Array.from(new Set(
+      Object.values(diagrams).map(d => d.customer || 'General')
+    )).sort();
+
+    // Prompt for customer (allow creating new or selecting existing)
+    let targetCustomer = prompt(
+      `Import ${importData.diagramCount} diagram(s) into which customer?\n\n` +
+      `Current customers: ${existingCustomers.join(', ')}\n\n` +
+      `Enter customer name (or create new):`,
+      importData.customer
+    );
+
+    if (!targetCustomer || !targetCustomer.trim()) {
+      alert('Import cancelled - no customer specified.');
+      e.target.value = '';
+      return;
+    }
+    targetCustomer = targetCustomer.trim();
+
+    // Get existing folders for this customer
+    const existingFolders = Array.from(new Set(
+      Object.values(diagrams)
+        .filter(d => (d.customer || 'General') === targetCustomer)
+        .map(d => d.folder || 'General')
+    )).sort();
+
+    // Prompt for folder (allow creating new or selecting existing)
+    let targetFolder = prompt(
+      `Import into which folder (machine type) under "${targetCustomer}"?\n\n` +
+      (existingFolders.length > 0
+        ? `Existing folders: ${existingFolders.join(', ')}\n\n`
+        : 'No existing folders for this customer.\n\n') +
+      `Enter folder name (or create new):`,
+      importData.diagrams[0]?.folder || 'General'
+    );
+
+    if (!targetFolder || !targetFolder.trim()) {
+      alert('Import cancelled - no folder specified.');
+      e.target.value = '';
+      return;
+    }
+    targetFolder = targetFolder.trim();
+
+    const confirm = window.confirm(
+      `Import ${importData.diagramCount} diagram(s)?\n\n` +
+      `Customer: ${targetCustomer}\n` +
+      `Folder: ${targetFolder}\n\n` +
+      `Existing diagrams will be preserved.`
+    );
+
+    if (!confirm) {
+      e.target.value = '';
+      return;
+    }
+
+    // Show loading message
+    const loadingMsg = document.createElement('div');
+    loadingMsg.id = 'import-loading';
+    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#333;color:white;padding:20px;border-radius:8px;z-index:10000;text-align:center;';
+    loadingMsg.innerHTML = '<div>Importing diagrams...</div><div id="import-progress" style="margin-top:10px;font-size:14px;">0%</div>';
+    document.body.appendChild(loadingMsg);
+
+    try {
+      // Prepare images for IndexedDB
+      const imagesToSave = [];
+      const newDiagramsObj = {};
+
+      importData.diagrams.forEach((diagram, index) => {
+        const id = diagram.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Debug: Check if first diagram has hotspots
+        if (index === 0) {
+          console.log('[Import] First diagram structure:', {
+            hasHotspots: !!diagram.hotspots,
+            hotspotCount: diagram.hotspots ? Object.keys(diagram.hotspots).length : 0,
+            hasPartsData: !!diagram.partsData,
+            partsDataCount: diagram.partsData ? Object.keys(diagram.partsData).length : 0,
+            keys: Object.keys(diagram)
+          });
+        }
+
+        // Extract pdfData (image) and store separately
+        const { pdfData, ...diagramMetadata } = diagram;
+
+        if (pdfData) {
+          imagesToSave.push({ id, imageData: pdfData });
+        }
+
+        // Store only metadata with updated customer and folder
+        newDiagramsObj[id] = {
+          ...diagramMetadata,
+          id,
+          customer: targetCustomer,
+          folder: targetFolder,
+          hasImage: !!pdfData
+        };
+
+        // Debug: Verify hotspots are preserved
+        if (index === 0) {
+          console.log('[Import] First diagram after processing:', {
+            hasHotspots: !!newDiagramsObj[id].hotspots,
+            hotspotCount: newDiagramsObj[id].hotspots ? Object.keys(newDiagramsObj[id].hotspots).length : 0
+          });
+        }
+      });
+
+      // Save NEW images to IndexedDB (don't clear existing ones)
+      await saveImagesBatch(imagesToSave, (current, total) => {
+        const progressEl = document.getElementById('import-progress');
+        if (progressEl) {
+          const percent = Math.round((current / total) * 100);
+          progressEl.textContent = `${percent}% (${current}/${total} images)`;
+        }
+      });
+
+      // MERGE with existing diagrams instead of replacing
+      setDiagrams(prev => ({
+        ...prev,
+        ...newDiagramsObj
+      }));
+
+      // Update customer name if this is the first import
+      if (Object.keys(diagrams).length === 0) {
+        setCustomerName(targetCustomer);
+      }
+
+      // Select first imported diagram
+      const firstId = Object.keys(newDiagramsObj)[0];
+      if (firstId) {
+        setCurrentDiagramId(firstId);
+      }
+
+      // Remove loading message
+      document.body.removeChild(loadingMsg);
+
+      alert(
+        `Successfully imported ${importData.diagrams.length} diagram(s).\n\n` +
+        `Customer: ${targetCustomer}\n` +
+        `Folder: ${targetFolder}\n\n` +
+        `Images stored in browser IndexedDB.`
+      );
+    } catch (error) {
+      console.error('Import error:', error);
+      const loadingEl = document.getElementById('import-loading');
+      if (loadingEl) document.body.removeChild(loadingEl);
+      throw error; // Re-throw to be caught by handleImportJSON
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleExportJSON = async () => {
@@ -441,6 +537,93 @@ const CustomerViewer = () => {
     }
   };
 
+  // Export order list to JSON
+  const handleExportOrder = () => {
+    const orderItems = Object.entries(globalOrderList).filter(([_, item]) => item.orderQty > 0);
+
+    if (orderItems.length === 0) {
+      alert('No parts in order list to export.');
+      return;
+    }
+
+    const exportData = {
+      customer: customerName,
+      exportDate: new Date().toISOString(),
+      orderCount: orderItems.length,
+      totalQuantity: orderItems.reduce((sum, [_, item]) => sum + item.orderQty, 0),
+      orderItems: orderItems.map(([orderKey, item]) => ({
+        orderKey,
+        ...item
+      }))
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${customerName.replace(/[^a-zA-Z0-9]/g, '_')}_order_${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import order list from JSON
+  const handleImportOrder = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const fileText = await file.text();
+      const importData = JSON.parse(fileText);
+
+      if (!importData.orderItems || !Array.isArray(importData.orderItems)) {
+        alert('Invalid order file format.\n\nRequired field: orderItems (array)');
+        e.target.value = '';
+        return;
+      }
+
+      const confirmMsg = `Import ${importData.orderCount || importData.orderItems.length} order item(s)?\n\n` +
+        `Customer: ${importData.customer || 'Unknown'}\n` +
+        `Total Quantity: ${importData.totalQuantity || 'N/A'}\n\n` +
+        `This will ADD to your current order list.`;
+
+      if (!window.confirm(confirmMsg)) {
+        e.target.value = '';
+        return;
+      }
+
+      // Merge imported orders with existing
+      const newOrderList = { ...globalOrderList };
+      importData.orderItems.forEach(item => {
+        const orderKey = item.orderKey || `imported-${item.partNumber}-${Date.now()}`;
+        if (newOrderList[orderKey]) {
+          // Add to existing quantity
+          newOrderList[orderKey].orderQty += item.orderQty || 1;
+        } else {
+          // Add new item
+          newOrderList[orderKey] = {
+            partNumber: item.partNumber,
+            partCode: item.partCode || '',
+            partName: item.partName || `Part ${item.partNumber}`,
+            qty: item.qty || '1',
+            orderQty: item.orderQty || 1,
+            diagramId: item.diagramId || '',
+            diagramName: item.diagramName || 'Imported',
+            diagramNumber: item.diagramNumber || ''
+          };
+        }
+      });
+
+      setGlobalOrderList(newOrderList);
+      alert(`Successfully imported ${importData.orderItems.length} order item(s).`);
+    } catch (error) {
+      console.error('Order import error:', error);
+      alert('Failed to import order.\n\nError: ' + error.message);
+    }
+
+    e.target.value = '';
+  };
+
   const handlePreviewPDF = () => {
     const orderItems = Object.entries(globalOrderList).filter(([_, item]) => item.orderQty > 0);
 
@@ -449,210 +632,110 @@ const CustomerViewer = () => {
       return;
     }
 
-    const printWindow = window.open('', '_blank');
     const totalItems = orderItems.length;
     const totalQuantity = orderItems.reduce((sum, [_, item]) => sum + item.orderQty, 0);
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Parts Order - ${customerName}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          * {
-            box-sizing: border-box;
-          }
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-          }
-          .header-bar {
-            position: sticky;
-            top: 0;
-            background-color: #2196f3;
-            color: white;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            z-index: 1000;
-          }
-          .header-bar h2 {
-            margin: 0;
-            font-size: 18px;
-          }
-          .header-buttons {
-            display: flex;
-            gap: 10px;
-          }
-          .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-          }
-          .btn-close {
-            background-color: #f44336;
-            color: white;
-          }
-          .btn-print {
-            background-color: #4caf50;
-            color: white;
-          }
-          .content {
-            padding: 20px;
-            max-width: 1600px;
-            margin: 0 auto;
-            background-color: white;
-            min-height: calc(100vh - 60px);
-          }
-          h1 {
-            color: #333;
-            border-bottom: 3px solid #2196f3;
-            padding-bottom: 10px;
-            margin-top: 0;
-          }
-          .meta {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-          }
-          th, td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-          }
-          th {
-            background-color: #2196f3;
-            color: white;
-            font-weight: bold;
-          }
-          tr:nth-child(even) {
-            background-color: #f9f9f9;
-          }
-          .summary {
-            margin-top: 30px;
-            padding: 15px;
-            background-color: #f0f0f0;
-            border-radius: 5px;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            color: #666;
-            font-size: 12px;
-          }
-          @media print {
-            @page { margin: 0.5in; }
-            .header-bar {
-              display: none;
-            }
-            body {
-              background-color: white;
-            }
-            .content {
-              padding: 0;
-            }
-          }
-          @media (max-width: 768px) {
-            .content {
-              padding: 12px;
-            }
-            th, td {
-              padding: 8px;
-              font-size: 12px;
-            }
-            h1 {
-              font-size: 24px;
-            }
-            .meta {
-              font-size: 12px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header-bar">
-          <h2>📄 Parts Order Preview</h2>
-          <div class="header-buttons">
-            <button class="btn btn-print" onclick="window.print()">
-              🖨️ Print
-            </button>
-            <button class="btn btn-close" onclick="window.close()">
-              ✕ Close
-            </button>
-          </div>
-        </div>
+    // Generate real PDF with jsPDF (no browser print headers)
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 40;
+    let cursorY = margin;
 
-        <div class="content">
-          <h1>Parts Order</h1>
-          <div class="meta">
-            <strong>Customer:</strong> ${customerName}<br>
-            <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
-            <strong>Total Items:</strong> ${totalItems}
-          </div>
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(33, 33, 33);
+    const headingText = orderCustomerName ? `Parts Order — ${orderCustomerName}` : 'Parts Order';
+    doc.text(headingText, margin, cursorY);
+    cursorY += 6;
+    doc.setDrawColor(33, 150, 243);
+    doc.setLineWidth(2);
+    doc.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 18;
 
-          <table>
-            <thead>
-              <tr>
-                <th>Part #</th>
-                <th>Part Code</th>
-                <th>Part Name</th>
-                <th>From Diagram</th>
-                <th>Order Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${orderItems.map(([orderKey, item]) => {
-                return `
-                  <tr>
-                    <td><strong>${item.partNumber}</strong></td>
-                    <td>${item.partCode || ''}</td>
-                    <td>${item.partName || ''}</td>
-                    <td>${item.diagramNumber ? `<strong>${item.diagramNumber}</strong> - ${item.diagramName}` : item.diagramName}</td>
-                    <td><strong>${item.orderQty}</strong></td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+    // Meta block
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(60, 60, 60);
 
-          <div class="summary">
-            <strong>Order Summary:</strong><br>
-            Total line items: ${totalItems}<br>
-            Total parts ordered: ${totalQuantity}
-          </div>
+    const writeLine = (label, value) => {
+      if (!value) return;
+      doc.setFont('helvetica', 'bold');
+      const labelText = `${label}: `;
+      doc.text(labelText, margin, cursorY);
+      const labelWidth = doc.getTextWidth(labelText);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(value), margin + labelWidth, cursorY);
+      cursorY += 15;
+    };
 
-          <div class="footer">
-            Generated by Interactive Parts Manual (JTI)<br>
-            ${new Date().toLocaleString()}
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    writeLine('Customer', orderCustomerName);
+    writeLine('Model', orderModel);
+    writeLine('Serial', orderSerial);
+    writeLine('Job', orderJob);
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    if (orderCompanyName || orderAttn || orderStreet || orderCityStateZip) {
+      cursorY += 4;
+      if (orderCompanyName) writeLine('Company', orderCompanyName);
+      if (orderAttn || orderStreet || orderCityStateZip) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('Ship To:', margin, cursorY);
+        cursorY += 15;
+        doc.setFont('helvetica', 'normal');
+        const shipLines = [orderAttn && `ATTN: ${orderAttn}`, orderStreet, orderCityStateZip].filter(Boolean);
+        shipLines.forEach(line => {
+          doc.text(line, margin + 16, cursorY);
+          cursorY += 14;
+        });
+      }
+    }
+
+    cursorY += 8;
+    writeLine('Total Items', String(totalItems));
+    cursorY += 6;
+
+    // Parts table
+    autoTable(doc, {
+      startY: cursorY,
+      head: [['Part #', 'Part Code', 'Part Name', 'From Diagram', 'Order Qty']],
+      body: orderItems.map(([_, item]) => [
+        item.partNumber,
+        item.partCode || '',
+        item.partName || '',
+        item.diagramNumber ? `${item.diagramNumber} - ${item.diagramName}` : (item.diagramName || ''),
+        item.orderQty
+      ]),
+      styles: { fontSize: 10, cellPadding: 6 },
+      headStyles: { fillColor: [33, 150, 243], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [249, 249, 249] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 50 },
+        4: { fontStyle: 'bold', halign: 'center', cellWidth: 60 }
+      },
+      margin: { left: margin, right: margin }
+    });
+
+    // Summary block below table
+    const afterTableY = doc.lastAutoTable.finalY + 18;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, afterTableY, pageWidth - margin * 2, 44, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(33, 33, 33);
+    doc.text('Order Summary', margin + 10, afterTableY + 16);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total line items: ${totalItems}`, margin + 10, afterTableY + 30);
+    doc.text(`Total parts ordered: ${totalQuantity}`, margin + 180, afterTableY + 30);
+
+    // Open the generated PDF in a new tab
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   };
 
+
   // Group diagrams by customer, then by folder
-  const getDiagramsByCustomerAndFolder = () => {
+  const diagramsByCustomerAndFolder = useMemo(() => {
     const grouped = {};
     Object.values(diagrams).forEach(diagram => {
       const customer = diagram.customer || 'General';
@@ -667,30 +750,42 @@ const CustomerViewer = () => {
       grouped[customer][folder].push(diagram);
     });
 
-    // Sort each folder's diagrams
+    // Sort each folder's diagrams by name (e.g., 10-1, 10-2, 10-3)
     Object.keys(grouped).forEach(customer => {
       Object.keys(grouped[customer]).forEach(folder => {
         grouped[customer][folder].sort((a, b) => {
-          const dateA = new Date(a.createdAt || 0).getTime();
-          const dateB = new Date(b.createdAt || 0).getTime();
-          return dateA - dateB;
+          // Extract number prefix (e.g., "10-1", "10-2")
+          const getPrefix = (name) => {
+            const match = (name || '').match(/^(\d+)[-](\d+)/);
+            if (match) {
+              return [parseInt(match[1]), parseInt(match[2])];
+            }
+            return [999, 999];
+          };
+
+          const [aMain, aSub] = getPrefix(a.name);
+          const [bMain, bSub] = getPrefix(b.name);
+
+          if (aMain !== bMain) return aMain - bMain;
+          if (aSub !== bSub) return aSub - bSub;
+          return (a.name || '').localeCompare(b.name || '');
         });
       });
     });
 
     return grouped;
-  };
+  }, [diagrams]);
 
-  const getCustomers = () => {
+  const customersList = useMemo(() => {
     const customers = new Set();
     Object.values(diagrams).forEach(diagram => {
       customers.add(diagram.customer || 'General');
     });
     return Array.from(customers).sort();
-  };
+  }, [diagrams]);
 
-  const getFilteredDiagramsByCustomerAndFolder = () => {
-    const allData = getDiagramsByCustomerAndFolder();
+  const filteredDiagramsByCustomerAndFolder = useMemo(() => {
+    const allData = diagramsByCustomerAndFolder;
 
     if (selectedFolder === 'All Folders') {
       return allData;
@@ -712,7 +807,7 @@ const CustomerViewer = () => {
     });
 
     return filtered;
-  };
+  }, [diagramsByCustomerAndFolder, selectedFolder]);
 
   // Delete customer with password protection
   const handleDeleteCustomer = async (customerName) => {
@@ -742,16 +837,20 @@ const CustomerViewer = () => {
       const updatedDiagrams = { ...diagrams };
       diagramsToDelete.forEach(diagram => {
         delete updatedDiagrams[diagram.id];
-
-        // Also remove from order list
-        if (globalOrderList[diagram.id]) {
-          const newOrderList = { ...globalOrderList };
-          delete newOrderList[diagram.id];
-          setGlobalOrderList(newOrderList);
-        }
       });
 
       setDiagrams(updatedDiagrams);
+
+      // Remove every order-list entry for the deleted diagrams.
+      // Keys are `${diagram.id}-${partNumber}`, so match by id prefix (single functional update).
+      const deletedIds = new Set(diagramsToDelete.map(d => d.id));
+      setGlobalOrderList(prev => {
+        const next = {};
+        Object.entries(prev).forEach(([key, val]) => {
+          if (![...deletedIds].some(id => key.startsWith(`${id}-`))) next[key] = val;
+        });
+        return next;
+      });
 
       // Clear current diagram if it was in this customer
       if (currentDiagram && (currentDiagram.customer || 'General') === customerName) {
@@ -794,16 +893,20 @@ const CustomerViewer = () => {
       const updatedDiagrams = { ...diagrams };
       diagramsToDelete.forEach(diagram => {
         delete updatedDiagrams[diagram.id];
-
-        // Also remove from order list
-        if (globalOrderList[diagram.id]) {
-          const newOrderList = { ...globalOrderList };
-          delete newOrderList[diagram.id];
-          setGlobalOrderList(newOrderList);
-        }
       });
 
       setDiagrams(updatedDiagrams);
+
+      // Remove every order-list entry for the deleted diagrams.
+      // Keys are `${diagram.id}-${partNumber}`, so match by id prefix (single functional update).
+      const deletedIds = new Set(diagramsToDelete.map(d => d.id));
+      setGlobalOrderList(prev => {
+        const next = {};
+        Object.entries(prev).forEach(([key, val]) => {
+          if (![...deletedIds].some(id => key.startsWith(`${id}-`))) next[key] = val;
+        });
+        return next;
+      });
 
       // Clear current diagram if it was in this folder
       if (currentDiagram &&
@@ -836,9 +939,9 @@ const CustomerViewer = () => {
 
       // Load customer names only (not full diagrams)
       setDownloadStatus('Loading customer list from Firebase...');
-      const availableCustomers = await getCustomerNames();
+      const customerList = await getCustomerNames();
 
-      if (!availableCustomers || availableCustomers.length === 0) {
+      if (!customerList || customerList.length === 0) {
         setDownloadStatus(null);
         alert('No customers found in Firebase.');
         return;
@@ -846,31 +949,29 @@ const CustomerViewer = () => {
 
       setDownloadStatus(null);
 
-      // Get customer name
-      const customerNameInput = prompt(
-        `Enter your customer name to load diagrams:\n\n` +
-        `Available customers:\n${availableCustomers.join('\n')}`
-      );
+      // Show customer selector modal
+      setAvailableCustomers(customerList.sort());
+      setSelectedCustomerToLoad(customerList[0]); // Pre-select first customer
+      setShowCustomerSelector(true);
+    } catch (error) {
+      console.error('Error loading from Firebase:', error);
+      setDownloadStatus('✗ Load failed: ' + error.message);
+      setTimeout(() => setDownloadStatus(null), 5000);
+      alert('Failed to load customer list from Firebase.\n\nError: ' + error.message + '\n\nMake sure Firebase is properly configured and accessible.');
+    }
+  };
 
-      if (!customerNameInput || !customerNameInput.trim()) {
-        return; // User cancelled
-      }
+  // Execute the customer diagram load after selection
+  const handleConfirmCustomerLoad = async () => {
+    if (!selectedCustomerToLoad) {
+      alert('Please select a customer.');
+      return;
+    }
 
-      const requestedCustomer = customerNameInput.trim();
+    setShowCustomerSelector(false);
 
-      // Find matching customer (case-insensitive)
-      const matchedCustomer = availableCustomers.find(
-        customer => customer.toLowerCase() === requestedCustomer.toLowerCase()
-      );
-
-      if (!matchedCustomer) {
-        alert(
-          `No customer found matching "${requestedCustomer}" in Firebase.\n\n` +
-          `Available customers:\n${availableCustomers.join('\n')}\n\n` +
-          `Note: Customer name is case-insensitive.`
-        );
-        return;
-      }
+    try {
+      const matchedCustomer = selectedCustomerToLoad;
 
       // Load diagrams for this specific customer only
       setDownloadStatus(`Loading diagrams for "${matchedCustomer}" from Firebase...`);
@@ -941,6 +1042,65 @@ const CustomerViewer = () => {
       setTimeout(() => setDownloadStatus(null), 5000);
       alert('Failed to load diagrams from Firebase.\n\nError: ' + error.message + '\n\nMake sure Firebase is properly configured and accessible.');
     }
+  };
+
+  // Search parts across all diagrams
+  const handlePartsSearch = (query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    const results = [];
+    const lowerQuery = query.toLowerCase().trim();
+
+    Object.entries(diagrams).forEach(([diagramId, diagram]) => {
+      if (diagram.partsData) {
+        Object.entries(diagram.partsData).forEach(([partNum, partInfo]) => {
+          const partCode = (partInfo.partCode || '').toLowerCase();
+          const partName = (partInfo.partName || '').toLowerCase();
+
+          if (partCode.includes(lowerQuery) || partName.includes(lowerQuery)) {
+            results.push({
+              diagramId,
+              diagramName: diagram.name || 'Unnamed',
+              diagramNumber: diagram.number || '',
+              customer: diagram.customer || 'Unknown',
+              folder: diagram.folder || '',
+              partNumber: partNum,
+              partCode: partInfo.partCode || '',
+              partName: partInfo.partName || '',
+              qty: partInfo.qty || ''
+            });
+          }
+        });
+      }
+    });
+
+    // Sort results: exact matches first, then by part code
+    results.sort((a, b) => {
+      const aExact = a.partCode.toLowerCase() === lowerQuery || a.partName.toLowerCase() === lowerQuery;
+      const bExact = b.partCode.toLowerCase() === lowerQuery || b.partName.toLowerCase() === lowerQuery;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+      return a.partCode.localeCompare(b.partCode);
+    });
+
+    setSearchResults(results);
+    setShowSearchResults(true);
+  };
+
+  // Navigate to diagram from search result
+  const goToSearchResult = (result) => {
+    setCurrentDiagramId(result.diagramId);
+    setShowSearchResults(false);
+    setSearchQuery('');
+    // Scroll to diagram viewer
+    setTimeout(() => {
+      diagramViewerRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const currentDiagram = currentDiagramId ? diagrams[currentDiagramId] : null;
@@ -1052,6 +1212,43 @@ const CustomerViewer = () => {
             </button>
 
             <button
+              onClick={() => setShowShareModal(true)}
+              disabled={Object.keys(diagrams).length === 0}
+              style={{
+                padding: isMobile ? '8px 12px' : '10px 16px',
+                backgroundColor: Object.keys(diagrams).length === 0 ? '#666' : '#e91e63',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: Object.keys(diagrams).length === 0 ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: isMobile ? '12px' : '14px',
+                flex: isMobile ? '1' : 'none'
+              }}
+              title="Generate a shareable link for this customer"
+            >
+              {isMobile ? '🔗' : '🔗 Share'}
+            </button>
+
+            <button
+              onClick={() => setShowOrderInfo(true)}
+              style={{
+                padding: isMobile ? '8px 12px' : '10px 16px',
+                backgroundColor: (orderCompanyName || orderAttn || orderStreet || orderCityStateZip) ? '#4caf50' : '#607d8b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: isMobile ? '12px' : '14px',
+                flex: isMobile ? '1' : 'none'
+              }}
+              title="Set company name and shipping address for PDF"
+            >
+              {isMobile ? '🏢' : '🏢 Order Info'}
+            </button>
+
+            <button
               onClick={handlePreviewPDF}
               disabled={orderCount === 0}
               style={{
@@ -1070,6 +1267,50 @@ const CustomerViewer = () => {
             </button>
 
             <button
+              onClick={handleExportOrder}
+              disabled={orderCount === 0}
+              style={{
+                padding: isMobile ? '8px 12px' : '10px 16px',
+                backgroundColor: orderCount === 0 ? '#666' : '#009688',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: orderCount === 0 ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: isMobile ? '12px' : '14px',
+                flex: isMobile ? '1' : 'none'
+              }}
+              title="Save your order list to a JSON file"
+            >
+              {isMobile ? '💾' : '💾 Save Order'}
+            </button>
+
+            <label style={{
+              padding: isMobile ? '8px 12px' : '10px 16px',
+              backgroundColor: '#795548',
+              color: 'white',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: isMobile ? '12px' : '14px',
+              flex: isMobile ? '1' : 'none',
+              textAlign: 'center',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Load a previously saved order"
+            >
+              {isMobile ? '📂' : '📂 Load Order'}
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImportOrder}
+                style={{ display: 'none' }}
+              />
+            </label>
+
+            <button
               onClick={() => setDarkMode(!darkMode)}
               style={{
                 padding: isMobile ? '8px 12px' : '10px 16px',
@@ -1083,6 +1324,24 @@ const CustomerViewer = () => {
             >
               {darkMode ? '☀️' : '🌙'}
             </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                style={{
+                  padding: isMobile ? '8px 12px' : '10px 16px',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: isMobile ? '12px' : '14px'
+                }}
+                title="Sign Out"
+              >
+                {isMobile ? '🚪' : 'Sign Out'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1100,6 +1359,149 @@ const CustomerViewer = () => {
             boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.1)'
           }}>
             {downloadStatus}
+          </div>
+        )}
+
+        {/* Parts Search Bar */}
+        {Object.keys(diagrams).length > 0 && (
+          <div style={{
+            marginTop: '10px',
+            padding: isMobile ? '12px' : '16px',
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            borderRadius: '8px',
+            boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.1)',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '20px' }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search parts by part number or name..."
+                value={searchQuery}
+                onChange={(e) => handlePartsSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '10px 12px' : '12px 16px',
+                  fontSize: isMobile ? '14px' : '16px',
+                  borderRadius: '8px',
+                  border: darkMode ? '1px solid #555' : '1px solid #ddd',
+                  backgroundColor: darkMode ? '#1a1a1a' : '#fff',
+                  color: darkMode ? '#fff' : '#333',
+                  outline: 'none'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setShowSearchResults(false);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#666',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? '12px' : '14px'
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                borderRadius: '0 0 8px 8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                border: darkMode ? '1px solid #444' : '1px solid #ddd',
+                borderTop: 'none',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                zIndex: 1000
+              }}>
+                <div style={{
+                  padding: '8px 16px',
+                  backgroundColor: darkMode ? '#333' : '#f0f0f0',
+                  fontWeight: 'bold',
+                  color: darkMode ? '#fff' : '#333',
+                  borderBottom: darkMode ? '1px solid #444' : '1px solid #ddd',
+                  position: 'sticky',
+                  top: 0
+                }}>
+                  Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                </div>
+                {searchResults.map((result, idx) => (
+                  <div
+                    key={`${result.diagramId}-${result.partNumber}-${idx}`}
+                    onClick={() => goToSearchResult(result)}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: darkMode ? '1px solid #333' : '1px solid #eee',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s',
+                      backgroundColor: darkMode ? '#2a2a2a' : '#fff'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = darkMode ? '#333' : '#f5f5f5'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = darkMode ? '#2a2a2a' : '#fff'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#2196f3', fontSize: '14px' }}>
+                          {result.partCode}
+                        </div>
+                        <div style={{ color: darkMode ? '#ccc' : '#666', fontSize: '13px', marginTop: '2px' }}>
+                          {result.partName}
+                        </div>
+                        <div style={{ color: darkMode ? '#888' : '#999', fontSize: '12px', marginTop: '4px' }}>
+                          Diagram: {result.diagramName} {result.diagramNumber ? `(#${result.diagramNumber})` : ''}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ color: darkMode ? '#888' : '#999', fontSize: '11px' }}>
+                          {result.folder}
+                        </div>
+                        {result.qty && (
+                          <div style={{ color: darkMode ? '#aaa' : '#666', fontSize: '12px', marginTop: '2px' }}>
+                            Qty: {result.qty}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* No Results Message */}
+            {showSearchResults && searchResults.length === 0 && searchQuery.trim() && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                borderRadius: '0 0 8px 8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                border: darkMode ? '1px solid #444' : '1px solid #ddd',
+                borderTop: 'none',
+                padding: '20px',
+                textAlign: 'center',
+                color: darkMode ? '#888' : '#666',
+                zIndex: 1000
+              }}>
+                No parts found matching "{searchQuery}"
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1178,7 +1580,7 @@ const CustomerViewer = () => {
                 }}
               >
                 <option value="All Folders">All Folders</option>
-                {Object.entries(getDiagramsByCustomerAndFolder()).map(([customer, folders]) => (
+                {Object.entries(diagramsByCustomerAndFolder).map(([customer, folders]) => (
                   <optgroup key={customer} label={customer}>
                     <option value={customer}>All {customer} Manuals</option>
                     {Object.entries(folders).map(([folder, diagrams]) => (
@@ -1194,7 +1596,16 @@ const CustomerViewer = () => {
 
           {/* Diagram list - always show on desktop, collapsible on mobile */}
           {(!isMobile || diagramSelectorOpen) && (
-            Object.keys(diagrams).length === 0 ? (
+            initializing ? (
+              <div style={{
+                padding: '20px',
+                backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <p>Loading diagrams…</p>
+              </div>
+            ) : Object.keys(diagrams).length === 0 ? (
               <div style={{
                 padding: '20px',
                 backgroundColor: darkMode ? '#2a2a2a' : '#fff',
@@ -1207,7 +1618,7 @@ const CustomerViewer = () => {
                 </p>
               </div>
             ) :
-              Object.entries(getFilteredDiagramsByCustomerAndFolder()).map(([customerName, folders]) => (
+              Object.entries(filteredDiagramsByCustomerAndFolder).map(([customerName, folders]) => (
               <div key={customerName} style={{
                 marginBottom: '16px',
                 border: darkMode ? '1px solid #555' : '1px solid #ddd',
@@ -1350,16 +1761,18 @@ const CustomerViewer = () => {
         </div>
 
         {/* Diagram Viewer */}
-        <div>
+        <div ref={diagramViewerRef}>
           {currentDiagram ? (
             <>
               {/* Navigation Buttons */}
               {(() => {
-                // Get filtered diagrams list sorted by name
+                // Get diagrams only from the CURRENT diagram's folder
+                const currentCustomer = currentDiagram.customer || 'General';
+                const currentFolder = currentDiagram.folder || 'General';
+
                 const filteredDiagrams = Object.values(diagrams).filter(d => {
-                  if (selectedFolder === 'All Folders') return true;
-                  if ((d.customer || 'General') === selectedFolder) return true;
-                  return `${d.customer || 'General'} > ${d.folder || 'General'}` === selectedFolder;
+                  return (d.customer || 'General') === currentCustomer &&
+                         (d.folder || 'General') === currentFolder;
                 });
 
                 // Sort diagrams by name
@@ -1492,6 +1905,7 @@ const CustomerViewer = () => {
                 setGlobalOrderList={setGlobalOrderList}
                 darkMode={darkMode}
                 isMobile={isMobile}
+                onNavigateToDiagram={setCurrentDiagramId}
               />
             </>
           ) : (
@@ -1596,6 +2010,253 @@ const CustomerViewer = () => {
           </div>
         </div>
       )}
+
+      {/* Customer Selector Modal */}
+      {showCustomerSelector && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10001,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#fff' : '#333',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '30px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: '24px' }}>☁️ Select Customer</h2>
+
+            <p style={{ marginBottom: '20px', color: darkMode ? '#ccc' : '#666' }}>
+              Choose a customer to load their diagrams from Firebase:
+            </p>
+
+            <div style={{ marginBottom: '25px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}>
+                Customer Name:
+              </label>
+              <select
+                value={selectedCustomerToLoad}
+                onChange={(e) => setSelectedCustomerToLoad(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '16px',
+                  backgroundColor: darkMode ? '#333' : '#fff',
+                  color: darkMode ? '#fff' : '#000',
+                  border: darkMode ? '2px solid #555' : '2px solid #ddd',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                {availableCustomers.map(customer => (
+                  <option key={customer} value={customer}>
+                    {customer}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowCustomerSelector(false)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: darkMode ? '#555' : '#ddd',
+                  color: darkMode ? '#fff' : '#333',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCustomerLoad}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                Load Diagrams
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Info Modal */}
+      {showOrderInfo && (
+        <div
+          onClick={() => setShowOrderInfo(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001,
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+              color: darkMode ? '#fff' : '#333',
+              borderRadius: '12px',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '85vh',
+              overflow: 'auto',
+              padding: '24px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px' }}>🏢 Order Information</h2>
+              <button
+                onClick={() => setShowOrderInfo(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: darkMode ? '#888' : '#666',
+                  padding: '0',
+                  lineHeight: '1'
+                }}
+              >
+                x
+              </button>
+            </div>
+
+            {[
+              { label: 'Customer Name', value: orderCustomerName, setter: setOrderCustomerName, placeholder: 'Customer name...' },
+              { type: 'divider' },
+              { label: 'Model', value: orderModel, setter: setOrderModel, placeholder: 'Equipment model...' },
+              { label: 'Serial', value: orderSerial, setter: setOrderSerial, placeholder: 'Serial number...' },
+              { label: 'Job', value: orderJob, setter: setOrderJob, placeholder: 'Job number or name...' },
+              { type: 'divider' },
+              { label: 'Company Name', value: orderCompanyName, setter: setOrderCompanyName, placeholder: 'Company name...' },
+              { label: 'ATTN', value: orderAttn, setter: setOrderAttn, placeholder: 'Contact name...' },
+              { label: 'Street Address', value: orderStreet, setter: setOrderStreet, placeholder: '123 Main Street' },
+              { label: 'City, State, ZIP', value: orderCityStateZip, setter: setOrderCityStateZip, placeholder: 'City, ST 12345' },
+            ].map((field, i) => field.type === 'divider' ? (
+              <hr key={i} style={{ border: 'none', borderTop: darkMode ? '1px solid #444' : '1px solid #ddd', margin: '12px 0' }} />
+            ) : (
+              <div key={i} style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold', fontSize: '13px' }}>
+                  {field.label}:
+                </label>
+                <input
+                  type="text"
+                  value={field.value}
+                  onChange={(e) => field.setter(e.target.value)}
+                  placeholder={field.placeholder}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '14px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    border: darkMode ? '1px solid #555' : '1px solid #ddd',
+                    borderRadius: '6px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            ))}
+
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => {
+                  setOrderCustomerName('');
+                  setOrderModel('');
+                  setOrderSerial('');
+                  setOrderJob('');
+                  setOrderCompanyName('');
+                  setOrderAttn('');
+                  setOrderStreet('');
+                  setOrderCityStateZip('');
+                }}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowOrderInfo(false)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        customers={customersList}
+        diagrams={diagrams}
+        darkMode={darkMode}
+        equipmentInfo={{ model: orderModel, serial: orderSerial, job: orderJob }}
+      />
     </div>
   );
 };
