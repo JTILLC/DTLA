@@ -26,6 +26,7 @@
 
 /** Path segment ↔ view key. The empty path is the dashboard. */
 export const VIEWS = {
+  newJob: 'new-job',
   board: 'board',
   calendar: 'calendar',
   map: 'map',
@@ -64,15 +65,22 @@ export const parsePath = (pathname = '/') => {
   if (head === 'customer' && rest) return { view: CUSTOMER, customerSlug: rest };
   // A packet deep link may name its service report: /packet/2026028
   if (head === 'packet') return { view: VIEWS.packet, sr: rest || '' };
-  if (VIEWS[head]) return { view: VIEWS[head] };
+  // Matched on the VALUE, not the key. Every view here happens to have a key
+  // identical to its path, and looking up VIEWS[head] worked only because of
+  // that coincidence — the first view whose key differed from its path (newJob
+  // → /new-job) parsed as the dashboard, silently.
+  if (isViewPath(head)) return { view: head };
   return { view: HOME };
 };
+
+/** True when a path segment names a view. */
+export const isViewPath = (seg) => Object.values(VIEWS).includes(String(seg || ''));
 
 /** ...and back to a path, so the two can never disagree. */
 export const toPath = ({ view, customerSlug, sr } = {}) => {
   if (view === CUSTOMER && customerSlug) return `/customer/${customerSlug}`;
   if (view === VIEWS.packet && sr) return `/packet/${sr}`;
-  if (view && view !== HOME && VIEWS[view]) return `/${view}`;
+  if (view && view !== HOME && isViewPath(view)) return `/${view}`;
   return '/';
 };
 
@@ -86,4 +94,4 @@ export const toPath = ({ view, customerSlug, sr } = {}) => {
 export const customerFromSlug = (slug, customers = []) =>
   customers.find((c) => toSlug(c?.name ?? c) === String(slug || '')) || null;
 
-export default { VIEWS, HOME, CUSTOMER, parsePath, toPath, toSlug, customerFromSlug };
+export default { VIEWS, HOME, CUSTOMER, parsePath, toPath, toSlug, customerFromSlug, isViewPath };

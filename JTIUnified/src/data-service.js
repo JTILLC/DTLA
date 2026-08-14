@@ -1,6 +1,7 @@
 import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { showsWithoutEntries } from './utils/timesheetVisibility.js';
 import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
+import { normalizeDraft } from './utils/jobDraft.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -2083,10 +2084,11 @@ export const fetchUnifiedJobs = async () => {
  * same moment cannot both be handed the same number — the second one fails and
  * is told to try again rather than quietly sharing.
  */
-export const startJob = async ({ sr, customer, date, description }) => {
-  const key = String(sr || '').trim().toUpperCase();
+export const startJob = async (draft) => {
+  const d = normalizeDraft(draft);
+  const key = d.sr;
   if (!key) throw new Error('A service report number is required.');
-  if (!String(customer || '').trim()) throw new Error('A customer is required.');
+  if (!d.customer) throw new Error('A customer is required.');
 
   const ref2 = doc(jobsMasterDb, UNIFIED_JOBS, key);
   const existing = await getDoc(ref2);
@@ -2095,9 +2097,16 @@ export const startJob = async ({ sr, customer, date, description }) => {
   }
   const record = {
     sr: key,
-    customer: String(customer).trim(),
-    date: date || '',
-    description: String(description || '').trim(),
+    customer: d.customer,
+    // `date` is the start date under its old name. Three apps read `date`
+    // already; repurposing it would break them with nothing to follow.
+    date: d.date,
+    dateStart: d.dateStart,
+    dateEnd: d.dateEnd,
+    address: d.address,
+    city: d.city,
+    state: d.state,
+    description: d.description,
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref2, record);
@@ -2239,6 +2248,13 @@ export const publishToTimesheet = async () => {
     sr: String(j.sr),
     customer: j.customer || '',
     date: j.date || '',
+    // Where and how long. The timesheet asks for both and they were being
+    // typed again from whatever the person remembered.
+    dateStart: j.dateStart || j.date || '',
+    dateEnd: j.dateEnd || '',
+    address: j.address || '',
+    city: j.city || '',
+    state: j.state || '',
     description: j.description || '',
     updatedAt: at,
   })));
@@ -2252,7 +2268,14 @@ export const publishToTimesheet = async () => {
     .map((j) => deleteDoc(doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, String(j.sr))).catch(() => {})));
   await Promise.all(openJobs.map((j) => setDoc(
     doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, String(j.sr)),
-    { sr: String(j.sr), customer: j.customer || '', date: j.date || '', description: j.description || '', updatedAt: at },
+    {
+      sr: String(j.sr), customer: j.customer || '', date: j.date || '',
+      dateStart: j.dateStart || j.date || '', dateEnd: j.dateEnd || '',
+      description: j.description || '', updatedAt: at,
+      // No address here on purpose: CCW knows its own customers and their
+      // sites, and copying postal details into it would create a second,
+      // staler answer to a question it can already answer.
+    },
   )));
 
   // ...and the customer directory into the Jobs project, so the Jobs app can

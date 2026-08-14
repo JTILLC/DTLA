@@ -19,6 +19,7 @@ import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
 import CustomerRecordsPanel from './components/CustomerRecordsPanel';
 import JobPacketBuilder from './components/JobPacketBuilder';
 import JobBoard from './components/JobBoard';
+import NewJobPage from './components/NewJobPage';
 import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
 
 
@@ -138,6 +139,7 @@ function App() {
   const showRecords = route.view === VIEWS.records;
   const showPacket = route.view === VIEWS.packet;
   const showBoard = route.view === VIEWS.board;
+  const showNewJob = route.view === VIEWS.newJob;
   const openView = (v) => go({ view: v });
   const closeView = () => go({ view: HOME });
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -505,7 +507,7 @@ function App() {
     if (v === VIEWS.reports && !packetsBySr) {
       fetchAllPackets().then(setPacketsBySr).catch((e) => console.warn('Packets unavailable:', e));
     }
-    if (v === VIEWS.records || v === VIEWS.packet) {
+    if (v === VIEWS.records || v === VIEWS.packet || v === VIEWS.newJob) {
       fetchCustomerRecords().then(setCustomerRecords).catch((e) => console.warn('Customer records unavailable:', e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -821,6 +823,14 @@ function App() {
   // The six views, as data. Each was an eighteen-line button before, identical
   // but for its colour and label, which is why adding one meant copying one.
   const PANELS = [
+    {
+      key: 'new-job', label: 'Start a job', Icon: Plus, tone: ui.TONE.ok, active: showNewJob,
+      onClick: () => {
+        const next = !showNewJob;
+        go({ view: next ? VIEWS.newJob : HOME });
+        if (next) setSearchResults(null);
+      },
+    },
     {
       key: 'board', label: 'Open jobs', Icon: ClipboardList, tone: ui.TONE.warn, active: showBoard,
       onClick: () => {
@@ -1622,6 +1632,17 @@ function App() {
         )}
 
         {/* Customer Detail View */}
+        {showNewJob && !selectedCustomer && !searchResults && (
+          <NewJobPage
+            colors={colors}
+            customerRecords={customerRecords}
+            // The number is live the moment it is reserved, so the pickers that
+            // read it are refreshed rather than left showing yesterday's list.
+            onCreated={() => loadServiceReports()}
+            onOpenPacket={(sr) => go({ view: VIEWS.packet, sr })}
+          />
+        )}
+
         {showBoard && !selectedCustomer && !searchResults && (
           <JobBoard
             colors={colors}
@@ -1640,6 +1661,7 @@ function App() {
             jobs={allJobsData}
             initialSr={route.sr || ''}
             onClose={closeView}
+            onStartJob={() => go({ view: VIEWS.newJob })}
           />
         )}
 
