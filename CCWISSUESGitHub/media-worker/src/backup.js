@@ -34,8 +34,12 @@ const MAX_DOCS = 20000;
 // fetch". Some documents hold base64 images, so a single collection can be
 // hundreds of megabytes. These caps exist to stop BEFORE that, because stopping
 // with a message beats dying without one.
-const MAX_BYTES = 6_000_000;          // whole run
-const MAX_COLLECTION_BYTES = 3_000_000;
+// Sized against the Worker's 128 MB, not guessed conservatively. The first
+// numbers here were so cautious they cut `visits` — the core CCW data, the
+// service reports themselves — which is a worse outcome than the crash they
+// prevented. A backup that drops the main table to stay safe is not a backup.
+const MAX_BYTES = 45_000_000;          // whole run
+const MAX_COLLECTION_BYTES = 35_000_000;
 
 /** Firestore's typed values back into plain JSON. */
 export function decodeValue(v) {
@@ -121,7 +125,7 @@ export function placeDoc(tree, segments, data) {
  * runQuery has no page token: the last name on a page is the cursor for the
  * next, and __name__ is the only field guaranteed to exist and be unique.
  */
-async function collectionGroup(projectId, token, collectionId, state, pageSize = 100) {
+async function collectionGroup(projectId, token, collectionId, state, pageSize = 50) {
   const url = `${FIRESTORE}/projects/${projectId}/databases/(default)/documents:runQuery`;
   let after = null;
   let bytes = 0;
@@ -150,7 +154,9 @@ async function collectionGroup(projectId, token, collectionId, state, pageSize =
     const pageBytes = JSON.stringify(page).length;
     if (bytes + pageBytes > MAX_COLLECTION_BYTES || state.bytes + pageBytes > MAX_BYTES) {
       state.truncated = 'bytes';
-      state.oversized.push(collectionId);
+      // Recorded with the size it reached, so "too large" is a number somebody
+      // can act on rather than a verdict.
+      state.oversized.push(`${collectionId} (over ${Math.round((bytes + pageBytes) / 1e6)}MB)`);
       break;
     }
     bytes += pageBytes;
@@ -215,6 +221,7 @@ export async function exportProject({ projectId, token, collections, state, chec
     project: projectId,
     takenAt: new Date().toISOString(),
     documents: state.count - startedAt,
+    megabytes: Math.round(state.bytes / 1e5) / 10,
     requests: state.requests,
     truncated: state.truncated,
     oversized: [...new Set(state.oversized)],
@@ -444,7 +451,8 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       await putObject(bucket, objectPath, await writeToken(), JSON.stringify(dump));
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
-        documents: dump.documents, truncated: dump.truncated, failed: dump.failed,
+        documents: dump.documents, megabytes: dump.megabytes,
+        truncated: dump.truncated, failed: dump.failed,
         // Named so an oversized collection is a decision to make rather than a
         // silent hole in the backup.
         oversized: dump.oversized,
