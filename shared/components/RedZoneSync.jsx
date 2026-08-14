@@ -47,6 +47,16 @@ export const buildRedzonePayload = ({ head, line, globalData, customerId, visitI
 };
 
 const RedZoneSync = ({ head, line, globalData, customerId, visitId, visitName, onChange, disabled, disabledReason }) => {
+  // Hidden until the integration is real.
+  //
+  // The button used to stay on screen explaining that RedZone was not
+  // configured yet. That is a control that cannot do anything, sitting next to
+  // controls that can, on a screen used in a plant — and the explanation reads
+  // as a fault in the app rather than as a feature nobody has turned on. The
+  // scaffolding stays; setting REDZONE_CONFIG.pushEndpoint brings the button
+  // back with no other change.
+  if (!REDZONE_CONFIG?.pushEndpoint) return null;
+
   const toast = useToast();
   const dialog = useDialog();
   const [sending, setSending] = useState(false);
