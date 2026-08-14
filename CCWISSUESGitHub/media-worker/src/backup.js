@@ -361,7 +361,7 @@ export function rotate(list, day = new Date()) {
 }
 
 /** Run the whole thing. Returns a manifest describing what happened. */
-export async function runBackup(env, mintToken, { date = new Date() } = {}) {
+export async function runBackup(env, mintToken, { date = new Date(), only = '' } = {}) {
   const day = date.toISOString().slice(0, 10);
   const bucket = env.BACKUP_BUCKET || env.STORAGE_BUCKET;
   // Shared across every project: Cloudflare counts subrequests per invocation,
@@ -393,8 +393,14 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     return writer;
   };
 
+  // `only` narrows the run to one project. The nightly cron takes them all —
+  // it has no client waiting on it — but a browser asking for four projects at
+  // once is asking for more subrequests than one invocation is allowed.
+  const chosen = rotate(backupTargets(env), date)
+    .filter((t) => !only || t.projectId === only || t.name === only);
+
   let first = true;
-  for (const t of rotate(backupTargets(env), date)) {
+  for (const t of chosen) {
     if (!t.ready) {
       manifest.results.push({ name: t.name, ok: false, skipped: true, reason: t.reason });
       continue;
@@ -427,7 +433,8 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
   }
 
   // Shearers last, because it is the odd one out and its failure mode differs.
-  if (env.SHEARERS_DB_URL) {
+  const wantShearers = !only || only === 'shearers-4c4b4' || only === 'Shearers downtime';
+  if (wantShearers && env.SHEARERS_DB_URL) {
     try {
       const token = env.SHEARERS_SA_EMAIL && env.SHEARERS_SA_PRIVATE_KEY
         ? await mintToken(env.SHEARERS_SA_EMAIL, env.SHEARERS_SA_PRIVATE_KEY,
@@ -448,7 +455,7 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     } catch (err) {
       manifest.results.push({ name: 'Shearers downtime', ok: false, error: String(err.message || err) });
     }
-  } else {
+  } else if (wantShearers) {
     manifest.results.push({ name: 'Shearers downtime', ok: false, skipped: true, reason: 'no database url configured' });
   }
 
