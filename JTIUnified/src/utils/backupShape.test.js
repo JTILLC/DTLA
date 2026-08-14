@@ -1,0 +1,105 @@
+// The round trip a real recovery depends on.
+//
+// The restore half of this system was written, never run, and did not work.
+// These tests are the substitute for having found that out during an actual
+// recovery — which is the only other way anyone would have.
+import { describe, it, expect } from 'vitest';
+import { ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan } from './backupShape.js';
+
+describe('CCW customer round trip', () => {
+  // Exactly the shape Firestore holds: the document IS { profile: {...} }.
+  const docData = {
+    profile: { name: 'Flagstone Foods', city: 'Robersonville', invoiceEmails: ['ap@example.com'] },
+  };
+  const visits = {
+    v1: { date: '2026-08-01', lines: [{ title: 'Line 1' }] },
+    v2: { date: '2026-08-09', lines: [] },
+  };
+
+  it('comes back exactly as it went in', () => {
+    expect(ccwCustomerSplit(ccwCustomerNode(docData, visits))).toEqual({ docData, visits });
+  });
+
+  it('does NOT double-wrap the profile', () => {
+    // The actual bug: restoring wrote { profile: { profile: {...} } }, which
+    // breaks every read of that customer and looks like the record emptying.
+    const { docData: out } = ccwCustomerSplit(ccwCustomerNode(docData, visits));
+    expect(out.profile.profile).toBeUndefined();
+    expect(out.profile.name).toBe('Flagstone Foods');
+  });
+
+  it('survives a customer with no visits', () => {
+    expect(ccwCustomerSplit(ccwCustomerNode(docData)).visits).toEqual({});
+    expect(ccwCustomerSplit({ profile: { name: 'X' } }).visits).toEqual({});
+  });
+
+  it('does not mistake a junk visits value for visits', () => {
+    expect(ccwCustomerSplit({ profile: {}, visits: 'nonsense' }).visits).toEqual({});
+  });
+
+  it('keeps fields stored beside the profile', () => {
+    // Older documents kept a name at the top level; a restore must not eat it.
+    const legacy = { name: 'Old Style', profile: { city: 'Y' } };
+    expect(ccwCustomerSplit(ccwCustomerNode(legacy, {})).docData).toEqual(legacy);
+  });
+
+  it('survives nothing at all', () => {
+    expect(() => ccwCustomerSplit()).not.toThrow();
+    expect(() => ccwCustomerSplit(null)).not.toThrow();
+  });
+});
+
+describe('planRestore', () => {
+  const ccw = {
+    app: 'CCW Issues',
+    timestamp: new Date().toISOString(),
+    data: { uid1: { customers: { c1: { profile: {}, visits: { v1: {}, v2: {} } }, c2: { profile: {} } } } },
+  };
+
+  it('counts what would be written, without writing it', () => {
+    const p = planRestore(ccw);
+    expect(p.valid).toBe(true);
+    expect(p.writes).toEqual([{ what: 'customers', n: 2 }, { what: 'visits', n: 2 }]);
+  });
+
+  it('warns that a Shearers restore replaces everything', () => {
+    // set() at the tree root deletes anything not in the file.
+    const p = planRestore({ app: 'Shearers Downtime Logger', timestamp: new Date().toISOString(), data: { a: {}, b: {} } });
+    expect(p.warnings.join(' ')).toMatch(/REPLACES the whole downtime tree/);
+  });
+
+  it('warns that jobs years are replaced whole', () => {
+    const p = planRestore({ app: 'JTI Jobs Tracker', timestamp: new Date().toISOString(), data: { 2026: [{}, {}], 2025: [{}] } });
+    expect(p.writes).toContainEqual({ what: 'jobs', n: 3 });
+    expect(p.warnings.join(' ')).toMatch(/replaced whole/);
+  });
+
+  it('says how old the file is, once that starts to matter', () => {
+    const old = new Date(Date.now() - 40 * 86400000).toISOString();
+    expect(planRestore({ ...ccw, timestamp: old }).warnings.join(' ')).toMatch(/40 days old/);
+    expect(planRestore(ccw).warnings.join(' ')).not.toMatch(/days old/);
+  });
+
+  it('refuses a file that is not a backup', () => {
+    expect(planRestore({ hello: 'world' }).valid).toBe(false);
+    expect(planRestore(null).valid).toBe(false);
+    expect(planRestore({ app: 'Something Else', data: { a: 1 } }).valid).toBe(false);
+  });
+
+  it('refuses an empty backup — restoring one would just wipe things', () => {
+    const p = planRestore({ app: 'Timesheet', timestamp: new Date().toISOString(), data: {} });
+    expect(p.valid).toBe(false);
+    expect(p.warnings.join(' ')).toMatch(/no records/);
+  });
+});
+
+describe('describePlan', () => {
+  it('reads as a sentence a person can approve', () => {
+    const p = planRestore({ app: 'Timesheet', timestamp: new Date().toISOString(), data: { a: {}, b: {} } });
+    expect(describePlan(p)).toBe('Timesheet: 2 timesheets');
+  });
+
+  it('leads with the reason when it cannot be restored', () => {
+    expect(describePlan(planRestore({ hello: 1 }))).toMatch(/not a backup/i);
+  });
+});
