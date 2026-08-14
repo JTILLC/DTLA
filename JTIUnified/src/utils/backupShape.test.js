@@ -5,6 +5,7 @@
 // recovery — which is the only other way anyone would have.
 import { describe, it, expect } from 'vitest';
 import { ccwCustomerNode, ccwCustomerSplit, planRestore, describePlan, deepSame } from './backupShape.js';
+import { SANDBOX_UID } from '../backup-service.js';
 
 describe('CCW customer round trip', () => {
   // Exactly the shape Firestore holds: the document IS { profile: {...} }.
@@ -139,5 +140,28 @@ describe('deepSame', () => {
   it('separates 0, false, null and absent', () => {
     expect(deepSame({ n: 0 }, { n: false })).toBe(false);
     expect(deepSame({ n: null }, {})).toBe(false);
+  });
+});
+
+// The sandbox the restore verification writes into.
+describe('SANDBOX_UID', () => {
+  it('is not a reserved Firestore id', () => {
+    // Firestore rejects any id matching __…__ outright, which is how the first
+    // verification attempt failed — after the backup had already been read.
+    expect(/^__.*__$/.test(SANDBOX_UID)).toBe(false);
+  });
+
+  it('cannot collide with a real Firebase account', () => {
+    // Real uids are 28 characters of alphanumeric; this is neither.
+    expect(/^[A-Za-z0-9]{28}$/.test(SANDBOX_UID)).toBe(false);
+    expect(SANDBOX_UID).toMatch(/-/);
+  });
+
+  it('is a legal Firestore document id', () => {
+    expect(SANDBOX_UID.length).toBeGreaterThan(0);
+    expect(SANDBOX_UID.length).toBeLessThanOrEqual(1500);
+    expect(SANDBOX_UID).not.toContain('/');
+    expect(SANDBOX_UID).not.toBe('.');
+    expect(SANDBOX_UID).not.toBe('..');
   });
 });
