@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import * as ui from '../ui/theme';
 import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip, Briefcase } from 'lucide-react';
-import { saveManualReport, deleteManualReport } from '../data-service';
+import { saveManualReport, deleteManualReport, fetchFileBytes } from '../data-service';
 import { findJobsForSr } from '../utils/srMatch';
 import { isPaid, asLocalDate } from '../utils/format';
+import { isAbsoluteUrl } from '../utils/fileRef';
 
 const CCW_URL = 'https://jti-issues.pages.dev';
 // Every other link in this dashboard — SearchResults, CalendarView, App, the
@@ -43,9 +44,54 @@ export default function ServiceReportLookup({
   const [yearFilter, setYearFilter] = useState('all');
   const [selectedNorm, setSelectedNorm] = useState(null);
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
-  // { url, title } — the overlay shows invoices as well as service reports
-  // now, so it has to say which one you are looking at.
+  // { url, title, objectUrl } — the overlay shows invoices as well as service
+  // reports now, so it has to say which one you are looking at.
   const [preview, setPreview] = useState(null);
+  const [opening, setOpening] = useState(null);   // which file is being resolved
+  const [fileError, setFileError] = useState('');
+
+  // Turn a stored reference into something a browser can actually show.
+  //
+  // Half of these are full download URLs and half are bare storage paths, and a
+  // path handed to an href resolves against this origin — the app's own
+  // catch-all then serves index.html, so Open PDF opened another copy of the
+  // dashboard. A path is read through the media broker (which is what holds the
+  // credentials for CCW's bucket) and wrapped in an object URL.
+  const resolveFile = async (ref) => {
+    if (isAbsoluteUrl(ref)) return { url: ref, objectUrl: null };
+    const bytes = await fetchFileBytes(ref);
+    if (!bytes) throw new Error('That file could not be read from storage.');
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    return { url, objectUrl: url };
+  };
+
+  const showPreview = async (ref, title, key) => {
+    setFileError(''); setOpening(key);
+    try {
+      const { url, objectUrl } = await resolveFile(ref);
+      setPreview({ url, title, objectUrl });
+    } catch (err) {
+      setFileError(err?.message || 'That file could not be opened.');
+    }
+    setOpening(null);
+  };
+
+  const openFile = async (ref, key) => {
+    setFileError(''); setOpening(key);
+    try {
+      const { url } = await resolveFile(ref);
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      setFileError(err?.message || 'That file could not be opened.');
+    }
+    setOpening(null);
+  };
+
+  // An object URL holds the whole PDF in memory until it is released.
+  const closePreview = () => {
+    if (preview?.objectUrl) URL.revokeObjectURL(preview.objectUrl);
+    setPreview(null);
+  };
 
   // Manual entry: the form, what it is saving, and which row is one click from
   // being deleted (a second click on the row itself, rather than a native
@@ -150,6 +196,29 @@ export default function ServiceReportLookup({
       <Icon size={11} /> {label}
     </span>
   );
+
+  // For a stored FILE. Buttons, not anchors: half of these references are
+  // storage paths that have to be read through the broker before there is
+  // anything to point a link at. linkBtn stays for links to other apps, where
+  // the href is a real URL.
+  //
+  // Keyed by ref AND action so pressing Preview does not also grey out Open.
+  const fileBtn = ({ ref, label, title, Icon, tone }) => {
+    const key = `${ref}:${title ? 'preview' : 'open'}`;
+    const busy = opening === key;
+    return (
+      <button
+        onClick={() => (title ? showPreview(ref, title, key) : openFile(ref, key))}
+        disabled={busy}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: tone, cursor: busy ? 'wait' : 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg, opacity: busy ? 0.6 : 1 }}
+      >
+        <Icon size={13} /> {busy ? 'Opening…' : label}
+      </button>
+    );
+  };
+
+  const previewBtn = (ref, title) => fileBtn({ ref, title, label: 'Preview PDF', Icon: Eye, tone: '#7c3aed' });
+  const openBtn = (ref) => fileBtn({ ref, label: 'Open PDF', Icon: ExternalLink, tone: '#3b82f6' });
 
   const linkBtn = (href, label) => (
     <a href={href} target="_blank" rel="noreferrer"
@@ -290,6 +359,19 @@ export default function ServiceReportLookup({
                   <span style={{ fontSize: 13, color: colors.textSecondary }}>{selected.year}</span>
                 </div>
 
+                {/* A file that will not open has to say so. Before, a failure
+                    here was silent — the button simply did nothing, or worse,
+                    opened the dashboard again. */}
+                {fileError && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', borderRadius: 6, background: '#fef2f2', color: '#991b1b', fontSize: 13 }}>
+                    <AlertTriangle size={14} /> {fileError}
+                    <button onClick={() => setFileError('')} aria-label="Dismiss"
+                      style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', color: '#991b1b', display: 'flex' }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 {/* What the Jobs Tracker holds for this number.
                     Read-only: the tracker rewrites whole-year JSON files, so
                     this dashboard reads that record and never writes it. */}
@@ -394,13 +476,8 @@ export default function ServiceReportLookup({
                                 record and had nowhere to be opened from — the
                                 service report half offered a preview and this
                                 half did not. */}
-                            {t.fileUrl && (
-                              <button onClick={() => setPreview({ url: t.fileUrl, title: `Invoice ${t.invoiceInfo?.invoiceNumber || selected.number}` })}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: '#7c3aed', cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
-                                <Eye size={13} /> Preview PDF
-                              </button>
-                            )}
-                            {t.fileUrl && linkBtn(t.fileUrl, 'Open PDF')}
+                            {t.fileUrl && previewBtn(t.fileUrl, `Invoice ${t.invoiceInfo?.invoiceNumber || selected.number}`)}
+                            {t.fileUrl && openBtn(t.fileUrl)}
                             {t.manual ? manualControls(t) : linkBtn(TIMESHEET_URL, 'Timesheet app')}
                           </div>
                         </div>
@@ -458,13 +535,8 @@ export default function ServiceReportLookup({
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                            {v.serviceReportUrl && (
-                              <button onClick={() => setPreview({ url: v.serviceReportUrl, title: `Service report ${selected.number}` })}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: '#7c3aed', cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
-                                <Eye size={13} /> Preview PDF
-                              </button>
-                            )}
-                            {v.serviceReportUrl && linkBtn(v.serviceReportUrl, 'Open PDF')}
+                            {v.serviceReportUrl && previewBtn(v.serviceReportUrl, `Service report ${selected.number}`)}
+                            {v.serviceReportUrl && openBtn(v.serviceReportUrl)}
                             {v.manual
                               ? manualControls(v)
                               : linkBtn(`${CCW_URL}/?customerId=${encodeURIComponent(v.customerId)}&visitId=${encodeURIComponent(v.visitId)}`, 'Open visit')}
@@ -599,7 +671,7 @@ export default function ServiceReportLookup({
 
       {/* PDF preview overlay */}
       {preview && (
-        <div onClick={() => setPreview(null)}
+        <div onClick={closePreview}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: colors.cardBg, borderRadius: 10, width: 'min(920px, 100%)', height: 'min(90vh, 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -611,7 +683,7 @@ export default function ServiceReportLookup({
                 <a href={preview.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   Open in new tab <ExternalLink size={13} />
                 </a>
-                <button onClick={() => setPreview(null)} aria-label="Close preview"
+                <button onClick={closePreview} aria-label="Close preview"
                   style={{ background: 'transparent', border: 0, cursor: 'pointer', color: colors.textSecondary, display: 'flex' }}>
                   <X size={20} />
                 </button>

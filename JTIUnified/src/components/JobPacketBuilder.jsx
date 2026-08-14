@@ -22,6 +22,7 @@ import { jobFlowSteps, nextAction, flowProgress, nextServiceReportNumber } from 
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import { scanReceipt } from '../utils/scanReceipt';
+import { isAbsoluteUrl } from '../utils/fileRef';
 import BulkReceiptImport from './BulkReceiptImport';
 // The same nine types the bulk importer offers. One list: two lists would let a
 // receipt loaded in bulk carry a type the packet page cannot show or set.
@@ -567,7 +568,28 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                     {state.files.map((f, i) => (
                       <div key={f.path || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textSecondary, flexWrap: 'wrap' }}>
                         <FileText size={14} />
-                        <a href={f.url} target="_blank" rel="noreferrer" style={{ color: ui.TONE.brand, textDecoration: 'none', flex: '1 1 160px' }}>{f.name}</a>
+                        {/* A file the system already holds may be recorded as a
+                            bare storage path rather than a URL. In an href that
+                            resolves against this origin and the app serves
+                            itself back, so a path is read through the broker
+                            first — the same reason the reports screen does. */}
+                        {isAbsoluteUrl(f.url) ? (
+                          <a href={f.url} target="_blank" rel="noreferrer" style={{ color: ui.TONE.brand, textDecoration: 'none', flex: '1 1 160px' }}>{f.name}</a>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              setBusy('Opening the file…'); setBusyDetail(f.name);
+                              try {
+                                const bytes = await fetchFileBytes(f.url || f.path);
+                                if (!bytes) throw new Error('That file could not be read from storage.');
+                                const blobUrl = URL.createObjectURL(new Blob([bytes], { type: f.type || 'application/pdf' }));
+                                window.open(blobUrl, '_blank', 'noopener');
+                              } catch (err) { setError(err.message || String(err)); }
+                              clearBusy();
+                            }}
+                            style={{ color: ui.TONE.brand, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer', flex: '1 1 160px', font: 'inherit' }}
+                          >{f.name}</button>
+                        )}
 
                         {/* What it cost, against the receipt itself. Typed here
                             rather than totalled on a separate sheet, because a
