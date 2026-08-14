@@ -60,6 +60,7 @@ import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { screenGate, tierOf, TIER, TIER_LABEL } from '@shared/utils/screenAccess.js';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
+import { drawPhotoGrid } from '@shared/utils/photoGrid.js';
 import { shouldAdoptMerge } from '@shared/utils/mergeApply.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
@@ -309,37 +310,6 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
     doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
   };
 
-  // Render every photo attached to a head's issues, wrapping across rows/pages.
-  const renderHeadPhotos = (head, startY) => {
-    let y = startY;
-    const photos = [
-      ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
-      ...(head.photos || []).map(photoKey),
-    ].filter(k => photoMap.has(k));
-    if (!photos.length) return y;
-
-    if (y + 10 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Head ${head.id} photos:`, 14, y);
-    doc.setFont(undefined, 'normal');
-    y += 4;
-
-    const boxW = 40, gap = 6, maxH = 45, rightEdge = 14 + 182;
-    let x = 14, rowH = 0;
-    photos.forEach(key => {
-      const im = photoMap.get(key);
-      const dispW = boxW;
-      const dispH = Math.min(maxH, boxW * (im.h / im.w));
-      if (x + dispW > rightEdge) { x = 14; y += rowH + 4; rowH = 0; }
-      if (y + dispH > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; x = 14; rowH = 0; }
-      doc.addImage(im.dataUrl, 'JPEG', x, y, dispW, dispH);
-      x += dispW + gap;
-      rowH = Math.max(rowH, dispH);
-    });
-    return y + rowH + 6;
-  };
-
   // Add JTI logo top-left
   const logoUrl = PDF_CONFIG.logoUrl;
   doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
@@ -429,7 +399,29 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
 
       // Embed any photos attached to this line's issue heads
       if (includePhotos) {
-        issueHeads.forEach(head => { y = renderHeadPhotos(head, y); });
+        // One grid for the whole line, captioned per head, rather than a
+        // heading and a row per head. Most heads have a single photo, so the
+        // per-head call produced a column: heading, photo, heading, photo. The
+        // caption keeps the attribution the headings were carrying.
+        const linePhotos = issueHeads.flatMap(head => [
+          ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
+          ...(head.photos || []).map(photoKey),
+        ].filter(k => photoMap.has(k)).map(k => ({ ...photoMap.get(k), label: `Head ${head.id}` })));
+
+        if (linePhotos.length) {
+          if (y + 12 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'bold');
+          doc.text('Photos:', 14, y);
+          doc.setFont(undefined, 'normal');
+          y = drawPhotoGrid(doc, linePhotos, y + 4, {
+            // Page breaks have to put the running header back, and content
+            // resumes below it — 35, not the top of the page.
+            pageTop: 35,
+            pageBottom: pageHeight - 15,
+            onNewPage: drawPageHeader,
+          }) + 4;
+        }
       }
     } else {
       doc.setFontSize(10);
@@ -992,7 +984,7 @@ const AppContent = () => {
   const [newLogShift, setNewLogShift] = useState(SHIFT_OPTIONS[0]);
   const [newLogCarry, setNewLogCarry] = useState(true);
 
-  // Recover-a-reset-line bin (kept 7 days), scoped to the loaded log.
+  // Recover-a-reset-line bin (kept 30 days), scoped to the loaded log.
   const [resetBackups, setResetBackups] = useState([]);
   const [showRecoverModal, setShowRecoverModal] = useState(false);
 
@@ -1357,7 +1349,7 @@ const AppContent = () => {
   const handleResetLine = useCallback(async (line) => {
     // Reset is not gated — customers may clear a line freely.
     const confirmed = await dialog.confirm(
-      `Reset "${line.title}" to default? All data for this line will be cleared. You'll be able to recover it for 7 days.`,
+      `Reset "${line.title}" to default? All data for this line will be cleared. You'll be able to recover it for 30 days.`,
       { title: 'Reset Line', variant: 'warning', confirmText: 'Reset' }
     );
     if (!confirmed) return;
@@ -2318,7 +2310,7 @@ const AppContent = () => {
     }
   };
 
-  // Live list of recoverable reset-line snapshots for the loaded log (last 7 days).
+  // Live list of recoverable reset-line snapshots for the loaded log (last 30 days).
   useEffect(() => {
     const custId = currentCustomer?.id;
     const visitId = currentVisitId;
@@ -4116,7 +4108,7 @@ const AppContent = () => {
             <h6 className="text-primary mb-2"><strong>Undo an accidental reset</strong></h6>
             <ul className="small">
               <li>If a line gets <strong>Reset</strong> by mistake, a yellow <strong>Recover</strong> button appears in the toolbar.</li>
-              <li>Tap it and hit <strong>Restore</strong> to bring the line back. Resets are kept for <strong>7 days</strong>.</li>
+              <li>Tap it and hit <strong>Restore</strong> to bring the line back. Resets are kept for <strong>30 days</strong>.</li>
             </ul>
           </div>
 
@@ -4131,8 +4123,9 @@ const AppContent = () => {
           <div className="mb-2">
             <h6 className="text-primary mb-2"><strong>Some actions are locked</strong></h6>
             <p className="small mb-1">
-              Adding, removing, or deleting a line or log needs a <strong>supervisor password</strong>. This prevents
-              accidental changes. Your supervisor (or JTI) has it — resetting a line does not need it, and can be recovered.
+              Adding, removing, or deleting a line or log needs a <strong>supervisor or Site Lead PIN</strong> — pick
+              your name from the list and key your own PIN. This prevents accidental changes, and records who authorised it.
+              Resetting a line does not need one, and can be recovered.
             </p>
           </div>
 
@@ -4170,7 +4163,7 @@ const AppContent = () => {
           <div className="mb-4">
             <h6 className="text-primary mb-2"><strong>Who turned a head off</strong></h6>
             <ul className="small">
-              <li>Taking a head offline, putting it back, or marking an issue fixed asks who you are — once per device, then it remembers you for 10 hours.</li>
+              <li>Taking a head offline, putting it back, or marking an issue fixed asks who you are — once per device, then it remembers you until five minutes go by with nothing happening.</li>
               <li>The name shows on the offline-heads list and on the dashboard, so the next shift knows who to ask.</li>
             </ul>
           </div>
@@ -5019,7 +5012,7 @@ const AppContent = () => {
         </div>
       )}
 
-      {/* Recover a reset line (kept 7 days) */}
+      {/* Recover a reset line (kept 30 days) */}
       {showRecoverModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowRecoverModal(false)}>
           <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -5030,7 +5023,7 @@ const AppContent = () => {
               </div>
               <div className="modal-body">
                 <p className="text-muted small">
-                  Lines reset in this log are kept for 7 days. Restore one to bring back its heads, issues, and notes.
+                  Lines reset in this log are kept for 30 days. Restore one to bring back its heads, issues, and notes.
                 </p>
                 {resetBackups.length === 0 ? (
                   <p className="text-muted">Nothing to recover.</p>

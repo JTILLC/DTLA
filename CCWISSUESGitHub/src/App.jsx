@@ -31,6 +31,7 @@ import VisitsSidebar from './components/VisitsSidebar.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
+import { drawPhotoGrid } from '@shared/utils/photoGrid.js';
 import { shouldAdoptMerge } from '@shared/utils/mergeApply.js';
 import BackfillPanel from './components/BackfillPanel.jsx';
 import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
@@ -299,40 +300,6 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
     doc.text('Ishida Dashboard Report', 105, 20, { align: 'center' });
   };
 
-  // Render every photo attached to a head's issues, wrapping across rows/pages.
-  const renderHeadPhotos = (head, startY) => {
-    let y = startY;
-    const photos = [
-      ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
-      ...(head.photos || []).map(photoKey),
-    ].filter(k => photoMap.has(k));
-    if (!photos.length) return y;
-
-    if (y + 10 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Head ${head.id} photos:`, 14, y);
-    doc.setFont(undefined, 'normal');
-    y += 4;
-
-    const boxW = 40, gap = 6, maxH = 45, rightEdge = 14 + 182;
-    let x = 14, rowH = 0;
-    photos.forEach(key => {
-      const im = photoMap.get(key);
-      const dispW = boxW;
-      // A zero or missing width makes this NaN, and jsPDF throws on a NaN
-      // dimension — one odd photo taking the whole export down with it.
-      const ratio = im.w > 0 && im.h > 0 ? im.h / im.w : 0.75;
-      const dispH = Math.min(maxH, boxW * ratio);
-      if (x + dispW > rightEdge) { x = 14; y += rowH + 4; rowH = 0; }
-      if (y + dispH > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; x = 14; rowH = 0; }
-      doc.addImage(im.dataUrl, 'JPEG', x, y, dispW, dispH);
-      x += dispW + gap;
-      rowH = Math.max(rowH, dispH);
-    });
-    return y + rowH + 6;
-  };
-
   // Add JTI logo top-left
   const logoUrl = PDF_CONFIG.logoUrl;
   doc.addImage(logoUrl, 'PNG', 14, 10, 30, 15, 'jtiLogo', 'FAST');
@@ -422,7 +389,29 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
 
       // Embed any photos attached to this line's issue heads
       if (includePhotos) {
-        issueHeads.forEach(head => { y = renderHeadPhotos(head, y); });
+        // One grid for the whole line, captioned per head, rather than a
+        // heading and a row per head. Most heads have a single photo, so the
+        // per-head call produced a column: heading, photo, heading, photo. The
+        // caption keeps the attribution the headings were carrying.
+        const linePhotos = issueHeads.flatMap(head => [
+          ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
+          ...(head.photos || []).map(photoKey),
+        ].filter(k => photoMap.has(k)).map(k => ({ ...photoMap.get(k), label: `Head ${head.id}` })));
+
+        if (linePhotos.length) {
+          if (y + 12 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'bold');
+          doc.text('Photos:', 14, y);
+          doc.setFont(undefined, 'normal');
+          y = drawPhotoGrid(doc, linePhotos, y + 4, {
+            // Page breaks have to put the running header back, and content
+            // resumes below it — 35, not the top of the page.
+            pageTop: 35,
+            pageBottom: pageHeight - 15,
+            onNewPage: drawPageHeader,
+          }) + 4;
+        }
       }
     } else {
       doc.setFontSize(10);
