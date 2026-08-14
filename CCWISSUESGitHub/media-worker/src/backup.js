@@ -28,6 +28,15 @@ const STORAGE = 'https://storage.googleapis.com/storage/v1/b';
 // walked and there is no depth to bound.
 const MAX_DOCS = 20000;
 
+// A Worker gets a fixed slice of memory, and being killed for exceeding it is
+// not an exception JavaScript can catch — the request simply dies, Cloudflare
+// answers with a CORS-less error page, and the browser says only "failed to
+// fetch". Some documents hold base64 images, so a single collection can be
+// hundreds of megabytes. These caps exist to stop BEFORE that, because stopping
+// with a message beats dying without one.
+const MAX_BYTES = 6_000_000;          // whole run
+const MAX_COLLECTION_BYTES = 3_000_000;
+
 /** Firestore's typed values back into plain JSON. */
 export function decodeValue(v) {
   if (v == null) return null;
@@ -112,9 +121,10 @@ export function placeDoc(tree, segments, data) {
  * runQuery has no page token: the last name on a page is the cursor for the
  * next, and __name__ is the only field guaranteed to exist and be unique.
  */
-async function collectionGroup(projectId, token, collectionId, state, pageSize = 300) {
+async function collectionGroup(projectId, token, collectionId, state, pageSize = 100) {
   const url = `${FIRESTORE}/projects/${projectId}/databases/(default)/documents:runQuery`;
   let after = null;
+  let bytes = 0;
   const docs = [];
 
   for (;;) {
@@ -134,6 +144,18 @@ async function collectionGroup(projectId, token, collectionId, state, pageSize =
 
     const page = (rows || []).map((r) => r.document).filter(Boolean);
     if (!page.length) break;
+
+    // Measured per page, not per collection: by the time a whole collection is
+    // in memory it is already too late to decide it was too big.
+    const pageBytes = JSON.stringify(page).length;
+    if (bytes + pageBytes > MAX_COLLECTION_BYTES || state.bytes + pageBytes > MAX_BYTES) {
+      state.truncated = 'bytes';
+      state.oversized.push(collectionId);
+      break;
+    }
+    bytes += pageBytes;
+    state.bytes += pageBytes;
+
     docs.push(...page);
     state.count += page.length;
     if (state.count >= MAX_DOCS) { state.truncated = 'size'; break; }
@@ -195,6 +217,7 @@ export async function exportProject({ projectId, token, collections, state, chec
     documents: state.count - startedAt,
     requests: state.requests,
     truncated: state.truncated,
+    oversized: [...new Set(state.oversized)],
     failed,
     unconfigured,
     data,
@@ -372,7 +395,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
   // just under the free plan's fifty. On the Workers paid plan the ceiling is a
   // thousand — set BACKUP_MAX_REQUESTS higher and the headroom stops mattering.
   const budget = Number(env.BACKUP_MAX_REQUESTS) || 48;
-  const state = { count: 0, requests: 0, truncated: null, budget };
+  const state = { count: 0, requests: 0, bytes: 0, oversized: [], truncated: null, budget };
   const manifest = { startedAt: new Date().toISOString(), day, bucket, budget, results: [] };
 
   // Reading and writing need DIFFERENT accounts.
@@ -422,6 +445,9 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
         documents: dump.documents, truncated: dump.truncated, failed: dump.failed,
+        // Named so an oversized collection is a decision to make rather than a
+        // silent hole in the backup.
+        oversized: dump.oversized,
         // Collections that exist and were not fetched. The whole point of this
         // system is knowing what is covered, so a collection nobody listed has
         // to surface rather than be absent from a file that looks complete.
