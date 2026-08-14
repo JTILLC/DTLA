@@ -348,7 +348,12 @@ export async function importJobs(backupData) {
 // Import backup from file
 // A user id no app reads. Everything the verification writes lives under here
 // and is deleted afterwards.
-const SANDBOX_UID = '__restore_verification__';
+//
+// NOT wrapped in double underscores, however much it wants to be: Firestore
+// reserves every id matching __…__ and rejects the write outright. The name
+// still has to be one no real account could hold — Firebase uids are 28
+// characters of alphanumeric, so a hyphenated phrase cannot collide.
+export const SANDBOX_UID = 'zz-restore-verification';
 
 /**
  * Prove a backup can actually be restored.
