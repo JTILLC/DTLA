@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import * as ui from '../ui/theme';
-import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip } from 'lucide-react';
+import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip, Briefcase } from 'lucide-react';
 import { saveManualReport, deleteManualReport } from '../data-service';
+import { findJobsForSr } from '../utils/srMatch';
+import { isPaid, asLocalDate } from '../utils/format';
 
 const CCW_URL = 'https://jti-issues.pages.dev';
 // Every other link in this dashboard — SearchResults, CalendarView, App, the
@@ -11,10 +13,13 @@ const CCW_URL = 'https://jti-issues.pages.dev';
 // snapshot saved on one is not there on the other. Sending people to two
 // different versions of the same app from the same dashboard is the bug.
 const TIMESHEET_URL = 'https://jti-timesheet.pages.dev';
+const JOBS_URL = 'https://jti-jobs.pages.dev';
 
 const fmtDate = (d) => {
   if (!d) return '—';
-  const dt = new Date(d);
+  // asLocalDate, not new Date: an invoice dated 2026-08-02 showed as Aug 1 here,
+  // because a bare date string is parsed as UTC midnight and Arizona is behind.
+  const dt = asLocalDate(d);
   return isNaN(dt) ? String(d) : dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
@@ -26,6 +31,7 @@ const emptyEntry = (kind, number = '') => ({
 
 export default function ServiceReportLookup({
   reports = [],
+  jobs = [],
   years = [],
   untaggedVisits = [],
   untaggedTimesheets = [],
@@ -37,7 +43,9 @@ export default function ServiceReportLookup({
   const [yearFilter, setYearFilter] = useState('all');
   const [selectedNorm, setSelectedNorm] = useState(null);
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  // { url, title } — the overlay shows invoices as well as service reports
+  // now, so it has to say which one you are looking at.
+  const [preview, setPreview] = useState(null);
 
   // Manual entry: the form, what it is saving, and which row is one click from
   // being deleted (a second click on the row itself, rather than a native
@@ -282,6 +290,80 @@ export default function ServiceReportLookup({
                   <span style={{ fontSize: 13, color: colors.textSecondary }}>{selected.year}</span>
                 </div>
 
+                {/* What the Jobs Tracker holds for this number.
+                    Read-only: the tracker rewrites whole-year JSON files, so
+                    this dashboard reads that record and never writes it. */}
+                {(() => {
+                  const trackerJobs = findJobsForSr(jobs, selected.number);
+                  const money = (v) => {
+                    const n = Number(String(v ?? '').replace(/[$,]/g, ''));
+                    return Number.isFinite(n) && String(v ?? '').trim() !== '' ? `$${n.toFixed(2)}` : null;
+                  };
+                  return (
+                    <div style={sectionCard}>
+                      <div style={label}>
+                        <Briefcase size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Jobs Tracker
+                      </div>
+                      {trackerJobs.length === 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <AlertTriangle size={14} /> No job in the tracker with this number.
+                          </span>
+                          {linkBtn(JOBS_URL, 'Jobs app')}
+                        </div>
+                      ) : (
+                        trackerJobs.map((j, i) => {
+                          const quote = money(j.quote);
+                          const actual = money(j.actual);
+                          const paid = isPaid(j.paid);
+                          return (
+                            <div key={i} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: trackerJobs.length > 1 && i < trackerJobs.length - 1 ? `1px solid ${colors.border}` : 'none' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 14, color: colors.text }}>
+                                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    {j.customer || 'Customer not recorded'}
+                                    {[j.city, j.state].filter(Boolean).length > 0 && (
+                                      <span style={{ fontWeight: 400, color: colors.textSecondary, fontSize: 13 }}>
+                                        {[j.city, j.state].filter(Boolean).join(', ')}
+                                      </span>
+                                    )}
+                                    {/* Paid is the thing people open this to
+                                        check, so it reads as a state and not as
+                                        one more field in a list. */}
+                                    <span style={{
+                                      fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 999,
+                                      color: paid ? '#065f46' : '#92400e',
+                                      background: paid ? '#d1fae5' : '#fef3c7',
+                                    }}>
+                                      {paid ? 'Paid' : 'Unpaid'}
+                                    </span>
+                                  </div>
+                                  <div style={{ color: colors.textSecondary, fontSize: 13, display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2 }}>
+                                    {j.dateRange && <span>{j.dateRange}</span>}
+                                    {j.invoiceDate && <span>Invoiced {fmtDate(j.invoiceDate)}</span>}
+                                    {j.terms && <span>Terms: {j.terms}</span>}
+                                    {/* Only worth showing while it is still
+                                        owed — an expected date on a paid job is
+                                        history nobody is chasing. */}
+                                    {!paid && j.expPaid && <span>Expected {fmtDate(j.expPaid)}</span>}
+                                  </div>
+                                  {(quote || actual) && (
+                                    <div style={{ fontSize: 13, color: colors.text, display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+                                      {quote && <span style={{ color: colors.textSecondary }}>Quoted <strong style={{ color: colors.text }}>{quote}</strong></span>}
+                                      {actual && <span style={{ color: colors.textSecondary }}>Actual <strong style={{ color: colors.text }}>{actual}</strong></span>}
+                                    </div>
+                                  )}
+                                </div>
+                                {linkBtn(JOBS_URL, 'Jobs app')}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Invoice / Timesheet */}
                 <div style={sectionCard}>
                   <div style={label}><Receipt size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Invoice / Timesheet</div>
@@ -307,7 +389,20 @@ export default function ServiceReportLookup({
                                 : ` · ${t.entryCount} day${t.entryCount === 1 ? '' : 's'}${t.customerInfo?.purpose ? ` · ${t.customerInfo.purpose}` : ''}`}
                             </div>
                           </div>
-                          {t.manual ? manualControls(t) : linkBtn(TIMESHEET_URL, 'Timesheet app')}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* The invoice PDF was already attached to this
+                                record and had nowhere to be opened from — the
+                                service report half offered a preview and this
+                                half did not. */}
+                            {t.fileUrl && (
+                              <button onClick={() => setPreview({ url: t.fileUrl, title: `Invoice ${t.invoiceInfo?.invoiceNumber || selected.number}` })}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: '#7c3aed', cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
+                                <Eye size={13} /> Preview PDF
+                              </button>
+                            )}
+                            {t.fileUrl && linkBtn(t.fileUrl, 'Open PDF')}
+                            {t.manual ? manualControls(t) : linkBtn(TIMESHEET_URL, 'Timesheet app')}
+                          </div>
                         </div>
                         {t.serviceWork && t.serviceWork.length > 0 && (
                           <div style={{ marginTop: 10 }}>
@@ -364,7 +459,7 @@ export default function ServiceReportLookup({
                           </div>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {v.serviceReportUrl && (
-                              <button onClick={() => setPreviewUrl(v.serviceReportUrl)}
+                              <button onClick={() => setPreview({ url: v.serviceReportUrl, title: `Service report ${selected.number}` })}
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 500, color: '#7c3aed', cursor: 'pointer', padding: '5px 10px', border: `1px solid ${colors.border}`, borderRadius: 6, background: colors.cardBg }}>
                                 <Eye size={13} /> Preview PDF
                               </button>
@@ -503,26 +598,26 @@ export default function ServiceReportLookup({
       )}
 
       {/* PDF preview overlay */}
-      {previewUrl && (
-        <div onClick={() => setPreviewUrl(null)}
+      {preview && (
+        <div onClick={() => setPreview(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: colors.cardBg, borderRadius: 10, width: 'min(920px, 100%)', height: 'min(90vh, 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: `1px solid ${colors.border}` }}>
               <span style={{ fontWeight: 600, color: colors.text, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <FileText size={16} /> Service Report
+                <FileText size={16} /> {preview.title}
               </span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <a href={previewUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <a href={preview.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   Open in new tab <ExternalLink size={13} />
                 </a>
-                <button onClick={() => setPreviewUrl(null)} aria-label="Close preview"
+                <button onClick={() => setPreview(null)} aria-label="Close preview"
                   style={{ background: 'transparent', border: 0, cursor: 'pointer', color: colors.textSecondary, display: 'flex' }}>
                   <X size={20} />
                 </button>
               </div>
             </div>
-            <iframe title="Service Report PDF" src={previewUrl} style={{ flex: 1, border: 0, width: '100%', background: '#fff' }} />
+            <iframe title={preview.title} src={preview.url} style={{ flex: 1, border: 0, width: '100%', background: '#fff' }} />
           </div>
         </div>
       )}

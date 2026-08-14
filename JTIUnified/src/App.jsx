@@ -1511,6 +1511,7 @@ function App() {
           <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: colors.textSecondary }}>Loading reports…</div>}>
             <ServiceReportLookup
               reports={serviceReports.reports}
+              jobs={allJobsData}
               years={serviceReports.years}
               untaggedVisits={serviceReports.untaggedVisits}
               untaggedTimesheets={serviceReports.untaggedTimesheets}
