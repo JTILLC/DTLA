@@ -160,6 +160,14 @@ export default function BackupPanel({ colors }) {
                   {r.truncated && <span style={{ color: '#92400e' }}> — stopped early ({r.truncated})</span>}
                   {(r.reason || r.error) && <span style={{ color: colors.textSecondary }}> — {r.reason || r.error}</span>}
                   {r.failed?.length > 0 && <div style={{ color: '#92400e', fontSize: '12px' }}>{r.failed.join('; ')}</div>}
+                  {/* Collections that exist and are not being backed up. A
+                      backup that looks complete and is not is the failure this
+                      whole thing exists to prevent, so it is stated. */}
+                  {r.unconfigured?.length > 0 && (
+                    <div style={{ color: '#92400e', fontSize: '12px', marginTop: '2px' }}>
+                      NOT backed up: {r.unconfigured.join(', ')} — tell me and I'll add them.
+                    </div>
+                  )}
                 </span>
               </div>
             ))}
