@@ -2040,6 +2040,9 @@ export const releaseJobNumber = async (sr) => {
   const key = String(sr || '').trim().toUpperCase();
   if (!key) throw new Error('A service report number is required.');
   await deleteDoc(doc(jobsMasterDb, UNIFIED_JOBS, key));
+  // ...and the packet record, or the number comes back carrying the previous
+  // job's notes and file list.
+  await deleteDoc(doc(jobsMasterDb, JOB_PACKETS, key)).catch(() => {});
   // Take it out of the directories too, or it lingers in the other apps'
   // pickers pointing at a reservation that no longer exists.
   await Promise.all([
