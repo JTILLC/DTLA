@@ -125,7 +125,12 @@ export function placeDoc(tree, segments, data) {
  * runQuery has no page token: the last name on a page is the cursor for the
  * next, and __name__ is the only field guaranteed to exist and be unique.
  */
-async function collectionGroup(projectId, token, collectionId, state, pageSize = 50) {
+/**
+ * @param {function} [onPage] - when given, each page is handed over and NOT
+ *   kept. That is the difference between a collection that fits in memory and
+ *   one that does not.
+ */
+async function collectionGroup(projectId, token, collectionId, state, pageSize = 50, onPage = null) {
   const url = `${FIRESTORE}/projects/${projectId}/databases/(default)/documents:runQuery`;
   let after = null;
   let bytes = 0;
@@ -152,6 +157,16 @@ async function collectionGroup(projectId, token, collectionId, state, pageSize =
     // Measured per page, not per collection: by the time a whole collection is
     // in memory it is already too late to decide it was too big.
     const pageBytes = JSON.stringify(page).length;
+    if (onPage) {
+      // Streamed: written out and released, so the caps below do not apply —
+      // they exist to bound what is HELD, and this holds one page.
+      state.bytes += pageBytes;
+      state.count += page.length;
+      await onPage(page);
+      if (page.length < pageSize) break;
+      after = page[page.length - 1].name;
+      continue;
+    }
     if (bytes + pageBytes > MAX_COLLECTION_BYTES || state.bytes + pageBytes > MAX_BYTES) {
       state.truncated = 'bytes';
       // Recorded with the size it reached, so "too large" is a number somebody
@@ -192,7 +207,10 @@ async function rootCollectionIds(projectId, token, state) {
  * `budget` is the Worker's subrequest allowance for this project. Reaching it
  * stops the run and SAYS so, rather than throwing away everything read so far.
  */
-export async function exportProject({ projectId, token, collections, state, checkUnconfigured = true }) {
+export async function exportProject({
+  projectId, token, collections, state, checkUnconfigured = true,
+  streamed = [], onChunk = null,
+}) {
   const data = {};
   const failed = [];
   const startedAt = state.count;
@@ -205,6 +223,28 @@ export async function exportProject({ projectId, token, collections, state, chec
       failed.push(`${c}: ${err.message}`);
     }
     if (state.truncated === 'requests') break;
+  }
+
+  // Collections whose documents are big enough that a page of the usual size
+  // would not fit in memory. Firestore allows a megabyte per document, so fifty
+  // of them is fifty megabytes in one go — these go out in small pages, each
+  // written to its own file and released.
+  const chunks = {};
+  for (const c of streamed) {
+    if (state.truncated === 'requests') break;
+    try {
+      let seq = 0;
+      await collectionGroup(projectId, token, c, state, 10, async (page) => {
+        const tree = {};
+        page.forEach((d) => placeDoc(tree, docPathSegments(d.name), decodeFields(d.fields)));
+        state.requests += 1;
+        await onChunk(c, seq, tree);
+        seq += 1;
+      });
+      chunks[c] = seq;
+    } catch (err) {
+      failed.push(`${c}: ${err.message}`);
+    }
   }
 
   // Anything at the root nobody listed. Reported, not fetched: a collection
@@ -225,6 +265,7 @@ export async function exportProject({ projectId, token, collections, state, chec
     requests: state.requests,
     truncated: state.truncated,
     oversized: [...new Set(state.oversized)],
+    chunks,
     failed,
     unconfigured,
     data,
@@ -329,8 +370,12 @@ export function backupTargets(env) {
         'unified_jobs', 'unified_job_packets', 'unified_manual_reports',
         'unified_job_customer_overrides', 'customer_directory',
         'quotes', 'service_quotes', 'service_quotes_customers',
-        'parts-viewer-diagrams', 'customer_shares', 'jobsData', 'settings',
+        'customer_shares', 'jobsData', 'settings',
       ],
+      // Its documents carry the parts mappings and hotspot coordinates — the
+      // images themselves went to Storage years ago, so this is structured data
+      // with no other copy, and it is thirty-six megabytes of it.
+      streamed: ['parts-viewer-diagrams'],
     },
     {
       name: 'Timesheets',
@@ -344,6 +389,7 @@ export function backupTargets(env) {
     },
   ];
   return targets.map((t) => ({
+    streamed: [],
     ...t,
     ready: !!(t.projectId && t.email && t.key),
     reason: !t.projectId ? 'no project id configured'
@@ -440,6 +486,10 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       const token = await mintToken(t.email, t.key, 'https://www.googleapis.com/auth/datastore');
       const dump = await exportProject({
         projectId: t.projectId, token, collections: t.collections, state,
+        streamed: t.streamed,
+        onChunk: async (collectionId, seq, tree) => putObject(
+          bucket, `backups/${day}/${t.projectId}/${collectionId}-${seq}.json`,
+          await writeToken(), JSON.stringify({ project: t.projectId, collection: collectionId, seq, data: tree })),
         // Only the day's first project is asked what else it holds. It is a
         // request per project and rotation covers them all within a few days —
         // a new collection is worth finding, not worth finding four times.
@@ -452,6 +502,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
         documents: dump.documents, megabytes: dump.megabytes,
+        chunks: dump.chunks,
         truncated: dump.truncated, failed: dump.failed,
         // Named so an oversized collection is a decision to make rather than a
         // silent hole in the backup.
