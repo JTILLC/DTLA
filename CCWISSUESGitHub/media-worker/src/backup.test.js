@@ -4,7 +4,7 @@
 // A decode bug here does not fail — it writes a backup that looks fine and is
 // wrong, discovered during a recovery, which is the worst possible moment.
 import { describe, it, expect } from 'vitest';
-import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets } from './backup.js';
+import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets, docPathSegments, placeDoc, rotate } from './backup.js';
 
 describe('decodeValue', () => {
   it('reads every scalar Firestore actually stores', () => {
@@ -118,5 +118,78 @@ describe('backupTargets', () => {
     const half = backupTargets({ ...env, PARTS_SA_PRIVATE_KEY: '' }).find((x) => x.name === 'Jobs and packets');
     expect(half.ready).toBe(false);
     expect(half.reason).toMatch(/no service account/);
+  });
+});
+
+describe('docPathSegments / placeDoc', () => {
+  const NAME = 'projects/p/databases/(default)/documents/user_files/U1/customers/C1/visits/V1';
+
+  it('reads the structure out of a resource name', () => {
+    expect(docPathSegments(NAME)).toEqual(['user_files', 'U1', 'customers', 'C1', 'visits', 'V1']);
+  });
+
+  it('returns nothing for a name it does not recognise', () => {
+    expect(docPathSegments('nonsense')).toEqual([]);
+    expect(docPathSegments()).toEqual([]);
+  });
+
+  it('rebuilds the tree a collection-group query flattened', () => {
+    const tree = {};
+    placeDoc(tree, docPathSegments(NAME), { date: '2026-08-01' });
+    expect(tree.user_files.U1.customers.C1.visits.V1).toEqual({ date: '2026-08-01' });
+  });
+
+  it('creates parents that have not arrived yet', () => {
+    // `visits` is fetched in its own query and may well land before the
+    // `customers` it belongs to.
+    const tree = {};
+    placeDoc(tree, docPathSegments(NAME), { date: '2026-08-01' });
+    placeDoc(tree, ['user_files', 'U1', 'customers', 'C1'], { profile: { name: 'Flagstone' } });
+    expect(tree.user_files.U1.customers.C1.profile.name).toBe('Flagstone');
+    expect(tree.user_files.U1.customers.C1.visits.V1.date).toBe('2026-08-01');
+  });
+
+  it('does not lose children when the parent document arrives after them', () => {
+    const tree = {};
+    placeDoc(tree, ['a', '1', 'b', '2'], { x: 1 });
+    placeDoc(tree, ['a', '1'], { y: 2 });
+    expect(tree.a['1'].b['2']).toEqual({ x: 1 });
+    expect(tree.a['1'].y).toBe(2);
+  });
+
+  it('ignores a malformed path rather than corrupting the tree', () => {
+    const tree = {};
+    placeDoc(tree, ['orphan'], { x: 1 });     // odd length: no id
+    placeDoc(tree, [], { x: 1 });
+    expect(tree).toEqual({});
+  });
+});
+
+describe('rotate', () => {
+  it('moves the starting point each day', () => {
+    const l = ['a', 'b', 'c'];
+    const d0 = rotate(l, new Date('2026-08-14T00:00:00Z'));
+    const d1 = rotate(l, new Date('2026-08-15T00:00:00Z'));
+    expect(d0).not.toEqual(d1);
+    expect([...d0].sort()).toEqual(['a', 'b', 'c']);   // same set, different order
+  });
+
+  it('is stable within a day', () => {
+    expect(rotate(['a', 'b', 'c'], new Date('2026-08-14T01:00:00Z')))
+      .toEqual(rotate(['a', 'b', 'c'], new Date('2026-08-14T23:00:00Z')));
+  });
+
+  it('covers every position over enough days', () => {
+    const l = ['a', 'b', 'c'];
+    const firsts = new Set();
+    for (let i = 0; i < 3; i += 1) {
+      firsts.add(rotate(l, new Date(Date.UTC(2026, 7, 14 + i)))[0]);
+    }
+    expect(firsts.size).toBe(3);
+  });
+
+  it('copes with short lists', () => {
+    expect(rotate([], new Date())).toEqual([]);
+    expect(rotate(['only'], new Date())).toEqual(['only']);
   });
 });

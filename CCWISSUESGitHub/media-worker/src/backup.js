@@ -22,11 +22,11 @@ const FIRESTORE = 'https://firestore.googleapis.com/v1';
 const UPLOAD = 'https://storage.googleapis.com/upload/storage/v1/b';
 const STORAGE = 'https://storage.googleapis.com/storage/v1/b';
 
-// A document tree can be deep and a Worker has a wall clock. These are the
-// limits at which a run stops walking and SAYS it stopped, rather than silently
-// writing a partial backup that looks complete.
+// The point at which a run stops and SAYS it stopped, rather than silently
+// writing a partial backup that looks complete. Depth is no longer a limit:
+// collection-group queries reach every level in one request, so nothing is
+// walked and there is no depth to bound.
 const MAX_DOCS = 20000;
-const MAX_DEPTH = 6;
 
 /** Firestore's typed values back into plain JSON. */
 export function decodeValue(v) {
@@ -64,69 +64,139 @@ async function api(url, token, init = {}) {
 }
 
 /**
- * Every document under a collection, and everything beneath them.
+ * Where a document sits, as [collection, id, collection, id, ...].
  *
- * Firestore's REST list does not descend, so subcollections are discovered per
- * document. That is a request per document, which is why the caps above exist.
+ * Firestore returns a full resource name; everything before /documents/ is
+ * addressing, not structure.
  */
-async function walk(projectId, token, parentPath, collectionId, state, depth = 0) {
-  const docs = {};
-  if (depth >= MAX_DEPTH) { state.truncated = 'depth'; return docs; }
+export function docPathSegments(name = '') {
+  const marker = '/documents/';
+  const i = String(name).indexOf(marker);
+  return i === -1 ? [] : String(name).slice(i + marker.length).split('/').filter(Boolean);
+}
 
-  let pageToken = '';
-  do {
-    const base = `${FIRESTORE}/projects/${projectId}/databases/(default)/documents`;
-    const url = `${base}${parentPath}/${encodeURIComponent(collectionId)}`
-      + `?pageSize=300${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-    const page = await api(url, token);
+/**
+ * Put a document into the tree at its own path, creating parents as needed.
+ *
+ * A collection-group query returns documents from every level at once, so this
+ * is what turns a flat list back into the shape the data actually has. Parents
+ * are created empty when their own document has not arrived yet — `visits` may
+ * well be fetched before the `customers` they belong to.
+ */
+export function placeDoc(tree, segments, data) {
+  if (segments.length < 2 || segments.length % 2 !== 0) return tree;
+  let node = tree;
+  for (let i = 0; i < segments.length - 2; i += 2) {
+    const col = segments[i], id = segments[i + 1];
+    node[col] = node[col] || {};
+    node[col][id] = node[col][id] || {};
+    node = node[col][id];
+  }
+  const col = segments[segments.length - 2];
+  const id = segments[segments.length - 1];
+  node[col] = node[col] || {};
+  node[col][id] = { ...(node[col][id] || {}), ...data };
+  return tree;
+}
 
-    for (const d of page.documents || []) {
-      if (state.count >= MAX_DOCS) { state.truncated = 'size'; return docs; }
-      const id = idOf(d.name);
-      state.count += 1;
-      const node = { ...decodeFields(d.fields) };
+/**
+ * Every document of one collection name, anywhere in the database.
+ *
+ * This replaced walking the tree document by document. Discovering
+ * subcollections per document cost one request each, and a Worker is allowed
+ * only so many per invocation — the first run died on "Too many subrequests"
+ * having read a few hundred documents out of several thousand.
+ *
+ * `allDescendants` asks Firestore to do that walk instead, and it answers a
+ * whole collection group in one request. Paged by document name because
+ * runQuery has no page token: the last name on a page is the cursor for the
+ * next, and __name__ is the only field guaranteed to exist and be unique.
+ */
+async function collectionGroup(projectId, token, collectionId, state, pageSize = 300) {
+  const url = `${FIRESTORE}/projects/${projectId}/databases/(default)/documents:runQuery`;
+  let after = null;
+  const docs = [];
 
-      // Subcollections, if any. A document with none is the common case and
-      // costs one extra call; the alternative is not knowing they exist.
-      const subs = await api(
-        `${FIRESTORE}/projects/${projectId}/databases/(default)/documents${parentPath}/${encodeURIComponent(collectionId)}/${encodeURIComponent(id)}:listCollectionIds`,
-        token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  for (;;) {
+    if (state.requests >= state.budget) { state.truncated = 'requests'; break; }
+    const structuredQuery = {
+      from: [{ collectionId, allDescendants: true }],
+      orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+      limit: pageSize,
+      ...(after ? { startAt: { values: [{ referenceValue: after }], before: false } } : {}),
+    };
+    state.requests += 1;
+    const rows = await api(url, token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structuredQuery }),
+    });
 
-      for (const sub of subs.collectionIds || []) {
-        node[sub] = await walk(
-          projectId, token,
-          `${parentPath}/${encodeURIComponent(collectionId)}/${encodeURIComponent(id)}`,
-          sub, state, depth + 1);
-      }
-      docs[id] = node;
-    }
-    pageToken = page.nextPageToken || '';
-  } while (pageToken);
+    const page = (rows || []).map((r) => r.document).filter(Boolean);
+    if (!page.length) break;
+    docs.push(...page);
+    state.count += page.length;
+    if (state.count >= MAX_DOCS) { state.truncated = 'size'; break; }
+    if (page.length < pageSize) break;
+    after = page[page.length - 1].name;
+  }
 
   return docs;
 }
 
-/** Back up one project's named root collections. */
-export async function exportProject({ projectId, token, collections }) {
-  const state = { count: 0, truncated: null };
+/** Root collection names, so a collection nobody configured is still noticed. */
+async function rootCollectionIds(projectId, token, state) {
+  state.requests += 1;
+  const res = await api(
+    `${FIRESTORE}/projects/${projectId}/databases/(default)/documents:listCollectionIds`,
+    token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  return res.collectionIds || [];
+}
+
+/**
+ * Back up one project.
+ *
+ * `collections` names every collection to fetch, nested ones included — a
+ * collection-group query does not care where a collection lives, so
+ * "user_files, customers, visits" gathers the whole CCW tree in three requests
+ * rather than one per customer.
+ *
+ * `budget` is the Worker's subrequest allowance for this project. Reaching it
+ * stops the run and SAYS so, rather than throwing away everything read so far.
+ */
+export async function exportProject({ projectId, token, collections, state }) {
   const data = {};
   const failed = [];
+  const startedAt = state.count;
 
   for (const c of collections) {
     try {
-      data[c] = await walk(projectId, token, '', c, state);
+      const docs = await collectionGroup(projectId, token, c, state);
+      docs.forEach((d) => placeDoc(data, docPathSegments(d.name), decodeFields(d.fields)));
     } catch (err) {
-      // One unreadable collection must not lose the others.
       failed.push(`${c}: ${err.message}`);
     }
+    if (state.truncated === 'requests') break;
   }
+
+  // Anything at the root nobody listed. Reported, not fetched: a collection
+  // silently missing from a backup is the failure this exists to prevent.
+  let unconfigured = [];
+  try {
+    if (state.requests < state.budget) {
+      unconfigured = (await rootCollectionIds(projectId, token, state))
+        .filter((id) => !collections.includes(id));
+    }
+  } catch { /* not fatal — what was read above is still good */ }
 
   return {
     project: projectId,
     takenAt: new Date().toISOString(),
-    documents: state.count,
+    documents: state.count - startedAt,
+    requests: state.requests,
     truncated: state.truncated,
     failed,
+    unconfigured,
     data,
   };
 }
@@ -204,7 +274,9 @@ export function backupTargets(env) {
       projectId: env.FIREBASE_PROJECT_ID,
       email: env.GCP_SA_EMAIL,
       key: env.GCP_SA_PRIVATE_KEY,
-      collections: ['user_files', 'shared_visits'],
+      // Nested names listed too: a collection-group query fetches `visits`
+      // wherever they live, so the tree returns without being walked.
+      collections: ['user_files', 'customers', 'visits', 'shared_visits'],
     },
     {
       name: 'Jobs and packets',
@@ -253,13 +325,34 @@ export async function exportRealtimeDb({ url, path, token }) {
   };
 }
 
+/**
+ * The order to attempt projects in, rotated by day.
+ *
+ * The subrequest allowance is per INVOCATION and shared by every project, so a
+ * run that runs out always runs out on whichever project is last. Rotating
+ * moves the shortfall: over a few days everything gets a full copy, instead of
+ * one project never being backed up at all.
+ */
+export function rotate(list, day = new Date()) {
+  const n = list.length;
+  if (n < 2) return [...list];
+  const d = Math.floor((day instanceof Date ? day : new Date(day)).getTime() / 86400000);
+  const k = ((d % n) + n) % n;
+  return [...list.slice(k), ...list.slice(0, k)];
+}
+
 /** Run the whole thing. Returns a manifest describing what happened. */
 export async function runBackup(env, mintToken, { date = new Date() } = {}) {
   const day = date.toISOString().slice(0, 10);
   const bucket = env.BACKUP_BUCKET || env.STORAGE_BUCKET;
-  const manifest = { startedAt: new Date().toISOString(), day, bucket, results: [] };
+  // Shared across every project: Cloudflare counts subrequests per invocation,
+  // and the first version budgeted per project, so four modest budgets added up
+  // to more than the Worker was allowed and the whole run died.
+  const budget = Number(env.BACKUP_MAX_REQUESTS) || 45;
+  const state = { count: 0, requests: 0, truncated: null, budget };
+  const manifest = { startedAt: new Date().toISOString(), day, bucket, budget, results: [] };
 
-  for (const t of backupTargets(env)) {
+  for (const t of rotate(backupTargets(env), date)) {
     if (!t.ready) {
       manifest.results.push({ name: t.name, ok: false, skipped: true, reason: t.reason });
       continue;
@@ -267,8 +360,10 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     try {
       const token = await mintToken(t.email, t.key,
         'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write');
-      const dump = await exportProject({ projectId: t.projectId, token, collections: t.collections });
+      state.requests += 1;   // the token mint is a subrequest too
+      const dump = await exportProject({ projectId: t.projectId, token, collections: t.collections, state });
       const objectPath = `backups/${day}/${t.projectId}.json`;
+      state.requests += 1;
       await putObject(bucket, objectPath, token, JSON.stringify(dump));
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
@@ -327,4 +422,4 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
   return manifest;
 }
 
-export default { runBackup, backupTargets, exportProject, exportRealtimeDb, decodeFields, decodeValue, prune, putObject, idOf, isExpiredBackup };
+export default { runBackup, rotate, backupTargets, exportProject, exportRealtimeDb, docPathSegments, placeDoc, decodeFields, decodeValue, prune, putObject, idOf, isExpiredBackup };
