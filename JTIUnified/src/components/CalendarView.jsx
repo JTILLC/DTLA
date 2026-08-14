@@ -575,10 +575,12 @@ export default function CalendarView({ events, currentMonth, setCurrentMonth, co
                   width: '90%'
                 }}>
                   <h4 style={{ fontSize: '16px', fontWeight: '600', color: colors.text, marginBottom: '12px' }}>
-                    Delete Entry?
+                    Remove this day?
                   </h4>
                   <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '16px' }}>
-                    Are you sure you want to delete this entry for <strong>{deleteConfirm.customer}</strong> on {deleteConfirm.date}?
+                    Remove the day logged for <strong>{deleteConfirm.customer}</strong> on {deleteConfirm.date}?
+                    {' '}The timesheet itself is kept — invoice number, customer details, machines and
+                    service notes all stay. Only this day comes off.
                   </p>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button
