@@ -37,6 +37,10 @@ BACKUP_BUCKET      = "downtimelogger-a96fb.firebasestorage.app"
 # Shearers is a Realtime Database, not Firestore, so it is exported separately.
 SHEARERS_DB_URL    = "https://shearers-4c4b4-default-rtdb.firebaseio.com"
 SHEARERS_DB_PATH   = "jti-downtime/main-logger/data"
+
+# Timesheets. The project is named here so the skip reason is precise about
+# what is actually missing — a service account, not the project id.
+TIMESHEET_PROJECT_ID = "timesheetapp-c4e54"
 # BACKUP_RETAIN_DAYS = "30"
 
 # Secrets — set with wrangler, never commit:

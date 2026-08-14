@@ -352,19 +352,36 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
   const state = { count: 0, requests: 0, truncated: null, budget };
   const manifest = { startedAt: new Date().toISOString(), day, bucket, budget, results: [] };
 
+  // Reading and writing need DIFFERENT accounts.
+  //
+  // A service account can read its own project's Firestore and write its own
+  // project's bucket — and every dump goes to one bucket, so the account that
+  // read the Jobs project has no business writing to the CCW one. It was
+  // refused, correctly, with a 403 after a successful read.
+  //
+  // So: each project is read by its own account, and everything is written by
+  // whoever owns the bucket.
+  let writer = null;
+  const writeToken = async () => {
+    if (writer) return writer;
+    state.requests += 1;
+    writer = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY,
+      'https://www.googleapis.com/auth/devstorage.read_write');
+    return writer;
+  };
+
   for (const t of rotate(backupTargets(env), date)) {
     if (!t.ready) {
       manifest.results.push({ name: t.name, ok: false, skipped: true, reason: t.reason });
       continue;
     }
     try {
-      const token = await mintToken(t.email, t.key,
-        'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write');
       state.requests += 1;   // the token mint is a subrequest too
+      const token = await mintToken(t.email, t.key, 'https://www.googleapis.com/auth/datastore');
       const dump = await exportProject({ projectId: t.projectId, token, collections: t.collections, state });
       const objectPath = `backups/${day}/${t.projectId}.json`;
       state.requests += 1;
-      await putObject(bucket, objectPath, token, JSON.stringify(dump));
+      await putObject(bucket, objectPath, await writeToken(), JSON.stringify(dump));
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
         documents: dump.documents, truncated: dump.truncated, failed: dump.failed,
@@ -386,11 +403,9 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
         path: env.SHEARERS_DB_PATH || 'jti-downtime/main-logger/data',
         token,
       });
-      const writer = backupTargets(env).find((t) => t.ready);
-      const wToken = await mintToken(writer.email, writer.key,
-        'https://www.googleapis.com/auth/devstorage.read_write');
       const objectPath = `backups/${day}/shearers-4c4b4.json`;
-      await putObject(bucket, objectPath, wToken, JSON.stringify(dump));
+      state.requests += 1;
+      await putObject(bucket, objectPath, await writeToken(), JSON.stringify(dump));
       manifest.results.push({
         name: 'Shearers downtime', ok: true, path: objectPath,
         documents: dump.documents, authenticated: dump.authenticated,
@@ -402,19 +417,15 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     manifest.results.push({ name: 'Shearers downtime', ok: false, skipped: true, reason: 'no database url configured' });
   }
 
-  // The manifest goes next to the dumps, using whichever account can write —
-  // the one that just succeeded. A run where every project failed still records
-  // that it ran, which is the case somebody most needs to see.
+  // The manifest goes next to the dumps. A run where every project failed still
+  // records that it ran, which is the case somebody most needs to see.
   try {
-    const writer = backupTargets(env).find((t) => t.ready);
-    if (writer) {
-      const token = await mintToken(writer.email, writer.key,
-        'https://www.googleapis.com/auth/devstorage.read_write');
-      manifest.finishedAt = new Date().toISOString();
-      manifest.retention = await prune(bucket, token, Number(env.BACKUP_RETAIN_DAYS));
-      await putObject(bucket, `backups/${day}/manifest.json`, token, JSON.stringify(manifest, null, 2));
-      await putObject(bucket, 'backups/latest.json', token, JSON.stringify(manifest, null, 2));
-    }
+    const wToken = await writeToken();
+    manifest.finishedAt = new Date().toISOString();
+    manifest.requests = state.requests;
+    manifest.retention = await prune(bucket, wToken, Number(env.BACKUP_RETAIN_DAYS));
+    await putObject(bucket, `backups/${day}/manifest.json`, wToken, JSON.stringify(manifest, null, 2));
+    await putObject(bucket, 'backups/latest.json', wToken, JSON.stringify(manifest, null, 2));
   } catch (err) {
     manifest.manifestError = String(err.message || err);
   }
