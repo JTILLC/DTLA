@@ -33,6 +33,7 @@ const emptyEntry = (kind, number = '') => ({
 export default function ServiceReportLookup({
   reports = [],
   jobs = [],
+  packets = null,
   years = [],
   untaggedVisits = [],
   untaggedTimesheets = [],
@@ -176,6 +177,30 @@ export default function ServiceReportLookup({
   }, [filtered]);
 
   const selected = useMemo(() => reports.find((r) => r.norm === selectedNorm) || null, [reports, selectedNorm]);
+
+  // Files uploaded against this number on the packet page. Most invoices and
+  // service reports live here rather than as manually typed entries, so without
+  // this the window said a number had no invoice while the PDF sat on its
+  // packet. `packets` is keyed the same way `selected.norm` is.
+  const packetFiles = useMemo(() => {
+    const p = packets?.get?.(selectedNorm);
+    const files = p?.files || [];
+    const of = (kind) => files.filter((f) => f.kind === kind);
+    return { all: files, invoice: of('invoice'), serviceReport: of('serviceReport'), po: of('po'), receipts: of('receipts') };
+  }, [packets, selectedNorm]);
+
+  // One row per packet file: what it is, and the two ways to look at it.
+  const packetFileRow = (f, title) => (
+    <div key={f.path || f.name} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 6 }}>
+      <Paperclip size={13} style={{ color: colors.textSecondary }} />
+      <span style={{ fontSize: 13, color: colors.text, flex: '1 1 140px' }}>
+        {f.name}
+        <span style={{ color: colors.textSecondary, fontSize: 12 }}> · on the job packet</span>
+      </span>
+      {previewBtn(f.url || f.path, title)}
+      {openBtn(f.url || f.path)}
+    </div>
+  );
 
   // Every customer name the page has already seen, for the entry form's
   // autocomplete — typing a new spelling of an existing customer is the easiest
@@ -449,7 +474,7 @@ export default function ServiceReportLookup({
                 {/* Invoice / Timesheet */}
                 <div style={sectionCard}>
                   <div style={label}><Receipt size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Invoice / Timesheet</div>
-                  {selected.timesheets.length === 0 ? (
+                  {selected.timesheets.length === 0 && packetFiles.invoice.length === 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <AlertTriangle size={14} /> No invoice/timesheet found for this number.
@@ -495,7 +520,8 @@ export default function ServiceReportLookup({
                       </div>
                     ))
                   )}
-                  {selected.timesheets.length > 0 && (
+                  {packetFiles.invoice.map((f) => packetFileRow(f, `Invoice ${selected.number}`))}
+                  {(selected.timesheets.length > 0 || packetFiles.invoice.length > 0) && (
                     <div style={{ marginTop: 4 }}>{addBtn('invoice', 'Add another invoice')}</div>
                   )}
                 </div>
@@ -503,7 +529,7 @@ export default function ServiceReportLookup({
                 {/* Weigher visit */}
                 <div style={sectionCard}>
                   <div style={label}><ClipboardList size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Service Report / Weigher Visit</div>
-                  {selected.visits.length === 0 ? (
+                  {selected.visits.length === 0 && packetFiles.serviceReport.length === 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ color: '#f59e0b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <AlertTriangle size={14} /> No weigher visit tagged with this number.
@@ -545,10 +571,30 @@ export default function ServiceReportLookup({
                       </div>
                     ))
                   )}
-                  {selected.visits.length > 0 && (
+                  {packetFiles.serviceReport.map((f) => packetFileRow(f, `Service report ${selected.number}`))}
+                  {(selected.visits.length > 0 || packetFiles.serviceReport.length > 0) && (
                     <div style={{ marginTop: 4 }}>{addBtn('report', 'Add another service report')}</div>
                   )}
                 </div>
+
+                {/* The rest of the packet. The purchase order and the receipts
+                    have no section of their own here, and hunting for them
+                    meant opening the packet page for a number you already had
+                    open. */}
+                {(packetFiles.po.length > 0 || packetFiles.receipts.length > 0) && (
+                  <div style={sectionCard}>
+                    <div style={label}>
+                      <Paperclip size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Also on the job packet
+                    </div>
+                    {packetFiles.po.map((f) => packetFileRow(f, `Purchase order ${selected.number}`))}
+                    {packetFiles.receipts.map((f) => packetFileRow(
+                      f,
+                      // Named by what it is where that is known — "Shell" beats
+                      // "IMG_0421.jpg" when you are looking for one receipt.
+                      [f.category, f.vendor].filter(Boolean).join(' · ') || f.name,
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
