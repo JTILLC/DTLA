@@ -164,7 +164,7 @@ async function rootCollectionIds(projectId, token, state) {
  * `budget` is the Worker's subrequest allowance for this project. Reaching it
  * stops the run and SAYS so, rather than throwing away everything read so far.
  */
-export async function exportProject({ projectId, token, collections, state }) {
+export async function exportProject({ projectId, token, collections, state, checkUnconfigured = true }) {
   const data = {};
   const failed = [];
   const startedAt = state.count;
@@ -183,7 +183,7 @@ export async function exportProject({ projectId, token, collections, state }) {
   // silently missing from a backup is the failure this exists to prevent.
   let unconfigured = [];
   try {
-    if (state.requests < state.budget) {
+    if (checkUnconfigured && state.requests < state.budget) {
       unconfigured = (await rootCollectionIds(projectId, token, state))
         .filter((id) => !collections.includes(id));
     }
@@ -276,22 +276,41 @@ export function backupTargets(env) {
       key: env.GCP_SA_PRIVATE_KEY,
       // Nested names listed too: a collection-group query fetches `visits`
       // wherever they live, so the tree returns without being walked.
-      collections: ['user_files', 'customers', 'visits', 'shared_visits'],
+      collections: [
+        'user_files', 'customers', 'visits', 'shared_visits', 'shared_customers',
+        // Everything else this project holds. The first complete run reported
+        // all of these as present and unasked-for, which is exactly what that
+        // check exists to catch.
+        'app_roles', 'customer_secrets', 'jti_templates', 'user_signatures',
+        'metal_validations', 'xray_validations',
+      ],
     },
     {
       name: 'Jobs and packets',
       projectId: env.PARTS_PROJECT_ID,
       email: env.PARTS_SA_EMAIL,
       key: env.PARTS_SA_PRIVATE_KEY,
-      collections: ['unified_jobs', 'unified_job_packets', 'manual_reports',
-                    'customer_directory', 'job_customer_overrides'],
+      // manual_reports and job_customer_overrides were WRONG — the collections
+      // are named unified_*, so those two reported success while fetching
+      // nothing. A backup that silently contains none of a collection it claims
+      // to cover is the exact failure this system was built to prevent, and it
+      // was found only because the unconfigured check named the real ones.
+      collections: [
+        'unified_jobs', 'unified_job_packets', 'unified_manual_reports',
+        'unified_job_customer_overrides', 'customer_directory',
+        'quotes', 'service_quotes', 'service_quotes_customers',
+        'parts-viewer-diagrams', 'customer_shares', 'jobsData', 'settings',
+      ],
     },
     {
       name: 'Timesheets',
       projectId: env.TIMESHEET_PROJECT_ID,
       email: env.TIMESHEET_SA_EMAIL,
       key: env.TIMESHEET_SA_PRIVATE_KEY,
-      collections: ['timesheets', 'customer_directory', 'sr_directory'],
+      // `drafts` is the unsaved-work store — the thing that made the six days
+      // lost to a Reset in August recoverable at all. Of everything here it is
+      // the least replaceable, and it was not being backed up.
+      collections: ['timesheets', 'drafts', 'timesheet_data', 'customer_directory', 'sr_directory'],
     },
   ];
   return targets.map((t) => ({
@@ -348,7 +367,11 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
   // Shared across every project: Cloudflare counts subrequests per invocation,
   // and the first version budgeted per project, so four modest budgets added up
   // to more than the Worker was allowed and the whole run died.
-  const budget = Number(env.BACKUP_MAX_REQUESTS) || 45;
+  // Roughly one request per collection, plus a token and an upload per project.
+  // With every collection now listed that is around forty, so the default sits
+  // just under the free plan's fifty. On the Workers paid plan the ceiling is a
+  // thousand — set BACKUP_MAX_REQUESTS higher and the headroom stops mattering.
+  const budget = Number(env.BACKUP_MAX_REQUESTS) || 48;
   const state = { count: 0, requests: 0, truncated: null, budget };
   const manifest = { startedAt: new Date().toISOString(), day, bucket, budget, results: [] };
 
@@ -370,6 +393,7 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     return writer;
   };
 
+  let first = true;
   for (const t of rotate(backupTargets(env), date)) {
     if (!t.ready) {
       manifest.results.push({ name: t.name, ok: false, skipped: true, reason: t.reason });
@@ -378,7 +402,14 @@ export async function runBackup(env, mintToken, { date = new Date() } = {}) {
     try {
       state.requests += 1;   // the token mint is a subrequest too
       const token = await mintToken(t.email, t.key, 'https://www.googleapis.com/auth/datastore');
-      const dump = await exportProject({ projectId: t.projectId, token, collections: t.collections, state });
+      const dump = await exportProject({
+        projectId: t.projectId, token, collections: t.collections, state,
+        // Only the day's first project is asked what else it holds. It is a
+        // request per project and rotation covers them all within a few days —
+        // a new collection is worth finding, not worth finding four times.
+        checkUnconfigured: first,
+      });
+      first = false;
       const objectPath = `backups/${day}/${t.projectId}.json`;
       state.requests += 1;
       await putObject(bucket, objectPath, await writeToken(), JSON.stringify(dump));
