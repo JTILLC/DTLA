@@ -1,6 +1,6 @@
 // A number whose only record is its job packet still has to be clickable.
 import { describe, it, expect } from 'vitest';
-import { withPacketNumbers } from './reportRows.js';
+import { withPacketNumbers, customerForReport } from './reportRows.js';
 
 const reports = [
   { number: '2026028', norm: '2026028', year: '2026', timesheets: [{}], visits: [] },
@@ -59,5 +59,42 @@ describe('withPacketNumbers', () => {
 
   it('survives junk in the map', () => {
     expect(() => withPacketNumbers(reports, packetMap({ x: null, y: {} }))).not.toThrow();
+  });
+});
+
+describe('customerForReport', () => {
+  const jobs = [{ sr: '2026027', customer: 'Oasis Date' }];
+  const started = [{ sr: '2026030', customer: 'SunTree' }];
+
+  it('prefers the timesheet, which is where the billing name lives', () => {
+    const r = { number: '2026024', timesheets: [{ customer: 'Flagstone Foods' }], visits: [{ customer: 'Flagstone' }] };
+    expect(customerForReport(r, jobs, started)).toBe('Flagstone Foods');
+  });
+
+  it('falls back to the weigher visit', () => {
+    const r = { number: '2026024', timesheets: [], visits: [{ customer: 'Shearers Brewster' }] };
+    expect(customerForReport(r, jobs, started)).toBe('Shearers Brewster');
+  });
+
+  it('treats "Unknown" as no answer, because that is what it means', () => {
+    // The timesheet data really does contain the string "Unknown"; showing it
+    // beside a number reads as a customer called Unknown.
+    const r = { number: '2026024', timesheets: [{ customer: 'Unknown' }], visits: [{ customer: 'Reser\'s' }] };
+    expect(customerForReport(r, jobs, started)).toBe("Reser's");
+  });
+
+  it('uses the tracker job for a number with neither', () => {
+    const r = { number: '2026027', timesheets: [], visits: [] };
+    expect(customerForReport(r, jobs, started)).toBe('Oasis Date');
+  });
+
+  it('uses the reservation for a number the tracker has not seen', () => {
+    const r = { number: '2026030', timesheets: [], visits: [] };
+    expect(customerForReport(r, jobs, started)).toBe('SunTree');
+  });
+
+  it('says nothing rather than guessing', () => {
+    expect(customerForReport({ number: '2026099', timesheets: [], visits: [] }, jobs, started)).toBe('');
+    expect(customerForReport(null)).toBe('');
   });
 });

@@ -5,7 +5,7 @@ import { saveManualReport, deleteManualReport, fetchFileBytes } from '../data-se
 import { findJobsForSr } from '../utils/srMatch';
 import { isPaid, asLocalDate } from '../utils/format';
 import { isAbsoluteUrl } from '../utils/fileRef';
-import { withPacketNumbers } from '../utils/reportRows';
+import { withPacketNumbers, customerForReport } from '../utils/reportRows';
 
 const CCW_URL = 'https://jti-issues.pages.dev';
 // Every other link in this dashboard — SearchResults, CalendarView, App, the
@@ -35,6 +35,7 @@ export default function ServiceReportLookup({
   reports = [],
   jobs = [],
   packets = null,
+  startedJobs = [],
   years = [],
   untaggedVisits = [],
   untaggedTimesheets = [],
@@ -172,11 +173,14 @@ export default function ServiceReportLookup({
         (r) =>
           r.number.toLowerCase().includes(q) ||
           r.timesheets.some((t) => (t.customer || '').toLowerCase().includes(q)) ||
-          r.visits.some((v) => (v.customer || '').toLowerCase().includes(q))
+          r.visits.some((v) => (v.customer || '').toLowerCase().includes(q)) ||
+          // The name now shown on the row has to be searchable, or typing a
+          // customer would hide rows that visibly bear that customer's name.
+          customerForReport(r, jobs, startedJobs).toLowerCase().includes(q)
       );
     }
     return list;
-  }, [allReports, yearFilter, onlyUnmatched, search]);
+  }, [allReports, yearFilter, onlyUnmatched, search, jobs, startedJobs]);
 
   const grouped = useMemo(() => {
     const g = new Map();
@@ -377,9 +381,23 @@ export default function ServiceReportLookup({
                     return (
                       <button key={r.norm} onClick={() => setSelectedNorm(r.norm)}
                         style={{ width: '100%', textAlign: 'left', border: 0, borderBottom: `1px solid ${colors.border}`, background: active ? '#3b82f6' : 'transparent', color: active ? 'white' : colors.text, padding: '10px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontWeight: 700, fontSize: 14 }}>{r.number}</span>
-                          {isUnmatched(r) && <AlertTriangle size={13} style={{ color: active ? 'white' : '#f59e0b' }} title="Only found on one side" />}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{r.number}</span>
+                          {/* Who it is for. A list of bare numbers means
+                              clicking through them one at a time to find the
+                              job you actually wanted. Truncated rather than
+                              wrapped so every row stays one line high. */}
+                          <span
+                            title={customerForReport(r, jobs, startedJobs)}
+                            style={{
+                              fontSize: 13, flex: 1, minWidth: 0, textAlign: 'left',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              color: active ? 'rgba(255,255,255,0.9)' : colors.textSecondary,
+                            }}
+                          >
+                            {customerForReport(r, jobs, startedJobs)}
+                          </span>
+                          {isUnmatched(r) && <AlertTriangle size={13} style={{ color: active ? 'white' : '#f59e0b', flexShrink: 0 }} title="Only found on one side" />}
                         </div>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', opacity: active ? 0.95 : 1 }}>
                           {r.timesheets.length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#ecfdf5', active ? 'white' : '#059669', Receipt, 'Invoice', 'Invoice / timesheet exists')}
@@ -407,6 +425,11 @@ export default function ServiceReportLookup({
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
                   <span style={{ fontSize: 22, fontWeight: 700, color: colors.text }}>{selected.number}</span>
+                  {/* The same name the list row shows, so clicking a row does
+                      not lose the one piece of context you selected it by. */}
+                  {customerForReport(selected, jobs, startedJobs) && (
+                    <span style={{ fontSize: 15, color: colors.text }}>{customerForReport(selected, jobs, startedJobs)}</span>
+                  )}
                   <span style={{ fontSize: 13, color: colors.textSecondary }}>{selected.year}</span>
                 </div>
 

@@ -12,7 +12,7 @@
 // invoice and the signed report are uploaded to its packet, and the timesheet
 // or weigher visit catches up later.
 
-import { normalizeSr } from './srMatch.js';
+import { normalizeSr, findJobsForSr } from './srMatch.js';
 
 const yearOf = (norm) => {
   const m = /^(\d{4})/.exec(String(norm || ''));
@@ -57,4 +57,42 @@ export const withPacketNumbers = (reports = [], packets = null) => {
   return [...reports, ...extra].sort((a, b) => String(b.norm).localeCompare(String(a.norm)));
 };
 
-export default { withPacketNumbers };
+/**
+ * Whose job this is, for a row in the list.
+ *
+ * Asked of every source in turn because no single one covers every row: a
+ * number can exist as a timesheet, as a weigher visit, as a tracker job, or as
+ * nothing but a packet. "Unknown" is a real value in the timesheet data and is
+ * treated as no answer rather than shown as if it were one.
+ */
+export const customerForReport = (report, jobs = [], started = []) => {
+  if (!report) return '';
+  const named = (v) => {
+    const s = String(v || '').trim();
+    return s && s.toLowerCase() !== 'unknown' ? s : '';
+  };
+
+  for (const t of report.timesheets || []) {
+    const n = named(t.customer) || named(t.customerInfo?.company);
+    if (n) return n;
+  }
+  for (const v of report.visits || []) {
+    const n = named(v.customer);
+    if (n) return n;
+  }
+  // A packet-only number has neither, and the tracker or the reservation is the
+  // only place its customer was ever written down.
+  for (const j of findJobsForSr(jobs, report.number)) {
+    const n = named(j.customer);
+    if (n) return n;
+  }
+  for (const j of started || []) {
+    if (normalizeSr(j?.sr) === normalizeSr(report.number)) {
+      const n = named(j.customer);
+      if (n) return n;
+    }
+  }
+  return '';
+};
+
+export default { withPacketNumbers, customerForReport };
