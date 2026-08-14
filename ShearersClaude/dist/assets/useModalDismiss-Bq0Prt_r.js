@@ -1,1 +1,0 @@
-import{a as d}from"./charts-CR4CDR59.js";function c(e,o){d.useEffect(()=>{if(!e)return;const t=r=>{r.key==="Escape"&&o()};document.addEventListener("keydown",t);const n=document.body.style.overflow;return document.body.style.overflow="hidden",()=>{document.removeEventListener("keydown",t),document.body.style.overflow=n}},[e,o])}export{c as u};
