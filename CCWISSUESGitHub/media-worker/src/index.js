@@ -42,6 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+import { runBackup } from './backup.js';
 import { scanReceipt, mayScanReceipt } from './receipts.js';
 import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
 import {
@@ -327,6 +328,15 @@ const pathAllowedForShare = (path, share) => {
 };
 
 export default {
+  // Nightly. Cloudflare gives a scheduled Worker its own wall clock, so the
+  // walk is not competing with a user waiting for a page.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      runBackup(env, mintToken)
+        .then((m) => console.log('backup', JSON.stringify(m.results)))
+        .catch((err) => console.error('backup failed outright', err)));
+  },
+
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
     const allowed = env.ALLOWED_ORIGIN;
@@ -550,7 +560,11 @@ export default {
     }
 
     if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims'
-        || url.pathname === '/admin/logins' || url.pathname === '/admin/reset-password') {
+        || url.pathname === '/admin/logins' || url.pathname === '/admin/reset-password'
+        // Runs the nightly backup now. Same admin gate as the rest: it reads
+        // every collection in two projects, so it is not something an ordinary
+        // signed-in caller should be able to set off.
+        || url.pathname === '/admin/run-backup') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
         return deny(503, 'Account creation is not configured on the server.', origin, allowed);
@@ -570,6 +584,17 @@ export default {
       if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
       if (claims.firebase?.sign_in_provider === 'anonymous' || claims.admin !== true) {
         return deny(403, 'Only a JTI admin can create logins.', origin, allowed);
+      }
+
+      if (url.pathname === '/admin/run-backup') {
+        const manifest = await runBackup(env, mintToken);
+        // The manifest is the answer whether or not everything worked — a run
+        // where two projects failed is exactly what somebody needs to see, so
+        // it comes back 200 with the detail rather than as an error.
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders(origin, allowed) },
+        });
       }
 
       const handler = {

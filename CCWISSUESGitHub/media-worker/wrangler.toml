@@ -29,6 +29,16 @@ PARTS_BUCKET     = "jobs-data-17ee4.firebasestorage.app"
 # plant's crew roster when counting billable seats.
 WORKSPACE_UID    = "tgezUokMZ1PO7iEDbLbj2U7Uwbx1"
 
+# Where the nightly backups are written, and how long they are kept.
+# Retention is DELIBERATELY unset: with no value nothing is ever deleted. Set it
+# to a number of days once you have seen the backups arriving and are happy.
+BACKUP_BUCKET      = "downtimelogger-a96fb.firebasestorage.app"
+
+# Shearers is a Realtime Database, not Firestore, so it is exported separately.
+SHEARERS_DB_URL    = "https://shearers-4c4b4-default-rtdb.firebaseio.com"
+SHEARERS_DB_PATH   = "jti-downtime/main-logger/data"
+# BACKUP_RETAIN_DAYS = "30"
+
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
 #   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON
@@ -36,5 +46,13 @@ WORKSPACE_UID    = "tgezUokMZ1PO7iEDbLbj2U7Uwbx1"
 #   npx wrangler secret put PARTS_SA_EMAIL       # /parts/* only; service account on the PARTS project
 #   npx wrangler secret put PARTS_SA_PRIVATE_KEY # same; without both, /parts/* returns 503
 #
+#   npx wrangler secret put TIMESHEET_SA_EMAIL     # optional; without it timesheets are NOT backed up
+#   npx wrangler secret put TIMESHEET_SA_PRIVATE_KEY
+#
 # Deploy:
 #   cd media-worker && npx wrangler deploy
+
+# Nightly backup. 09:00 UTC is 02:00 in Arizona — after the day's work and
+# before anyone starts, so a run never competes with a plant using the app.
+[triggers]
+crons = ["0 9 * * *"]

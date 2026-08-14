@@ -59,6 +59,6 @@ export default defineConfig({
   test: {
     // The shared tests live with the shared code; both apps still run them, so
     // a break shows up wherever you happen to be working.
-    include: ['src/**/*.test.{js,jsx}', '../shared/**/*.test.{js,jsx}'],
+    include: ['src/**/*.test.{js,jsx}', '../shared/**/*.test.{js,jsx}', 'media-worker/src/**/*.test.js'],
   },
 });
