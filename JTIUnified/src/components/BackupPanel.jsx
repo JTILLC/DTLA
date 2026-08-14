@@ -301,7 +301,7 @@ export default function BackupPanel({ colors }) {
               </button>
               {/* Offered before Restore, and deliberately the safer of the two:
                   it answers "would this work" without touching live data. */}
-              {/CCW/i.test(pending.plan.app) && (
+              {pending.plan.valid && (
                 <button type="button" onClick={runVerify} disabled={busy === 'verify'}
                   style={ui.btn(colors, { tone: ui.TONE.ok, active: true })}>
                   {busy === 'verify' ? (progress || 'Checking…') : 'Test this restore safely'}
@@ -319,7 +319,7 @@ export default function BackupPanel({ colors }) {
         <div style={{ ...card, borderLeft: `3px solid ${verify.ok ? ui.TONE.ok : ui.TONE.bad}` }}>
           <div style={{ color: colors.text, fontWeight: 600, fontSize: '14px' }}>
             {verify.ok
-              ? `Restored and read back ${verify.matched} of ${verify.checked} customers, identical.`
+              ? `Restored and read back ${verify.matched} of ${verify.checked}, identical.`
               : `${verify.matched} of ${verify.checked} came back intact.`}
           </div>
           {verify.mismatches.map((m) => (
