@@ -167,3 +167,29 @@ describe('planImport classification', () => {
     expect(plan.matched.map((m) => m.category)).toEqual([null, 'Fuel', null]);
   });
 });
+
+// The packet page reuses this against the VENDOR the scanner read off the
+// photo, not just a filename — "Shell" with no useful filename should still
+// come out as fuel. Same function, so the hints have to work on a bare name.
+describe('guessCategory on a scanned vendor name', () => {
+  it('classifies the vendors these jobs actually use', () => {
+    expect(guessCategory('Shell')).toBe('Fuel');
+    expect(guessCategory('HERTZ')).toBe('Car rental');
+    expect(guessCategory('Delta Air Lines')).toBe('Airfare');
+    expect(guessCategory('Hampton Inn')).toBe('Lodging');
+    expect(guessCategory('Fastenal')).toBe('Parts / materials');
+  });
+
+  it('prefers lodging over parking for a hotel with "park" in the name', () => {
+    // Both hints match "Park Place Hotel"; the wrong one would file a night's
+    // lodging as a parking charge on the invoice.
+    expect(guessCategory('Park Place Hotel')).toBe('Lodging');
+  });
+
+  it('says nothing for a vendor it does not recognise', () => {
+    // A wrong type on an invoice line is worse than a blank one somebody fills.
+    expect(guessCategory('Acme Industrial Supply Co')).toBe('Parts / materials');
+    expect(guessCategory('Zzyzx LLC')).toBeNull();
+    expect(guessCategory('')).toBeNull();
+  });
+});

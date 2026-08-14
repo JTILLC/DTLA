@@ -23,6 +23,9 @@ import { buildPacket, describeUnsupported, packetEmail, packetFileName, receipts
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import { scanReceipt } from '../utils/scanReceipt';
 import BulkReceiptImport from './BulkReceiptImport';
+// The same nine types the bulk importer offers. One list: two lists would let a
+// receipt loaded in bulk carry a type the packet page cannot show or set.
+import { CATEGORIES, guessCategory } from '../utils/bulkReceipts';
 import * as ui from '../ui/theme';
 
 const KINDS = [
@@ -209,6 +212,14 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
             const patch = {};
             if (r.vendor) patch.vendor = r.vendor;
             if (r.total != null) patch.amount = String(r.total);
+            // The type follows from the vendor the scan just read — Shell is
+            // fuel, Hertz is a car. Guessed from the vendor first and the
+            // filename second, and only when the receipt has no type yet, so a
+            // re-scan cannot overwrite a choice somebody made by hand.
+            if (!entry.category) {
+              const guess = guessCategory(r.vendor || '') || guessCategory(file.name || '');
+              if (guess) patch.category = guess;
+            }
             if (Object.keys(patch).length) {
               await updatePacketFile(sr, entry.path, patch);
               read.push(`${file.name}: ${r.vendor || 'vendor not read'} ${r.total != null ? money(r.total) : '— amount not read'}`);
@@ -564,6 +575,20 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                             figure nobody can check. */}
                         {k.key === 'receipts' && f.path && (
                           <>
+                            {/* Type, then who, then how much — the order the
+                                itemised page prints them in, so the row on
+                                screen reads like the line in the packet. A
+                                dropdown saves on change: there is no half-typed
+                                state to wait out as there is with the boxes. */}
+                            <select
+                              value={f.category || ''}
+                              onChange={(e) => saveField(f, 'category', e.target.value)}
+                              aria-label={`Expense type for ${f.name}`}
+                              style={ui.input(colors, { width: '135px', padding: '4px 8px', fontSize: '13px' })}
+                            >
+                              <option value="">Type…</option>
+                              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
                             <input
                               defaultValue={f.vendor || ''}
                               onChange={(e) => queueField(f, 'vendor', e.target.value)}
