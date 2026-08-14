@@ -160,7 +160,9 @@ async function collectionGroup(projectId, token, collectionId, state, pageSize =
     if (onPage) {
       // Streamed: written out and released, so the caps below do not apply —
       // they exist to bound what is HELD, and this holds one page.
-      state.bytes += pageBytes;
+      // Counted apart from `bytes`: this never enters the project dump, and
+      // adding it made the reported size describe a file that does not exist.
+      state.streamedBytes += pageBytes;
       state.count += page.length;
       await onPage(page);
       if (page.length < pageSize) break;
@@ -258,8 +260,12 @@ export async function exportProject({
   let unconfigured = [];
   try {
     if (checkUnconfigured && state.requests < state.budget) {
+      // Streamed collections count as covered. Reporting one as missing while
+      // it sits in the same result as twelve files undermines the only check
+      // that says whether a green run means everything.
+      const covered = new Set([...collections, ...streamed]);
       unconfigured = (await rootCollectionIds(projectId, token, state))
-        .filter((id) => !collections.includes(id));
+        .filter((id) => !covered.has(id));
     }
   } catch { /* not fatal — what was read above is still good */ }
 
@@ -268,6 +274,7 @@ export async function exportProject({
     takenAt: new Date().toISOString(),
     documents: state.count - startedAt,
     megabytes: Math.round(state.bytes / 1e5) / 10,
+    streamedMegabytes: Math.round(state.streamedBytes / 1e5) / 10,
     requests: state.requests,
     truncated: state.truncated,
     oversized: [...new Set(state.oversized)],
@@ -454,7 +461,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
   // just under the free plan's fifty. On the Workers paid plan the ceiling is a
   // thousand — set BACKUP_MAX_REQUESTS higher and the headroom stops mattering.
   const budget = Number(env.BACKUP_MAX_REQUESTS) || 48;
-  const state = { count: 0, requests: 0, bytes: 0, oversized: [], truncated: null, budget };
+  const state = { count: 0, requests: 0, bytes: 0, streamedBytes: 0, oversized: [], truncated: null, budget };
   const manifest = { startedAt: new Date().toISOString(), day, bucket, budget, results: [] };
 
   // Reading and writing need DIFFERENT accounts.
@@ -509,7 +516,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       manifest.results.push({
         name: t.name, ok: true, path: objectPath,
         documents: dump.documents, megabytes: dump.megabytes,
-        chunks: dump.chunks,
+        streamedMegabytes: dump.streamedMegabytes, chunks: dump.chunks,
         truncated: dump.truncated, failed: dump.failed,
         // Named so an oversized collection is a decision to make rather than a
         // silent hole in the backup.
