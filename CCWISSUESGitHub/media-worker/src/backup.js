@@ -209,7 +209,7 @@ async function rootCollectionIds(projectId, token, state) {
  */
 export async function exportProject({
   projectId, token, collections, state, checkUnconfigured = true,
-  streamed = [], onChunk = null,
+  streamed = [], onChunk = null, streamPageSize = 50,
 }) {
   const data = {};
   const failed = [];
@@ -234,7 +234,13 @@ export async function exportProject({
     if (state.truncated === 'requests') break;
     try {
       let seq = 0;
-      await collectionGroup(projectId, token, c, state, 10, async (page) => {
+      // Fifty, not ten. Ten was chosen for a document size that turned out to
+      // be wrong: these average about 0.2 MB, so a page of fifty is around
+      // eleven megabytes — comfortable — while ten meant seventeen pages and
+      // thirty-four subrequests, which exhausted the run's allowance and left
+      // the collection possibly unfinished. Requests are the scarce resource
+      // here, not memory.
+      await collectionGroup(projectId, token, c, state, streamPageSize, async (page) => {
         const tree = {};
         page.forEach((d) => placeDoc(tree, docPathSegments(d.name), decodeFields(d.fields)));
         state.requests += 1;
@@ -487,6 +493,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
       const dump = await exportProject({
         projectId: t.projectId, token, collections: t.collections, state,
         streamed: t.streamed,
+        streamPageSize: Number(env.BACKUP_STREAM_PAGE) || 50,
         onChunk: async (collectionId, seq, tree) => putObject(
           bucket, `backups/${day}/${t.projectId}/${collectionId}-${seq}.json`,
           await writeToken(), JSON.stringify({ project: t.projectId, collection: collectionId, seq, data: tree })),
