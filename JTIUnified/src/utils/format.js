@@ -48,8 +48,25 @@ export const formatCurrency = (amount) => {
 };
 
 // Locale date string from a Firestore Timestamp / Date / parseable string.
+/**
+ * A stored date as a LOCAL Date.
+ *
+ * A bare "2026-08-02" is parsed by JS as UTC midnight, which in Arizona is 5pm
+ * the previous day — so every date typed into a date input rendered a day
+ * early. Date-only strings carry no timezone and mean the day somebody wrote
+ * down, so they are built as local rather than handed to the UTC parser. A full
+ * timestamp does carry a zone and is left alone.
+ */
+export const asLocalDate = (date) => {
+  if (date?.toDate) return date.toDate();
+  if (typeof date === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  return new Date(date);
+};
+
 export const formatDate = (date) => {
   if (!date) return 'N/A';
-  const d = date?.toDate?.() || new Date(date);
-  return d.toLocaleDateString();
+  return asLocalDate(date).toLocaleDateString();
 };
