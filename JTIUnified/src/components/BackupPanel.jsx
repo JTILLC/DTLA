@@ -196,7 +196,7 @@ export default function BackupPanel({ colors }) {
                 </span>
                 <span style={{ fontSize: '13px', color: colors.text, flex: 1 }}>
                   <strong>{r.name}</strong>
-                  {r.ok && <> — {r.documents} documents → <code>{r.path}</code></>}
+                  {r.ok && <> — {r.documents} documents{r.megabytes ? `, ${r.megabytes} MB` : ''} → <code>{r.path}</code></>}
                   {r.authenticated === false && <span style={{ color: '#92400e' }}> (read without credentials)</span>}
                   {r.truncated && <span style={{ color: '#92400e' }}> — stopped early ({r.truncated})</span>}
                   {(r.reason || r.error) && <span style={{ color: colors.textSecondary }}> — {r.reason || r.error}</span>}
