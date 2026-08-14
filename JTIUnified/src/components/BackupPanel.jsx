@@ -204,6 +204,13 @@ export default function BackupPanel({ colors }) {
                   {/* Collections that exist and are not being backed up. A
                       backup that looks complete and is not is the failure this
                       whole thing exists to prevent, so it is stated. */}
+                  {/* Written to their own files rather than into the project
+                      dump, because they do not fit in one. */}
+                  {r.chunks && Object.keys(r.chunks).length > 0 && (
+                    <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '2px' }}>
+                      {Object.entries(r.chunks).map(([c, n]) => `${c}: ${n} file${n === 1 ? '' : 's'}`).join(' · ')}
+                    </div>
+                  )}
                   {r.oversized?.length > 0 && (
                     <div style={{ color: '#92400e', fontSize: '12px', marginTop: '2px' }}>
                       Too large to include: {r.oversized.join(', ')} — these hold embedded images.
