@@ -15,9 +15,10 @@
 // ADDED to whatever a site already has, never a replacement for it, so the
 // items JTI or the plant wrote for their own reasons survive.
 //
-// Frequencies live in the section titles because the app's PM log is a single
-// submission per check, not a per-item scheduler. Grouping by interval is what
-// lets an operator run only the part that is due.
+// Each section carries a `frequency`, and the PM log keeps a separate record
+// per frequency — so running the daily checks says nothing about the annual
+// ones. The interval also stays in the section title, because that is what a
+// person reads on the floor. See utils/pmFrequency.js.
 //
 // The manual's figures ship with the app under /pm-manual/ and are referenced
 // by URL, NOT copied into a customer's storage. They are the same drawing for
@@ -37,6 +38,7 @@ export const PM_PRESETS = [
     sections: [
       {
         title: 'Pre-start checks (before production) — manual 10.2.1',
+        frequency: 'daily',
         items: [
           { label: 'Weigher and vicinity — no tools or loose items on or above the machine', type: 'check' },
           { label: 'Dispersion table securely mounted, no play or rocking', type: 'check' },
@@ -49,6 +51,7 @@ export const PM_PRESETS = [
       },
       {
         title: 'Monthly — manual 10.3',
+        frequency: 'monthly',
         items: [
           { label: 'Span check — zero each hopper, confirm 0.0 ±0.1 g (10.3.1)', type: 'check' },
           { label: 'Span check — 200 g weight on each hopper, confirm 200.0 ±0.1 g (10.3.1)', type: 'check' },
@@ -60,6 +63,7 @@ export const PM_PRESETS = [
       },
       {
         title: 'Annually — manual 10.3',
+        frequency: 'annually',
         items: [
           { label: 'Crack check — pool hoppers, weigh hoppers and radial troughs (10.3.6, fig. 10-20)', type: 'check', imageUrl: '/pm-manual/fig-10-20-crack-points.png' },
           { label: 'Rubber covers on radial troughs — no wear, distortion or cracking (10.3.7)', type: 'check', imageUrl: '/pm-manual/fig-10-21-rubber-cover.png' },
@@ -67,6 +71,7 @@ export const PM_PRESETS = [
       },
       {
         title: 'Long interval / as needed — manual 10.3',
+        frequency: 'asneeded',
         items: [
           { label: 'Memory backup battery — replace approx. every 5 years, Ishida service only (10.3.8)', type: 'check' },
           { label: 'Fuses intact — AC board P-5507, DC board P-5508; 250V 5A and 250V 3.15A (10.3.9)', type: 'check' },
@@ -84,6 +89,11 @@ export function presetSections(preset) {
   return (preset?.sections || []).map((sec, si) => ({
     id: `sec_${stamp}_${si}`,
     title: sec.title,
+    // Rebuilt field by field to get fresh ids, so anything added to a section
+    // has to be listed here or it is silently dropped on the way in. The
+    // frequency is what splits the PM log into separate daily/weekly/monthly
+    // records — losing it would land the manual's whole schedule in one bucket.
+    ...(sec.frequency ? { frequency: sec.frequency } : {}),
     items: (sec.items || []).map((it, ii) => ({
       id: `item_${stamp}_${si}_${ii}`,
       label: it.label,

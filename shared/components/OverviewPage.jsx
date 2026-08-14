@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { linesFromHistory } from '../utils/linesFromHistory.js';
 import { boardFor, outstandingLines, lastHandoverAt } from '../utils/prestart.js';
+import { bucketOf, labelOf } from '../utils/pmFrequency.js';
 import {
   LOG_SPAN, LOG_PM, LOG_PRESTART, subscribeLog, dueStatus, sinceLabel,
 } from '../services/logs.js';
@@ -109,15 +110,31 @@ export default function OverviewPage({
   const totalOffline = lineStates.reduce((n, l) => n + l.offline, 0);
   const totalIssues = lineStates.reduce((n, l) => n + l.issues, 0);
 
-  // Most recent PM per line, and whether it is overdue.
+  // Most recent PM per line AND per frequency, and whether it is overdue.
+  //
+  // Keyed by both because they are separate schedules: a line whose daily walk
+  // was done an hour ago can still be a month late on its monthly, and keying
+  // by line alone showed only the newest entry of any kind — so the daily hid
+  // the overdue monthly completely.
+  //
+  // A frequency that has never been run has no nextDueAt and so is not listed.
+  // "Never done" is a real thing to chase, but it is not the same as overdue,
+  // and every plant would show every bucket the day this shipped.
   const pmDue = useMemo(() => {
     const latest = new Map();
     pmLog.forEach((e) => {
-      const key = e.lineTitle || '—';
+      // A stringified pair rather than a joined string, so a line whose name
+      // happens to contain the separator cannot collide with another line's.
+      const key = JSON.stringify([e.lineTitle || '—', bucketOf(e)]);
       if (!latest.has(key)) latest.set(key, e);      // log arrives newest first
     });
-    return [...latest.entries()]
-      .map(([lineTitle, entry]) => ({ lineTitle, entry, due: dueStatus(entry.nextDueAt) }))
+    return [...latest.values()]
+      .map((entry) => ({
+        lineTitle: entry.lineTitle || '—',
+        frequency: labelOf(bucketOf(entry)),
+        entry,
+        due: dueStatus(entry.nextDueAt),
+      }))
       .filter((r) => r.due && /Overdue|today/i.test(r.due.label));
   }, [pmLog]);
 
@@ -130,8 +147,16 @@ export default function OverviewPage({
   if (pmDue.length) {
     items.push({
       sev: 'critical',
-      title: `PM due or overdue on ${pmDue.length} line${pmDue.length === 1 ? '' : 's'}`,
-      detail: pmDue.map((r) => `${r.lineTitle} · ${r.due.label.toLowerCase()}`).join(' · '),
+      title: `${pmDue.length} PM check${pmDue.length === 1 ? '' : 's'} due or overdue`,
+      // Capped like the head list above it. Now that this counts line AND
+      // frequency, a six-line plant on a daily schedule produces six entries
+      // before anything is actually late, and the row ran off the card.
+      detail: [
+        ...pmDue
+          .slice(0, 6)
+          .map((r) => `${r.lineTitle} · ${r.frequency.toLowerCase()} · ${r.due.label.toLowerCase()}`),
+        ...(pmDue.length > 6 ? [`+${pmDue.length - 6} more`] : []),
+      ].join(' · '),
       go: 'pm', goLabel: 'PM Log',
     });
   }
