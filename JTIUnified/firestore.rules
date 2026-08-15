@@ -1,13 +1,46 @@
 rules_version = '2';
+
+// jobs-data-17ee4 — jobs, packets, quotes, the parts catalogue and the share
+// tokens that let a customer see their diagrams without an account.
+//
+// `read` in these rules means BOTH `get` (fetch one document you can name) and
+// `list` (ask for the collection). That distinction is the whole of this file:
+// a shared link needs to fetch ONE thing by an unguessable id, and never needs
+// to ask what else is there. Granting `read` where `get` was meant hands over
+// the index as well as the page.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Shared links - public read for customer_shares (token validation)
+
+    // Share tokens. A customer opens a link and this is looked up by the token
+    // in it — a 20-character random string that is the only credential.
+    //
+    // `get` is public because that lookup happens before any sign-in. `list` is
+    // NOT: it was, and it meant anyone could ask for every share token in the
+    // system and then open all of them. Nothing needs it — the viewer fetches
+    // one token, and the queries that do list shares live in ShareModal, which
+    // runs behind a login.
     match /customer_shares/{token} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Parts diagrams - public read for shared viewer access
+    // Parts diagrams.
+    //
+    // This one stays listable without a login, and the reason is worth being
+    // honest about rather than quietly leaving `read: if true` in place: the
+    // shared viewer loads a customer's diagrams with a query filtered by
+    // customer name, and Firestore rules cannot require that a query carries a
+    // particular filter. Restricting `list` here would break every share link.
+    //
+    // So the exposure is real and known: anyone can enumerate the diagram
+    // catalogue. It is drawings and part mappings rather than customer or
+    // financial data, which is why this is a tolerable trade and not an
+    // acceptable one. The proper fix is the pattern CCW already uses for
+    // photos — serve the shared viewer through the media Worker, which
+    // validates the token and returns only that customer's diagrams — at which
+    // point this rule becomes `if request.auth != null` like everything else.
     match /parts-viewer-diagrams/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
