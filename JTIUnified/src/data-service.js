@@ -4,6 +4,7 @@ import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
 import { recordFailure, recordSuccess } from './utils/dataHealth.js';
 import { compareSources, describeDrift } from './utils/jobMirror.js';
+import { toTrackerJob } from './utils/toTrackerJob.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -2169,13 +2170,33 @@ export const startJob = async (draft) => {
     createdAt: new Date().toISOString(),
   };
   await setDoc(ref2, record);
+
+  // ...and create the job itself in the Jobs Tracker.
+  //
+  // This was impossible until the Tracker moved off whole-year files: it
+  // rewrote every job on save, so a second writer would have clobbered the
+  // first. Now each job is its own document, so the dashboard can create one
+  // rather than reserving a number and asking somebody to type it again.
+  //
+  // Deliberately not fatal. The number is reserved by the write above, which is
+  // the part that must not be lost; if this fails the old behaviour is exactly
+  // what happens — the number is offered on the Tracker's SR field and the job
+  // is entered there.
+  let trackerJobId = null;
+  try {
+    const jobRef = doc(collection(jobsMasterDb, 'jobs'));
+    await setDoc(jobRef, toTrackerJob({ ...d, sr: key }, jobRef.id));
+    trackerJobId = jobRef.id;
+  } catch (err) {
+    console.warn('Job not created in the Jobs Tracker:', err?.message || err);
+  }
   // Push it out immediately. Reserving a number and having it appear nowhere
   // until somebody happened to save a customer is the same as not reserving it:
   // the point is that the next person to need it can pick it rather than type
   // it. Fire-and-forget — a directory that failed to update must not make it
   // look like the number failed to reserve.
   publishToTimesheet().catch((e) => console.warn('Could not publish the new number:', e));
-  return record;
+  return { ...record, trackerJobId };
 };
 
 /**

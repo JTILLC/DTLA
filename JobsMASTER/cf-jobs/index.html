@@ -676,7 +676,16 @@
                 const srInput = document.getElementById('sr');
                 if (srInput) srInput.setAttribute('list', 'reservedSrs');
             }
+            // A number whose job already exists here is not a suggestion, it is
+            // a duplicate waiting to happen. The dashboard now creates the job
+            // outright, so most reserved numbers arrive already used.
+            const existing = new Set();
+            Object.values(data).forEach(arr => (arr || []).forEach(j => {
+                if (j.sr) existing.add(String(j.sr).trim().toUpperCase());
+            }));
+
             dl.innerHTML = reservedJobs
+                .filter(j => !existing.has(String(j.sr || '').trim().toUpperCase()))
                 .map(j => `<option value="${j.sr}">${(j.customer || '').replace(/"/g, '&quot;')}</option>`)
                 .join('');
         }

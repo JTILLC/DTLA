@@ -109,10 +109,13 @@ export default function NewJobPage({ colors, customerRecords = [], onCreated, on
           {/* Said explicitly, because the number appearing in three other apps
               a moment later is surprising if nobody told you it would. */}
           <div style={{ fontSize: '13px', color: colors.textSecondary, lineHeight: 1.7 }}>
-            It is now offered on the <strong style={{ color: colors.text }}>Timesheet</strong> app's job picker,
-            on the service report field in <strong style={{ color: colors.text }}>CCW Issues</strong>,
-            and in the <strong style={{ color: colors.text }}>Jobs Tracker</strong>, where creating the job
-            will fill in the customer from what you typed here.
+            {created.trackerJobId
+              ? <>The job is already <strong style={{ color: colors.text }}>in the Jobs Tracker</strong> — there is
+                  nothing to re-enter, only the quote and terms to fill in when you have them. </>
+              : <>The number is reserved, but the job could not be created in the Jobs Tracker just now —
+                  open it there and the number will be offered on the service report field. </>}
+            It is also offered on the <strong style={{ color: colors.text }}>Timesheet</strong> app's job picker
+            and on the service report field in <strong style={{ color: colors.text }}>CCW Issues</strong>.
             Headcount does not use service report numbers and is unaffected.
           </div>
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
