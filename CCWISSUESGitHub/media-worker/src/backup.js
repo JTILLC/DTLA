@@ -398,6 +398,12 @@ export function backupTargets(env) {
       collections: [
         'unified_jobs', 'unified_job_packets', 'unified_manual_reports',
         'unified_job_customer_overrides', 'customer_directory',
+        // The per-job mirror. Added before it exists on purpose: the jobs year
+        // files live in Storage, which this backup does not cover, so until now
+        // the jobs data has had no nightly copy at all — only the manual button.
+        // The moment the mirror is populated it is protected, rather than
+        // waiting for somebody to remember to add it.
+        'jobs',
         'quotes', 'service_quotes', 'service_quotes_customers',
         'customer_shares', 'jobsData', 'settings',
       ],
