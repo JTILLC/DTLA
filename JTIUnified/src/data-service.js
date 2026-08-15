@@ -278,28 +278,28 @@ export const fetchJobsData = async () => {
       }
     });
 
-    const [, mirror] = await Promise.all([Promise.all(fetchPromises), fetchJobMirror()]);
+    const mirror = await fetchJobMirror();
 
-    // Use the mirror only where it agrees with the files.
+    // Phase 4: the mirror IS the jobs.
     //
-    // This is the first thing to read it, and the usual way to gain confidence
-    // — watch it for a week, then switch — relies on somebody watching, and on
-    // nothing breaking the week after they stop. Checking on every load costs
-    // one collection read and never goes stale.
+    // The year files stopped being written on 2026-08-14 and are now an
+    // archive. Comparing against them would report drift on every edit made
+    // since, so the check that guarded phases 2 and 3 has done its job and
+    // gone.
     //
-    // Where they disagree the files win: they are what the Jobs app writes and
-    // therefore still the truth. The disagreement is reported rather than
-    // absorbed, because a mirror quietly missing jobs would show as income that
-    // is simply lower, with nothing to say why.
-    if (mirror) {
-      const cmp = compareSources(allJobs, mirror);
-      if (cmp.agree) {
-        recordSuccess('job mirror');
-        // Same jobs either way; taking the mirror's copy is what makes this a
-        // real read rather than a rehearsal.
-        allJobs = mirror.map((j) => ({ ...j }));
-      } else {
-        recordFailure('job mirror', new Error(describeDrift(cmp)));
+    // The files are still read if the mirror cannot be — but the result says
+    // so. Stale figures presented as current are worse than none in an app
+    // whose numbers are money, so this is a labelled fallback rather than a
+    // silent one.
+    if (mirror && mirror.length) {
+      recordSuccess('job mirror');
+      allJobs = mirror.map((j) => ({ ...j }));
+    } else {
+      await Promise.all(fetchPromises);
+      if (allJobs.length) {
+        recordFailure('job mirror', new Error(
+          'Could not read the jobs database, so these figures come from the archived year files '
+          + 'and are out of date from 14 August.'));
       }
     }
 

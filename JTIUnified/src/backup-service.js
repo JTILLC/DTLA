@@ -1,7 +1,6 @@
 import { collection, getDocs, setDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { ref as storageRef, getDownloadURL, uploadString, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get, set } from 'firebase/database';
-import { ccwIssuesDb, timesheetDb, jobsStorage, shearersRealtimeDb } from './firebase-config';
+import { ccwIssuesDb, timesheetDb, jobsMasterDb, shearersRealtimeDb } from './firebase-config';
 import { ccwCustomerSplit, planRestore, deepSame as same } from './utils/backupShape';
 
 // Helper function to download JSON
@@ -137,42 +136,37 @@ export async function backupTimesheet(onProgress) {
   }
 }
 
-// Backup Jobs (Firebase Storage)
+// Backup Jobs (Firestore — the per-job mirror)
+//
+// This used to download the jobs-<year>.json files. Those stopped being
+// written on 2026-08-14 when the Jobs app moved to a document per job, so
+// reading them now would produce a backup that looks complete and is frozen at
+// that date — the worst kind, because nothing about it says so.
 export async function backupJobs(onProgress) {
   try {
     onProgress?.('Starting JTI Jobs Tracker backup...');
 
+    const snap = await getDocs(collection(jobsMasterDb, 'jobs'));
     const backup = {
       timestamp: new Date().toISOString(),
       app: 'JTI Jobs Tracker',
-      data: {}
+      // Grouped by year, which is the shape the restore and the old files both
+      // use, so a backup taken before this change still restores.
+      data: {},
     };
 
-    // Get years dynamically (2022 to current year + 3)
-    const currentYear = new Date().getFullYear();
-    const years = [];
-    for (let y = 2022; y <= currentYear + 3; y++) {
-      years.push(y.toString());
-    }
-
-    for (const year of years) {
-      try {
-        const url = await getDownloadURL(storageRef(jobsStorage, `jobs-${year}.json`));
-        const response = await fetch(url);
-        if (response.ok) {
-          backup.data[year] = await response.json();
-        }
-      } catch (e) {
-        console.log(`No data for year ${year}`);
-      }
-    }
+    snap.docs.forEach((d) => {
+      const job = { id: d.id, ...d.data() };
+      const year = String(job.year || new Date().getFullYear());
+      (backup.data[year] = backup.data[year] || []).push(job);
+    });
 
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
     downloadJSON(backup, `jobs-backup-${timestamp}.json`);
 
     const yearCount = Object.keys(backup.data).length;
-    onProgress?.(`✅ Jobs backup complete! ${yearCount} years backed up.`);
-    return { success: true, message: `${yearCount} years backed up` };
+    onProgress?.(`✅ Jobs backup complete! ${snap.size} jobs across ${yearCount} years.`);
+    return { success: true, message: `${snap.size} jobs backed up` };
   } catch (error) {
     console.error('Jobs backup error:', error);
     onProgress?.(`❌ Jobs backup failed: ${error.message}`);
@@ -324,8 +318,14 @@ export async function importTimesheet(backupData, { intoCollection = 'timesheets
 }
 
 // Import Jobs data
-/** @param {string} [intoPrefix] - write under a folder; see verifyRestore. */
-export async function importJobs(backupData, { intoPrefix = '' } = {}) {
+/**
+ * @param {string} [intoCollection] - write somewhere else; see verifyRestore.
+ *
+ * Restores per-job documents. A backup taken before 2026-08-14 holds year
+ * ARRAYS with no ids; those are restored too, with ids minted on the way in,
+ * so an old file is still worth having.
+ */
+export async function importJobs(backupData, { intoCollection = 'jobs' } = {}) {
   try {
     if (!backupData.data || typeof backupData.data !== 'object') {
       throw new Error('Invalid Jobs backup format');
@@ -333,17 +333,16 @@ export async function importJobs(backupData, { intoPrefix = '' } = {}) {
 
     let totalRestored = 0;
 
-    for (const [year, jobsData] of Object.entries(backupData.data)) {
-      await uploadString(
-        storageRef(jobsStorage, `${intoPrefix}jobs-${year}.json`),
-        JSON.stringify(jobsData, null, 2),
-        'raw',
-        { contentType: 'application/json' }
-      );
-      totalRestored++;
+    for (const [year, jobs] of Object.entries(backupData.data)) {
+      const list = Array.isArray(jobs) ? jobs : Object.values(jobs || {});
+      for (const job of list) {
+        const id = job.id || crypto.randomUUID();
+        await setDoc(doc(jobsMasterDb, intoCollection, id), { ...job, id, year: String(job.year || year) });
+        totalRestored += 1;
+      }
     }
 
-    return { success: true, message: `Restored ${totalRestored} years of jobs data` };
+    return { success: true, message: `Restored ${totalRestored} jobs` };
   } catch (error) {
     console.error('Jobs import error:', error);
     return { success: false, error: error.message };
@@ -506,35 +505,41 @@ async function verifyTimesheets(backup, onProgress, sample) {
 }
 
 /**
- * Jobs: whole-year JSON files in Storage, not Firestore.
+ * Jobs: per-job documents, restored into a sandbox collection.
  *
- * Read back over HTTP rather than trusting the upload, because that is how the
- * apps read them and it is the only way to see what actually landed.
+ * Was a Storage folder read back over HTTP, until the jobs moved to Firestore.
  */
 async function verifyJobs(backup, onProgress, sample) {
   const report = { checked: 0, matched: 0, mismatches: [], cleaned: 0, errors: [] };
-  const years = Object.entries(backup.data || {}).slice(0, sample);
-  if (!years.length) throw new Error('That backup has no job years to verify with.');
-  const prefix = `${SANDBOX_UID}/`;
+  const jobs = Object.values(backup.data || {}).flatMap((v) => (Array.isArray(v) ? v : Object.values(v || {})));
+  const slice = jobs.slice(0, sample);
+  if (!slice.length) throw new Error('That backup has no jobs to verify with.');
 
-  onProgress?.(`Restoring ${years.length} year files into a sandbox…`);
-  const res = await importJobs({ ...backup, data: Object.fromEntries(years) }, { intoPrefix: prefix });
+  onProgress?.(`Restoring ${slice.length} jobs into a sandbox…`);
+  const res = await importJobs(
+    { ...backup, data: { probe: slice } }, { intoCollection: SANDBOX_UID });
   if (!res.success) throw new Error(res.error || 'The restore itself failed.');
 
-  for (const [year, jobsData] of years) {
+  for (const job of slice) {
+    const id = job.id;
+    if (!id) { report.errors.push('a job in this backup has no id'); continue; }
     try {
-      const url = await getDownloadURL(storageRef(jobsStorage, `${prefix}jobs-${year}.json`));
-      const back = await (await fetch(url)).json();
+      const snap = await getDoc(doc(jobsMasterDb, SANDBOX_UID, id));
       report.checked += 1;
-      if (!same(back, jobsData)) report.mismatches.push(`${year}: came back different`);
-      else report.matched += 1;
-    } catch (err) { report.errors.push(`${year}: ${err.message}`); }
+      if (!snap.exists()) report.mismatches.push(`${id}: nothing was written`);
+      // year is normalised on the way in, so compare what the job SAYS.
+      else if (!same({ ...snap.data(), year: String(snap.data().year) },
+                     { ...job, id, year: String(job.year) })) {
+        report.mismatches.push(`${job.sr || id}: came back different`);
+      } else report.matched += 1;
+    } catch (err) { report.errors.push(`${id}: ${err.message}`); }
   }
 
   onProgress?.('Removing the sandbox…');
-  for (const [year] of years) {
-    try { await deleteObject(storageRef(jobsStorage, `${prefix}jobs-${year}.json`)); report.cleaned += 1; }
-    catch (err) { report.errors.push(`cleanup ${year}: ${err.message}`); }
+  for (const job of slice) {
+    if (!job.id) continue;
+    try { await deleteDoc(doc(jobsMasterDb, SANDBOX_UID, job.id)); report.cleaned += 1; }
+    catch (err) { report.errors.push(`cleanup ${job.id}: ${err.message}`); }
   }
   return report;
 }
