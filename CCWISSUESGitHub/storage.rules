@@ -32,7 +32,17 @@ service firebase.storage {
     function isBrokerOnly() {
       return resource.name.matches('.*issue-photos/.*')
           || resource.name.matches('.*service-reports/.*')
-          || resource.name.matches('.*pm-images/.*');
+          || resource.name.matches('.*pm-images/.*')
+          // The nightly backups, added 2026-08-14. They are the single most
+          // sensitive thing in this bucket — every customer, every timesheet,
+          // every invoice and the contents of customer_secrets, in one file
+          // per project under a guessable dated path — and the catch-all above
+          // made them world-readable the moment the first one was written.
+          //
+          // Nothing reads them over HTTP: the Worker writes them with a
+          // service account, and service accounts use IAM rather than these
+          // rules, so denying public reads costs nothing.
+          || resource.name.matches('.*backups/.*');
     }
 
     // ---- Writes: ownership enforced via CUSTOM CLAIMS -----------------------
