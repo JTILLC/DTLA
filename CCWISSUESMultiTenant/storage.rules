@@ -1,3 +1,11 @@
+// NOTE: this file and CCWISSUESGitHub/storage.rules govern the SAME Firebase
+// project (downtimelogger-a96fb). Only one set of rules can be live, so
+// whichever folder was deployed from last wins — and they had drifted apart:
+// this copy was missing the prestart-photos write rule, so deploying from here
+// silently removed it from the production app.
+//
+// They are now identical and must stay that way. Change one, copy it to the
+// other, deploy once.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -32,7 +40,17 @@ service firebase.storage {
     function isBrokerOnly() {
       return resource.name.matches('.*issue-photos/.*')
           || resource.name.matches('.*service-reports/.*')
-          || resource.name.matches('.*pm-images/.*');
+          || resource.name.matches('.*pm-images/.*')
+          // The nightly backups, added 2026-08-14. They are the single most
+          // sensitive thing in this bucket — every customer, every timesheet,
+          // every invoice and the contents of customer_secrets, in one file
+          // per project under a guessable dated path — and the catch-all above
+          // made them world-readable the moment the first one was written.
+          //
+          // Nothing reads them over HTTP: the Worker writes them with a
+          // service account, and service accounts use IAM rather than these
+          // rules, so denying public reads costs nothing.
+          || resource.name.matches('.*backups/.*');
     }
 
     // ---- Writes: ownership enforced via CUSTOM CLAIMS -----------------------
@@ -69,6 +87,17 @@ service firebase.storage {
     // like all other CCW media, rather than carving out a public exception for
     // pictures of a customer's equipment.
     match /pm-images/{workspaceId}/{customerId}/{rest=**} {
+      allow write: if canWrite(customerId)
+        && (request.resource == null
+            || (request.resource.size < 15 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
+    }
+
+    // prestart-photos/{workspaceId}/{customerId}/…
+    // Evidence attached to a daily pre-start check — the operator photographing
+    // what they just flagged. Same rule as every other picture of a customer's
+    // equipment: written by that plant or JTI, read through the broker.
+    match /prestart-photos/{workspaceId}/{customerId}/{rest=**} {
       allow write: if canWrite(customerId)
         && (request.resource == null
             || (request.resource.size < 15 * 1024 * 1024
