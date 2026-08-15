@@ -466,6 +466,9 @@
                     <div class="menu-sep"></div>
                     <button onclick="window.saveToCloud()"><i class="bi bi-cloud-upload"></i>Save to Cloud</button>
                     <button onclick="window.loadFromCloud()"><i class="bi bi-cloud-download"></i>Load from Cloud</button>
+                    <!-- Sets up the per-job copy. One-time; after this it keeps
+                         itself up to date. Nothing reads that copy yet. -->
+                    <button onclick="window.setUpJobMirror()"><i class="bi bi-database-check"></i>Set up job mirror</button>
                     <div class="menu-sep"></div>
                     <button onclick="window.exportJson()"><i class="bi bi-filetype-json"></i>Export JSON (year)</button>
                     <button onclick="window.exportAllYearsJson()"><i class="bi bi-archive"></i>Export All Years</button>
@@ -619,7 +622,7 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
         import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-storage.js';
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
-        import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
+        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
 
         let app, storage, auth, db;
         try {
@@ -682,6 +685,10 @@
                 document.getElementById('loginOverlay').style.display = 'none';
                 document.getElementById('appContent').style.display = 'block';
                 loadReserved();
+                // Read the mirror once so this session writes only what it
+                // changes, and so deletes have a snapshot to be measured
+                // against. Until this resolves, syncShadow does nothing.
+                loadShadowSnapshot();
             } else {
                 document.getElementById('loginOverlay').style.display = 'flex';
                 document.getElementById('appContent').style.display = 'none';
@@ -894,6 +901,9 @@
             localStorage.setItem('years', JSON.stringify(Object.keys(data)));
             Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
             localStorage.setItem('localEditTime', Date.now());
+            // Mirror to Firestore, without waiting and without ever failing the
+            // save. See "Phase 1" below.
+            syncShadow();
         }
 
         // === Cloud Diff Banner ===
@@ -939,6 +949,149 @@
             } else {
                 banner.style.display = 'none';
                 toast('Everything is in sync with the cloud', 'success');
+            }
+        };
+
+        // === Phase 1: a per-job copy in Firestore ==========================
+        //
+        // The year files are rewritten whole, so two devices editing the same
+        // year means one of them loses everything the other did. This is the
+        // first step away from that: every job is mirrored to its own Firestore
+        // document, and NOTHING reads those documents yet.
+        //
+        // Shadow only, deliberately. If this is wrong the app is unaffected —
+        // it is still running entirely on the year files, and the mirror can be
+        // deleted and rebuilt. Reading from it is a later, separate decision.
+        //
+        // Hooked into saveToStorage rather than into each of the ten places
+        // that change a job. Those ten do quite different things — one job, a
+        // whole year, an import, a wholesale replace from the cloud — and
+        // instrumenting them one at a time would work until somebody added an
+        // eleventh.
+        const JOBS_COLLECTION = 'jobs';
+        let shadowSnapshot = new Map();   // job id -> serialised, as last written
+        let shadowReady = false;          // false until the collection has been read
+
+        const jobKey = (j, year) => JSON.stringify({ ...j, year });
+
+        /**
+         * Give every job a stable id.
+         *
+         * Written INTO the job, so it travels in the year file and every device
+         * agrees which document a job is. Random rather than derived from the
+         * contents: a hash would change when somebody corrects an amount, and
+         * the mirror would grow a duplicate and orphan the original.
+         */
+        function ensureJobIds() {
+            let added = 0;
+            for (const y of Object.keys(data)) {
+                for (const j of (data[y] || [])) {
+                    if (!j.id) { j.id = crypto.randomUUID(); added += 1; }
+                }
+            }
+            return added;
+        }
+
+        /** Read the mirror once, so a session does not rewrite what is already there. */
+        async function loadShadowSnapshot() {
+            if (!db || !auth.currentUser) return;
+            try {
+                const snap = await getDocs(collection(db, JOBS_COLLECTION));
+                shadowSnapshot = new Map();
+                snap.docs.forEach(d => {
+                    const { updatedAt, updatedBy, ...job } = d.data();
+                    shadowSnapshot.set(d.id, JSON.stringify(job));
+                });
+                shadowReady = true;
+            } catch (e) {
+                console.warn('[shadow] could not read the mirror:', e.message);
+                shadowReady = false;   // no snapshot means no deletes, see below
+            }
+        }
+
+        /**
+         * Mirror the current data. Writes only what changed; removes what went.
+         *
+         * Never throws. A failure here must not stop a job being saved — the
+         * year files are still the real thing.
+         */
+        async function syncShadow() {
+            if (!db || !auth.currentUser || !shadowReady) return;
+
+            const next = new Map();
+            const writes = [];
+            for (const y of Object.keys(data)) {
+                for (const j of (data[y] || [])) {
+                    if (!j.id) continue;
+                    const key = jobKey(j, y);
+                    next.set(j.id, key);
+                    if (shadowSnapshot.get(j.id) !== key) writes.push({ ...j, year: y });
+                }
+            }
+
+            let deletes = [...shadowSnapshot.keys()].filter(id => !next.has(id));
+
+            // The one that could be a disaster.
+            //
+            // If localStorage is cleared, or a load fails and leaves `data`
+            // empty, every id looks deleted and this would empty the mirror.
+            // Deleting everything is never a legitimate outcome of an edit, so
+            // a pass that would remove all of it is refused rather than trusted.
+            if (deletes.length && next.size === 0) {
+                console.warn('[shadow] refusing to empty the mirror — local data looks lost, not deleted');
+                deletes = [];
+            }
+
+            if (!writes.length && !deletes.length) return;
+
+            try {
+                const batch = writeBatch(db);
+                writes.forEach(j => batch.set(doc(db, JOBS_COLLECTION, j.id), {
+                    ...j,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: auth.currentUser?.email || '',
+                }));
+                deletes.forEach(id => batch.delete(doc(db, JOBS_COLLECTION, id)));
+                await batch.commit();
+                shadowSnapshot = next;
+                console.log(`[shadow] ${writes.length} written, ${deletes.length} removed`);
+            } catch (e) {
+                // Left out of the snapshot so the next save retries it.
+                console.warn('[shadow] mirror not updated:', e.message);
+            }
+        }
+
+        /**
+         * One-time setup: give every job an id and mirror the lot.
+         *
+         * Explicit rather than automatic because it writes the ids into the
+         * YEAR FILES too. Without that a second device would invent its own ids
+         * for the same jobs and the mirror would double.
+         */
+        window.setUpJobMirror = async () => {
+            const added = ensureJobIds();
+            const total = Object.values(data).reduce((n, arr) => n + (arr || []).length, 0);
+            const ok = await confirmDialog(
+                `Give ${total} jobs a permanent id and copy them to the cloud database. `
+                + `Nothing reads that copy yet — this only sets it up. `
+                + `${added ? `${added} jobs need an id, which also updates the year files.` : 'All jobs already have ids.'}`,
+                { title: 'Set up the job mirror', confirmText: 'Set it up' });
+            if (!ok) return;
+
+            try {
+                saveToStorage();
+                if (added) {
+                    // The ids have to reach the year files, or the next device
+                    // to load will not recognise these jobs as the same ones.
+                    for (const y of Object.keys(data)) {
+                        await uploadString(ref(storage, `jobs-${y}.json`), JSON.stringify(data[y], null, 2), 'raw', { contentType: 'application/json' });
+                    }
+                }
+                await loadShadowSnapshot();
+                await syncShadow();
+                toast(`Mirror ready — ${total} jobs`, 'success');
+            } catch (e) {
+                toast('Could not set up the mirror: ' + e.message, 'danger');
             }
         };
 
