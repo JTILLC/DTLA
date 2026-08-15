@@ -3,6 +3,7 @@ import { showsWithoutEntries } from './utils/timesheetVisibility.js';
 import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
 import { recordFailure, recordSuccess } from './utils/dataHealth.js';
+import { compareSources, describeDrift } from './utils/jobMirror.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
@@ -209,6 +210,24 @@ export const subscribeAllUpdates = (callback, debounceMs = 1500) => {
 };
 
 // Fetch Jobs Data from Firebase Storage JSON files
+/**
+ * The per-job mirror the Jobs app now writes alongside the year files.
+ *
+ * Read-only here and, for the moment, only used where it agrees with the
+ * files — see fetchJobsData.
+ */
+export const fetchJobMirror = async () => {
+  try {
+    const snap = await getDocs(collection(jobsMasterDb, 'jobs'));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    // Not a failure worth reporting: the files are still authoritative, and a
+    // mirror that cannot be read simply is not used.
+    console.warn('Job mirror unavailable:', error?.message || error);
+    return null;
+  }
+};
+
 export const fetchJobsData = async () => {
   // Check cache first
   if (isCacheValid('jobs')) {
@@ -258,7 +277,30 @@ export const fetchJobsData = async () => {
       }
     });
 
-    await Promise.all(fetchPromises);
+    const [, mirror] = await Promise.all([Promise.all(fetchPromises), fetchJobMirror()]);
+
+    // Use the mirror only where it agrees with the files.
+    //
+    // This is the first thing to read it, and the usual way to gain confidence
+    // — watch it for a week, then switch — relies on somebody watching, and on
+    // nothing breaking the week after they stop. Checking on every load costs
+    // one collection read and never goes stale.
+    //
+    // Where they disagree the files win: they are what the Jobs app writes and
+    // therefore still the truth. The disagreement is reported rather than
+    // absorbed, because a mirror quietly missing jobs would show as income that
+    // is simply lower, with nothing to say why.
+    if (mirror) {
+      const cmp = compareSources(allJobs, mirror);
+      if (cmp.agree) {
+        recordSuccess('job mirror');
+        // Same jobs either way; taking the mirror's copy is what makes this a
+        // real read rather than a rehearsal.
+        allJobs = mirror.map((j) => ({ ...j }));
+      } else {
+        recordFailure('job mirror', new Error(describeDrift(cmp)));
+      }
+    }
 
     // Apply any corrections before anything counts or groups these jobs, so a
     // reassigned job leaves the old customer's totals as well as joining the
