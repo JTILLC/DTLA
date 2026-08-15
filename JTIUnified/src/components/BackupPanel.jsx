@@ -329,7 +329,7 @@ export default function BackupPanel({ colors }) {
             <div key={m} style={{ color: '#92400e', fontSize: '13px', marginTop: '4px' }}>{m}</div>
           ))}
           <div style={{ color: colors.textSecondary, fontSize: '12px', marginTop: '8px' }}>
-            Written to a sandbox no app reads, then removed — {verify.cleaned} documents cleaned up.
+            Written to a sandbox no app reads, then removed — {verify.cleaned} document{verify.cleaned === 1 ? '' : 's'} cleaned up.
             Live data was not touched.
           </div>
         </div>
