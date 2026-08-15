@@ -11,13 +11,18 @@ service firebase.storage {
     //
     // Kept deliberately simple. This project (shearers-4c4b4) serves one
     // logger used by JTI and one customer, so photos are read by download URL
-    // rather than through a broker. Writes require sign-in; reads are open
+    // rather than through a broker. Writes require sign-in; FETCHING is open
     // because the shared read-only viewer has no login to check.
+    //
+    // Listing is not. `read` covers both, and granting it meant anyone could
+    // walk the folder and take every photo ever uploaded rather than the ones
+    // they had a link to. Nothing lists this — the viewer is handed the URLs.
     //
     // Uploads are downscaled to JPEG client-side, so the 15 MB ceiling is a
     // guard against a mis-picked file rather than a normal limit.
     match /downtime-photos/{allPaths=**} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow write: if request.auth != null
         && (request.resource == null
             || (request.resource.size < 15 * 1024 * 1024

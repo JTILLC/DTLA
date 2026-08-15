@@ -1,13 +1,30 @@
 rules_version = '2';
+
+// jobs-data-17ee4 storage — packet files, the jobs year files, and the diagram
+// images the shared viewer displays.
+//
+// As in firestore.rules: `read` covers both fetching one object you can name
+// and LISTING the folder. A viewer that shows an image needs the first and
+// never the second.
+
 service firebase.storage {
   match /b/{bucket}/o {
-    // Diagram images - public read for shared viewer access
+
+    // Diagram images, shown by the shared viewer to a customer with no account.
+    //
+    // `get` is public because the viewer renders them by path with no sign-in
+    // to check. `list` is not: it was, and it let anyone walk the whole folder
+    // and pull every customer's drawings without needing a share link at all.
+    // Nothing legitimate lists it — the viewer is given the paths by the
+    // diagram documents it already loaded.
     match /diagram-images/{allPaths=**} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Everything else requires authentication
+    // Everything else — packet PDFs, invoices, receipts, the jobs year files
+    // and the nightly backups — is signed-in only, both to fetch and to list.
     match /{allPaths=**} {
       allow read, write: if request.auth != null;
     }
