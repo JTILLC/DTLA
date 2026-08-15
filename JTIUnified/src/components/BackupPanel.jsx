@@ -19,6 +19,7 @@ import {
   readBackupFile, importBackupFromFile, verifyRestore,
 } from '../backup-service';
 import { describePlan } from '../utils/backupShape';
+import { progressText } from '../utils/progressText';
 import { auth } from '../firebase-config';
 import * as ui from '../ui/theme';
 
@@ -53,7 +54,7 @@ export default function BackupPanel({ colors }) {
     try {
       const { backup, plan } = await readBackupFile(pending?.file || null);
       if (!plan.valid) throw new Error(describePlan(plan));
-      setVerify(await verifyRestore(backup, setProgress));
+      setVerify(await verifyRestore(backup, (m) => setProgress(progressText(m))));
     } catch (err) {
       setError(err.message || String(err));
     }
@@ -123,7 +124,12 @@ export default function BackupPanel({ colors }) {
     setBusy('');
   };
 
-  const say = (m) => setLog((l) => [m, ...l].slice(0, 8));
+  // Normalised at this boundary, which every caller crosses — including the
+  // ones handed this callback that call it themselves. See progressText.js.
+  const say = (m) => {
+    const text = progressText(m);
+    if (text) setLog((l) => [text, ...l].slice(0, 8));
+  };
 
   const runBackup = async (app) => {
     setBusy(app.key); setError('');
