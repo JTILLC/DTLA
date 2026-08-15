@@ -471,7 +471,21 @@ async function verifyTimesheets(backup, onProgress, sample) {
   onProgress?.(`Restoring ${entries.length} timesheets into a sandbox…`);
   const res = await importTimesheet(
     { ...backup, data: Object.fromEntries(entries) }, { intoCollection: SANDBOX_UID });
-  if (!res.success) throw new Error(res.error || 'The restore itself failed.');
+  if (!res.success) {
+    // The timesheet project's rules name every collection they allow and have
+    // no catch-all — which is the point of them, and means the sandbox is
+    // refused. Worth explaining rather than passing "Missing or insufficient
+    // permissions" up as though something were broken: nothing is, the rules
+    // are doing their job and have not been told about this collection.
+    if (/permission|insufficient/i.test(res.error || '')) {
+      throw new Error(
+        `The timesheet project refuses writes to "${SANDBOX_UID}" — its rules list the collections they allow `
+        + 'and this is not one of them. Adding it is one line in jti-timesheet/firestore.rules '
+        + '(already written, not deployed), or skip this check: a real restore writes to `timesheets`, '
+        + 'which is allowed, so the restore itself is unaffected.');
+    }
+    throw new Error(res.error || 'The restore itself failed.');
+  }
 
   for (const [docId, docData] of entries) {
     try {
