@@ -78,7 +78,11 @@ export const planRestore = (backup) => {
   } else if (/Jobs/i.test(app)) {
     const jobs = Object.values(data).reduce((n, year) => n + (Array.isArray(year) ? year.length : count(year)), 0);
     plan.writes.push({ what: 'years', n: count(data) }, { what: 'jobs', n: jobs });
-    plan.warnings.push('Each year file is replaced whole. A job added since this file was made will be gone.');
+    // No longer the whole-file replacement it was. Jobs are documents now, so a
+    // restore overwrites the ones IN the file and leaves everything else alone
+    // — including jobs added since. Saying otherwise overstates the damage, and
+    // a warning that cries wolf is one people learn to click past.
+    plan.warnings.push('Jobs in this file are overwritten. Jobs added since it was made are left alone.');
   } else {
     plan.valid = false;
     plan.warnings.push(`Not a backup this app knows how to restore: "${app}".`);
