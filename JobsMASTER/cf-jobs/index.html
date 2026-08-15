@@ -922,8 +922,15 @@
             localStorage.setItem('localEditTime', Date.now());
             // The jobs themselves go to Firestore, one document each.
             syncShadow();
-            // ...and the year files follow a few seconds later, as the way back.
-            scheduleYearFileBackup(Object.keys(data));
+            // Phase 4: the year files are no longer written.
+            //
+            // They were the way back while the mirror was new. They are now
+            // frozen as an archive of how things stood on 2026-08-14, and
+            // keeping them current would mean every edit rewriting a whole
+            // year again — the design this migration existed to leave.
+            //
+            // saveToCloud() from the console regenerates them from the current
+            // data if they are ever needed.
         }
 
         // === Cloud Diff Banner ===
