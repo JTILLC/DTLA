@@ -72,7 +72,8 @@ describe('planRestore', () => {
   it('warns that jobs years are replaced whole', () => {
     const p = planRestore({ app: 'JTI Jobs Tracker', timestamp: new Date().toISOString(), data: { 2026: [{}, {}], 2025: [{}] } });
     expect(p.writes).toContainEqual({ what: 'jobs', n: 3 });
-    expect(p.warnings.join(' ')).toMatch(/replaced whole/);
+    // Per-job documents: what is in the file is overwritten, the rest survives.
+    expect(p.warnings.join(' ')).toMatch(/left alone/);
   });
 
   it('says how old the file is, once that starts to matter', () => {
