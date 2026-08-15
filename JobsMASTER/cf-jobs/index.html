@@ -462,13 +462,12 @@
                 <button class="icon-btn" id="menuToggle" aria-label="More options"><i class="bi bi-three-dots"></i></button>
                 <div class="menu" id="dataMenu">
                     <button onclick="window.addNewYear()"><i class="bi bi-calendar-plus"></i>Add New Year</button>
-                    <button onclick="window.checkData()"><i class="bi bi-arrow-repeat"></i>Check Cloud Sync</button>
+
                     <div class="menu-sep"></div>
-                    <button onclick="window.saveToCloud()"><i class="bi bi-cloud-upload"></i>Save to Cloud</button>
-                    <button onclick="window.loadFromCloud()"><i class="bi bi-cloud-download"></i>Load from Cloud</button>
-                    <!-- Sets up the per-job copy. One-time; after this it keeps
-                         itself up to date. Nothing reads that copy yet. -->
-                    <button onclick="window.setUpJobMirror()"><i class="bi bi-database-check"></i>Set up job mirror</button>
+                    <!-- Saving is not a thing you do any more: every edit is
+                         written as it happens. This only pulls in what another
+                         device changed. -->
+                    <button onclick="window.refreshFromCloud()"><i class="bi bi-arrow-clockwise"></i>Refresh</button>
                     <div class="menu-sep"></div>
                     <button onclick="window.exportJson()"><i class="bi bi-filetype-json"></i>Export JSON (year)</button>
                     <button onclick="window.exportAllYearsJson()"><i class="bi bi-archive"></i>Export All Years</button>
@@ -492,8 +491,6 @@
     <div id="cloudDiffBanner" class="alert d-flex justify-content-between align-items-center" style="display:none;">
         <span id="bannerMessage"></span>
         <div>
-            <button id="bannerSaveBtn" class="btn btn-sm btn-outline-success me-2" style="display:none;" onclick="window.saveToCloud()">Save to Cloud</button>
-            <button id="bannerLoadBtn" class="btn btn-sm btn-outline-primary" style="display:none;" onclick="window.loadFromCloud()">Update from Cloud</button>
         </div>
     </div>
 
@@ -622,7 +619,7 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
         import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-storage.js';
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
-        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
+        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, writeBatch, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
 
         let app, storage, auth, db;
         try {
@@ -632,6 +629,19 @@
             // The dashboard reserves service report numbers into this same
             // project, so they are read directly — no copy, no second sign-in.
             db = getFirestore(app);
+            // Edits made with no signal are queued and sent when there is some.
+            //
+            // This app is used in plants, and it used to survive offline because
+            // everything lived in localStorage until somebody pressed Save. Now
+            // that a job is written as it is edited, an edit made offline would
+            // otherwise sit unsent until the NEXT edit happened to retry it —
+            // which might be days, or never.
+            enableIndexedDbPersistence(db).catch((e) => {
+                // Two tabs open, or a browser that will not do it. Not fatal:
+                // online editing is unaffected, offline edits just wait for the
+                // next successful write.
+                console.warn('[jobs] offline queue unavailable:', e.code || e.message);
+            });
         } catch (e) { console.error(e); }
 
         // Numbers reserved in the dashboard, and the customer details recorded
@@ -901,9 +911,10 @@
             localStorage.setItem('years', JSON.stringify(Object.keys(data)));
             Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
             localStorage.setItem('localEditTime', Date.now());
-            // Mirror to Firestore, without waiting and without ever failing the
-            // save. See "Phase 1" below.
+            // The jobs themselves go to Firestore, one document each.
             syncShadow();
+            // ...and the year files follow a few seconds later, as the way back.
+            scheduleYearFileBackup(Object.keys(data));
         }
 
         // === Cloud Diff Banner ===
@@ -916,6 +927,22 @@
         }
 
         window.checkData = async () => {
+            // Retired with the whole-file sync.
+            //
+            // This compared local against the year files and decided which was
+            // "newer" by whichever had the bigger total or more rows. Delete a
+            // job and local is smaller, so it offered to update FROM the cloud
+            // and bring the job back. Correct an amount downward and it offered
+            // to undo that too. Both arrived as the helpful-looking button.
+            //
+            // There is nothing to reconcile now: each job is its own document,
+            // written as it is edited, and the year files are a copy rather
+            // than the other half of a sync.
+            document.getElementById('cloudDiffBanner').style.display = 'none';
+            toast('Every change is saved as you make it', 'success');
+            return;
+
+            // eslint-disable-next-line no-unreachable
             const banner = document.getElementById('cloudDiffBanner');
             const msg = document.getElementById('bannerMessage');
             const saveBtn = document.getElementById('bannerSaveBtn');
@@ -1068,6 +1095,9 @@
          * YEAR FILES too. Without that a second device would invent its own ids
          * for the same jobs and the mirror would double.
          */
+        // No longer on a menu: it was the one-time setup and it has been run.
+        // Kept because it is the way to rebuild the mirror from the year files
+        // if it is ever lost — call setUpJobMirror() from the browser console.
         window.setUpJobMirror = async () => {
             const added = ensureJobIds();
             const total = Object.values(data).reduce((n, arr) => n + (arr || []).length, 0);
@@ -1095,7 +1125,85 @@
             }
         };
 
+        // === Phase 3: the mirror is where jobs live now =====================
+        //
+        // Loading reads the per-job documents rather than the year files, and
+        // every edit has been writing them since Phase 1. What this ends is the
+        // whole-file sync: no Save button, no drift banner, and two devices
+        // editing the same year no longer means one of them loses everything
+        // the other did — separate jobs are now separate documents.
+        //
+        // The year files are still written, in the background, one year at a
+        // time after a pause. They are no longer how the app works; they are
+        // the way back if this was a mistake, and the format the dashboard can
+        // still fall back to. They stop being written in Phase 4.
+
+        /** Every job, grouped by year, from the mirror. Null if it cannot be read. */
+        async function loadFromMirror() {
+            if (!db || !auth.currentUser) return null;
+            try {
+                const snap = await getDocs(collection(db, JOBS_COLLECTION));
+                if (snap.empty) return null;          // not set up yet — use the files
+                const byYear = {};
+                snap.docs.forEach(d => {
+                    const { updatedAt, updatedBy, ...job } = d.data();
+                    const y = String(job.year || new Date().getFullYear());
+                    (byYear[y] = byYear[y] || []).push({ ...job, id: d.id });
+                });
+                // Years the app knows about but which hold nothing yet must still
+                // appear, or the year picker loses them.
+                Object.keys(data).forEach(y => { if (!byYear[y]) byYear[y] = []; });
+                return byYear;
+            } catch (e) {
+                console.warn('[jobs] mirror unavailable, falling back to the year files:', e.message);
+                return null;
+            }
+        }
+
+        /**
+         * Keep the year files current, quietly.
+         *
+         * Only the years that changed, and only after editing stops — this is a
+         * rollback copy, not the mechanism, and rewriting eight files on every
+         * keystroke would be the old design wearing a hat.
+         */
+        let fileBackupTimer = null;
+        const yearsNeedingBackup = new Set();
+        function scheduleYearFileBackup(years) {
+            years.forEach(y => yearsNeedingBackup.add(y));
+            clearTimeout(fileBackupTimer);
+            fileBackupTimer = setTimeout(async () => {
+                const todo = [...yearsNeedingBackup];
+                yearsNeedingBackup.clear();
+                for (const y of todo) {
+                    try {
+                        await uploadString(ref(storage, `jobs-${y}.json`), JSON.stringify(data[y] || [], null, 2), 'raw', { contentType: 'application/json' });
+                    } catch (e) {
+                        // Not worth interrupting anyone: the jobs are safe in the
+                        // mirror, and this is the spare copy.
+                        console.warn(`[jobs] year file ${y} not updated:`, e.message);
+                    }
+                }
+            }, 4000);
+        }
+
+        window.refreshFromCloud = async () => {
+            const fresh = await loadFromMirror();
+            if (!fresh) { toast('Could not reach the cloud', 'danger'); return; }
+            data = fresh;
+            Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
+            localStorage.setItem('years', JSON.stringify(Object.keys(data)));
+            await loadShadowSnapshot();
+            updateYearSelect();
+            updateYearPage();
+            toast('Up to date', 'success');
+        };
+
         // === Cloud Sync ===
+        // Also off the menus. Every edit writes itself now, and the year files
+        // are kept current in the background. This forces all of them at once,
+        // which is worth having if the background copy ever falls behind —
+        // call saveToCloud() from the browser console.
         window.saveToCloud = async () => {
             const ok = await confirmDialog('This overwrites the cloud copy with your local data for every year. Continue?', { title: 'Save to Cloud', confirmText: 'Save' });
             if (!ok) return;
@@ -1740,10 +1848,18 @@
             try {
                 loadFromStorage();
 
-                // Auto-load from cloud if localStorage is empty (no confirm needed — nothing to lose)
-                const hasData = Object.values(data).some(jobs => jobs && jobs.length > 0);
-                if (!hasData) {
-                    await window.loadFromCloud(true);
+                // The mirror is the source now. The year files are only reached
+                // if it cannot be read or has never been set up, which keeps a
+                // first run and a bad day behaving the same way.
+                await loadShadowSnapshot();
+                const fresh = await loadFromMirror();
+                if (fresh) {
+                    data = fresh;
+                    Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
+                    localStorage.setItem('years', JSON.stringify(Object.keys(data)));
+                } else {
+                    const hasData = Object.values(data).some(jobs => jobs && jobs.length > 0);
+                    if (!hasData) await window.loadFromCloud(true);
                 }
 
                 updateYearSelect();
