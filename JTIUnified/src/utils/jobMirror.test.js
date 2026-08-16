@@ -4,7 +4,7 @@
 // that is quietly missing jobs, and the dashboard would under-report income
 // with nothing anywhere saying so.
 import { describe, it, expect } from 'vitest';
-import { jobSignature, compareSources, describeDrift } from './jobMirror.js';
+import { jobSignature, compareSources, describeDrift, duplicateIds } from './jobMirror.js';
 
 const job = (over = {}) => ({
   id: 'a1', sr: '2026024', customer: 'Flagstone Foods', actual: '4200', paid: true, year: '2026', ...over,
@@ -87,5 +87,25 @@ describe('describeDrift', () => {
     const msg = describeDrift(compareSources([job(), job({ id: 'b2' })], [job()]));
     expect(msg).toMatch(/1 missing from the mirror/);
     expect(msg).toMatch(/Reading the year files instead/);
+  });
+});
+
+describe('duplicateIds', () => {
+  it('finds a job counted twice', () => {
+    // What a doubled income total actually looks like in the data.
+    expect(duplicateIds([job(), job(), job({ id: 'b2' })])).toEqual(['a1']);
+  });
+
+  it('is quiet when every job appears once', () => {
+    expect(duplicateIds([job(), job({ id: 'b2' })])).toEqual([]);
+  });
+
+  it('ignores jobs with no id rather than calling them duplicates of each other', () => {
+    expect(duplicateIds([{ sr: '1' }, { sr: '2' }])).toEqual([]);
+  });
+
+  it('survives junk', () => {
+    expect(() => duplicateIds([null, undefined])).not.toThrow();
+    expect(duplicateIds()).toEqual([]);
   });
 });

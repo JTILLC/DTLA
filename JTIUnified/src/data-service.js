@@ -3,7 +3,7 @@ import { showsWithoutEntries } from './utils/timesheetVisibility.js';
 import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
 import { recordFailure, recordSuccess } from './utils/dataHealth.js';
-import { compareSources, describeDrift } from './utils/jobMirror.js';
+import { duplicateIds } from './utils/jobMirror.js';
 import { toTrackerJob } from './utils/toTrackerJob.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
@@ -244,63 +244,62 @@ export const fetchJobsData = async () => {
     for (let year = startYear; year <= endYear; year++) {
       years.push(year.toString());
     }
-    let allJobs = [];
+    // The archived year files, read ONLY if the mirror cannot be.
+    //
+    // A function, not a list of promises started eagerly. It used to be
+    // `const fetchPromises = years.map(async ...)`, which begins fetching the
+    // moment it is written, and each one pushed into `allJobs`. Choosing the
+    // mirror then rebound `allJobs` — so every year fetch that happened to
+    // finish AFTER that pushed its jobs into the mirror's array, and the income
+    // roughly doubled, by a margin that changed with the network.
+    const readYearFiles = async () => {
+      const out = [];
+      await Promise.all(years.map(async (year) => {
+        try {
+          const fileRef = ref(jobsStorage, `jobs-${year}.json`);
+          const blob = await getBlob(fileRef);
+          const parsed = JSON.parse(await blob.text());
 
-    // Fetch all year files in parallel
-    const fetchPromises = years.map(async (year) => {
-      try {
-        const fileRef = ref(jobsStorage, `jobs-${year}.json`);
-        const blob = await getBlob(fileRef);
-        const text = await blob.text();
-        const data = JSON.parse(text);
+          let jobsArray = [];
+          if (Array.isArray(parsed)) jobsArray = parsed;
+          else if (parsed?.jobs && Array.isArray(parsed.jobs)) jobsArray = parsed.jobs;
+          else if (parsed && typeof parsed === 'object') jobsArray = Object.values(parsed);
 
-        // Handle different data structures
-        let jobsArray = [];
-        if (Array.isArray(data)) {
-          jobsArray = data;
-        } else if (data.jobs && Array.isArray(data.jobs)) {
-          jobsArray = data.jobs;
-        } else if (typeof data === 'object') {
-          jobsArray = Object.values(data);
+          jobsArray.forEach((job) => out.push({ ...job, year }));
+        } catch {
+          // A year with no file is a year with no jobs.
         }
+      }));
+      return out;
+    };
 
-        // Add year info to each job
-        jobsArray.forEach(job => {
-          allJobs.push({
-            ...job,
-            year: year
-          });
-        });
-
-        return jobsArray;
-      } catch (error) {
-        return [];
-      }
-    });
-
+    // The mirror IS the jobs.
+    //
+    // The year files stopped being written on 2026-08-14 and are an archive.
+    // They are still read if the mirror cannot be, but the result says so:
+    // stale figures presented as current are worse than none when they are
+    // money.
     const mirror = await fetchJobMirror();
-
-    // Phase 4: the mirror IS the jobs.
-    //
-    // The year files stopped being written on 2026-08-14 and are now an
-    // archive. Comparing against them would report drift on every edit made
-    // since, so the check that guarded phases 2 and 3 has done its job and
-    // gone.
-    //
-    // The files are still read if the mirror cannot be — but the result says
-    // so. Stale figures presented as current are worse than none in an app
-    // whose numbers are money, so this is a labelled fallback rather than a
-    // silent one.
+    let allJobs;
     if (mirror && mirror.length) {
       recordSuccess('job mirror');
       allJobs = mirror.map((j) => ({ ...j }));
     } else {
-      await Promise.all(fetchPromises);
+      allJobs = await readYearFiles();
       if (allJobs.length) {
         recordFailure('job mirror', new Error(
           'Could not read the jobs database, so these figures come from the archived year files '
           + 'and are out of date from 14 August.'));
       }
+    }
+
+    // A job counted twice does not look like an error, it looks like more
+    // income — which is how the doubling above shipped at all.
+    const dupes = duplicateIds(allJobs);
+    if (dupes.length) {
+      recordFailure('job totals', new Error(
+        `${dupes.length} job${dupes.length === 1 ? ' appears' : 's appear'} more than once, `
+        + 'so the income figures are overstated.'));
     }
 
     // Apply any corrections before anything counts or groups these jobs, so a
