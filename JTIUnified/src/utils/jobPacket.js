@@ -15,6 +15,7 @@
 // page in front of it repeated all three and pushed the document somebody
 // actually wants to page two.
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { parseMoney } from './format.js';
 
 /** The sections of a packet, in the order they are assembled. */
 // The order accounts payable reads in: what we are asking for, what they
@@ -55,12 +56,9 @@ export const describeUnsupported = (file) => {
  * whose amount cannot be read must count as zero rather than poison the total
  * with NaN — one unreadable figure should cost you that figure, not the sum.
  */
-export const parseAmount = (value) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const cleaned = String(value ?? '').replace(/[^0-9.-]/g, '');
-  const n = Number.parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
-};
+// One definition, shared with the income math. This was the only place that
+// parsed money correctly, and the totals on the dashboard did not use it.
+export const parseAmount = parseMoney;
 
 /** What the receipts add up to. */
 export const receiptsTotal = (receipts = []) =>

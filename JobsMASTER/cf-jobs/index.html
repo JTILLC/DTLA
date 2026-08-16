@@ -833,7 +833,7 @@
                 if (match) {
                     const month = parseInt(match[1]);
                     const name = ['January','February','March','April','May','June','July','August','September','October','November','December'][month-1];
-                    m[name] += parseFloat(j.actual) || 0;
+                    m[name] += money(j.actual);
                 }
             });
             return m;
@@ -875,7 +875,7 @@
 
             jobs.forEach(job => {
                 if (job.paid) return; // Skip paid jobs
-                const amount = parseFloat(job.actual) || parseFloat(job.quote) || 0;
+                const amount = money(job.actual) || money(job.quote);
                 const daysOverdue = getDaysOverdue(job.expPaid);
 
                 if (daysOverdue === null || daysOverdue < 0) {
@@ -974,8 +974,8 @@
                 const lStr = Array.from(new Uint8Array(lHash)).map(b => b.toString(16).padStart(2,'0')).join('');
                 const cStr = Array.from(new Uint8Array(cHash)).map(b => b.toString(16).padStart(2,'0')).join('');
                 if (lStr !== cStr) {
-                    const lTot = local.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
-                    const cTot = cloud.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
+                    const lTot = local.reduce((s,j) => s + money(j.actual), 0);
+                    const cTot = cloud.reduce((s,j) => s + money(j.actual), 0);
                     if (lTot > cTot || local.length > cloud.length) localNewer = true;
                     else cloudNewer = true;
                 }
@@ -1011,6 +1011,16 @@
         // whole year, an import, a wholesale replace from the cloud — and
         // instrumenting them one at a time would work until somebody added an
         // eleventh.
+        // Amounts are typed by hand, so they arrive as "4200", "4,200" and
+        // "$4,200". parseFloat reads the first and mangles the rest — "4,200"
+        // is 4, "$4,200" is NaN — so every total here has been quietly wrong
+        // for any job whose amount carried a comma.
+        const money = (v) => {
+            if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+            const n = Number.parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
+            return Number.isFinite(n) ? n : 0;
+        };
+
         const JOBS_COLLECTION = 'jobs';
         let shadowSnapshot = new Map();   // job id -> serialised, as last written
         let shadowReady = false;          // false until the collection has been read
@@ -1283,9 +1293,9 @@
 
         function updateSummary() {
             const jobs = data[currentYear] || [];
-            const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0).toFixed(2);
-            const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0).toFixed(2);
-            const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0).toFixed(2);
+            const q = jobs.reduce((s,j) => s + money(j.quote), 0).toFixed(2);
+            const g = jobs.reduce((s,j) => s + money(j.actual), 0).toFixed(2);
+            const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0).toFixed(2);
             const u = (g - p).toFixed(2);
 
             document.getElementById('summaryStats').innerHTML = `
@@ -1429,8 +1439,8 @@
                             ${job.sr ? `<div class="job-card-sr" style="display:inline-block;margin-top:6px;">SR# ${esc(job.sr)}</div>` : ''}
                         </div>
                         <div class="job-card-amounts">
-                            <div class="job-card-actual">${job.actual ? '$' + parseFloat(job.actual).toFixed(2) : '-'}</div>
-                            ${job.quote ? `<div class="job-card-quote">Quote: $${parseFloat(job.quote).toFixed(2)}</div>` : ''}
+                            <div class="job-card-actual">${job.actual ? '$' + money(job.actual).toFixed(2) : '-'}</div>
+                            ${job.quote ? `<div class="job-card-quote">Quote: $${money(job.quote).toFixed(2)}</div>` : ''}
                         </div>
                     </div>
                     <div class="job-card-body">
@@ -1504,9 +1514,9 @@
 
             years.forEach(y => {
                 const jobs = data[y] || [];
-                const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0);
-                const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
-                const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0);
+                const q = jobs.reduce((s,j) => s + money(j.quote), 0);
+                const g = jobs.reduce((s,j) => s + money(j.actual), 0);
+                const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0);
                 const u = g - p;
                 tbody.innerHTML += `<tr><td>${y}</td><td>$${q.toFixed(2)}</td><td>$${g.toFixed(2)}</td><td>$${p.toFixed(2)}</td><td>$${u.toFixed(2)}</td></tr>`;
                 chartData.labels.push(y);
@@ -1810,8 +1820,8 @@
                 j.customer || '',
                 j.city || '',
                 j.state || '',
-                j.quote ? `$${parseFloat(j.quote).toFixed(2)}` : '',
-                j.actual ? `$${parseFloat(j.actual).toFixed(2)}` : '',
+                j.quote ? `$${money(j.quote).toFixed(2)}` : '',
+                j.actual ? `$${money(j.actual).toFixed(2)}` : '',
                 j.sr || '',
                 j.paid ? 'Yes' : 'No'
             ]);
@@ -1825,9 +1835,9 @@
             });
 
             // Add summary
-            const q = jobs.reduce((s,j) => s + (parseFloat(j.quote) || 0), 0);
-            const g = jobs.reduce((s,j) => s + (parseFloat(j.actual) || 0), 0);
-            const p = jobs.reduce((s,j) => j.paid ? s + (parseFloat(j.actual) || 0) : s, 0);
+            const q = jobs.reduce((s,j) => s + money(j.quote), 0);
+            const g = jobs.reduce((s,j) => s + money(j.actual), 0);
+            const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0);
 
             const finalY = doc.lastAutoTable.finalY + 10;
             doc.setFontSize(10);

@@ -14,9 +14,28 @@ export const isPaid = (paidValue) => {
 // The billable amount for a job: prefer the actual cost once it's known,
 // otherwise fall back to the quote. This is the single source of truth for the
 // dashboard's income math.
+/**
+ * Money as people type it, as a number.
+ *
+ * The amounts in the Jobs Tracker are free text, so they arrive as "4200",
+ * "4,200", "$4,200" and "12,500.50". parseFloat reads the first of those and
+ * mangles the rest: "4,200" is 4, "12,500.50" is 12, and "$4,200" is NaN —
+ * which then poisons whatever total it is added to.
+ *
+ * So every job whose amount carried a comma has been counting as single digits
+ * in the income figures, and one carrying a dollar sign would have turned the
+ * whole total into NaN.
+ */
+export const parseMoney = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value ?? '').replace(/[^0-9.-]/g, '');
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
 export const jobAmount = (job) => {
-  const actual = parseFloat(job?.actual || 0);
-  const quote = parseFloat(job?.quote || 0);
+  const actual = parseMoney(job?.actual);
+  const quote = parseMoney(job?.quote);
   return actual > 0 ? actual : quote;
 };
 
@@ -44,7 +63,7 @@ export const formatRelativeTime = (date) => {
 // "$1,234" or 'N/A'
 export const formatCurrency = (amount) => {
   if (!amount) return 'N/A';
-  return `$${parseFloat(amount).toLocaleString()}`;
+  return `$${parseMoney(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 };
 
 // Locale date string from a Firestore Timestamp / Date / parseable string.

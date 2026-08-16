@@ -13,6 +13,8 @@
 // the same function answers the display and the overdue test — two readings of
 // one date that disagreed would be worse than either.
 
+import { parseMoney } from './format.js';
+
 /**
  * An expected-payment date as a LOCAL date, or null if it is not one.
  *
@@ -55,8 +57,9 @@ const daysBetween = (a, b) => {
  */
 export const expectedPayment = (job = {}, today = new Date()) => {
   const amount = (() => {
-    const actual = parseFloat(job?.actual || 0);
-    const quote = parseFloat(job?.quote || 0);
+    // parseMoney, not parseFloat: these are free text and "4,200" reads as 4.
+    const actual = parseMoney(job?.actual);
+    const quote = parseMoney(job?.quote);
     return actual > 0 ? actual : (quote > 0 ? quote : null);
   })();
 
