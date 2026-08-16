@@ -15,6 +15,7 @@ import CustomerDetailView from './components/CustomerDetailView';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import DataHealthBanner from './components/DataHealthBanner';
 import { reset as resetHealth, isSignIn } from './utils/dataHealth';
+import { expectedPayment, describeTiming } from './utils/expectedPayment';
 import * as ui from './ui/theme';
 import useRoute from './ui/useRoute';
 import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
@@ -23,7 +24,7 @@ import JobPacketBuilder from './components/JobPacketBuilder';
 import JobBoard from './components/JobBoard';
 import NewJobPage from './components/NewJobPage';
 import BackupPanel from './components/BackupPanel';
-import { isPaid, formatRelativeTime, jobAmount, sumIncome } from './utils/format';
+import { isPaid, formatRelativeTime, jobAmount, sumIncome, formatCurrency } from './utils/format';
 
 
 function App() {
@@ -588,16 +589,14 @@ function App() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const overdueJobsList = unpaidJobsList.filter(job => {
-        // expPaid is the expected payment date (e.g., "2025-11-15")
-        if (!job.expPaid) return false;
-
-        const expPaidDate = new Date(job.expPaid);
-        if (isNaN(expPaidDate.getTime())) return false;
-
-        expPaidDate.setHours(0, 0, 0, 0);
-        return expPaidDate < today;
-      });
+      // Judged by the same function that shows the date on the row, so the
+      // list and the label under it cannot disagree.
+      //
+      // It used to be `new Date(job.expPaid)`, and expPaid is free text: the
+      // dashed form parses as UTC midnight — the evening before, in Arizona —
+      // while the slashed form parses as local. The same date typed two ways
+      // landed on different days, so some jobs were called overdue a day early.
+      const overdueJobsList = unpaidJobsList.filter(job => expectedPayment(job, today).overdue);
 
       // Update stats
       setStats({
@@ -2127,7 +2126,27 @@ function App() {
                       onMouseLeave={(e) => (e.currentTarget.style.color = '')}
                       title="Click to search this job"
                     >
-                      {job.sr} - {job.customer || job.customerName || 'Unknown'}
+                      <div>{job.sr} - {job.customer || job.customerName || 'Unknown'}</div>
+                      {/* What is owed and when it was promised. Without these
+                          the list answered "which jobs" and not the question
+                          somebody actually opens it with, which is how much is
+                          outstanding and when it lands. */}
+                      {(() => {
+                        const exp = expectedPayment(job, new Date());
+                        if (!exp.amount && !exp.text) return null;
+                        const timing = describeTiming(exp);
+                        return (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>
+                            {exp.amount != null && <span>{formatCurrency(exp.amount)}</span>}
+                            {exp.text && <span>· {exp.text}</span>}
+                            {timing && (
+                              <span style={{ color: exp.overdue ? '#ef4444' : undefined, fontWeight: exp.overdue ? 600 : 400 }}>
+                                ({timing})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
