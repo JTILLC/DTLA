@@ -75,4 +75,25 @@ export const describeDrift = (cmp) => {
   return `Job mirror not used: ${bits.join(', ')}. Reading the year files instead.`;
 };
 
-export default { jobSignature, compareSources, describeDrift };
+/**
+ * Ids appearing more than once in a list of jobs.
+ *
+ * Duplicates do not look like an error — they look like more income. The
+ * dashboard shipped exactly that: year-file jobs were appended to the mirror's
+ * jobs by a race, and the only symptom was totals that were roughly double and
+ * varied between loads. A number being wrong in a plausible direction is the
+ * hardest kind to notice, so it is checked rather than trusted.
+ */
+export const duplicateIds = (jobs = []) => {
+  const seen = new Set();
+  const dupes = new Set();
+  (jobs || []).forEach((j) => {
+    const id = j?.id;
+    if (!id) return;
+    if (seen.has(id)) dupes.add(id);
+    seen.add(id);
+  });
+  return [...dupes];
+};
+
+export default { jobSignature, compareSources, describeDrift, duplicateIds };
