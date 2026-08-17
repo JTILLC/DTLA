@@ -4,7 +4,7 @@
 // record has a checkbox and no payment rows, and reading those as unpaid would
 // wipe years of income off the dashboard in one deploy.
 import { describe, it, expect } from 'vitest';
-import { paymentState, receivedTotal, isSettled, describePayments } from './payments.js';
+import { paymentState, receivedTotal, isSettled, describePayments, sumIncome } from './payments.js';
 
 describe('the checkbox, which is what the history has', () => {
   it('reads a ticked job as paid in full', () => {
@@ -102,5 +102,17 @@ describe('describePayments', () => {
     expect(describePayments(paymentState({ paid: false }, 4200))).toBe('Unpaid');
     expect(describePayments(paymentState({ payments: [{ amount: '4000' }] }, 4200)))
       .toMatch(/Part paid.*4,000.*4,200/);
+  });
+});
+
+describe('closed jobs', () => {
+  it('are left out of the income, both totals', () => {
+    // Cancelled after a number was spent. Not income, and never will be.
+    const jobs = [
+      { actual: '1000', paid: true },
+      { actual: '5000', paid: true, closedAt: '2026-08-01T00:00:00Z' },
+    ];
+    expect(sumIncome(jobs)).toBe(1000);
+    expect(sumIncome(jobs, { paidOnly: true })).toBe(1000);
   });
 });

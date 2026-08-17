@@ -2126,10 +2126,50 @@ export const markPacketBuilt = async (sr, { notes = '' } = {}) => {
 // the record of the job, its quote and its amount.
 export const UNIFIED_JOBS = 'unified_jobs';
 
+/**
+ * Numbers in use, in the shape the pickers expect.
+ *
+ * `unified_jobs` was a reservation: a number spoken for before a job existed,
+ * because the Jobs Tracker rewrote a whole year on save and could not take a
+ * write from here. The dashboard creates the job itself now, so a reservation
+ * is a second record of the same fact — and two records of one fact is how they
+ * come to disagree.
+ *
+ * Reservations made before that change are still read, so no number vanishes
+ * from a picker. Nothing writes new ones.
+ */
 export const fetchUnifiedJobs = async () => {
   try {
-    const snap = await getDocs(collection(jobsMasterDb, UNIFIED_JOBS));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const [jobsSnap, legacySnap] = await Promise.all([
+      getDocs(collection(jobsMasterDb, 'jobs')),
+      getDocs(collection(jobsMasterDb, UNIFIED_JOBS)).catch(() => ({ docs: [] })),
+    ]);
+
+    const bySr = new Map();
+    jobsSnap.docs.forEach((d) => {
+      const j = d.data() || {};
+      const sr = String(j.sr || '').trim().toUpperCase();
+      if (!sr) return;
+      bySr.set(sr, {
+        id: d.id,
+        sr,
+        customer: j.customer || '',
+        date: j.dateStart || j.date || '',
+        description: j.description || '',
+        closedAt: j.closedAt || null,
+        jobId: d.id,
+      });
+    });
+
+    // Legacy reservations that never became a job. A number is still spoken
+    // for even if nobody ever entered the work.
+    legacySnap.docs.forEach((d) => {
+      const sr = String(d.id || '').trim().toUpperCase();
+      if (!sr || bySr.has(sr)) return;
+      bySr.set(sr, { id: d.id, legacy: true, ...d.data() });
+    });
+
+    return [...bySr.values()];
   } catch (error) {
     console.error('Error fetching started jobs:', error);
     recordFailure('started jobs', error);
@@ -2137,22 +2177,16 @@ export const fetchUnifiedJobs = async () => {
   }
 };
 
-/**
- * Reserve a service report number.
- *
- * Written with create-if-absent semantics so two people starting a job at the
- * same moment cannot both be handed the same number — the second one fails and
- * is told to try again rather than quietly sharing.
- */
 export const startJob = async (draft) => {
   const d = normalizeDraft(draft);
   const key = d.sr;
   if (!key) throw new Error('A service report number is required.');
   if (!d.customer) throw new Error('A customer is required.');
 
-  const ref2 = doc(jobsMasterDb, UNIFIED_JOBS, key);
-  const existing = await getDoc(ref2);
-  if (existing.exists()) {
+  // Taken already? Ask the jobs, which is now where a number being in use is
+  // recorded, and the legacy reservations for anything from before that.
+  const inUse = await fetchUnifiedJobs();
+  if (inUse.some((j) => String(j.sr || '').trim().toUpperCase() === key)) {
     throw new Error(`${key} has already been started. Refresh and take the next number.`);
   }
   const record = {
@@ -2169,9 +2203,13 @@ export const startJob = async (draft) => {
     description: d.description,
     createdAt: new Date().toISOString(),
   };
-  await setDoc(ref2, record);
-
-  // ...and create the job itself in the Jobs Tracker.
+  // The job IS the record now — there is no separate reservation to write.
+  //
+  // `record` is still returned because the page shows it back, and because
+  // publishToTimesheet reads the same fields off whatever fetchUnifiedJobs
+  // returns.
+  //
+  // Create the job itself in the Jobs Tracker.
   //
   // This was impossible until the Tracker moved off whole-year files: it
   // rewrote every job on save, so a second writer would have clobbered the
@@ -2210,8 +2248,16 @@ export const startJob = async (draft) => {
 export const closeJob = async (sr, closed = true) => {
   const key = String(sr || '').trim().toUpperCase();
   if (!key) throw new Error('A service report number is required.');
-  await setDoc(doc(jobsMasterDb, UNIFIED_JOBS, key),
-    { sr: key, closedAt: closed ? new Date().toISOString() : null }, { merge: true });
+  // Marked on the job. A legacy reservation is marked too, for numbers from
+  // before the dashboard created jobs.
+  const at = closed ? new Date().toISOString() : null;
+  const target = (await fetchUnifiedJobs()).find(
+    (j) => String(j.sr || '').trim().toUpperCase() === key);
+  if (target?.jobId) {
+    await setDoc(doc(jobsMasterDb, 'jobs', target.jobId), { closedAt: at }, { merge: true });
+  } else {
+    await setDoc(doc(jobsMasterDb, UNIFIED_JOBS, key), { sr: key, closedAt: at }, { merge: true });
+  }
   await publishToTimesheet().catch((e) => console.warn('Directory not updated:', e));
   return true;
 };
@@ -2231,7 +2277,12 @@ export const closeJob = async (sr, closed = true) => {
 export const releaseJobNumber = async (sr) => {
   const key = String(sr || '').trim().toUpperCase();
   if (!key) throw new Error('A service report number is required.');
-  await deleteDoc(doc(jobsMasterDb, UNIFIED_JOBS, key));
+  // The job, and the legacy reservation if there is one. Releasing means the
+  // number returns to the pool, so nothing may be left holding it.
+  const target = (await fetchUnifiedJobs()).find(
+    (j) => String(j.sr || '').trim().toUpperCase() === key);
+  if (target?.jobId) await deleteDoc(doc(jobsMasterDb, 'jobs', target.jobId)).catch(() => {});
+  await deleteDoc(doc(jobsMasterDb, UNIFIED_JOBS, key)).catch(() => {});
   // ...and the packet record, or the number comes back carrying the previous
   // job's notes and file list.
   await deleteDoc(doc(jobsMasterDb, JOB_PACKETS, key)).catch(() => {});

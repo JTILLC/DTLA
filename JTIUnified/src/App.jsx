@@ -17,6 +17,7 @@ import DataHealthBanner from './components/DataHealthBanner';
 import { reset as resetHealth, isSignIn } from './utils/dataHealth';
 import { expectedPayment, describeTiming } from './utils/expectedPayment';
 import { sumIncome, paymentState } from './utils/payments';
+import { varianceSummary } from './utils/variance';
 import * as ui from './ui/theme';
 import useRoute from './ui/useRoute';
 import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
@@ -2185,6 +2186,50 @@ function App() {
               )}
             </div>
           </div>
+          {/* Quote against actual. Both figures have been collected for years
+              and nothing compared them — which is the only feedback a quote
+              ever gets. */}
+          {(() => {
+            const v = varianceSummary(allJobsData);
+            if (!v.counted) return null;
+            const over = v.totalDelta > 0;
+            return (
+              <div style={{
+                background: colors.cardBg, borderRadius: '12px', padding: '24px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column',
+              }}>
+                <div style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '4px' }}>Quote vs actual</div>
+                <div style={{ fontSize: '28px', fontWeight: '700', color: colors.text, fontVariantNumeric: 'tabular-nums' }}>
+                  {v.medianPct > 0 ? '+' : ''}{v.medianPct.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '2px' }}>
+                  {/* Median, not mean: one runaway job should not decide the year. */}
+                  typical job, across {v.counted} invoiced
+                </div>
+                <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '8px' }}>
+                  {v.over} over · {v.under} under · {v.on} on quote
+                  <div style={{ color: over ? '#059669' : '#ef4444', marginTop: '2px' }}>
+                    {over ? '+' : ''}{formatCurrency(v.totalDelta)} against quotes overall
+                  </div>
+                </div>
+                {v.worst.length > 0 && (
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
+                    {v.worst.slice(0, 3).map((w) => (
+                      <div
+                        key={w.sr}
+                        onClick={(e) => { e.stopPropagation(); setSearchTerm(String(w.sr || '')); }}
+                        style={{ marginBottom: '2px', cursor: 'pointer' }}
+                        title="Click to search this job"
+                      >
+                        {w.sr} {w.customer} — {w.delta > 0 ? '+' : ''}{formatCurrency(w.delta)} ({w.pct > 0 ? '+' : ''}{w.pct.toFixed(0)}%)
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div
             onClick={() => {
               if (stats.currentSR && stats.currentSR !== 'N/A') {

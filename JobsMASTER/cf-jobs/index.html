@@ -1538,7 +1538,17 @@
                         </div>
                         <div class="job-card-amounts">
                             <div class="job-card-actual">${job.actual ? '$' + money(job.actual).toFixed(2) : '-'}</div>
-                            ${job.quote ? `<div class="job-card-quote">Quote: $${money(job.quote).toFixed(2)}</div>` : ''}
+                            ${job.quote ? `<div class="job-card-quote">Quote: $${money(job.quote).toFixed(2)}${(() => {
+                                // Against quote, but only once there is an
+                                // actual. A job not yet invoiced has not come
+                                // in under — it has not come in.
+                                const q = money(job.quote), a = money(job.actual);
+                                if (!(q > 0 && a > 0)) return '';
+                                const d = a - q, pct = (d / q) * 100;
+                                if (Math.abs(pct) < 1) return '';
+                                const colour = d > 0 ? '#059669' : '#ef4444';
+                                return ` <span style="color:${colour}">(${d > 0 ? '+' : ''}${pct.toFixed(0)}%)</span>`;
+                            })()}</div>` : ''}
                         </div>
                     </div>
                     <div class="job-card-body">
@@ -1564,6 +1574,9 @@
                         </div>
                     </div>
                     <div class="job-card-footer">
+                        ${job.closedAt ? `<span class="job-card-paid not-paid" style="opacity:.7" title="Cancelled — the number is spent, the work is not happening">
+                            <i class="bi bi-x-circle"></i> Cancelled
+                        </span>` : ''}
                         ${(() => {
                             const st = paymentState(job);
                             const label = st.status === 'paid' ? 'Paid'
