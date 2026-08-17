@@ -4,7 +4,9 @@
       ".read": "auth != null",
       ".write": "auth != null",
       "shares": {
-        ".read": true
+        "$token": {
+          ".read": true
+        }
       },
       "main-logger": {
         "data": {
@@ -16,8 +18,10 @@
       }
     },
     "shared-views": {
-      ".read": true,
-      ".write": "auth != null"
+      "$token": {
+        ".read": true,
+        ".write": "auth != null"
+      }
     }
   }
 }
