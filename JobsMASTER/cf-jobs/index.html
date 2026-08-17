@@ -1062,7 +1062,53 @@
         let shadowSnapshot = new Map();   // job id -> serialised, as last written
         let shadowReady = false;          // false until the collection has been read
 
-        const jobKey = (j, year) => JSON.stringify({ ...j, year });
+        // History is excluded from the comparison. It is written BECAUSE
+        // something changed, so counting it as a change would have every edit
+        // trigger a second write, which would append another history entry,
+        // and so on.
+        const jobKey = (j, year) => {
+            const { history, ...rest } = j || {};
+            return JSON.stringify({ ...rest, year });
+        };
+
+        // === Who changed what ==============================================
+        //
+        // The figures in here are invoiced. "Why is this $4,200 when the quote
+        // said $3,800" is a question that gets asked months later, and until now
+        // nothing could answer it — the job simply held whatever it now says.
+        //
+        // Recorded where changes are already detected, so it cannot miss an
+        // edit that some other screen makes.
+        const TRACKED_FIELDS = [
+            ['sr', 'service report'], ['customer', 'customer'], ['city', 'city'],
+            ['state', 'state'], ['dateRange', 'dates'], ['quote', 'quote'],
+            ['actual', 'actual'], ['terms', 'terms'], ['expPaid', 'expected payment'],
+            ['invoiceDate', 'invoice date'], ['paid', 'paid'],
+        ];
+
+        const MAX_HISTORY = 50;
+
+        /** What changed between two versions of a job. */
+        function diffJob(before, after) {
+            if (!before) return [];
+            const changes = [];
+            TRACKED_FIELDS.forEach(([field, label]) => {
+                const from = before[field] ?? '';
+                const to = after[field] ?? '';
+                if (String(from) !== String(to)) changes.push({ field: label, from: String(from), to: String(to) });
+            });
+
+            // Payments are a list, so a row added is the interesting event
+            // rather than a field going from one value to another.
+            const paidBefore = receivedOf(before);
+            const paidAfter = receivedOf(after);
+            if (paidBefore !== paidAfter) {
+                changes.push({ field: 'received', from: paidBefore.toFixed(2), to: paidAfter.toFixed(2) });
+            }
+            return changes;
+        }
+
+
 
         /**
          * Give every job a stable id.
@@ -1114,8 +1160,23 @@
                 for (const j of (data[y] || [])) {
                     if (!j.id) continue;
                     const key = jobKey(j, y);
+                    const prevRaw = shadowSnapshot.get(j.id);
+                    if (prevRaw !== key) {
+                        // Appended to the job itself so it travels with it —
+                        // into the mirror, and into the nightly backup.
+                        let prev = null;
+                        try { prev = prevRaw ? JSON.parse(prevRaw) : null; } catch { prev = null; }
+                        const changes = diffJob(prev, j);
+                        if (changes.length) {
+                            j.history = [...(Array.isArray(j.history) ? j.history : []), {
+                                at: new Date().toISOString(),
+                                by: auth.currentUser?.email || '',
+                                changes,
+                            }].slice(-MAX_HISTORY);
+                        }
+                        writes.push({ ...j, year: y });
+                    }
                     next.set(j.id, key);
-                    if (shadowSnapshot.get(j.id) !== key) writes.push({ ...j, year: y });
                 }
             }
 
@@ -1515,6 +1576,7 @@
                             </button>`;
                         })()}
                         <div class="job-card-actions">
+                            <button class="card-act" title="What changed" onclick="window.showHistory(${originalIdx})"><i class="bi bi-clock-history"></i></button>
                             <button class="card-act" title="Edit" onclick="window.editJob(${originalIdx})"><i class="bi bi-pencil"></i></button>
                             <button class="card-act del" title="Delete" onclick="window.deleteJob(${originalIdx})"><i class="bi bi-trash"></i></button>
                         </div>
@@ -1778,6 +1840,31 @@
         // would be executed rather than shown.
         const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
             { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // === What changed on this job ======================================
+        window.showHistory = async (idx) => {
+            const job = data[currentYear] && data[currentYear][idx];
+            if (!job) return;
+            const rows = Array.isArray(job.history) ? [...job.history].reverse() : [];
+
+            const body = rows.length
+                ? rows.map(h => {
+                    const when = h.at ? new Date(h.at).toLocaleString() : 'unknown time';
+                    const who = h.by ? esc(h.by) : 'unknown';
+                    const what = (h.changes || []).map(c =>
+                        `<div style="margin-left:12px">${esc(c.field)}: <s style="opacity:.6">${esc(c.from) || '(blank)'}</s> → <strong>${esc(c.to) || '(blank)'}</strong></div>`
+                    ).join('');
+                    return `<div style="margin-bottom:10px"><div style="font-size:12px;opacity:.7">${esc(when)} · ${who}</div>${what}</div>`;
+                }).join('')
+                // A job nobody has edited since this started is not an error,
+                // and saying so is better than an empty box.
+                : '<div style="opacity:.7">No changes recorded yet. History starts from the first edit after 16 August 2026.</div>';
+
+            await confirmDialog(body, {
+                title: `History — ${job.sr || job.customer || 'job'}`,
+                confirmText: 'Close', html: true,
+            });
+        };
 
         // === Record a payment =============================================
         //
