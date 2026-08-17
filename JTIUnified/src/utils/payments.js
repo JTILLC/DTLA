@@ -101,6 +101,11 @@ export const describePayments = (state) => {
  */
 export const sumIncome = (jobs, { paidOnly = false } = {}) =>
   (jobs || []).reduce((sum, job) => {
+    // A closed job is one that was cancelled after a number was spent on it.
+    // It is not income and never will be, so it does not belong in either
+    // figure — but it stays visible everywhere else, because the number is
+    // still spoken for and somebody will ask what happened to it.
+    if (job?.closedAt) return sum;
     const amount = jobAmount(job);
     if (!paidOnly) return sum + amount;
     return sum + paymentState(job, amount).received;
