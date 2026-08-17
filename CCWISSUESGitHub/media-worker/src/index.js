@@ -43,6 +43,7 @@
 
 import { scanWeights, mayScan } from './weights.js';
 import { runBackup } from './backup.js';
+import { shearersRead } from './shearers.js';
 import { scanReceipt, mayScanReceipt } from './receipts.js';
 import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
 import {
@@ -618,6 +619,29 @@ export default {
       const out = new Response(res.body, res);
       Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
       return out;
+    }
+
+    // --- GET /shearers/{data,history}?token=… ---------------------------
+    // Downtime data for a customer holding a share link. Origin-checked like
+    // the other browser routes; the token is what actually authorises it.
+    if (url.pathname.startsWith('/shearers/')) {
+      if (request.method !== 'GET') return deny(405, 'Method not allowed', origin, allowed);
+      if (!originAllowed(origin, (allowed || '').split(',').map((x) => x.trim()).filter(Boolean))) {
+        return deny(403, 'Origin not permitted.', origin, allowed);
+      }
+      const which = url.pathname.slice('/shearers/'.length);
+      const out = await shearersRead(request, env, mintToken, which);
+      return new Response(out.body, {
+        status: out.status,
+        headers: {
+          'Content-Type': out.json ? 'application/json' : 'text/plain; charset=utf-8',
+          // Short, because the viewer polls: long enough to spare the database
+          // a request per viewer per few seconds, short enough that a customer
+          // watching a shift sees it move.
+          ...(out.status === 200 ? { 'Cache-Control': 'private, max-age=20' } : {}),
+          ...corsHeaders(origin, allowed),
+        },
+      });
     }
 
     if (url.pathname.startsWith('/parts/')) {

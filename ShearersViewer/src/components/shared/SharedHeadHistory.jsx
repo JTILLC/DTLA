@@ -1,9 +1,8 @@
 // src/components/shared/SharedHeadHistory.jsx
 import React, { useState, useEffect } from 'react';
-import { getDatabase, ref, get } from 'firebase/database';
+import { fetchShared } from '../../shareApi';
 import { app } from '../../firebaseConfig';
 
-const database = getDatabase(app);
 const HISTORY_PATH = 'jti-downtime/head-history';
 
 export default function SharedHeadHistory() {
@@ -16,7 +15,10 @@ export default function SharedHeadHistory() {
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const snapshot = await get(ref(database, HISTORY_PATH));
+        // Through the broker: the database is closed to the public now, and
+        // the share token is what authorises this.
+        const val = await fetchShared('history');
+        const snapshot = { exists: () => val != null, val: () => val };
         if (snapshot.exists()) {
           const val = snapshot.val();
           const arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val || {});

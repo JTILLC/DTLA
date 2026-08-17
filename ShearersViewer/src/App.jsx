@@ -1,7 +1,8 @@
 // src/App.jsx - Shearers CCW Maintenance Tracker Viewer
 import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, useParams, Link, useLocation, Navigate } from 'react-router-dom';
-import { getDatabase, ref, get, onValue } from 'firebase/database';
+import { getDatabase, ref, get } from 'firebase/database';
+import { pollShared, fetchShared } from './shareApi';
 import { app } from './firebaseConfig';
 import './index.css';
 
@@ -266,44 +267,34 @@ function SharedViewer() {
     }
   }, [token]);
 
-  // Once token is validated, subscribe to live data
+  // Once the token is validated, keep the data fresh through the broker.
+  //
+  // This was a live subscription straight to the Realtime Database, which is
+  // why the downtime data had to be public for it to work. It polls the broker
+  // now: the credential stays server-side, the token is checked on every
+  // request, and the database is closed. Downtime is reviewed rather than
+  // watched, so a minute behind costs nothing.
   useEffect(() => {
     if (!isValidToken) return;
 
-    // Subscribe to live data updates
-    const dataRef = ref(database, MAINLOGGER_DATA_PATH);
-    const unsubscribeData = onValue(dataRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const loadedData = snapshot.val();
-        console.log('Raw Firebase data structure:', Object.keys(loadedData));
-
-        // Check if data is nested under a "data" key
-        const actualData = loadedData.data || loadedData;
-        setData(actualData);
+    const stopData = pollShared('data', (loaded) => {
+      if (loaded) {
+        // Some snapshots nest everything under a further "data" key.
+        setData(loaded.data || loaded);
         setLastUpdated(new Date());
       }
       setLoading(false);
     }, (err) => {
-      console.error('Failed to load live data:', err);
-      setError('Failed to load data. Please try again later.');
+      setError(err.message || 'Failed to load data. Please try again later.');
       setLoading(false);
     });
 
-    // Subscribe to head history
-    const historyRef = ref(database, HISTORY_PATH);
-    const unsubscribeHistory = onValue(historyRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        const arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val || {});
-        setHistoryData(arr);
-        console.log('Loaded history entries:', arr.length);
-      }
+    const stopHistory = pollShared('history', (val) => {
+      const arr = Array.isArray(val) ? val.filter(Boolean) : Object.values(val || {});
+      setHistoryData(arr);
     });
 
-    return () => {
-      unsubscribeData();
-      unsubscribeHistory();
-    };
+    return () => { stopData(); stopHistory(); };
   }, [isValidToken]);
 
   // Combine dates from both current data and history

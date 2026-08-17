@@ -11,7 +11,7 @@ STORAGE_BUCKET      = "downtimelogger-a96fb.firebasestorage.app"
 # Comma-separated. Needed for the canvas reads the PDF export performs.
 # Wildcards cover Cloudflare Pages preview deploys, which each get their own
 # hostname (<branch>.<project>.pages.dev and <hash>.<project>.pages.dev).
-ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,https://jti-issues-mt.pages.dev,https://jti-shearers.pages.dev,https://jti-dashboard.pages.dev,*.jti-ccw-viewer.pages.dev,*.jti-issues.pages.dev,*.jti-issues-mt.pages.dev,*.jti-shearers.pages.dev,*.jti-dashboard.pages.dev,http://localhost:5173,http://localhost:5174"
+ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,https://jti-issues-mt.pages.dev,https://jti-shearers.pages.dev,https://jti-shearers-viewer.pages.dev,https://jti-dashboard.pages.dev,*.jti-ccw-viewer.pages.dev,*.jti-issues.pages.dev,*.jti-issues-mt.pages.dev,*.jti-shearers.pages.dev,*.jti-shearers-viewer.pages.dev,*.jti-dashboard.pages.dev,http://localhost:5173,http://localhost:5174"
 
 # Firebase projects whose ID tokens /scan-weights will accept. Shearers is a
 # SEPARATE Firebase project, so without listing it here its tokens fail the
