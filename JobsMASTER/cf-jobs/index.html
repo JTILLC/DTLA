@@ -751,7 +751,7 @@
             requestAnimationFrame(() => el.classList.add('show'));
             setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3200);
         }
-        function dialog({ title = '', message = '', confirmText = 'Confirm', danger = false, prompt = false, placeholder = '', defaultValue = '' }) {
+        function dialog({ title = '', message = '', confirmText = 'Confirm', danger = false, prompt = false, placeholder = '', defaultValue = '', html = false }) {
             return new Promise(resolve => {
                 const host = document.getElementById('dialogHost');
                 const wrap = document.createElement('div');
@@ -767,7 +767,12 @@
                         </div>
                     </div>`;
                 wrap.querySelector('.dlg-title').textContent = title;
-                wrap.querySelector('.dlg-msg').textContent = message;
+                // textContent unless the caller asks otherwise. Anything passed
+                // with html: true is built in this file — customer names and
+                // notes inside it must be escaped by the caller, because they
+                // come from whoever typed them.
+                const msgEl = wrap.querySelector('.dlg-msg');
+                if (html) msgEl.innerHTML = message; else msgEl.textContent = message;
                 wrap.querySelector('[data-act="ok"]').textContent = confirmText;
                 const input = wrap.querySelector('.dlg-input');
                 input.placeholder = placeholder; input.value = defaultValue;
@@ -780,7 +785,7 @@
                 input.onkeydown = (e) => { if (e.key === 'Enter') close(input.value); };
             });
         }
-        const confirmDialog = (message, opts = {}) => dialog({ title: opts.title || 'Please confirm', message, confirmText: opts.confirmText || 'Confirm', danger: opts.danger });
+        const confirmDialog = (message, opts = {}) => dialog({ title: opts.title || 'Please confirm', message, confirmText: opts.confirmText || 'Confirm', danger: opts.danger, html: opts.html });
         const promptDialog = (title, defaultValue = '', opts = {}) => dialog({ title, message: opts.message || '', prompt: true, defaultValue, placeholder: opts.placeholder || '', confirmText: opts.confirmText || 'OK' });
 
         // === Dark Mode ===
@@ -1015,6 +1020,38 @@
         // "$4,200". parseFloat reads the first and mangles the rest — "4,200"
         // is 4, "$4,200" is NaN — so every total here has been quietly wrong
         // for any job whose amount carried a comma.
+        // What has actually been received against a job.
+        //
+        // The checkbox makes three situations look like two: not paid, paid in
+        // full, and paid SHORT. A customer settling $4,000 of a $4,200 invoice
+        // either reads as fully paid, losing the $200, or as unpaid, hiding the
+        // $4,000. Recorded payments say which.
+        //
+        // Jobs with only the checkbox — which is nearly all of the history —
+        // still mean exactly what they always did.
+        const paymentsOf = (job) => (Array.isArray(job?.payments) ? job.payments : [])
+            .filter(p => p && (p.amount != null || p.date))
+            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+        const receivedOf = (job) => paymentsOf(job).reduce((n, p) => n + money(p.amount), 0);
+
+        const invoicedOf = (job) => money(job?.actual) || money(job?.quote);
+
+        function paymentState(job) {
+            const invoiced = invoicedOf(job);
+            const rows = paymentsOf(job);
+            if (!rows.length) {
+                return job?.paid
+                    ? { status: 'paid', received: invoiced, outstanding: 0 }
+                    : { status: 'unpaid', received: 0, outstanding: invoiced };
+            }
+            const received = receivedOf(job);
+            const outstanding = Math.max(0, invoiced - received);
+            if (invoiced > 0 && received >= invoiced - 0.01) return { status: 'paid', received, outstanding: 0 };
+            if (received > 0.01) return { status: 'partial', received, outstanding };
+            return { status: 'unpaid', received, outstanding };
+        }
+
         const money = (v) => {
             if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
             const n = Number.parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
@@ -1466,9 +1503,17 @@
                         </div>
                     </div>
                     <div class="job-card-footer">
-                        <button class="job-card-paid ${job.paid ? 'is-paid' : 'not-paid'}" onclick="window.togglePaid(${originalIdx})">
-                            <i class="bi ${job.paid ? 'bi-check-circle-fill' : 'bi-clock-history'}"></i> ${job.paid ? 'Paid' : 'Unpaid'}
-                        </button>
+                        ${(() => {
+                            const st = paymentState(job);
+                            const label = st.status === 'paid' ? 'Paid'
+                                : st.status === 'partial' ? `Part paid · $${st.outstanding.toFixed(2)} left`
+                                : 'Unpaid';
+                            const icon = st.status === 'paid' ? 'bi-check-circle-fill'
+                                : st.status === 'partial' ? 'bi-hourglass-split' : 'bi-clock-history';
+                            return `<button class="job-card-paid ${st.status === 'paid' ? 'is-paid' : 'not-paid'}" onclick="window.recordPayment(${originalIdx})" title="Record a payment">
+                                <i class="bi ${icon}"></i> ${label}
+                            </button>`;
+                        })()}
                         <div class="job-card-actions">
                             <button class="card-act" title="Edit" onclick="window.editJob(${originalIdx})"><i class="bi bi-pencil"></i></button>
                             <button class="card-act del" title="Delete" onclick="window.deleteJob(${originalIdx})"><i class="bi bi-trash"></i></button>
@@ -1727,6 +1772,68 @@
             updateYearPage();
             toast(editIdx !== '' ? 'Job updated' : 'Job added', 'success');
         });
+
+        // A customer name or a payment note is whatever somebody typed, and
+        // the payment dialog builds HTML. Without this, a name containing a tag
+        // would be executed rather than shown.
+        const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // === Record a payment =============================================
+        //
+        // Replaces the paid/unpaid toggle. The toggle could only say "all" or
+        // "nothing", so a short payment had to be rounded to one of them and
+        // the difference disappeared.
+        //
+        // Marking a job paid in full still takes one click — the amount is
+        // filled in — so the common case is no slower than the checkbox was.
+        window.recordPayment = async (idx) => {
+            const job = data[currentYear] && data[currentYear][idx];
+            if (!job) return;
+            const st = paymentState(job);
+
+            const rows = paymentsOf(job);
+            const history = rows.length
+                ? '<div style="margin:8px 0;font-size:13px">'
+                  + rows.map(p => `<div>${esc(p.date || 'no date')} — $${money(p.amount).toFixed(2)}${p.note ? ' · ' + esc(p.note) : ''}</div>`).join('')
+                  + '</div>'
+                : '';
+
+            const html = `
+                ${history}
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                    <div><label style="font-size:12px">Amount</label>
+                        <input id="payAmount" class="form-control" value="${st.outstanding.toFixed(2)}"></div>
+                    <div><label style="font-size:12px">Date</label>
+                        <input id="payDate" type="date" class="form-control" value="${new Date().toISOString().slice(0,10)}"></div>
+                    <div style="flex:1"><label style="font-size:12px">Note</label>
+                        <input id="payNote" class="form-control" placeholder="cheque no., short pay reason"></div>
+                </div>`;
+
+            const ok = await confirmDialog(html, {
+                title: `Payment for ${job.customer || 'this job'} — $${st.outstanding.toFixed(2)} outstanding`,   // title uses textContent
+                confirmText: 'Record payment', html: true,
+            });
+            if (!ok) return;
+
+            const amount = money(document.getElementById('payAmount')?.value);
+            if (!amount) { toast('Enter an amount', 'danger'); return; }
+
+            job.payments = [...paymentsOf(job), {
+                amount: String(amount),
+                date: document.getElementById('payDate')?.value || '',
+                note: (document.getElementById('payNote')?.value || '').trim(),
+                recordedBy: auth.currentUser?.email || '',
+            }];
+
+            // The checkbox is kept in step so anything still reading it — and
+            // years of history are still read that way — stays right.
+            job.paid = paymentState(job).status === 'paid';
+
+            saveToStorage();
+            updateYearPage();
+            toast(job.paid ? 'Paid in full' : 'Payment recorded', 'success');
+        };
 
         // === Delete Job (inline) ===
         window.deleteJob = async (idx) => {

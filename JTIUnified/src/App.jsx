@@ -16,6 +16,7 @@ import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import DataHealthBanner from './components/DataHealthBanner';
 import { reset as resetHealth, isSignIn } from './utils/dataHealth';
 import { expectedPayment, describeTiming } from './utils/expectedPayment';
+import { sumIncome, paymentState } from './utils/payments';
 import * as ui from './ui/theme';
 import useRoute from './ui/useRoute';
 import { VIEWS, HOME, CUSTOMER, toSlug, customerFromSlug } from './ui/views';
@@ -24,7 +25,7 @@ import JobPacketBuilder from './components/JobPacketBuilder';
 import JobBoard from './components/JobBoard';
 import NewJobPage from './components/NewJobPage';
 import BackupPanel from './components/BackupPanel';
-import { isPaid, formatRelativeTime, jobAmount, sumIncome, formatCurrency } from './utils/format';
+import { isPaid, formatRelativeTime, jobAmount, formatCurrency } from './utils/format';
 
 
 function App() {
@@ -2133,11 +2134,18 @@ function App() {
                           outstanding and when it lands. */}
                       {(() => {
                         const exp = expectedPayment(job, new Date());
+                        const pay = paymentState(job, exp.amount || 0);
                         if (!exp.amount && !exp.text) return null;
                         const timing = describeTiming(exp);
                         return (
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>
-                            {exp.amount != null && <span>{formatCurrency(exp.amount)}</span>}
+                            {/* What is still owed, not what it was worth. A
+                                part-paid job showing its full invoice value
+                                overstates the outstanding by whatever came in. */}
+                            {exp.amount != null && <span>{formatCurrency(pay.outstanding)}</span>}
+                            {pay.status === 'partial' && (
+                              <span style={{ color: '#f59e0b' }}>part paid</span>
+                            )}
                             {exp.text && <span>· {exp.text}</span>}
                             {timing && (
                               <span style={{ color: exp.overdue ? '#ef4444' : undefined, fontWeight: exp.overdue ? 600 : 400 }}>
