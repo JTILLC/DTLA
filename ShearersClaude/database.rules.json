@@ -3,20 +3,14 @@
     "jti-downtime": {
       ".read": "auth != null",
       ".write": "auth != null",
+
       "shares": {
         "$token": {
           ".read": true
         }
-      },
-      "main-logger": {
-        "data": {
-          ".read": true
-        }
-      },
-      "head-history": {
-        ".read": true
       }
     },
+
     "shared-views": {
       "$token": {
         ".read": true,
