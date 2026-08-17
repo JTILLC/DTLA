@@ -3,7 +3,8 @@
 // and a real failure indistinguishable from the usual noise.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { isPaid, jobAmount, sumIncome, asLocalDate, parseMoney } from './format.js';
+import { isPaid, jobAmount, asLocalDate, parseMoney } from './format.js';
+import { sumIncome } from './payments.js';
 
 test('isPaid recognizes truthy forms', () => {
   for (const v of [true, 1, 'yes', 'Yes', 'YES', 'true', '1', 'paid', ' Paid ']) {

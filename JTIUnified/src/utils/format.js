@@ -39,12 +39,10 @@ export const jobAmount = (job) => {
   return actual > 0 ? actual : quote;
 };
 
-// Total billable income across jobs, optionally restricted to paid jobs.
-export const sumIncome = (jobs, { paidOnly = false } = {}) =>
-  (jobs || []).reduce((sum, job) => {
-    if (paidOnly && !isPaid(job.paid)) return sum;
-    return sum + jobAmount(job);
-  }, 0);
+// sumIncome lives in payments.js now: what counts as income depends on what
+// was received, and that would have made this file import the module that
+// imports it. A cycle here is a live hazard rather than a tidiness question —
+// whichever module evaluated second would see the other's exports undefined.
 
 // Compact "time ago" used by the activity feed / dashboard.
 export const formatRelativeTime = (date) => {

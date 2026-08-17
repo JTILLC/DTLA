@@ -4,12 +4,13 @@ import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
 import { recordFailure, recordSuccess } from './utils/dataHealth.js';
 import { duplicateIds } from './utils/jobMirror.js';
+import { sumIncome } from './utils/payments.js';
 import { toTrackerJob } from './utils/toTrackerJob.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
 import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
-import { isPaid, jobAmount, sumIncome } from './utils/format';
+import { isPaid, jobAmount} from './utils/format';
 import { matchCustomer, consolidateCustomers, normalizeCustomerName } from '@shared/utils/customerMatch.js';
 import { customerDefaults, missingDefaults } from '@shared/utils/customerDefaults.js';
 
