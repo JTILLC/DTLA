@@ -299,6 +299,21 @@ export async function putObject(bucket, objectPath, token, body) {
 }
 
 /**
+ * Read one of the manifests back out of the bucket.
+ *
+ * Returns null when there is nothing there — a bucket with no manifest is the
+ * normal state before the first run, not an error, and the caller needs to be
+ * able to say "it has never run" rather than "something went wrong".
+ */
+export async function getManifest(bucket, token, objectPath) {
+  const url = `${STORAGE}/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`read failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+/**
  * Delete backups older than `days`.
  *
  * Only ever under the `backups/` prefix, and only names this system writes.
@@ -586,14 +601,24 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
     const wToken = await writeToken();
     manifest.finishedAt = new Date().toISOString();
     manifest.requests = state.requests;
+    // Which kind of run this was. `latest.json` is overwritten by the button on
+    // the Backups page as well as by the cron, so without this a page showing
+    // "the last backup" could be showing one project somebody ran by hand and
+    // call it a night's work.
+    manifest.trigger = only ? 'manual' : 'nightly';
+    manifest.only = only || '';
     // Only the unnarrowed run prunes — that is the cron. The page asks for one
     // project at a time, and pruning four times over would spend the allowance
     // four times for one night's worth of expiry.
     manifest.retention = only
       ? { skipped: 'pruning runs on the nightly job' }
       : await prune(bucket, wToken, Number(env.BACKUP_RETAIN_DAYS), Date.now(), state);
-    await putObject(bucket, `backups/${day}/manifest.json`, wToken, JSON.stringify(manifest, null, 2));
-    await putObject(bucket, 'backups/latest.json', wToken, JSON.stringify(manifest, null, 2));
+    const body = JSON.stringify(manifest, null, 2);
+    await putObject(bucket, `backups/${day}/manifest.json`, wToken, body);
+    await putObject(bucket, 'backups/latest.json', wToken, body);
+    // A separate copy the manual runs never touch, so "did last night happen"
+    // has an answer that no amount of clicking can overwrite.
+    if (!only) await putObject(bucket, 'backups/latest-nightly.json', wToken, body);
   } catch (err) {
     manifest.manifestError = String(err.message || err);
   }
@@ -601,4 +626,4 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
   return manifest;
 }
 
-export default { runBackup, rotate, backupTargets, exportProject, exportRealtimeDb, docPathSegments, placeDoc, decodeFields, decodeValue, prune, putObject, idOf, isExpiredBackup };
+export default { runBackup, rotate, backupTargets, exportProject, exportRealtimeDb, docPathSegments, placeDoc, decodeFields, decodeValue, prune, putObject, getManifest, idOf, isExpiredBackup };

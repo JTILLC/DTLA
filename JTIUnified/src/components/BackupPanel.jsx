@@ -12,13 +12,14 @@
 // overwritten and how old the file is, and the destructive ones need a separate
 // acknowledgement. Nothing here happens as a side effect of choosing a file.
 
-import React, { useState } from 'react';
-import { AlertTriangle, Download, HardDriveDownload, Upload } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Check, Download, HardDriveDownload, RefreshCw, Upload, X } from 'lucide-react';
 import {
   backupCCWIssues, backupShearers, backupTimesheet, backupJobs, backupAllApps,
   readBackupFile, importBackupFromFile, verifyRestore,
 } from '../backup-service';
 import { describePlan } from '../utils/backupShape';
+import { backupStatus, manualNote } from '../utils/backupStatus';
 import { progressText } from '../utils/progressText';
 import { auth } from '../firebase-config';
 import * as ui from '../ui/theme';
@@ -43,6 +44,31 @@ export default function BackupPanel({ colors }) {
   const [manifest, setManifest] = useState(null);
   const [progress, setProgress] = useState('');
   const [verify, setVerify] = useState(null);
+  const [status, setStatus] = useState(null);      // what /admin/backup-status said
+  const [checking, setChecking] = useState(true);
+
+  // Did the scheduled job run? Asked on open, because the answer is only useful
+  // if nobody has to remember to ask. A failure to check is recorded as a
+  // failure to check — never as nothing, which on a backup page reads as fine.
+  const checkStatus = useCallback(async () => {
+    setChecking(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Sign in to see the backup status.');
+      const token = await user.getIdToken();
+      const res = await fetch(`${BROKER}/admin/backup-status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `the server answered ${res.status}`);
+      setStatus(JSON.parse(text));
+    } catch (err) {
+      setStatus({ error: err.message || String(err) });
+    }
+    setChecking(false);
+  }, []);
+
+  useEffect(() => { checkStatus(); }, [checkStatus]);
 
   // Prove a file can be put back, not just taken.
   //
@@ -122,6 +148,7 @@ export default function BackupPanel({ colors }) {
     }
     setProgress('');
     setBusy('');
+    checkStatus();   // the run just moved latest.json; say so rather than go stale
   };
 
   // Normalised at this boundary, which every caller crosses — including the
@@ -176,6 +203,52 @@ export default function BackupPanel({ colors }) {
         Each backup downloads as a JSON file to this computer. Keep them somewhere that
         is not this computer — a backup on the same disk as the data is not a backup.
       </p>
+
+      {/* Did it run? First thing on the page, because it is the question the
+          page exists to answer, and it is not the one the buttons answer. */}
+      {(() => {
+        const s = backupStatus(status, Date.now());
+        const tone = checking ? colors.textSecondary : { ok: ui.TONE.ok, warn: ui.TONE.warn, bad: ui.TONE.bad }[s.tone];
+        const Icon = s.tone === 'ok' ? Check : s.tone === 'warn' ? AlertTriangle : X;
+        return (
+          <div style={{ ...card, borderLeft: `3px solid ${tone}` }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <span style={{ color: tone, marginTop: '2px', flexShrink: 0 }}>
+                {checking ? <RefreshCw size={18} /> : <Icon size={18} />}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: colors.text, fontWeight: 600, fontSize: '15px' }}>
+                  {checking ? 'Checking the nightly backup…' : s.headline}
+                </div>
+                {!checking && (
+                  <div style={{ color: colors.textSecondary, fontSize: '13px', marginTop: '2px' }}>
+                    {s.detail}{' '}{manualNote(status, Date.now())}
+                  </div>
+                )}
+                {!checking && s.apps.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '8px' }}>
+                    {s.apps.map((a) => (
+                      <span key={a.name} style={{ fontSize: '12px', color: colors.textSecondary }}>
+                        <span style={{
+                          fontWeight: 700,
+                          color: a.state === 'ok' ? ui.TONE.ok : a.state === 'skipped' ? colors.textSecondary : ui.TONE.bad,
+                        }}>
+                          {a.state === 'ok' ? '✓' : a.state === 'skipped' ? '–' : '✕'}
+                        </span>{' '}
+                        {a.name}{a.note ? ` · ${a.note}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={checkStatus} disabled={checking}
+                style={ui.btn(colors, { size: 'sm', over: { display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0 } })}>
+                <RefreshCw size={13} /> Check again
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={card}>
         <div style={ui.label(colors)}>Take a copy</div>

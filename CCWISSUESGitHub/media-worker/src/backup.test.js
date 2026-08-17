@@ -4,7 +4,7 @@
 // A decode bug here does not fail — it writes a backup that looks fine and is
 // wrong, discovered during a recovery, which is the worst possible moment.
 import { describe, it, expect } from 'vitest';
-import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets, docPathSegments, placeDoc, rotate } from './backup.js';
+import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets, docPathSegments, placeDoc, rotate, getManifest } from './backup.js';
 
 describe('decodeValue', () => {
   it('reads every scalar Firestore actually stores', () => {
@@ -197,5 +197,34 @@ describe('rotate', () => {
   it('copes with short lists', () => {
     expect(rotate([], new Date())).toEqual([]);
     expect(rotate(['only'], new Date())).toEqual(['only']);
+  });
+});
+
+describe('getManifest', () => {
+  const bucket = 'downtimelogger-a96fb.appspot.com';
+
+  it('reads a manifest back out of the bucket', async () => {
+    const calls = [];
+    global.fetch = async (url, opts) => {
+      calls.push({ url, opts });
+      return { ok: true, status: 200, json: async () => ({ day: '2026-08-16', trigger: 'nightly' }) };
+    };
+    const m = await getManifest(bucket, 'tok', 'backups/latest-nightly.json');
+    expect(m.trigger).toBe('nightly');
+    expect(calls[0].url).toContain(encodeURIComponent('backups/latest-nightly.json'));
+    expect(calls[0].url).toContain('alt=media');
+    expect(calls[0].opts.headers.Authorization).toBe('Bearer tok');
+  });
+
+  it('answers null when it has never run, rather than throwing', async () => {
+    // "No backup yet" and "the read broke" are different answers and the page
+    // has to be able to tell them apart.
+    global.fetch = async () => ({ ok: false, status: 404, text: async () => 'Not Found' });
+    expect(await getManifest(bucket, 'tok', 'backups/latest-nightly.json')).toBeNull();
+  });
+
+  it('throws on anything else, so a broken read is not read as no backup', async () => {
+    global.fetch = async () => ({ ok: false, status: 403, text: async () => 'Forbidden' });
+    await expect(getManifest(bucket, 'tok', 'backups/latest.json')).rejects.toThrow(/403/);
   });
 });

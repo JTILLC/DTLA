@@ -42,7 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { runBackup } from './backup.js';
+import { runBackup, getManifest } from './backup.js';
 import { shearersRead } from './shearers.js';
 import { scanReceipt, mayScanReceipt } from './receipts.js';
 import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
@@ -558,6 +558,56 @@ export default {
       const out = new Response(res.body, res);
       Object.entries(corsHeaders(origin, allowed)).forEach(([k, v]) => out.headers.set(k, v));
       return out;
+    }
+
+    // --- GET /admin/backup-status ------------------------------------------
+    // Whether the nightly job actually ran, without running it again.
+    //
+    // The manifests are already written next to the dumps; nothing could read
+    // them, so the only way to see a backup happen was to set one off by hand,
+    // which is the one thing that does not answer the question. Reads two
+    // objects and returns them as they are: `latest-nightly.json`, which only
+    // the cron writes, and `latest.json`, which the button also writes.
+    if (url.pathname === '/admin/backup-status') {
+      if (request.method !== 'GET') return deny(405, 'Method not allowed', origin, allowed);
+      if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
+        return deny(503, 'Backups are not configured on the server.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, [env.FIREBASE_PROJECT_ID]);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (claims.firebase?.sign_in_provider === 'anonymous' || claims.admin !== true) {
+        return deny(403, 'Only a JTI admin can see the backup status.', origin, allowed);
+      }
+
+      const bucket = env.BACKUP_BUCKET || env.STORAGE_BUCKET;
+      let body;
+      try {
+        const token = await getAccessToken(env);
+        const [nightly, latest] = await Promise.all([
+          getManifest(bucket, token, 'backups/latest-nightly.json'),
+          getManifest(bucket, token, 'backups/latest.json'),
+        ]);
+        body = { bucket, nightly, latest, checkedAt: new Date().toISOString() };
+      } catch (err) {
+        // Answered as JSON so the page can say what went wrong rather than
+        // showing nothing, which reads the same as "no backup".
+        body = { bucket, error: String(err?.message || err), checkedAt: new Date().toISOString() };
+      }
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(origin, allowed) },
+      });
     }
 
     if (url.pathname === '/admin/create-login' || url.pathname === '/admin/sync-claims'
