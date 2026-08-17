@@ -401,6 +401,57 @@
         .dlg-actions { display: flex; justify-content: flex-end; gap: 10px; }
         .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 
+        /* Comparison page */
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 16px; }
+        .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .panel-head h2 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+        .panel-note { font-size: 0.78rem; color: var(--muted); }
+        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
+        .cmp-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+        .cmp-table th, .cmp-table td { padding: 11px 14px; text-align: left; white-space: nowrap; }
+        .cmp-table th:first-child, .cmp-table td:first-child { padding-left: 4px; }
+        .cmp-table th:last-child, .cmp-table td:last-child { padding-right: 4px; }
+        .cmp-table thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--border); padding-top: 0; }
+        .cmp-table tbody td { border-bottom: 1px solid var(--border); }
+        .cmp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .cmp-table tbody tr:hover td { background: var(--hover); }
+        .cmp-table .yr { font-weight: 700; }
+        .cmp-table tr.is-current td { background: rgba(99,102,241,.10); }
+        .cmp-table tr.is-current:hover td { background: rgba(99,102,241,.14); }
+        .cmp-table tr.is-current td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+        .cmp-table tr.is-current .yr { color: var(--primary); }
+        [data-theme="dark"] .cmp-table tr.is-current .yr { color: #a5b4fc; }
+        .cmp-table .paid-val { color: var(--success); }
+        .cmp-table .unpaid-val { color: var(--danger); font-weight: 700; }
+        .cmp-table .zero { color: var(--muted); }
+        .cmp-table tfoot td { border-top: 2px solid var(--border); font-weight: 800; color: var(--text); }
+        .cmp-table tfoot .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+        .delta { display: inline-block; width: 52px; text-align: right; font-size: 0.72rem; font-weight: 700; }
+        .cmp-table th.g-col { padding-right: 66px; }
+        .delta.up { color: var(--success); } .delta.down { color: var(--danger); }
+        /* Year-to-date pace */
+        .pace-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+        .pace-stat { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+        .pace-stat .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); font-weight: 700; }
+        .pace-stat .amt { font-size: 1.35rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+        .pace-stat .sub { font-size: 0.76rem; color: var(--muted); }
+        .pace-stat .sub .delta { width: auto; }
+        .pace-row { display: grid; grid-template-columns: 46px 1fr 108px; align-items: center; gap: 12px; padding: 5px 0; }
+        .pace-row .yr { font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+        .pace-row.is-current .yr { color: var(--primary); }
+        .pace-track { position: relative; height: 14px; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+        .pace-rest { position: absolute; top: 0; bottom: 0; background: var(--border); }
+        .pace-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--muted); opacity: .5; }
+        .pace-row.is-current .pace-fill { background: var(--primary); opacity: 1; }
+        .pace-amt { font-size: 0.85rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+        .pace-row:not(.is-current) .pace-amt { color: var(--muted); }
+        .pace-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 0.74rem; color: var(--muted); }
+        .pace-legend span { display: inline-flex; align-items: center; gap: 6px; }
+        .pace-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+        .panel canvas { max-width: 100%; height: 300px !important; }
+        #monthlyChart { max-width: 100%; height: 260px !important; }
+
         /* Modal refresh */
         .modal-content { border-radius: 18px; border: none; box-shadow: var(--shadow-lg); }
         #jobModal .form-control { border-radius: 10px; }
@@ -418,6 +469,15 @@
             .app-bar .btn-add span { display: none; }
             .app-bar .btn-add { padding: 9px 13px; }
             #summaryStats { grid-template-columns: 1fr 1fr; }
+            .pace-stats { grid-template-columns: 1fr; gap: 8px; }
+            .pace-stat { flex-direction: row; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+            .pace-row { grid-template-columns: 40px 1fr 92px; gap: 8px; }
+            .panel { padding: 14px; }
+            .table-scroll { margin: 0 -14px; padding: 0 14px; }
+            .cmp-table { font-size: 0.88rem; }
+            .cmp-table th, .cmp-table td { padding: 9px 10px; }
+            .cmp-table .delta { display: none; }
+            .cmp-table th.g-col { padding-right: 10px; }
             .modal-dialog { margin: 0; min-height: 100%; display: flex; align-items: flex-end; }
             .modal-content { border-radius: 20px 20px 0 0; width: 100%; }
             input, select, textarea, .form-control { font-size: 16px !important; }
@@ -524,16 +584,40 @@
     </div>
 
     <div id="comparisonPage" style="display:none;">
-        <h2>Yearly Comparison</h2>
-        <table id="comparisonTable" class="table table-bordered">
-            <thead class="table-light">
-                <tr><th>Year</th><th>Quotes</th><th>Gross</th><th>Paid</th><th>Unpaid</th></tr>
-            </thead>
-            <tbody id="comparisonTableBody"></tbody>
-        </table>
-        <canvas id="comparisonChart" height="120" class="mt-3"></canvas>
-        <h2 class="mt-4">Monthly Across Years</h2>
-        <canvas id="monthlyComparisonChart" height="120"></canvas>
+        <section class="panel">
+            <div class="panel-head">
+                <h2 id="paceTitle">Year to date</h2>
+                <span class="panel-note" id="paceNote"></span>
+            </div>
+            <div class="pace-stats" id="paceStats"></div>
+            <div class="pace-bars" id="paceBars"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Yearly Comparison</h2>
+                <span class="panel-note" id="comparisonNote"></span>
+            </div>
+            <div class="table-scroll">
+                <table id="comparisonTable" class="cmp-table">
+                    <thead>
+                        <tr><th>Year</th><th class="num">Quotes</th><th class="num g-col">Gross</th><th class="num">Paid</th><th class="num">Unpaid</th></tr>
+                    </thead>
+                    <tbody id="comparisonTableBody"></tbody>
+                    <tfoot id="comparisonTableFoot"></tfoot>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h2>Gross vs Paid</h2></div>
+            <canvas id="comparisonChart" height="120"></canvas>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h2>Monthly Across Years</h2></div>
+            <canvas id="monthlyComparisonChart" height="120"></canvas>
+        </section>
     </div>
     </div><!-- end page-wrap -->
 
@@ -793,17 +877,26 @@
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const saved = localStorage.getItem('theme');
         const isDark = saved === 'dark' || (!saved && prefersDark);
-        function setTheme(dark) {
+        // `render` is false for the first call: it runs while the rest of the
+        // script is still being evaluated, so redrawing here would reach
+        // helpers that do not exist yet and leave a half-built chart behind.
+        function setTheme(dark, render = true) {
             document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
             const lbl = document.getElementById('darkModeLabel');
             const ic = document.getElementById('darkModeIcon');
             if (lbl) lbl.textContent = dark ? 'Light Mode' : 'Dark Mode';
             if (ic) ic.className = dark ? 'bi bi-sun' : 'bi bi-moon-stars';
             localStorage.setItem('theme', dark ? 'dark' : 'light');
+            if (!render) return;
             if (table) table.destroy();
-            updateYearPage();
+            const cmp = document.getElementById('comparisonPage');
+            if (cmp && cmp.style.display === 'block') {
+                updateComparison();   // charts read their colours from the tokens
+            } else {
+                updateYearPage();
+            }
         }
-        setTheme(isDark);
+        setTheme(isDark, false);
         toggle.addEventListener('click', () => setTheme(!document.documentElement.hasAttribute('data-theme') || document.documentElement.getAttribute('data-theme') !== 'dark'));
 
         // === Overflow menu ===
@@ -1057,6 +1150,31 @@
             const n = Number.parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
             return Number.isFinite(n) ? n : 0;
         };
+
+        // Declarations, not consts: these are reached from chart callbacks that
+        // can run before this point in the script.
+        function fmtMoney(n) {
+            return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function compactMoney(n) {
+            const v = Number(n) || 0;
+            if (Math.abs(v) >= 1000) return '$' + Math.round(v / 1000).toLocaleString('en-US') + 'k';
+            return '$' + Math.round(v).toLocaleString('en-US');
+        }
+
+        // One definition of a year's money, shared by the summary card and the
+        // yearly comparison so the two can never disagree. Paid and unpaid come
+        // from the payment records, so a part-paid job counts as part paid.
+        function yearTotals(jobs) {
+            return (jobs || []).reduce((t, j) => {
+                const st = paymentState(j);
+                t.quotes += money(j.quote);
+                t.gross += money(j.actual);
+                t.paid += Math.min(st.received, invoicedOf(j));
+                t.unpaid += st.outstanding;
+                return t;
+            }, { quotes: 0, gross: 0, paid: 0, unpaid: 0 });
+        }
 
         const JOBS_COLLECTION = 'jobs';
         let shadowSnapshot = new Map();   // job id -> serialised, as last written
@@ -1391,20 +1509,17 @@
 
         function updateSummary() {
             const jobs = data[currentYear] || [];
-            const q = jobs.reduce((s,j) => s + money(j.quote), 0).toFixed(2);
-            const g = jobs.reduce((s,j) => s + money(j.actual), 0).toFixed(2);
-            const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0).toFixed(2);
-            const u = (g - p).toFixed(2);
+            const t = yearTotals(jobs);
 
             document.getElementById('summaryStats').innerHTML = `
-                <div><span>Quotes</span><span class="amt">$${q}</span></div>
-                <div><span>Gross Income</span><span class="amt">$${g}</span></div>
-                <div><span>Paid</span><span class="amt" style="color:var(--success)">$${p}</span></div>
-                <div><span>Unpaid</span><span class="amt" style="color:var(--danger)">$${u}</span></div>`;
+                <div><span>Quotes</span><span class="amt">${fmtMoney(t.quotes)}</span></div>
+                <div><span>Gross Income</span><span class="amt">${fmtMoney(t.gross)}</span></div>
+                <div><span>Paid</span><span class="amt" style="color:var(--success)">${fmtMoney(t.paid)}</span></div>
+                <div><span>Unpaid</span><span class="amt" style="color:var(--danger)">${fmtMoney(t.unpaid)}</span></div>`;
 
             // Compute aging buckets
             const aging = computeAgingBuckets(jobs);
-            const totalUnpaid = parseFloat(u);
+            const totalUnpaid = t.unpaid;
             const agingReport = document.getElementById('agingReport');
             const agingBar = document.getElementById('agingBar');
 
@@ -1415,27 +1530,27 @@
                 agingReport.innerHTML = `
                     <div class="aging-bucket current">
                         <div class="aging-bucket-label">Current</div>
-                        <div class="aging-bucket-amount">$${aging.current.amount.toFixed(2)}</div>
+                        <div class="aging-bucket-amount">${fmtMoney(aging.current.amount)}</div>
                         <div class="aging-bucket-count">${aging.current.count} job${aging.current.count !== 1 ? 's' : ''}</div>
                     </div>
                     <div class="aging-bucket days-30">
                         <div class="aging-bucket-label">1-30 Days</div>
-                        <div class="aging-bucket-amount">$${aging.days0to30.amount.toFixed(2)}</div>
+                        <div class="aging-bucket-amount">${fmtMoney(aging.days0to30.amount)}</div>
                         <div class="aging-bucket-count">${aging.days0to30.count} job${aging.days0to30.count !== 1 ? 's' : ''}</div>
                     </div>
                     <div class="aging-bucket days-60">
                         <div class="aging-bucket-label">31-60 Days</div>
-                        <div class="aging-bucket-amount">$${aging.days31to60.amount.toFixed(2)}</div>
+                        <div class="aging-bucket-amount">${fmtMoney(aging.days31to60.amount)}</div>
                         <div class="aging-bucket-count">${aging.days31to60.count} job${aging.days31to60.count !== 1 ? 's' : ''}</div>
                     </div>
                     <div class="aging-bucket days-90">
                         <div class="aging-bucket-label">61-90 Days</div>
-                        <div class="aging-bucket-amount">$${aging.days61to90.amount.toFixed(2)}</div>
+                        <div class="aging-bucket-amount">${fmtMoney(aging.days61to90.amount)}</div>
                         <div class="aging-bucket-count">${aging.days61to90.count} job${aging.days61to90.count !== 1 ? 's' : ''}</div>
                     </div>
                     <div class="aging-bucket days-90plus">
                         <div class="aging-bucket-label">90+ Days</div>
-                        <div class="aging-bucket-amount">$${aging.days90plus.amount.toFixed(2)}</div>
+                        <div class="aging-bucket-amount">${fmtMoney(aging.days90plus.amount)}</div>
                         <div class="aging-bucket-count">${aging.days90plus.count} job${aging.days90plus.count !== 1 ? 's' : ''}</div>
                     </div>
                 `;
@@ -1444,11 +1559,11 @@
                 const total = aging.current.amount + aging.days0to30.amount + aging.days31to60.amount + aging.days61to90.amount + aging.days90plus.amount;
                 if (total > 0) {
                     agingBar.innerHTML = `
-                        <div class="aging-bar-segment current" style="width: ${(aging.current.amount / total * 100).toFixed(1)}%" title="Current: $${aging.current.amount.toFixed(2)}"></div>
-                        <div class="aging-bar-segment days-30" style="width: ${(aging.days0to30.amount / total * 100).toFixed(1)}%" title="1-30 Days: $${aging.days0to30.amount.toFixed(2)}"></div>
-                        <div class="aging-bar-segment days-60" style="width: ${(aging.days31to60.amount / total * 100).toFixed(1)}%" title="31-60 Days: $${aging.days31to60.amount.toFixed(2)}"></div>
-                        <div class="aging-bar-segment days-90" style="width: ${(aging.days61to90.amount / total * 100).toFixed(1)}%" title="61-90 Days: $${aging.days61to90.amount.toFixed(2)}"></div>
-                        <div class="aging-bar-segment days-90plus" style="width: ${(aging.days90plus.amount / total * 100).toFixed(1)}%" title="90+ Days: $${aging.days90plus.amount.toFixed(2)}"></div>
+                        <div class="aging-bar-segment current" style="width: ${(aging.current.amount / total * 100).toFixed(1)}%" title="Current: ${fmtMoney(aging.current.amount)}"></div>
+                        <div class="aging-bar-segment days-30" style="width: ${(aging.days0to30.amount / total * 100).toFixed(1)}%" title="1-30 Days: ${fmtMoney(aging.days0to30.amount)}"></div>
+                        <div class="aging-bar-segment days-60" style="width: ${(aging.days31to60.amount / total * 100).toFixed(1)}%" title="31-60 Days: ${fmtMoney(aging.days31to60.amount)}"></div>
+                        <div class="aging-bar-segment days-90" style="width: ${(aging.days61to90.amount / total * 100).toFixed(1)}%" title="61-90 Days: ${fmtMoney(aging.days61to90.amount)}"></div>
+                        <div class="aging-bar-segment days-90plus" style="width: ${(aging.days90plus.amount / total * 100).toFixed(1)}%" title="90+ Days: ${fmtMoney(aging.days90plus.amount)}"></div>
                     `;
                 }
             } else {
@@ -1471,10 +1586,14 @@
                 renderJobCards(jobs, document.getElementById('jobSearch')?.value || '', jobFilter);
 
                 const monthly = computeMonthlyData(jobs);
-                chart = new Chart(document.getElementById('monthlyChart').getContext('2d'), {
+                const th = chartTheme();
+                chart = newChart('monthlyChart', {
                     type: 'bar',
-                    data: { labels: Object.keys(monthly), datasets: [{ label: `Income (${currentYear})`, data: Object.values(monthly), backgroundColor: 'rgba(75,192,192,0.2)', borderColor: 'rgba(75,192,192,1)' }] },
-                    options: { scales: { y: { beginAtZero: true } } }
+                    data: {
+                        labels: Object.keys(monthly).map(m => m.slice(0, 3)),
+                        datasets: [{ label: `Income (${currentYear})`, data: Object.values(monthly), backgroundColor: th.primary, borderRadius: 6, borderSkipped: false, maxBarThickness: 42 }]
+                    },
+                    options: chartBaseOptions(th)
                 });
 
                 updateSummary();
@@ -1537,8 +1656,8 @@
                             ${job.sr ? `<div class="job-card-sr" style="display:inline-block;margin-top:6px;">SR# ${esc(job.sr)}</div>` : ''}
                         </div>
                         <div class="job-card-amounts">
-                            <div class="job-card-actual">${job.actual ? '$' + money(job.actual).toFixed(2) : '-'}</div>
-                            ${job.quote ? `<div class="job-card-quote">Quote: $${money(job.quote).toFixed(2)}${(() => {
+                            <div class="job-card-actual">${job.actual ? fmtMoney(money(job.actual)) : "-"}</div>
+                            ${job.quote ? `<div class="job-card-quote">Quote: ${fmtMoney(money(job.quote))}${(() => {
                                 // Against quote, but only once there is an
                                 // actual. A job not yet invoiced has not come
                                 // in under — it has not come in.
@@ -1580,7 +1699,7 @@
                         ${(() => {
                             const st = paymentState(job);
                             const label = st.status === 'paid' ? 'Paid'
-                                : st.status === 'partial' ? `Part paid · $${st.outstanding.toFixed(2)} left`
+                                : st.status === 'partial' ? `Part paid · ${fmtMoney(st.outstanding)} left`
                                 : 'Unpaid';
                             const icon = st.status === 'paid' ? 'bi-check-circle-fill'
                                 : st.status === 'partial' ? 'bi-hourglass-split' : 'bi-clock-history';
@@ -1626,37 +1745,219 @@
             }
         });
 
-        function updateComparison() {
-            const years = Object.keys(data).sort();
-            const tbody = document.getElementById('comparisonTableBody');
-            tbody.innerHTML = '';
-            const chartData = { labels: [], quotes: [], gross: [], paid: [], unpaid: [] };
+        // Colours come from the CSS tokens so the charts follow the theme
+        // instead of staying light-mode pastels on a dark page.
+        function chartTheme() {
+            const cs = getComputedStyle(document.documentElement);
+            const tok = (n, fb) => (cs.getPropertyValue(n) || '').trim() || fb;
+            return {
+                text: tok('--text', '#0f172a'),
+                muted: tok('--muted', '#64748b'),
+                grid: tok('--border', '#e2e8f0'),
+                card: tok('--card', '#ffffff'),
+                primary: tok('--primary', '#4f46e5'),
+                success: tok('--success', '#059669'),
+                series: ['#0ea5e9','#10b981','#f59e0b','#ec4899','#14b8a6','#a855f7','#ef4444','#84cc16']
+            };
+        }
 
-            years.forEach(y => {
-                const jobs = data[y] || [];
-                const q = jobs.reduce((s,j) => s + money(j.quote), 0);
-                const g = jobs.reduce((s,j) => s + money(j.actual), 0);
-                const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0);
-                const u = g - p;
-                tbody.innerHTML += `<tr><td>${y}</td><td>$${q.toFixed(2)}</td><td>$${g.toFixed(2)}</td><td>$${p.toFixed(2)}</td><td>$${u.toFixed(2)}</td></tr>`;
-                chartData.labels.push(y);
-                chartData.quotes.push(q);
-                chartData.gross.push(g);
-                chartData.paid.push(p);
-                chartData.unpaid.push(u);
+        // Chart.js refuses a canvas it still holds, and a chart that threw while
+        // building is never assigned to our variable to be destroyed. Ask it.
+        function newChart(canvasId, config) {
+            const el = document.getElementById(canvasId);
+            const held = Chart.getChart && Chart.getChart(el);
+            if (held) held.destroy();
+            return new Chart(el.getContext('2d'), config);
+        }
+
+        function chartBaseOptions(th) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { grid: { display: false }, border: { color: th.grid }, ticks: { color: th.muted, font: { size: 11 } } },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: th.grid, drawTicks: false },
+                        border: { display: false },
+                        ticks: { color: th.muted, font: { size: 11 }, padding: 8, callback: v => compactMoney(v) }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: th.text, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12, weight: '600' } } },
+                    tooltip: {
+                        backgroundColor: th.card, titleColor: th.text, bodyColor: th.text,
+                        borderColor: th.grid, borderWidth: 1, padding: 10, cornerRadius: 10,
+                        titleFont: { weight: '700' }, displayColors: true, usePointStyle: true,
+                        callbacks: { label: c => ` ${c.dataset.label}: ${fmtMoney(c.parsed.y)}` }
+                    }
+                }
+            };
+        }
+
+        // A job is placed in the year by the start of its date range, which is
+        // what the monthly chart already does. Jobs without a readable range
+        // cannot be placed in the year, so they are counted in the full year
+        // and reported as excluded from the to-date figures.
+        const jobStartDay = (job) => {
+            const m = String(job?.dateRange || '').match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
+            if (!m) return null;
+            const mo = +m[1], d = +m[2];
+            return (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) ? { mo, d } : null;
+        };
+
+        // Everything billed in a year up to the same month and day, so the
+        // years are compared over the same slice of the calendar.
+        function grossThrough(jobs, cutMo, cutDay) {
+            let total = 0, undated = 0;
+            (jobs || []).forEach(j => {
+                const s = jobStartDay(j);
+                if (!s) { if (money(j.actual)) undated++; return; }
+                if (s.mo < cutMo || (s.mo === cutMo && s.d <= cutDay)) total += money(j.actual);
+            });
+            return { total, undated };
+        }
+
+        function renderPace(rows) {
+            const statsEl = document.getElementById('paceStats');
+            const barsEl = document.getElementById('paceBars');
+            const noteEl = document.getElementById('paceNote');
+            const titleEl = document.getElementById('paceTitle');
+
+            const now = new Date();
+            const cutMo = now.getMonth() + 1, cutDay = now.getDate();
+            const asOf = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+            const cur = rows.find(r => r.year === String(currentYear));
+
+            titleEl.textContent = `${currentYear} so far`;
+            if (!cur) { statsEl.innerHTML = ''; barsEl.innerHTML = ''; noteEl.textContent = ''; return; }
+
+            let undated = 0;
+            const paced = rows.map(r => {
+                const g = grossThrough(data[r.year], cutMo, cutDay);
+                undated += g.undated;
+                return { year: r.year, ytd: g.total, full: r.g };
             });
 
+            const mine = paced.find(p => p.year === cur.year);
+            const priors = paced.filter(p => p.year < cur.year && p.ytd > 0);
+            const lastYear = priors[priors.length - 1];
+            const avgPrior = priors.length ? priors.reduce((s, p) => s + p.ytd, 0) / priors.length : 0;
+
+            // Projected from how the earlier years actually finished, not from
+            // a straight line through the calendar — the work is seasonal.
+            const finishers = paced.filter(p => p.year < cur.year && p.ytd > 0 && p.full > 0);
+            const ratio = finishers.length ? finishers.reduce((s, p) => s + p.full / p.ytd, 0) / finishers.length : 0;
+            const projected = ratio ? mine.ytd * ratio : 0;
+
+            const deltaHtml = (value, base, label) => {
+                if (!base) return `<span class="sub">no ${label} to compare</span>`;
+                const pct = ((value - base) / base) * 100;
+                const cls = pct >= 0 ? 'up' : 'down';
+                return `<span class="sub"><span class="delta ${cls}">${pct >= 0 ? '▲' : '▼'}${Math.abs(pct).toFixed(1)}%</span> vs ${label}</span>`;
+            };
+
+            statsEl.innerHTML = `
+                <div class="pace-stat">
+                    <span class="lbl">${cur.year} through ${asOf}</span>
+                    <span class="amt">${fmtMoney(mine.ytd)}</span>
+                    ${deltaHtml(mine.ytd, lastYear ? lastYear.ytd : 0, lastYear ? lastYear.year : 'last year')}
+                </div>
+                <div class="pace-stat">
+                    <span class="lbl">Same point, ${priors.length} prior year${priors.length === 1 ? '' : 's'}</span>
+                    <span class="amt">${avgPrior ? fmtMoney(avgPrior) : '—'}</span>
+                    ${avgPrior ? deltaHtml(mine.ytd, avgPrior, 'that average') : '<span class="sub">nothing earlier to compare</span>'}
+                </div>
+                <div class="pace-stat">
+                    <span class="lbl">On pace for</span>
+                    <span class="amt">${projected ? fmtMoney(projected) : '—'}</span>
+                    <span class="sub">${projected
+                        ? `if ${cur.year} finishes like the ${finishers.length} year${finishers.length === 1 ? '' : 's'} before it`
+                        : (!finishers.length ? 'not enough history to project' : `nothing billed in ${cur.year} yet`)}</span>
+                </div>`;
+
+            const max = Math.max(...paced.map(p => Math.max(p.ytd, p.full)), 1);
+            barsEl.innerHTML = paced.map(p => {
+                const ytdPct = (p.ytd / max) * 100;
+                const fullPct = (Math.max(p.full, p.ytd) / max) * 100;
+                return `<div class="pace-row ${p.year === cur.year ? 'is-current' : ''}">
+                    <span class="yr">${p.year}</span>
+                    <span class="pace-track" title="${p.year}: ${fmtMoney(p.ytd)} by ${asOf}, ${fmtMoney(p.full)} for the year">
+                        <span class="pace-rest" style="left:${ytdPct.toFixed(2)}%;width:${Math.max(0, fullPct - ytdPct).toFixed(2)}%"></span>
+                        <span class="pace-fill" style="width:${ytdPct.toFixed(2)}%"></span>
+                    </span>
+                    <span class="pace-amt">${p.ytd > 0.005 ? fmtMoney(p.ytd) : '—'}</span>
+                </div>`;
+            }).join('') + `<div class="pace-legend">
+                    <span><i style="background:var(--primary)"></i>Through ${asOf}</span>
+                    <span><i style="background:var(--border)"></i>Rest of that year</span>
+                </div>`;
+
+            noteEl.textContent = undated
+                ? `through ${asOf} · ${undated} job${undated === 1 ? '' : 's'} without a date range left out`
+                : `through ${asOf}`;
+        }
+
+        function updateComparison() {
+            const tbody = document.getElementById('comparisonTableBody');
+            const tfoot = document.getElementById('comparisonTableFoot');
+            const note = document.getElementById('comparisonNote');
+
+            const allRows = Object.keys(data).sort().map(y => {
+                const jobs = data[y] || [];
+                const t = yearTotals(jobs);
+                return { year: y, count: jobs.length, q: t.quotes, g: t.gross, p: t.paid, u: t.unpaid };
+            });
+
+            // Years that were added but never used are noise in a comparison.
+            const rows = allRows.filter(r => r.count > 0 || r.year === String(currentYear));
+            const hidden = allRows.length - rows.length;
+            note.textContent = hidden ? `${hidden} empty ${hidden === 1 ? 'year' : 'years'} hidden` : '';
+
+            renderPace(rows);
+
+            tbody.innerHTML = rows.map((r, i) => {
+                const prev = rows[i - 1];
+                // Always rendered, so the gross figures stay in one column.
+                let delta = '<span class="delta"></span>';
+                if (prev && prev.g > 0 && r.g > 0) {
+                    const pct = ((r.g - prev.g) / prev.g) * 100;
+                    delta = `<span class="delta ${pct >= 0 ? 'up' : 'down'}" title="vs ${prev.year}">${pct >= 0 ? '▲' : '▼'}${Math.abs(pct).toFixed(1)}%</span>`;
+                }
+                const cell = (v, cls) => `<td class="num ${v > 0.005 ? (cls || '') : 'zero'}">${v > 0.005 ? fmtMoney(v) : '—'}</td>`;
+                return `<tr class="${r.year === String(currentYear) ? 'is-current' : ''}">
+                    <td class="yr">${r.year}</td>
+                    ${cell(r.q)}
+                    <td class="num">${r.g > 0.005 ? fmtMoney(r.g) : '<span class="zero">—</span>'}${delta}</td>
+                    ${cell(r.p, 'paid-val')}
+                    ${cell(r.u, 'unpaid-val')}
+                </tr>`;
+            }).join('');
+
+            const tot = rows.reduce((a, r) => ({ q: a.q + r.q, g: a.g + r.g, p: a.p + r.p, u: a.u + r.u }), { q: 0, g: 0, p: 0, u: 0 });
+            tfoot.innerHTML = rows.length ? `<tr>
+                <td class="lbl">All years</td>
+                <td class="num">${fmtMoney(tot.q)}</td>
+                <td class="num">${fmtMoney(tot.g)}<span class="delta"></span></td>
+                <td class="num paid-val">${fmtMoney(tot.p)}</td>
+                <td class="num ${tot.u > 0.005 ? 'unpaid-val' : 'zero'}">${tot.u > 0.005 ? fmtMoney(tot.u) : '—'}</td>
+            </tr>` : '';
+
+            const years = rows.map(r => r.year);
+            const th = chartTheme();
+
             if (chart) chart.destroy();
-            chart = new Chart(document.getElementById('comparisonChart').getContext('2d'), {
+            chart = newChart('comparisonChart', {
                 type: 'bar',
                 data: {
-                    labels: chartData.labels,
+                    labels: years,
                     datasets: [
-                        { label: 'Gross', data: chartData.gross, backgroundColor: 'rgba(75,192,192,0.6)' },
-                        { label: 'Paid', data: chartData.paid, backgroundColor: 'rgba(54,162,235,0.6)' }
+                        { label: 'Gross', data: rows.map(r => r.g), backgroundColor: th.primary, borderRadius: 6, borderSkipped: false, maxBarThickness: 42 },
+                        { label: 'Paid', data: rows.map(r => r.p), backgroundColor: th.success, borderRadius: 6, borderSkipped: false, maxBarThickness: 42 }
                     ]
                 },
-                options: { scales: { y: { beginAtZero: true } } }
+                options: chartBaseOptions(th)
             });
 
             // Monthly Across Years Chart
@@ -1671,53 +1972,29 @@
 
             if (monthlyComparisonChart) monthlyComparisonChart.destroy();
 
-            const colors = [
-                'rgba(255, 99, 132, 0.6)',
-                'rgba(54, 162, 235, 0.6)',
-                'rgba(255, 206, 86, 0.6)',
-                'rgba(75, 192, 192, 0.6)',
-                'rgba(153, 102, 255, 0.6)',
-                'rgba(255, 159, 64, 0.6)',
-                'rgba(199, 199, 199, 0.6)',
-                'rgba(83, 102, 255, 0.6)'
-            ];
+            // The current year is the one being read; older years sit behind it.
+            const datasets = years.map((y, idx) => {
+                const isCurrent = y === String(currentYear);
+                const c = isCurrent ? th.primary : th.series[idx % th.series.length];
+                return {
+                    label: y,
+                    data: monthlyData[y],
+                    borderColor: c,
+                    backgroundColor: c,
+                    borderWidth: isCurrent ? 3 : 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.25
+                };
+            });
 
-            const datasets = years.map((y, idx) => ({
-                label: y,
-                data: monthlyData[y],
-                backgroundColor: colors[idx % colors.length],
-                borderColor: colors[idx % colors.length].replace('0.6', '1'),
-                borderWidth: 1
-            }));
-
-            monthlyComparisonChart = new Chart(document.getElementById('monthlyComparisonChart').getContext('2d'), {
+            monthlyComparisonChart = newChart('monthlyComparisonChart', {
                 type: 'line',
                 data: {
-                    labels: months,
+                    labels: months.map(m => m.slice(0, 3)),
                     datasets: datasets
                 },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toLocaleString();
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
-                                }
-                            }
-                        }
-                    }
-                }
+                options: chartBaseOptions(th)
             });
         }
 
@@ -1895,7 +2172,7 @@
             const rows = paymentsOf(job);
             const history = rows.length
                 ? '<div style="margin:8px 0;font-size:13px">'
-                  + rows.map(p => `<div>${esc(p.date || 'no date')} — $${money(p.amount).toFixed(2)}${p.note ? ' · ' + esc(p.note) : ''}</div>`).join('')
+                  + rows.map(p => `<div>${esc(p.date || 'no date')} — ${fmtMoney(money(p.amount))}${p.note ? ' · ' + esc(p.note) : ''}</div>`).join('')
                   + '</div>'
                 : '';
 
@@ -1911,7 +2188,7 @@
                 </div>`;
 
             const ok = await confirmDialog(html, {
-                title: `Payment for ${job.customer || 'this job'} — $${st.outstanding.toFixed(2)} outstanding`,   // title uses textContent
+                title: `Payment for ${job.customer || 'this job'} — ${fmtMoney(st.outstanding)} outstanding`,   // title uses textContent
                 confirmText: 'Record payment', html: true,
             });
             if (!ok) return;
@@ -2041,14 +2318,12 @@
                 styles: { fontSize: 8 }
             });
 
-            // Add summary
-            const q = jobs.reduce((s,j) => s + money(j.quote), 0);
-            const g = jobs.reduce((s,j) => s + money(j.actual), 0);
-            const p = jobs.reduce((s,j) => j.paid ? s + money(j.actual) : s, 0);
+            // Add summary — the same figures the summary card shows
+            const t = yearTotals(jobs);
 
             const finalY = doc.lastAutoTable.finalY + 10;
             doc.setFontSize(10);
-            doc.text(`Quotes: $${q.toFixed(2)} | Gross: $${g.toFixed(2)} | Paid: $${p.toFixed(2)} | Unpaid: $${(g-p).toFixed(2)}`, 14, finalY);
+            doc.text(`Quotes: ${fmtMoney(t.quotes)} | Gross: ${fmtMoney(t.gross)} | Paid: ${fmtMoney(t.paid)} | Unpaid: ${fmtMoney(t.unpaid)}`, 14, finalY);
 
             doc.save(`jobs-${currentYear}.pdf`);
         };
