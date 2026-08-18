@@ -449,8 +449,13 @@
         .pace-legend span { display: inline-flex; align-items: center; gap: 6px; }
         .pace-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
-        .panel canvas { max-width: 100%; height: 300px !important; }
-        #monthlyChart { max-width: 100%; height: 260px !important; }
+        /* Chart.js writes width/height onto the canvas as an inline style and
+           sizes its bitmap to match. A CSS height on the canvas — `!important`
+           most of all — wins over that inline style, so the bitmap is painted
+           into a box of another shape: the bars still read, and every label
+           smears. The height belongs on a box around it instead. */
+        .chart-box { position: relative; height: 300px; }
+        .chart-box canvas { display: block; }
 
         /* Modal refresh */
         .modal-content { border-radius: 18px; border: none; box-shadow: var(--shadow-lg); }
@@ -477,6 +482,7 @@
             .cmp-table { font-size: 0.88rem; }
             .cmp-table th, .cmp-table td { padding: 9px 10px; }
             .cmp-table .delta { display: none; }
+            .chart-box { height: 240px; }
             .cmp-table th.g-col { padding-right: 10px; }
             .modal-dialog { margin: 0; min-height: 100%; display: flex; align-items: flex-end; }
             .modal-content { border-radius: 20px 20px 0 0; width: 100%; }
@@ -580,7 +586,7 @@
         <div id="jobsCards" class="jobs-cards-container"></div>
 
         <h2 class="mt-4">Monthly Income</h2>
-        <canvas id="monthlyChart" height="120"></canvas>
+        <div class="chart-box"><canvas id="monthlyChart"></canvas></div>
     </div>
 
     <div id="comparisonPage" style="display:none;">
@@ -611,12 +617,12 @@
 
         <section class="panel">
             <div class="panel-head"><h2>Gross vs Paid</h2></div>
-            <canvas id="comparisonChart" height="120"></canvas>
+            <div class="chart-box"><canvas id="comparisonChart"></canvas></div>
         </section>
 
         <section class="panel">
             <div class="panel-head"><h2>Monthly Across Years</h2></div>
-            <canvas id="monthlyComparisonChart" height="120"></canvas>
+            <div class="chart-box"><canvas id="monthlyComparisonChart"></canvas></div>
         </section>
     </div>
     </div><!-- end page-wrap -->
