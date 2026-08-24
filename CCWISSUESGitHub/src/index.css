@@ -205,6 +205,16 @@ body {
 html, body {
   overflow-x: hidden;
   max-width: 100vw;
+  /* …and stop the page sliding sideways when one of those containers runs out
+     of scroll.
+     *
+     * `overflow-x: hidden` above stops the page being WIDER than the screen. It
+     * does not stop a gesture inside a sideways-scrolling child — the tab
+     * strip, the line chips, a wide table — handing the remainder of itself to
+     * the page when the child hits its end. On a phone that is the thumb
+     * scrolling a long list, drifting a few degrees off vertical, and the whole
+     * screen shifting left and right as it goes. */
+  overscroll-behavior-x: none;
 }
 
 table {
@@ -434,6 +444,7 @@ h1, h3 {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
   /* Audit checklist on mobile: item name as a card title, and keep the
@@ -1470,6 +1481,8 @@ h1, h3 {
   gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* Swiping past the last chip must not take the page with it. */
+  overscroll-behavior-x: contain;
   scrollbar-width: thin;
   padding: 2px 0 6px;
   scroll-snap-type: x proximity;
@@ -1597,6 +1610,7 @@ h1, h3 {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
   .nav-tabs::-webkit-scrollbar { display: none; }
   .nav-tabs .nav-link {

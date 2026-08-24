@@ -6,7 +6,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 // Set up the worker
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, globalOrderList, setGlobalOrderList, allDiagrams, darkMode }) => {
+const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRotationUpdate, globalOrderList, setGlobalOrderList, allDiagrams, darkMode }) => {
   const [hoveredPart, setHoveredPart] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [pageWidth, setPageWidth] = useState(null); // Will be set after PDF loads
@@ -20,16 +20,22 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [hasDragged, setHasDragged] = useState(false);
   const [editPartsMode, setEditPartsMode] = useState(false);
-  const [editablePartsData, setEditablePartsData] = useState(diagram.partsData);
+  const [editablePartsData, setEditablePartsData] = useState(diagram.partsData || {});
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [hotspotsVisible, setHotspotsVisible] = useState(false); // Hidden by default
   const [showOnlyOrdered, setShowOnlyOrdered] = useState(true); // Show only ordered parts by default
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [flashingMode, setFlashingMode] = useState(false);
+  const [flashVisible, setFlashVisible] = useState(true);
+  const [rotation, setRotation] = useState(diagram.rotation || 0); // Image rotation in degrees (0, 90, 180, 270)
   const pdfContainerRef = useRef(null);
+  const flashIntervalRef = useRef(null);
 
   // Use ref to track the latest hotspots value to avoid stale closures
   const hotspotsRef = useRef(hotspots);
 
-  const partsData = editPartsMode ? editablePartsData : diagram.partsData;
+  const partsData = editPartsMode ? editablePartsData : (diagram.partsData || {});
 
   // Helper function to round positions to avoid floating point inconsistencies
   const roundPosition = (value) => {
@@ -70,7 +76,8 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
     // Don't clear order list when switching diagrams - it's now global!
     setEditMode(false);
     setEditPartsMode(false);
-    setEditablePartsData(diagram.partsData);
+    setEditablePartsData(diagram.partsData || {});
+    setRotation(diagram.rotation || 0); // Reset rotation to saved state
     // Reset PDF page info so it recalculates on load
     setPdfPageInfo(null);
     setPageWidth(null);
@@ -87,6 +94,36 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
       setHotspotsVisible(false);
     }
   }, [orderList, diagram.id]);
+
+  // Handle flashing mode interval
+  useEffect(() => {
+    if (flashingMode) {
+      // Start flashing interval (500ms on, 500ms off)
+      flashIntervalRef.current = setInterval(() => {
+        setFlashVisible(prev => !prev);
+      }, 500);
+
+      // Make sure hotspots are visible when flashing mode starts
+      if (!hotspotsVisible) {
+        setHotspotsVisible(true);
+      }
+    } else {
+      // Clear interval when flashing mode stops
+      if (flashIntervalRef.current) {
+        clearInterval(flashIntervalRef.current);
+        flashIntervalRef.current = null;
+      }
+      // Reset to visible when stopping
+      setFlashVisible(true);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (flashIntervalRef.current) {
+        clearInterval(flashIntervalRef.current);
+      }
+    };
+  }, [flashingMode]);
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
@@ -183,9 +220,325 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
   };
 
   const exportPositions = () => {
-    console.log('Export these positions to partsData.js:');
-    console.log(JSON.stringify(hotspots, null, 2));
-    alert('Positions logged to console. Open browser console to copy them.');
+    const exportData = {
+      diagramName: diagram?.name || 'diagram',
+      diagramId: diagram?.id,
+      exportDate: new Date().toISOString(),
+      hotspotCount: Object.keys(hotspots).length,
+      hotspots: hotspots
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    const fileName = `hotspots_${diagram?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'diagram'}_${Date.now()}.json`;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    alert(`Exported ${Object.keys(hotspots).length} hotspot(s) to ${fileName}`);
+  };
+
+  const importPositions = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importData = JSON.parse(event.target.result);
+
+        if (!importData.hotspots || typeof importData.hotspots !== 'object') {
+          alert('Invalid hotspot file format. Must contain a "hotspots" object.');
+          return;
+        }
+
+        const confirm = window.confirm(
+          `Import ${importData.hotspotCount || Object.keys(importData.hotspots).length} hotspot(s)?\n\n` +
+          `This will replace all current hotspots.`
+        );
+
+        if (!confirm) return;
+
+        // Update hotspots
+        setHotspots(importData.hotspots);
+        if (onHotspotsUpdate) {
+          onHotspotsUpdate(importData.hotspots);
+        }
+
+        alert(`Successfully imported ${Object.keys(importData.hotspots).length} hotspot(s).`);
+      } catch (error) {
+        console.error('Import error:', error);
+        alert('Failed to import hotspots. Invalid file format.\n\nError: ' + error.message);
+      }
+    };
+
+    reader.readAsText(file);
+    // Reset input so same file can be imported again
+    e.target.value = '';
+  };
+
+  // Handle diagram rotation
+  const handleRotate = (direction) => {
+    let newRotation;
+    if (direction === 'left') {
+      newRotation = (rotation - 90 + 360) % 360;
+    } else if (direction === 'right') {
+      newRotation = (rotation + 90) % 360;
+    } else if (direction === 'flip') {
+      newRotation = (rotation + 180) % 360;
+    }
+
+    setRotation(newRotation);
+
+    // Call the callback to save rotation to parent
+    if (onRotationUpdate) {
+      onRotationUpdate(newRotation);
+    }
+  };
+
+  const autoDetectNumbers = async () => {
+    if (!diagram.pdfData) {
+      alert('No diagram image available for OCR scanning.');
+      return;
+    }
+
+    const confirm = window.confirm(
+      '🔍 Auto-detect part numbers using Google Vision API?\n\n' +
+      'This will:\n' +
+      '• Scan the diagram image for numbers\n' +
+      '• Create hotspots at detected positions\n' +
+      '• Add to existing hotspots (won\'t replace)\n\n' +
+      'This uses Google Cloud Vision API and may take 5-10 seconds.\n\n' +
+      'Continue?'
+    );
+
+    if (!confirm) return;
+
+    setOcrLoading(true);
+    setOcrProgress(50);
+
+    try {
+      console.log('[Google Vision] Starting OCR...');
+
+      // Google Cloud Vision API key from environment variable
+      const API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY;
+
+      if (!API_KEY) {
+        throw new Error('Google Vision API key not configured. Please add VITE_GOOGLE_VISION_API_KEY to your .env file.');
+      }
+
+      // Prepare image data for Google Vision API
+      let imageBase64 = diagram.pdfData;
+
+      // If it's a URL, we need to fetch and convert to base64
+      if (imageBase64.startsWith('http')) {
+        console.log('[Google Vision] Fetching image from URL...');
+        const response = await fetch(imageBase64);
+        const blob = await response.blob();
+        imageBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // Remove data URL prefix if present
+      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+      console.log('[Google Vision] Sending request to Google Vision API...');
+      setOcrProgress(70);
+
+      // Call Google Vision API
+      const visionResponse = await fetch(
+        `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                image: {
+                  content: base64Data
+                },
+                features: [
+                  {
+                    type: 'TEXT_DETECTION',
+                    maxResults: 100
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      );
+
+      if (!visionResponse.ok) {
+        const errorData = await visionResponse.json();
+        console.error('[Google Vision] API Error:', errorData);
+        throw new Error(`Google Vision API error: ${errorData.error?.message || visionResponse.statusText}`);
+      }
+
+      const visionData = await visionResponse.json();
+      console.log('[Google Vision] Response received:', visionData);
+
+      setOcrProgress(90);
+
+      if (!visionData.responses || !visionData.responses[0].textAnnotations) {
+        console.error('[Google Vision] No text detected');
+        throw new Error('No text detected in image. Try a clearer, higher resolution image.');
+      }
+
+      const textAnnotations = visionData.responses[0].textAnnotations;
+      console.log(`[Google Vision] Found ${textAnnotations.length} text annotations`);
+
+      // Skip first annotation (it's the full text)
+      const words = textAnnotations.slice(1);
+
+      // Get actual image dimensions by loading the image
+      const img = new Image();
+      const imageLoaded = new Promise((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = imageBase64;
+      });
+
+      await imageLoaded;
+      const imageWidth = img.naturalWidth;
+      const imageHeight = img.naturalHeight;
+
+      console.log('[Google Vision] Actual image dimensions:', imageWidth, 'x', imageHeight);
+
+      // Log all detected text for debugging
+      console.log('[Google Vision] All detected text:', words.map(w => w.description).join(', '));
+
+      // Filter and process detected numbers
+      const detectedNumbers = [];
+      const rejectedNumbers = [];
+
+      words.forEach((word, index) => {
+        const text = word.description.trim();
+        const number = parseInt(text);
+
+        // Calculate position first for filtering
+        const vertices = word.boundingPoly.vertices;
+        const avgX = vertices.reduce((sum, v) => sum + (v.x || 0), 0) / vertices.length;
+        const avgY = vertices.reduce((sum, v) => sum + (v.y || 0), 0) / vertices.length;
+        const centerX = (avgX / imageWidth) * 100;
+        const centerY = (avgY / imageHeight) * 100;
+
+        // Get bounding box dimensions to filter tiny text
+        const width = Math.abs(vertices[1].x - vertices[0].x);
+        const height = Math.abs(vertices[2].y - vertices[0].y);
+        const minDimension = Math.min(width, height);
+
+        // Only accept numbers that:
+        // 1. Are valid integers 1-999
+        // 2. Text matches the parsed number exactly (no extra characters)
+        // 3. Are not too small (min 8px) - filters out tiny metadata
+        // 4. Are in reasonable area (not extreme edges)
+        const isValidNumber = number > 0 && number < 1000 && text === number.toString();
+        const isLargeEnough = minDimension >= 8;
+        const isInValidArea = centerY >= 2 && centerY <= 92 && centerX >= 2 && centerX <= 98;
+
+        if (isValidNumber && isLargeEnough && isInValidArea) {
+          console.log(`[Google Vision] ✓ Valid number ${text} at (${centerX.toFixed(1)}%, ${centerY.toFixed(1)}%) size: ${width}x${height}px`);
+
+          // Check if this number already has a hotspot nearby (within 5%)
+          const hasNearbyHotspot = Object.values(hotspots).some(h => {
+            const distance = Math.sqrt(
+              Math.pow(h.x - centerX, 2) + Math.pow(h.y - centerY, 2)
+            );
+            return h.partNumber === text && distance < 5;
+          });
+
+          if (!hasNearbyHotspot) {
+            detectedNumbers.push({
+              partNumber: text,
+              x: roundPosition(centerX),
+              y: roundPosition(centerY),
+              confidence: 100
+            });
+          } else {
+            console.log(`[Google Vision] Skipping ${text} - already has nearby hotspot`);
+          }
+        } else if (isValidNumber) {
+          const reason = !isLargeEnough ? 'too small' : 'outside valid area';
+          rejectedNumbers.push({ text, reason, x: centerX.toFixed(1), y: centerY.toFixed(1), size: `${width}x${height}px` });
+          console.log(`[Google Vision] ✗ Ignoring ${text} at (${centerX.toFixed(1)}%, ${centerY.toFixed(1)}%) - ${reason} (${width}x${height}px)`);
+        }
+      });
+
+      // Log summary of rejected numbers
+      if (rejectedNumbers.length > 0) {
+        console.log('[Google Vision] Rejected numbers:', rejectedNumbers);
+      }
+
+      console.log(`[OCR] Detected ${detectedNumbers.length} new part numbers`);
+
+      if (detectedNumbers.length === 0) {
+        alert('No new part numbers detected.\n\nTry:\n• Higher resolution image (300+ DPI)\n• Better contrast/lighting\n• Clearer, larger numbers');
+        setOcrLoading(false);
+        return;
+      }
+
+      // Show confirmation with preview
+      const confirmAdd = window.confirm(
+        `✅ Detected ${detectedNumbers.length} part number(s):\n\n` +
+        detectedNumbers.slice(0, 20).map(n => `• Part #${n.partNumber} (${Math.round(n.confidence)}% confidence)`).join('\n') +
+        (detectedNumbers.length > 20 ? `\n... and ${detectedNumbers.length - 20} more` : '') +
+        '\n\nAdd these as hotspots?'
+      );
+
+      if (confirmAdd) {
+        // Add detected numbers as new hotspots
+        const newHotspots = { ...hotspots };
+        detectedNumbers.forEach((detected, index) => {
+          const hotspotId = `ocr-${Date.now()}-${index}`;
+          newHotspots[hotspotId] = {
+            partNumber: detected.partNumber,
+            x: detected.x,
+            y: detected.y
+          };
+        });
+
+        setHotspots(newHotspots);
+        if (onHotspotsUpdate) {
+          onHotspotsUpdate(newHotspots);
+        }
+
+        // Enable hotspots view
+        setHotspotsVisible(true);
+        setEditMode(true);
+
+        alert(`✅ Added ${detectedNumbers.length} hotspot(s)!\n\nReview and adjust positions as needed, then save the diagram.`);
+      }
+
+    } catch (error) {
+      console.error('[OCR] Error:', error);
+      console.error('[OCR] Error stack:', error.stack);
+
+      let errorMessage = 'OCR failed. Please try again or add hotspots manually.';
+
+      if (error.message) {
+        errorMessage += '\n\nError: ' + error.message;
+      }
+
+      if (error.message && error.message.includes('CORS')) {
+        errorMessage += '\n\nTip: Make sure the image is from the same domain or properly configured for CORS.';
+      } else if (error.message && error.message.includes('data structure')) {
+        errorMessage += '\n\nTip: Try using a higher quality image (300+ DPI) with clear, well-spaced numbers.';
+      }
+
+      alert(errorMessage);
+    } finally {
+      setOcrLoading(false);
+      setOcrProgress(0);
+    }
   };
 
   const handleHotspotMouseDown = (hotspotId, e) => {
@@ -759,6 +1112,28 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
     printWindow.document.close();
   };
 
+  // Save an order to Firestore as well as downloading it.
+  //
+  // The download stays — these files get mailed and filed — but a file in
+  // somebody's Downloads folder is not a record. Stored here, the dashboard can
+  // show it against the plant it was ordered for.
+  //
+  // Best effort: failing to store an order must never cost somebody the export
+  // they actually asked for.
+  const storeOrder = async (order) => {
+    try {
+      const { collection, addDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase/config');
+      await addDoc(collection(db, 'parts-orders'), {
+        ...order,
+        source: 'parts-viewer',
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.warn('Order exported but not saved to Firebase:', error);
+    }
+  };
+
   // Export order list to JSON file
   const exportOrderListToJSON = () => {
     if (Object.keys(orderList).length === 0) {
@@ -775,6 +1150,18 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
         diagrams: [...new Set(Object.values(orderList).map(item => item.diagramName))]
       }
     };
+
+    // The diagram on screen knows whose it is, which is more than the customer
+    // viewer can say — it stores whatever it was showing.
+    const items = Object.entries(orderList).map(([orderKey, item]) => ({ orderKey, ...item }));
+    storeOrder({
+      customer: diagram?.customer || '',
+      orderedAt: exportData.exportDate,
+      itemCount: items.length,
+      totalQuantity: exportData.metadata.totalQuantity,
+      diagrams: exportData.metadata.diagrams,
+      items,
+    });
 
     const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
@@ -867,6 +1254,9 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
     // Determine visibility: hide if not in order when "show only ordered" is active, or if hotspots are hidden
     const shouldBeVisible = hotspotsVisible && (!showOnlyOrdered || isInOrder);
 
+    // If flashing mode is active, only show when flashVisible is true
+    const finalOpacity = flashingMode ? (flashVisible ? 1 : 0) : (shouldBeVisible ? 1 : 0);
+
     return (
       <div
         key={hotspotId}
@@ -892,9 +1282,9 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
           boxShadow: isHovered ? '0 2px 8px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.2)',
           userSelect: 'none',
           touchAction: editMode ? 'none' : 'auto', // Allow pinch zoom when not in edit mode
-          opacity: shouldBeVisible ? 1 : 0,
+          opacity: finalOpacity,
           pointerEvents: 'auto', // Keep hotspots clickable even when hidden
-          transition: draggedPart === hotspotId ? 'none' : 'opacity 0.3s ease, all 0.2s ease'
+          transition: draggedPart === hotspotId ? 'none' : (flashingMode ? 'none' : 'opacity 0.3s ease, all 0.2s ease')
         }}
         onMouseEnter={() => !draggedPart && setHoveredPart(partNumber)}
         onMouseLeave={() => setHoveredPart(null)}
@@ -991,8 +1381,17 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
           fontSize: isMobile ? '18px' : '32px',
           color: darkMode ? '#fff' : '#333'
         }}>
-          {diagram.name}
+          {diagram.customer && diagram.customer !== 'General' ? `${diagram.customer} - ${diagram.folder || 'General'}` : (diagram.folder || 'General')}
         </h1>
+        <h2 style={{
+          textAlign: 'center',
+          marginBottom: isMobile ? '8px' : '12px',
+          fontSize: isMobile ? '14px' : '20px',
+          color: darkMode ? '#aaa' : '#666',
+          fontWeight: 'normal'
+        }}>
+          {diagram.name}
+        </h2>
 
         <div style={{
           marginBottom: isMobile ? '8px' : '16px',
@@ -1048,6 +1447,71 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
               {hotspotsVisible ? '👁️ Hide Hotspots' : '👁️‍🗨️ Show Hotspots'}
             </button>
             <button
+              onClick={() => setFlashingMode(!flashingMode)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: flashingMode ? '#f44336' : '#ff9800',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                animation: flashingMode ? 'pulse 1s infinite' : 'none'
+              }}
+              title={flashingMode ? 'Stop flashing hotspots' : 'Flash hotspots on/off to see numbers behind them'}
+            >
+              {flashingMode ? '⏸️ Stop Flash' : '💫 Flash Hotspots'}
+            </button>
+            <button
+              onClick={() => handleRotate('left')}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#607d8b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Rotate diagram 90° counter-clockwise"
+            >
+              ↶ Rotate Left
+            </button>
+            <button
+              onClick={() => handleRotate('right')}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#607d8b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Rotate diagram 90° clockwise"
+            >
+              ↷ Rotate Right
+            </button>
+            <button
+              onClick={() => handleRotate('flip')}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#607d8b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Flip diagram 180°"
+            >
+              ⤾ Flip 180°
+            </button>
+            <button
               onClick={() => {
                 setShowOnlyOrdered(!showOnlyOrdered);
                 if (!showOnlyOrdered && !hotspotsVisible) {
@@ -1100,7 +1564,57 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 pointerEvents: editMode ? 'auto' : 'none'
               }}
             >
-              Export Positions
+              📥 Export Hotspots
+            </button>
+            <label
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#2196f3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: editMode ? 'pointer' : 'default',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                visibility: editMode ? 'visible' : 'hidden',
+                pointerEvents: editMode ? 'auto' : 'none',
+                display: editMode ? 'inline-block' : 'none'
+              }}
+            >
+              📤 Import Hotspots
+              <input
+                type="file"
+                accept=".json"
+                onChange={importPositions}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button
+              onClick={autoDetectNumbers}
+              disabled={ocrLoading}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: ocrLoading ? '#666' : '#9c27b0',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: (editMode && !ocrLoading) ? 'pointer' : 'default',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                visibility: editMode ? 'visible' : 'hidden',
+                pointerEvents: editMode ? 'auto' : 'none',
+                display: editMode ? 'inline-block' : 'none',
+                position: 'relative'
+              }}
+              title="Use OCR to automatically detect part numbers and create hotspots"
+            >
+              {ocrLoading ? (
+                <>
+                  🔄 Scanning... {ocrProgress}%
+                </>
+              ) : (
+                '🔍 Auto-detect Numbers'
+              )}
             </button>
           </div>
         </div>
@@ -1148,7 +1662,9 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 if (typeof diagram.pdfData === 'string') {
                   console.log('Diagram pdfData preview:', diagram.pdfData.substring(0, 50));
                 }
-                const isImage = diagram.pdfData && typeof diagram.pdfData === 'string' && diagram.pdfData.startsWith('data:image/');
+                // Check if it's a base64 image or a Firebase Storage URL
+                const isImage = diagram.pdfData && typeof diagram.pdfData === 'string' &&
+                  (diagram.pdfData.startsWith('data:image/') || diagram.pdfData.startsWith('https://'));
                 console.log('Is image?', isImage);
                 return isImage;
               })() ? (
@@ -1159,11 +1675,13 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                   style={{
                     width: '100%',
                     height: 'auto',
-                    display: 'block'
+                    display: 'block',
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center center'
                   }}
                   onLoad={(e) => {
                     // Set dimensions for hotspot positioning
-                    setPageDimensions({
+                    setPdfPageInfo({
                       width: e.target.naturalWidth,
                       height: e.target.naturalHeight
                     });
@@ -1171,25 +1689,47 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 />
               ) : typeof diagram.pdfData === 'string' ? (
                 // Render as PDF
-                <Document
-                  file={diagram.pdfData}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  loading={<div style={{ padding: '40px', textAlign: 'center' }}>Loading PDF...</div>}
-                  error={<div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>Error loading PDF</div>}
+                <div
+                  style={{
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center center',
+                    display: 'inline-block',
+                    width: '100%'
+                  }}
                 >
-                  {pageWidth ? (
-                    <Page
-                      pageNumber={1}
-                      width={pageWidth}
-                      onLoadSuccess={onPageLoadSuccess}
-                    />
-                  ) : (
-                    <Page
-                      pageNumber={1}
-                      onLoadSuccess={onPageLoadSuccess}
-                    />
-                  )}
-                </Document>
+                  <Document
+                    file={diagram.pdfData}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    loading={<div style={{ padding: '40px', textAlign: 'center' }}>Loading PDF...</div>}
+                    error={<div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>Error loading PDF</div>}
+                  >
+                    {pageWidth ? (
+                      <Page
+                        pageNumber={1}
+                        width={pageWidth}
+                        onLoadSuccess={onPageLoadSuccess}
+                      />
+                    ) : (
+                      <Page
+                        pageNumber={1}
+                        onLoadSuccess={onPageLoadSuccess}
+                      />
+                    )}
+                  </Document>
+                </div>
+              ) : !diagram.pdfData || diagram.pdfData === null ? (
+                // PDF data is missing - trying to load from backup
+                <div style={{
+                  padding: '40px',
+                  textAlign: 'center',
+                  color: '#2196f3',
+                  fontSize: '16px'
+                }}>
+                  <div style={{ marginBottom: '10px' }}>⏳ Loading diagram...</div>
+                  <div style={{ fontSize: '14px', color: '#666' }}>
+                    Attempting to load from cloud backup. If this persists, try re-importing the diagram.
+                  </div>
+                </div>
               ) : (
                 // Invalid data format
                 <div style={{ padding: '40px', textAlign: 'center', color: 'orange' }}>
@@ -1226,7 +1766,16 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
               }}>
                 {/* Get part numbers from partsData instead of hotspots */}
                 {Object.keys(partsData)
-                  .sort((a, b) => parseInt(a) - parseInt(b))
+                  .sort((a, b) => {
+                    // "*" always comes first
+                    if (a === '*') return -1;
+                    if (b === '*') return 1;
+                    // Sort numerically if both are numbers
+                    const aNum = parseInt(a);
+                    const bNum = parseInt(b);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                    return a.localeCompare(b);
+                  })
                   .map((partNumber) => {
                     const orderKey = `${diagram.id}-${partNumber}`;
                     const isInOrder = orderList[orderKey];
@@ -1290,7 +1839,16 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
               }}>
                 {/* Get part numbers from partsData instead of hotspots */}
                 {Object.keys(partsData)
-                  .sort((a, b) => parseInt(a) - parseInt(b))
+                  .sort((a, b) => {
+                    // "*" always comes first
+                    if (a === '*') return -1;
+                    if (b === '*') return 1;
+                    // Sort numerically if both are numbers
+                    const aNum = parseInt(a);
+                    const bNum = parseInt(b);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                    return a.localeCompare(b);
+                  })
                   .map((partNumber) => {
                     const orderKey = `${diagram.id}-${partNumber}`;
                     const isInOrder = orderList[orderKey];
@@ -1663,7 +2221,7 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 <strong>Total QTY:</strong> {Object.values(partsData).reduce((sum, part) => sum + parseInt(part.qty || 0), 0)}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {editPartsMode && (
                 <>
                   <button
@@ -1714,21 +2272,50 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 </>
               )}
               {!editPartsMode && (
-                <button
-                  onClick={() => setEditPartsMode(true)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#ff9800',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '12px'
-                  }}
-                >
-                  Edit Parts
-                </button>
+                <>
+                  <button
+                    onClick={() => setEditPartsMode(true)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#ff9800',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Edit Parts
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Fix all part codes by removing spaces?\n\nExample: "000 - 055 - 6933 - 09" → "000-055-6933-09"')) {
+                        const updatedParts = {};
+                        Object.entries(partsData).forEach(([partNum, partInfo]) => {
+                          updatedParts[partNum] = {
+                            ...partInfo,
+                            partCode: (partInfo.partCode || '').replace(/\s+/g, '')
+                          };
+                        });
+                        onPartsDataUpdate(updatedParts);
+                      }
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#9c27b0',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '12px'
+                    }}
+                    title="Remove all spaces from part codes"
+                  >
+                    Fix Part Codes
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1769,7 +2356,16 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, glob
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(partsData).map((partNumber) => {
+                {Object.keys(partsData).sort((a, b) => {
+                  // "*" always comes first
+                  if (a === '*') return -1;
+                  if (b === '*') return 1;
+                  // Sort numerically if both are numbers
+                  const aNum = parseInt(a);
+                  const bNum = parseInt(b);
+                  if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                  return a.localeCompare(b);
+                }).map((partNumber) => {
                   const part = partsData[partNumber];
                   const orderKey = `${diagram.id}-${partNumber}`;
     const isInOrder = orderList[orderKey];

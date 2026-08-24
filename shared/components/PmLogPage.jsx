@@ -159,6 +159,9 @@ export default function PmLogPage({
   const withFreshActor = (run) => {
     const anyPin = crewPeople.some((p) => p.pinHash);
     if (!anyPin) return run('');
+    // A JTI account has no PIN to re-key, so asking again would only be a
+    // dialog that answers itself. The edit is still stamped with who made it.
+    if (actor?.isSuper) return run(actor.name);
     setPendingSave(() => run);
   };
 

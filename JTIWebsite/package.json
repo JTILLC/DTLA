@@ -1,6 +1,8 @@
 {
   "name": "jti-website",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "description": "Joshua Todd Industries LLC - Company Website",
   "scripts": {

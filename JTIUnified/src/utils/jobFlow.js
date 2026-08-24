@@ -56,6 +56,8 @@ export const nextServiceReportNumber = (existing = [], year = new Date().getFull
 export const jobFlowSteps = ({ job, sources, packet, manualInvoice } = {}) => {
   const files = packet?.files || [];
   const hasKind = (kind) => files.some((f) => f.kind === kind);
+  /** Steps somebody ticked because the evidence lives outside this app. */
+  const byHand = (key) => !!packet?.manualSteps?.[key];
 
   return [
     {
@@ -68,27 +70,39 @@ export const jobFlowSteps = ({ job, sources, packet, manualInvoice } = {}) => {
       key: 'serviceReport',
       label: 'Service report filed',
       hint: 'Signed by the customer and uploaded',
-      done: !!(sources?.serviceReportUrl || hasKind('serviceReport')),
+      done: !!(sources?.serviceReportUrl || hasKind('serviceReport') || byHand('serviceReport')),
+      // Satisfied only by somebody saying so — the tick must not imply a file
+      // is sitting here when none is.
+      byHand: !(sources?.serviceReportUrl || hasKind('serviceReport')) && byHand('serviceReport'),
     },
     {
       key: 'po',
       label: 'Purchase order received',
       hint: 'Not every customer issues one',
       optional: true,
-      done: hasKind('po'),
+      // Marked not applicable counts as settled, but is NOT the same as having
+      // one: `na` lets the screen say "not needed" rather than showing a tick
+      // that claims a purchase order exists.
+      done: hasKind('po') || !!packet?.poNotApplicable,
+      na: !hasKind('po') && !!packet?.poNotApplicable,
     },
     {
       key: 'invoice',
       label: 'Invoice raised',
       hint: 'In the Jobs Tracker or uploaded here',
-      done: !!(sources?.invoiceUrl || manualInvoice || hasKind('invoice')),
+      done: !!(sources?.invoiceUrl || manualInvoice || hasKind('invoice') || byHand('invoice')),
+      byHand: !(sources?.invoiceUrl || manualInvoice || hasKind('invoice')) && byHand('invoice'),
     },
     {
       key: 'receipts',
       label: 'Receipts added',
       hint: 'Fuel, parts, anything rebilled',
       optional: true,
-      done: hasKind('receipts'),
+      // Same as the PO: plenty of jobs rebill nothing, and "no expenses on
+      // this one" is a thing somebody decides rather than a thing that can
+      // be observed. `na` keeps it from reading as receipts that exist.
+      done: hasKind('receipts') || !!packet?.receiptsNotApplicable,
+      na: !hasKind('receipts') && !!packet?.receiptsNotApplicable,
     },
     {
       key: 'packet',

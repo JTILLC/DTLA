@@ -22,14 +22,18 @@ export default function ActingAs({ customerId, what = 'Changes' }) {
     <div className="small text-muted d-flex align-items-center gap-1 flex-wrap">
       <UserCheck size={13} className="flex-shrink-0" />
       <span>{what} recorded as <strong>{person.name}</strong></span>
-      <button
-        type="button"
-        className="btn btn-link btn-sm p-0 align-baseline"
-        onClick={forget}
-        title="Forget who is at this device, so the next change asks again"
-      >
-        Not you?
-      </button>
+      {/* Nothing to forget when the name comes from the signed-in JTI account
+          rather than from a PIN — the way to stop being it is to sign out. */}
+      {!person.isSuper && (
+        <button
+          type="button"
+          className="btn btn-link btn-sm p-0 align-baseline"
+          onClick={forget}
+          title="Forget who is at this device, so the next change asks again"
+        >
+          Not you?
+        </button>
+      )}
     </div>
   );
 }

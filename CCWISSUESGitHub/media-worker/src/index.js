@@ -42,7 +42,8 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
-import { runBackup, getManifest } from './backup.js';
+import { runBackup, getManifest, finalizeNightly, NIGHTLY_GROUPS } from './backup.js';
+import { publishDirectory } from './publish.js';
 import { shearersRead } from './shearers.js';
 import { scanReceipt, mayScanReceipt } from './receipts.js';
 import { createLogin, syncClaims, plantLogins, adminListLogins, adminResetPassword } from './accounts.js';
@@ -331,11 +332,54 @@ const pathAllowedForShare = (path, share) => {
 export default {
   // Nightly. Cloudflare gives a scheduled Worker its own wall clock, so the
   // walk is not competing with a user waiting for a page.
+  //
+  // Three crons, three invocations, and the split is the whole point: the
+  // subrequest allowance is per invocation, and all four projects in one
+  // exceeded it — every night, before the manifest that would have said so.
+  //
+  //   08:30  publish the customer / job-number directories
+  //   09:00  back up the heavy project (its streamed parts collection alone
+  //          spends about thirty requests, so it gets an invocation to itself)
+  //   09:20  back up the light projects, then merge the night and prune
+  //
+  // In that order so the night's dump includes the directories just written,
+  // and so the finalize pass runs last with the light group's leftover
+  // allowance. Free plan allows three cron triggers; this uses all three.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      runBackup(env, mintToken)
-        .then((m) => console.log('backup', JSON.stringify(m.results)))
-        .catch((err) => console.error('backup failed outright', err)));
+    if (event.cron === '30 8 * * *') {
+      ctx.waitUntil(
+        publishDirectory(env, mintToken, { trigger: 'nightly' })
+          .then((m) => console.log('publish', JSON.stringify(m.results)))
+          .catch((err) => console.error('publish failed outright', err)));
+      return;
+    }
+
+    if (event.cron === '0 9 * * *') {
+      ctx.waitUntil(
+        runBackup(env, mintToken, { only: NIGHTLY_GROUPS.heavy, trigger: 'nightly', group: 'heavy' })
+          .then((m) => console.log('backup heavy', JSON.stringify(m.results)))
+          .catch((err) => console.error('backup heavy failed outright', err)));
+      return;
+    }
+
+    // The light group, then the merge. Sequential on purpose: finalize reads
+    // the part files this run has just written.
+    ctx.waitUntil((async () => {
+      try {
+        const m = await runBackup(env, mintToken, { only: NIGHTLY_GROUPS.light, trigger: 'nightly', group: 'light' });
+        console.log('backup light', JSON.stringify(m.results));
+      } catch (err) {
+        // Still finalize: a merged manifest naming what is missing is the
+        // thing somebody needs, and it is exactly what did not exist before.
+        console.error('backup light failed outright', err);
+      }
+      try {
+        const merged = await finalizeNightly(env, mintToken);
+        console.log('backup finalize', JSON.stringify(merged.groups));
+      } catch (err) {
+        console.error('backup finalize failed outright', err);
+      }
+    })());
   },
 
   async fetch(request, env) {
@@ -615,7 +659,10 @@ export default {
         // Runs the nightly backup now. Same admin gate as the rest: it reads
         // every collection in two projects, so it is not something an ordinary
         // signed-in caller should be able to set off.
-        || url.pathname === '/admin/run-backup') {
+        || url.pathname === '/admin/run-backup'
+        // Republishes the customer / job-number directories now, without
+        // waiting for the nightly cron. Same gate: it writes three projects.
+        || url.pathname === '/admin/publish-directory') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       if (!env.GCP_SA_EMAIL || !env.GCP_SA_PRIVATE_KEY || !env.FIREBASE_PROJECT_ID) {
         return deny(503, 'Account creation is not configured on the server.', origin, allowed);
@@ -635,6 +682,22 @@ export default {
       if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
       if (claims.firebase?.sign_in_provider === 'anonymous' || claims.admin !== true) {
         return deny(403, 'Only a JTI admin can create logins.', origin, allowed);
+      }
+
+      if (url.pathname === '/admin/publish-directory') {
+        let manifest;
+        try {
+          manifest = await publishDirectory(env, mintToken, { trigger: 'manual' });
+        } catch (err) {
+          // Answered as JSON, with CORS, so the reason survives the trip.
+          manifest = { fatal: String(err?.message || err), results: [] };
+        }
+        // 200 either way: a run where one project failed is exactly what the
+        // caller needs to see, and the manifest carries it.
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders(origin, allowed) },
+        });
       }
 
       if (url.pathname === '/admin/run-backup') {

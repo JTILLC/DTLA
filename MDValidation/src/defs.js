@@ -7,6 +7,33 @@ import XrayFields from './XrayFields';
 import { checkweigherInitialData, CW_STORAGE_KEY, CW_COLLECTION } from './checkweigherModel';
 import { buildCheckweigherPDF } from './checkweigherPdf';
 import CheckweigherFields from './CheckweigherFields';
+import { customerDefaults, primaryContact } from '@shared/utils/customerDefaults.js';
+
+// The customer RECORD (as CCW keeps it) in the shape each form's boxes want.
+// The three forms grew their own field names — customerName vs company,
+// customerLocation vs address — so the translation is per form, here, rather
+// than smeared across the field components.
+const asLocation = (d) => [d.city, d.state].filter(Boolean).join(', ');
+const xrayStyleCustomer = (record) => {
+  const d = customerDefaults(record);
+  return {
+    customerName: d.company,
+    customerLocation: asLocation(d),
+    customerContact: d.contact,
+  };
+};
+const metalStyleCustomer = (record) => {
+  const d = customerDefaults(record);
+  const contact = primaryContact(record?.profile?.contacts) || {};
+  return {
+    company: d.company,
+    address: [d.address, asLocation(d)].filter(Boolean).join(', '),
+    customerContact: d.contact,
+    position: contact.title || contact.position || '',
+    phone: d.phone,
+    email: d.email,
+  };
+};
 
 // Each validation form is fully described here; FormShell drives the generic UI from this.
 export const FORMS = {
@@ -20,6 +47,7 @@ export const FORMS = {
     storageKey: XRAY_STORAGE_KEY,
     collection: XRAY_COLLECTION,
     customerFields: ['customerName', 'customerLocation', 'customerContact'],
+    applyCustomer: xrayStyleCustomer,
     fileName: (d) => `${d.serialNumber || d.customerName || 'xray'}-xray-validation`,
     summary: (v) => ({ title: v.customerName || '(no customer)', sub: `${v.serialNumber || 'no serial'} · ${v.modelInformation || ''}` }),
     Fields: XrayFields,
@@ -34,6 +62,7 @@ export const FORMS = {
     storageKey: metalStore,
     collection: 'metal_validations',
     customerFields: ['company', 'address', 'customerContact', 'position', 'phone', 'email'],
+    applyCustomer: metalStyleCustomer,
     fileName: (d) => `${d.certificateNo || 'no-cert'}-MDVF-${d.serialNumber || 'no-serial'}`,
     summary: (v) => ({ title: v.company || '(no company)', sub: `Cert ${v.certificateNo || '—'} · ${v.serialNumber || 'no serial'}` }),
     Fields: MetalFields,
@@ -48,6 +77,7 @@ export const FORMS = {
     storageKey: CW_STORAGE_KEY,
     collection: CW_COLLECTION,
     customerFields: ['customerName', 'customerLocation', 'customerContact'],
+    applyCustomer: xrayStyleCustomer,
     fileName: (d) => `${d.serialNumber || d.customerName || 'checkweigher'}-checkweigher-calibration`,
     summary: (v) => ({ title: v.customerName || '(no customer)', sub: `${v.serialNumber || 'no serial'} · ${v.modelInformation || ''}` }),
     Fields: CheckweigherFields,

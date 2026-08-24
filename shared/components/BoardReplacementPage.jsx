@@ -39,6 +39,7 @@ import { useDialog } from './DialogSystem.jsx';
 import ActingAs from './ActingAs.jsx';
 import TemplateBar from './TemplateBar.jsx';
 import { normalizeTypes } from '../utils/boardTypes.js';
+import { sameDayItemsOnDiagram, diagramLabel } from '../utils/dayDiagramItems.js';
 import { resolveBoardPart } from '../utils/boardParts.js';
 
 // Shared by the copy-from picker, the template bar and the push dialog, so all
@@ -50,10 +51,41 @@ const describeTypes = (d) => {
   return `${n} board type${n === 1 ? '' : 's'}${mapped ? `, ${mapped} with part numbers` : ''}`;
 };
 
+// Not everything replaced is a board.
+//
+// Springs, gaskets, hangers, cam rollers — most of what comes off a machine has
+// no board type, and making somebody name one to record a gasket means they
+// pick the nearest wrong answer and the log carries it forever. Stored as a
+// real value rather than blank so the entry says plainly that no board was
+// involved, and so it can never be confused with "not filled in yet".
+export const NOT_A_BOARD = 'Part (not a board)';
+
+// Common reasons, offered as suggestions rather than as a fixed list: the box
+// stays free text, so anything not here can still be typed. A dropdown of only
+// these would force somebody to pick the nearest wrong one.
+export const REPLACEMENT_REASONS = [
+  'Failed',
+  'Intermittent fault',
+  'Water ingress',
+  'Corrosion',
+  'Physical damage',
+  'Weight drift / zero error',
+  'No communication',
+  'Preventive replacement',
+  'Upgrade',
+];
+
 const BLANK = {
   lineTitle: '',
   headNumber: '',
-  boardType: BOARD_TYPES[0],
+  // Deliberately EMPTY, not the first board type.
+  //
+  // It used to default to whatever headed the list — Load Cell Amplifier — and
+  // the entry's headline is the board type, so every replacement logged without
+  // touching the dropdown claimed a load cell amp had been changed. A default
+  // that is wrong more often than right is not a convenience, it is a log
+  // filing the wrong part.
+  boardType: '',
   partNumber: '',
   reason: '',
   notes: '',
@@ -101,6 +133,9 @@ export default function BoardReplacementPage({
   const withFreshActor = (run) => {
     const anyPin = crewPeople.some((p) => p.pinHash);
     if (!anyPin) return run('');
+    // A JTI account has no PIN to re-key, so asking again would only be a
+    // dialog that answers itself. The edit is still stamped with who made it.
+    if (actor?.isSuper) return run(actor.name);
     setPendingSave(() => run);
   };
 
@@ -134,6 +169,13 @@ export default function BoardReplacementPage({
   const [editing, setEditing] = useState(null);
   // A past entry whose drawing is being viewed.
   const [diagramEntry, setDiagramEntry] = useState(null);
+  // Every balloon to ring when a drawing is opened from the log: the clicked
+  // part first, then anything else replaced on that drawing, on that line, that
+  // day.
+  const dayItems = useMemo(
+    () => sameDayItemsOnDiagram(entries, diagramEntry),
+    [entries, diagramEntry],
+  );
 
   useEffect(() => {
     if (!workspaceId || !customerId) return undefined;
@@ -209,6 +251,9 @@ export default function BoardReplacementPage({
   // person standing at the machine.
   const chooseBoardType = (name) => {
     set('boardType', name);
+    // Nothing to look up for a non-board part: the board-to-part mapping is
+    // per board type, and there is no board.
+    if (name === NOT_A_BOARD) return;
     if (pickedPart || extraParts.length || form.partNumber.trim()) return;
     const r = resolveFor(form.lineTitle, name);
     if (r) setPickedPart(r.part);
@@ -218,15 +263,23 @@ export default function BoardReplacementPage({
   // A part typed rather than picked is still a part: it is recorded with its
   // count so an off-manual replacement isn't silently logged as one.
   const partsForSave = () => {
-    const chosen = [pickedPart, ...extraParts].filter(Boolean);
-    if (chosen.length) return chosen.map(toStored);
+    const chosen = [pickedPart, ...extraParts].filter(Boolean).map(toStored);
     const typed = form.partNumber.trim();
-    return typed ? [toStored({ partCode: typed, qty: typedQty })] : [];
+    // A number still in the box when Save is pressed counts. It used to be
+    // ignored the moment anything else was on the list, so typing a second
+    // part and pressing Save silently dropped it — and typing invalidates any
+    // pick (see PartLookupField), so an untouched pick cannot be duplicated
+    // here.
+    if (typed && !pickedPart) chosen.push(toStored({ partCode: typed, qty: typedQty }));
+    return chosen;
   };
 
   // Keep the selected board type valid if the list changes underneath.
   useEffect(() => {
-    if (boardTypes.length && !boardTypes.includes(form.boardType)) {
+    // Only a type that no longer EXISTS gets replaced. An empty box is a
+    // deliberate "not chosen yet" and must stay that way, or the default this
+    // page just removed comes back through the side door.
+    if (form.boardType && boardTypes.length && !boardTypes.includes(form.boardType)) {
       setForm((f) => ({ ...f, boardType: boardTypes[0] }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,7 +290,17 @@ export default function BoardReplacementPage({
   // same head, same board type, often the same part. Serials never carry over —
   // they identify the individual board and are the one thing that MUST be read
   // off the hardware each time.
+  // How many replacements have been logged without closing the form.
+  //
+  // A shift is not one replacement. Four heads get new gaskets, one gets a
+  // spring, the amp on head 12 goes — and each is its own entry because each
+  // has its own head and its own part. The form used to close on every save, so
+  // recording a shift meant reopening it once per part and re-picking the line
+  // each time. It now stays open and counts.
+  const [loggedThisSession, setLoggedThisSession] = useState(0);
+
   const openAdd = () => {
+    setLoggedThisSession(0);
     const last = entries[0];
     setForm(last
       ? {
@@ -340,7 +403,28 @@ export default function BoardReplacementPage({
 
   const save = () => withActor((filedBy) => lineGuard.check(form.lineTitle, async (override) => {
     if (!form.lineTitle) return toast.error('Pick a line');
-    if (!form.boardType) return toast.error('Pick a board type');
+    if (!form.boardType) return toast.error('Choose what was replaced');
+
+    // Read back the parts and the counts before anything is written.
+    //
+    // The quantities are the part of this form most easily got wrong — a
+    // stepper left at 1 when four went on, a part still sitting in the box
+    // unadded — and the log is what a customer is later billed and advised
+    // from. Cheaper to read one line now than to correct a record later.
+    const about = partsForSave();
+    const summary = about.length
+      // The raw count, not qtyLabel: that prints nothing for a single item —
+      // right in a list, wrong in a confirmation, where "1 ×" is the fact being
+      // confirmed.
+      ? about.map((p) => `  • ${p.qty || 1} × ${p.partNumber}${p.partName ? ` (${p.partName})` : ''}`).join('\n')
+      : '  • no part number recorded';
+    const where = form.headNumber === '' ? form.lineTitle : `${form.lineTitle} · Head ${form.headNumber}`;
+    const ok = await dialog.confirm(
+      `Log this replacement on ${where}?\n\n${form.boardType}\n${summary}`,
+      { title: 'Confirm what was replaced', confirmText: 'Log it' },
+    );
+    if (!ok) return;
+
     setSaving(true);
     try {
       await addLogEntry(workspaceId, customerId, LOG_BOARD, {
@@ -371,12 +455,25 @@ export default function BoardReplacementPage({
         actionBy: filedBy,
         actionByVerified: !!filedBy,
       });
-      setForm({ ...BLANK, lineTitle: form.lineTitle });   // keep the line for the next one
+      // Carry what repeats across a shift, clear what does not.
+      //
+      // The line and the board type are the same for four gaskets in a row; the
+      // HEAD and the PARTS are the whole point of the next entry and must never
+      // carry, or the second one silently repeats the first. The reason usually
+      // holds too — a water-damaged machine gives the same answer all morning.
+      setForm({
+        ...BLANK,
+        lineTitle: form.lineTitle,
+        boardType: form.boardType,
+        reason: form.reason,
+      });
       setPickedPart(null);
       setExtraParts([]);
       setTypedQty(1);
-      setAdding(false);
-      toast.success('Board replacement logged');
+      setLoggedThisSession((n) => n + 1);
+      // Deliberately NOT closing the form: the next replacement is nearly
+      // always seconds away. "Done" below closes it.
+      toast.success('Logged — add the next one');
     } catch (err) {
       console.error('Board log save failed:', err);
       toast.error('Could not save: ' + (err?.message || 'unknown error'));
@@ -400,7 +497,7 @@ export default function BoardReplacementPage({
   };
 
   if (!customerId) {
-    return <div className="text-muted p-3">Select a customer to record board replacements.</div>;
+    return <div className="text-muted p-3">Select a customer to record replacements.</div>;
   }
 
   const shown = filterLine ? entries.filter((e) => e.lineTitle === filterLine) : entries;
@@ -447,15 +544,15 @@ export default function BoardReplacementPage({
         <PartDiagramViewer
           diagramId={diagramEntry.partDiagramId}
           partItemNo={diagramEntry.partItemNo}
-          // A past entry can hold several parts; ring the ones on this drawing.
-          partItemNos={(diagramEntry.parts || [])
-            .filter((p) => p.diagramId === diagramEntry.partDiagramId)
-            .map((p) => p.itemNo)}
-          partLabel={
-            (diagramEntry.parts || []).length > 1
-              ? `${diagramEntry.partNumber} + ${diagramEntry.parts.length - 1} more`
-              : diagramEntry.partNumber
-          }
+          // The whole day's work on this drawing, not just this one entry.
+          //
+          // A shift is logged as an entry per head, so the drawing opened from
+          // any one of them used to ring a single balloon while four other
+          // parts of the same assembly had been changed that morning. Scoped to
+          // the same line as well as the same day — see dayDiagramItems.js for
+          // why the line matters.
+          partItemNos={dayItems.map((p) => p.itemNo)}
+          partLabel={diagramLabel(dayItems, diagramEntry.partNumber)}
           onClose={() => setDiagramEntry(null)}
         />
       )}
@@ -577,7 +674,7 @@ export default function BoardReplacementPage({
       {adding && (
         <div className="card mb-3">
           <div className="card-header d-flex justify-content-between align-items-center">
-            <strong>New board replacement</strong>
+            <strong>New replacement</strong>
             <button type="button" className="btn btn-sm btn-outline-secondary" onClick={cancelEdit}>
               <ChevronLeft size={16} /> Cancel
             </button>
@@ -619,6 +716,8 @@ export default function BoardReplacementPage({
                 value={form.boardType}
                 onChange={(e) => chooseBoardType(e.target.value)}
               >
+                <option value="">Choose what was replaced…</option>
+                <option value={NOT_A_BOARD}>{NOT_A_BOARD}</option>
                 {boardTypeList.map((b) => (
                   <option key={b.name} value={b.name}>
                     {b.name}{b.partNumber ? ` — ${b.partNumber}` : ''}
@@ -663,14 +762,21 @@ export default function BoardReplacementPage({
 
             <div>
               <label className="form-label" htmlFor="board-reason">Reason</label>
+              {/* A list to pick from AND a box to type in, in one control —
+                  the common answers without a dropdown that forces the nearest
+                  wrong one when the real reason is not on it. */}
               <input
                 id="board-reason"
                 type="text"
+                list="board-reason-options"
                 className="form-control"
                 value={form.reason}
                 onChange={(e) => set('reason', e.target.value)}
-                placeholder="e.g. intermittent load cell reading"
+                placeholder="Pick one or type why it was replaced"
               />
+              <datalist id="board-reason-options">
+                {REPLACEMENT_REASONS.map((r) => <option key={r} value={r} />)}
+              </datalist>
             </div>
 
             <div>
@@ -693,8 +799,25 @@ export default function BoardReplacementPage({
               onClick={editing ? saveEdit : save}
               disabled={saving}
             >
-              {saving ? 'Saving…' : editing ? 'Save changes' : 'Log board replacement'}
+              {saving ? 'Saving…' : editing ? 'Save changes' : 'Log replacement'}
             </button>
+            {/* The way out of a form that no longer closes itself, and the
+                count that says the earlier ones did save — without it, a form
+                that looks the same after pressing Log reads as a failure. */}
+            {!editing && loggedThisSession > 0 && (
+              <>
+                <span className="small text-muted">
+                  {loggedThisSession} logged{form.lineTitle ? ` on ${form.lineTitle}` : ''} — the line, board type and reason carry over.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => { setAdding(false); setLoggedThisSession(0); setForm(BLANK); setPickedPart(null); setExtraParts([]); setTypedQty(1); }}
+                >
+                  Done
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -719,7 +842,7 @@ export default function BoardReplacementPage({
         <div className="card-body">
           {shown.length === 0 ? (
             <div className="text-muted small">
-              {entries.length === 0 ? 'No board replacements logged yet.' : 'None for this line.'}
+              {entries.length === 0 ? 'No replacements logged yet.' : 'None for this line.'}
             </div>
           ) : (
             <div className="d-flex flex-column gap-2">
@@ -731,8 +854,15 @@ export default function BoardReplacementPage({
                     <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                       <div>
                         <div className="fw-semibold">
-                          {e.boardType || 'Board'}
-                          {e.headNumber != null ? ` · Head ${e.headNumber}` : ' · machine board'}
+                          {/* A non-board entry is headed by what was actually
+                              replaced. "Part (not a board)" as a title tells
+                              the reader only what it was NOT. */}
+                          {e.boardType === NOT_A_BOARD
+                            ? (partLines(e)[0]?.partNumber || e.partNumber || 'Part replacement')
+                            : (e.boardType || 'Board')}
+                          {e.headNumber != null
+                            ? ` · Head ${e.headNumber}`
+                            : (e.boardType === NOT_A_BOARD ? '' : ' · machine board')}
                         </div>
                         <div className="small text-muted">
                           {e.lineTitle} · {new Date(e.performedAt).toLocaleDateString()} ({sinceLabel(e.performedAt)})

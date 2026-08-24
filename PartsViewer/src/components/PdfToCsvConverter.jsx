@@ -21,7 +21,10 @@ const PdfToCsvConverter = ({ onImportToViewer }) => {
       reader.onload = async (e) => {
         try {
           const typedArray = new Uint8Array(e.target.result);
-          const pdf = await getDocument(typedArray).promise;
+          const pdf = await getDocument({
+            data: typedArray,
+            ignoreEncryption: true
+          }).promise;
 
           let fullText = '';
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -226,6 +229,43 @@ const PdfToCsvConverter = ({ onImportToViewer }) => {
     return { headers, rows };
   };
 
+  const convertPdfToImages = async (file) => {
+    const pdfjs = await import('pdfjs-dist/build/pdf.mjs');
+
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+
+    const images = [];
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      const imageBase64 = canvas.toDataURL('image/jpeg', 0.9);
+
+      images.push({
+        fileName: pdf.numPages > 1 ? `${file.name} - Page ${pageNum}` : file.name,
+        data: imageBase64
+      });
+    }
+
+    return images;
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -245,7 +285,12 @@ const PdfToCsvConverter = ({ onImportToViewer }) => {
         throw new Error('No table data found in PDF. Please ensure the PDF contains a properly formatted parts table.');
       }
 
-      setExtractedData({ headers, rows });
+      // Also convert PDF pages to images for parts list
+      console.log('Converting PDF to images for parts list...');
+      const partsListImages = await convertPdfToImages(file);
+      console.log(`Converted ${partsListImages.length} page(s) to images`);
+
+      setExtractedData({ headers, rows, partsListImages, pdfFileName: file.name });
     } catch (err) {
       setError(err.message);
       setExtractedData(null);

@@ -14,6 +14,7 @@
 
 import { jobFlowSteps, nextAction, flowProgress } from './jobFlow.js';
 import { isPaid } from './format.js';
+import { releaseBlockers } from './jobRelease.js';
 
 // The buckets, in the order work actually flows. The key is the step that is
 // outstanding, so a job sits in the bucket named for what it is waiting on.
@@ -52,7 +53,7 @@ export const CHASE_AFTER_DAYS = 30;
  * and the files the system already holds. Anything missing simply reads as a
  * step not done, which is the honest answer rather than an error.
  */
-export const boardRow = ({ sr, customer, date, job, sources, packet } = {}, today = new Date()) => {
+export const boardRow = ({ sr, customer, date, job, sources, packet, visits, timesheets, closedAt } = {}, today = new Date()) => {
   const steps = jobFlowSteps({ job, sources, packet });
   const next = nextAction(steps);
   const progress = flowProgress(steps);
@@ -67,6 +68,11 @@ export const boardRow = ({ sr, customer, date, job, sources, packet } = {}, toda
     sr: String(sr),
     customer: customer || '',
     date: date || '',
+    // The Tracker document behind this row, when there is one. Only the id:
+    // anything that wants to WRITE to the job (marking it paid) needs somewhere
+    // to write, and the whole job object would put a second, ageing copy of it
+    // on every row.
+    jobId: job?.id || null,
     steps,
     progress,
     next,
@@ -78,6 +84,15 @@ export const boardRow = ({ sr, customer, date, job, sources, packet } = {}, toda
     // Flagged rather than sorted into its own bucket: it is still "awaiting
     // payment", it has just been awaiting it too long.
     chase: waitingDays != null && waitingDays >= CHASE_AFTER_DAYS,
+    // Why this number cannot be handed back, if it cannot. Computed here so
+    // the board and the packet page answer it identically, and so a row can
+    // say why rather than quietly offering nothing.
+    blockers: releaseBlockers({ trackerJob: job, sources, visits, timesheets }),
+    // Cancelled. Kept as a row rather than dropped: a closed number can still
+    // carry an unpaid invoice, and a board that silently forgets money owed is
+    // worse than one showing a job nobody is working.
+    closed: !!closedAt,
+    closedAt: closedAt || null,
   };
 };
 
@@ -88,24 +103,44 @@ export const boardRow = ({ sr, customer, date, job, sources, packet } = {}, toda
  * worth seeing, and "show me the completed ones" should not need a different
  * screen.
  */
+/** A service report number as a number, for ordering. Unnumbered sorts last. */
+const srValue = (r) => {
+  const n = parseInt(String(r?.sr || '').replace(/\D/g, ''), 10);
+  return Number.isFinite(n) ? n : -1;
+};
+
 export const buildBoard = (inputs = [], today = new Date()) => {
   const rows = inputs.map((i) => boardRow(i, today));
-  const open = rows.filter((r) => !r.done);
+  // Closed takes precedence over finished: a cancelled job is not an
+  // achievement, and listing it among the completed ones would say it was.
+  const closed = rows.filter((r) => r.closed);
+  const live = rows.filter((r) => !r.closed);
+  const open = live.filter((r) => !r.done);
 
   const groups = BOARD_GROUPS.map((g) => ({
     ...g,
     rows: open
       .filter((r) => r.group === g.key)
-      // Longest-waiting first inside a bucket: the oldest thing in a column is
-      // almost always the one that needs attention.
-      .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1)
-        || String(a.date).localeCompare(String(b.date))),
+      // NEWEST FIRST, by service report number.
+      //
+      // This used to be longest-waiting first, on the reasoning that the
+      // oldest thing in a column is the one that needs chasing. In practice
+      // it buried the job you had just created: a new job has waited no time,
+      // so it sorted below fifty older ones and read as missing. The number
+      // counts up, so the highest is the most recent.
+      //
+      // Nothing is lost by this — anything genuinely overdue is already
+      // singled out as `chasing`, which is where "needs attention" belongs.
+      // Ordering is for finding; flags are for chasing.
+      .sort((a, b) => srValue(b) - srValue(a)
+        || String(b.date).localeCompare(String(a.date))),
   })).filter((g) => g.rows.length);
 
   return {
     groups,
     open,
-    done: rows.filter((r) => r.done),
+    done: live.filter((r) => r.done),
+    closed,
     chasing: open.filter((r) => r.chase),
     total: rows.length,
   };

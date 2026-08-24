@@ -93,4 +93,51 @@ export const matchCustomerRecords = (records = [], matches = () => false) => {
   return out;
 };
 
-export default { matchPackets, matchCustomerRecords };
+/**
+ * Reserved job numbers the Jobs Tracker does not know about yet.
+ *
+ * There are two job sources, and search only ever read one of them. A number
+ * reserved on the dashboard lives in `unified_jobs`; the tracker's own records
+ * come from `fetchJobsData`. Between reserving a number and creating its
+ * tracker record — which is step one of eight, so this is the NORMAL state for
+ * a job in progress — the number was in the board, in the picker and on its
+ * packet page, and searching for it found nothing.
+ *
+ * "Nothing" reads as "this number does not exist", and acting on that means
+ * reserving it a second time. 2026028 was reserved for SunTree and searching
+ * for it returned only a timesheet and a packet.
+ *
+ * Only the ones the tracker has NOT got are returned: a job that exists in
+ * both is already a search result, and listing it twice under one number is
+ * its own kind of wrong.
+ *
+ * @param {Array} reserved - from fetchUnifiedJobs
+ * @param {Array} trackerJobs - the jobs search already found (matched or not)
+ * @param {function} matches - the caller's comparison, so "2026-028" finds it
+ * @param {function} normalize - SR comparison form
+ */
+export const matchReservedJobs = (reserved = [], trackerJobs = [], matches = () => false, normalize = (v) => String(v ?? '')) => {
+  const known = new Set(
+    (trackerJobs || [])
+      .flatMap((j) => [j?.sr, j?.invoiceNumber, j?.serviceReportNumber, j?.reportNumber])
+      .map(normalize).filter(Boolean),
+  );
+
+  return (reserved || []).filter((j) => {
+    if (!j) return false;
+    const key = normalize(j.sr);
+    if (!key || known.has(key)) return false;
+    return matches(j.sr) || matches(j.customer) || matches(j.description) || matches(j.city);
+  }).map((j) => ({
+    ...j,
+    // What the row has to say, because a job that is only reserved offers
+    // nothing else to click and looks like a stub otherwise.
+    reservedOnly: true,
+    matchedFields: hits([
+      ['Service report', j.sr], ['Customer', j.customer],
+      ['Description', j.description], ['City', j.city],
+    ], matches),
+  }));
+};
+
+export default { matchPackets, matchCustomerRecords, matchReservedJobs };

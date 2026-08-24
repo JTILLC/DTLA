@@ -46,9 +46,14 @@ function TimeEntryForm({ entry, onSave, onCancel }) {
         }
       }));
     } else {
+      // Ensure lunchDuration is stored as a number
+      let newValue = type === 'checkbox' ? checked : value;
+      if (name === 'lunchDuration') {
+        newValue = parseFloat(value) || 0.5;
+      }
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'checkbox' ? checked : value
+        [name]: newValue
       }));
     }
   };
@@ -60,21 +65,21 @@ function TimeEntryForm({ entry, onSave, onCancel }) {
     if (formData.travelTo.active) {
       const [startH, startM] = formData.travelTo.start.split(':').map(Number);
       const [endH, endM] = formData.travelTo.end.split(':').map(Number);
-      travelHours += ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
+      travelHours += Math.max(0, ((endH * 60 + endM) - (startH * 60 + startM)) / 60);
     }
 
     if (formData.onsite.active) {
       const [startH, startM] = formData.onsite.start.split(':').map(Number);
       const [endH, endM] = formData.onsite.end.split(':').map(Number);
-      let onsiteHours = ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
+      let onsiteHours = Math.max(0, ((endH * 60 + endM) - (startH * 60 + startM)) / 60);
       if (formData.lunch) onsiteHours -= formData.lunchDuration;
-      workHours = onsiteHours;
+      workHours = Math.max(0, onsiteHours);
     }
 
     if (formData.travelHome.active) {
       const [startH, startM] = formData.travelHome.start.split(':').map(Number);
       const [endH, endM] = formData.travelHome.end.split(':').map(Number);
-      travelHours += ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
+      travelHours += Math.max(0, ((endH * 60 + endM) - (startH * 60 + startM)) / 60);
     }
 
     return { travelHours, workHours };
@@ -208,7 +213,7 @@ function TimeEntryForm({ entry, onSave, onCancel }) {
 
       {/* LUNCH & HOLIDAY */}
       <div className="grid grid-cols-2 gap-4">
-        <label className="flex items-center">
+        <div className="flex items-center gap-2">
           <input
             type="checkbox"
             name="lunch"
@@ -216,8 +221,19 @@ function TimeEntryForm({ entry, onSave, onCancel }) {
             onChange={handleChange}
             className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           />
-          <span className="ml-2 text-sm text-gray-700">Lunch (0.5 hr)</span>
-        </label>
+          <span className="text-sm text-gray-700">Lunch</span>
+          <select
+            name="lunchDuration"
+            value={formData.lunchDuration}
+            onChange={handleChange}
+            disabled={!formData.lunch}
+            className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          >
+            <option value={0.5}>0.5 hr</option>
+            <option value={1}>1 hr</option>
+            <option value={1.5}>1.5 hr</option>
+          </select>
+        </div>
         <label className="flex items-center">
           <input
             type="checkbox"

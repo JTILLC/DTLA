@@ -204,6 +204,11 @@ body {
    Individual wide containers (tables etc.) still scroll inside themselves. */
 html, body {
   overflow-x: hidden;
+  /* …and the page does not slide sideways when a child that scrolls
+     horizontally — the tab strip, the line chips, a wide table — runs out of
+     travel and hands the rest of the gesture to the page. A thumb scrolling a
+     long list is never perfectly vertical. */
+  overscroll-behavior-x: none;
   max-width: 100vw;
 }
 
@@ -434,6 +439,7 @@ h1, h3 {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
   /* Audit checklist on mobile: item name as a card title, and keep the
@@ -1469,6 +1475,7 @@ h1, h3 {
   display: flex;
   gap: 6px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   padding: 2px 0 6px;

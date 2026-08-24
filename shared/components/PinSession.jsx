@@ -54,25 +54,37 @@ export default function PinSession({
     );
   }
 
+  // The JTI account is not a PIN session: it is who is signed in, it cannot
+  // lapse, and there is nothing to sign off from. The badge still names it,
+  // because what the log will say is exactly what this badge is for.
+  const label = person.isSuper ? 'JTI' : roleLabel;
+
   return (
-    <span className="pin-session" title={`Work is being logged as ${person.name}${roleLabel ? ` (${roleLabel})` : ''}. Sign off so the next person is asked for their own PIN.`}>
+    <span
+      className="pin-session"
+      title={person.isSuper
+        ? `Work is being logged as ${person.name} — the signed-in JTI account. Someone keying their own PIN takes over from here.`
+        : `Work is being logged as ${person.name}${label ? ` (${label})` : ''}. Sign off so the next person is asked for their own PIN.`}
+    >
       <UserCheck size={13} className="pin-session-icon" aria-hidden="true" />
       <span className="pin-session-label">
         <span className="pin-session-lede">Logging as</span>
         <strong>{person.name}</strong>
-        {roleLabel && !compact && <span className="pin-session-role">{roleLabel}</span>}
+        {label && !compact && <span className="pin-session-role">{label}</span>}
       </span>
-      <button
-        type="button"
-        className="pin-session-off"
-        onClick={forget}
-        // Named for what it does to the NEXT person, which is the reason
-        // anybody presses it.
-        aria-label={`Sign ${person.name} off, so the next person is asked for their PIN`}
-      >
-        <LogOut size={12} aria-hidden="true" />
-        {!compact && <span>Sign off</span>}
-      </button>
+      {!person.isSuper && (
+        <button
+          type="button"
+          className="pin-session-off"
+          onClick={forget}
+          // Named for what it does to the NEXT person, which is the reason
+          // anybody presses it.
+          aria-label={`Sign ${person.name} off, so the next person is asked for their PIN`}
+        >
+          <LogOut size={12} aria-hidden="true" />
+          {!compact && <span>Sign off</span>}
+        </button>
+      )}
     </span>
   );
 }

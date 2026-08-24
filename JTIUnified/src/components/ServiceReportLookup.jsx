@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import * as ui from '../ui/theme';
-import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip, Briefcase } from 'lucide-react';
-import { saveManualReport, deleteManualReport, fetchFileBytes } from '../data-service';
-import { findJobsForSr } from '../utils/srMatch';
+import { Search, FileText, Receipt, ClipboardList, ExternalLink, AlertTriangle, RefreshCw, Eye, X, Plus, Pencil, Trash2, Paperclip, Briefcase, ShieldCheck, CircleDollarSign, Archive } from 'lucide-react';
+import { saveManualReport, deleteManualReport, fetchFileBytes, fetchExcludedReports } from '../data-service';
+import { findJobsForSr, normalizeSr } from '../utils/srMatch';
 import { isPaid, asLocalDate } from '../utils/format';
 import { isAbsoluteUrl } from '../utils/fileRef';
 import { withPacketNumbers, customerForReport } from '../utils/reportRows';
@@ -16,6 +16,8 @@ const CCW_URL = 'https://jti-issues.pages.dev';
 // different versions of the same app from the same dashboard is the bug.
 const TIMESHEET_URL = 'https://jti-timesheet.pages.dev';
 const JOBS_URL = 'https://jti-jobs.pages.dev';
+const VALIDATION_URL = 'https://jti-validation.pages.dev';
+const QUOTES_URL = 'https://jti-quotes.pages.dev';
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -160,11 +162,40 @@ export default function ServiceReportLookup({
     () => [...new Set([...years, ...allReports.map((r) => r.year)])].sort((a, b) => String(b).localeCompare(String(a))),
     [years, allReports]);
 
-  const isUnmatched = (r) => r.timesheets.length === 0 || r.visits.length === 0;
-  const unmatchedCount = useMemo(() => allReports.filter(isUnmatched).length, [allReports]);
+  // Numbers set aside on the packet page. Kept out of this list too — a
+  // number nobody will file against is one more row between you and the job
+  // you are looking for — but never silently: the count and the way back are
+  // below the filters, and a set-aside row says so when shown.
+  const [excluded, setExcluded] = useState(new Map());
+  const [showAside, setShowAside] = useState(false);
+  useEffect(() => { fetchExcludedReports().then(setExcluded).catch(() => {}); }, []);
+  const asideFor = (r) => excluded.get(normalizeSr(r?.number)) || null;
+
+  // A set-aside number is not "missing its other half" — it is one nobody is
+  // going to complete. Counting it as unmatched would keep the attention
+  // badge permanently lit for work that is deliberately closed off.
+  // An invoice uploaded to the packet IS an invoice.
+  //
+  // This screen used to ask only "is there a timesheet", while calling the
+  // answer "Invoice". So 2026014 — which has a signed invoice PDF on its
+  // packet, is marked paid in the Jobs Tracker, and shows that invoice in the
+  // panel on the right — still sat in the unmatched list with no Invoice chip,
+  // because the invoice had been raised under a different number.
+  //
+  // It counts now, but it does NOT borrow the timesheet's chip: an invoice
+  // nobody booked hours against is a different thing from one that came off a
+  // timesheet, and the list should keep saying which is which.
+  const packetFilesFor = (r) => (packets?.get?.(r.norm)?.files) || [];
+  const hasPacketInvoice = (r) => packetFilesFor(r).some((f) => f.kind === 'invoice');
+  const hasInvoice = (r) => r.timesheets.length > 0 || hasPacketInvoice(r);
+
+  const isUnmatched = (r) => !excluded.has(normalizeSr(r.number))
+    && (!hasInvoice(r) || r.visits.length === 0);
+  const unmatchedCount = useMemo(() => allReports.filter(isUnmatched).length, [allReports, excluded, packets]);
 
   const filtered = useMemo(() => {
     let list = allReports;
+    if (!showAside) list = list.filter((r) => !excluded.has(normalizeSr(r.number)));
     if (yearFilter !== 'all') list = list.filter((r) => r.year === yearFilter);
     if (onlyUnmatched) list = list.filter(isUnmatched);
     const q = search.trim().toLowerCase();
@@ -180,7 +211,7 @@ export default function ServiceReportLookup({
       );
     }
     return list;
-  }, [allReports, yearFilter, onlyUnmatched, search, jobs, startedJobs]);
+  }, [allReports, yearFilter, onlyUnmatched, search, jobs, startedJobs, excluded, showAside]);
 
   const grouped = useMemo(() => {
     const g = new Map();
@@ -357,6 +388,15 @@ export default function ServiceReportLookup({
           style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${onlyUnmatched ? '#f59e0b' : colors.border}`, background: onlyUnmatched ? '#f59e0b' : colors.cardBg, color: onlyUnmatched ? 'white' : colors.text, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
           <AlertTriangle size={14} /> Unmatched ({unmatchedCount})
         </button>
+        {/* Only offered when there is something to show. A permanent toggle
+            for an empty category is a control that teaches you to ignore it. */}
+        {excluded.size > 0 && (
+          <button onClick={() => setShowAside((v) => !v)}
+            title="Numbers kept, but not offered as somewhere to file work"
+            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${showAside ? '#8b5cf6' : colors.border}`, background: showAside ? '#8b5cf6' : colors.cardBg, color: showAside ? 'white' : colors.text, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Archive size={14} /> Set aside ({excluded.size})
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -401,11 +441,15 @@ export default function ServiceReportLookup({
                         </div>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', opacity: active ? 0.95 : 1 }}>
                           {r.timesheets.length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#ecfdf5', active ? 'white' : '#059669', Receipt, 'Invoice', 'Invoice / timesheet exists')}
+                          {r.timesheets.length === 0 && hasPacketInvoice(r) && chip(active ? 'rgba(255,255,255,0.2)' : '#eef2ff', active ? 'white' : '#4f46e5', FileText, 'Invoice PDF', 'An invoice is on the job packet, but no timesheet was filed under this number')}
                           {r.visits.length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#eff6ff', active ? 'white' : '#2563eb', ClipboardList, 'Visit', 'Weigher visit exists')}
                           {hasPdf && chip(active ? 'rgba(255,255,255,0.2)' : '#f5f3ff', active ? 'white' : '#7c3aed', FileText, 'PDF', 'Service report PDF attached')}
                           {/* Why an otherwise-empty number is in the list at
                               all: its documents are on its job packet. */}
                           {(packets?.get?.(r.norm)?.files || []).length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#fdf2f8', active ? 'white' : '#db2777', Paperclip, 'Packet', 'Files uploaded to the job packet')}
+                          {(r.validations || []).length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#fffbeb', active ? 'white' : '#b45309', ShieldCheck, 'Validation', 'Validation certificate tagged with this number')}
+                          {(r.quotes || []).length > 0 && chip(active ? 'rgba(255,255,255,0.2)' : '#f0fdfa', active ? 'white' : '#0d9488', CircleDollarSign, 'Quote', 'Service quote tagged with this number')}
+                          {asideFor(r) && chip(active ? 'rgba(255,255,255,0.2)' : '#f5f3ff', active ? 'white' : '#8b5cf6', Archive, 'Set aside', asideFor(r).reason)}
                         </div>
                       </button>
                     );
@@ -625,6 +669,45 @@ export default function ServiceReportLookup({
                     <div style={{ marginTop: 4 }}>{addBtn('report', 'Add another service report')}</div>
                   )}
                 </div>
+
+                {/* Validation certificates tagged with this number. Shown only
+                    when there are any: most jobs have none, and an empty
+                    "no validation" warning on every row would train people to
+                    ignore the warnings that matter. */}
+                {(selected.validations || []).length > 0 && (
+                  <div style={sectionCard}>
+                    <div style={label}><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Validation Certificates</div>
+                    {selected.validations.map((v) => (
+                      <div key={`${v.collection}/${v.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingBottom: 8, marginBottom: 8, borderBottom: selected.validations.length > 1 ? `1px solid ${colors.border}` : 'none' }}>
+                        <div style={{ fontSize: 14, color: colors.text }}>
+                          <div style={{ fontWeight: 600 }}>{v.validationKind}{v.customer ? ` — ${v.customer}` : ''}</div>
+                          <div style={{ color: colors.textSecondary, fontSize: 13 }}>
+                            {[v.date && fmtDate(v.date), v.serial && `S/N ${v.serial}`].filter(Boolean).join(' · ') || 'No date recorded'}
+                          </div>
+                        </div>
+                        {linkBtn(VALIDATION_URL, 'Open MD Validation')}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* The quote this job started as. */}
+                {(selected.quotes || []).length > 0 && (
+                  <div style={sectionCard}>
+                    <div style={label}><CircleDollarSign size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Service Quote</div>
+                    {selected.quotes.map((q) => (
+                      <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingBottom: 8, marginBottom: 8, borderBottom: selected.quotes.length > 1 ? `1px solid ${colors.border}` : 'none' }}>
+                        <div style={{ fontSize: 14, color: colors.text }}>
+                          <div style={{ fontWeight: 600 }}>{q.quoteNumber || 'Quote'}{q.customer ? ` — ${q.customer}` : ''}</div>
+                          <div style={{ color: colors.textSecondary, fontSize: 13 }}>
+                            {[q.date, q.total > 0 && `$${q.total.toFixed(2)}`].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                        {linkBtn(QUOTES_URL, 'Open Service Quote')}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* The rest of the packet. The purchase order and the receipts
                     have no section of their own here, and hunting for them

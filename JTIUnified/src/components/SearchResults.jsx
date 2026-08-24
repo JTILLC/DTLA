@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { AlertTriangle, Building2, CheckCircle, ChevronDown, Clock, ExternalLink, FileText, Paperclip, Search, Settings, XCircle } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle, ChevronDown, Clock, ExternalLink, FileText, Package, Paperclip, Search, Settings, XCircle } from 'lucide-react';
 import { isPaid } from '../utils/format';
 import HighlightText from './HighlightText';
+import { ccwVisitLink } from '../utils/ccwLink';
+import { FIXED_STATUS } from '../utils/headIssue';
 
   const SearchResults = ({ results, loading, setSearchTerm, colors }) => {
     const [collapsedSections, setCollapsedSections] = useState({
@@ -12,6 +14,7 @@ import HighlightText from './HighlightText';
       parts: false,
       boards: false,
       diagrams: false,
+      partsOrders: false,
       packets: false,
       customers: false,
     });
@@ -90,6 +93,11 @@ import HighlightText from './HighlightText';
     const filteredParts = results?.parts || [];
     const filteredBoards = results?.boards || [];
     const filteredDiagrams = results?.diagrams || [];
+    // A parts order DOES have a date — the day it was built — so it honours the
+    // range like a job or a visit does.
+    const filteredOrders = useMemo(
+      () => (results?.partsOrders || []).filter((o) => inRange({ date: o.orderedAt })),
+      [results?.partsOrders, dateFilter]);
     // Packets and customer records have no single date to filter on either — a
     // packet spans the whole job and a customer record is not an event.
     const filteredPackets = results?.packets || [];
@@ -97,7 +105,8 @@ import HighlightText from './HighlightText';
     const filteredTotal =
       filteredJobs.length + filteredIssues.length + filteredTimesheets.length +
       filteredHistory.length + filteredParts.length + filteredBoards.length +
-      filteredDiagrams.length + filteredPackets.length + filteredCustomers.length;
+      filteredDiagrams.length + filteredOrders.length + filteredPackets.length +
+      filteredCustomers.length;
 
     // camelCase → "Title Case"; snake_case → "Title Case"
     const humanize = (key) => {
@@ -534,9 +543,19 @@ import HighlightText from './HighlightText';
                 >
                   <FileText size={20} />
                   {(() => {
-                    const paid = filteredJobs.filter(j => isPaid(j.paid)).length;
-                    const unpaid = filteredJobs.length - paid;
-                    return `Jobs (${filteredJobs.length}${paid + unpaid > 0 ? ` — ${paid} paid, ${unpaid} unpaid` : ''})`;
+                    // Reserved numbers are counted apart. They have no job
+                    // record, so they have no invoice either — folding them
+                    // into "unpaid" reports money owed on work nobody has
+                    // billed for yet.
+                    const billable = filteredJobs.filter(j => !j.reservedOnly);
+                    const held = filteredJobs.length - billable.length;
+                    const paid = billable.filter(j => isPaid(j.paid)).length;
+                    const unpaid = billable.length - paid;
+                    const parts = [
+                      billable.length > 0 ? `${paid} paid, ${unpaid} unpaid` : '',
+                      held > 0 ? `${held} reserved` : '',
+                    ].filter(Boolean).join(' · ');
+                    return `Jobs (${filteredJobs.length}${parts ? ` — ${parts}` : ''})`;
                   })()}
                   <ChevronDown
                     size={18}
@@ -590,18 +609,36 @@ import HighlightText from './HighlightText';
                             </div>
                           )}
                         </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: isPaid(job.paid) ? '#10b981' : '#f59e0b'
-                        }}>
-                          {isPaid(job.paid) ? <CheckCircle size={16} /> : <Clock size={16} />}
-                          <span style={{ fontSize: '12px', fontWeight: '500' }}>
-                            {isPaid(job.paid) ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </div>
+                        {/* A reserved number has no job record yet, so paid /
+                            unpaid is not a question it can answer — showing
+                            "Unpaid" would invent an invoice that does not
+                            exist. It says what it actually is instead. */}
+                        {job.reservedOnly ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8b5cf6' }}>
+                            <Clock size={16} />
+                            <span style={{ fontSize: '12px', fontWeight: '500' }}>Reserved</span>
+                          </div>
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: isPaid(job.paid) ? '#10b981' : '#f59e0b'
+                          }}>
+                            {isPaid(job.paid) ? <CheckCircle size={16} /> : <Clock size={16} />}
+                            <span style={{ fontSize: '12px', fontWeight: '500' }}>
+                              {isPaid(job.paid) ? 'Paid' : 'Unpaid'}
+                            </span>
+                          </div>
+                        )}
                       </div>
+
+                      {job.reservedOnly && (
+                        <div style={{ fontSize: '12px', color: colors.textSecondary, marginBottom: '8px' }}>
+                          This number is reserved, but it has no record in the Jobs Tracker yet —
+                          that is the next step on its packet page.
+                        </div>
+                      )}
 
                       {/* Matched Fields with Highlighting */}
                       {job.matchedFields && job.matchedFields.length > 0 && (
@@ -724,7 +761,10 @@ import HighlightText from './HighlightText';
                     const rowId = `issues:${issue.id || index}`;
                     const isExpanded = expandedId === rowId;
                     const d = itemDate(issue);
-                    const isFixed = issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed';
+                    // From the issues list, like the customer page — the old
+                    // top-level `fixed` field is legacy and empty on anything
+                    // recorded since CCW moved to a list of issues per head.
+                    const isFixed = issue.fixedStatus === FIXED_STATUS.FIXED;
                     return (
                     <div
                       key={issue.id || index}
@@ -807,9 +847,16 @@ import HighlightText from './HighlightText';
                             {issue.visitId && (
                               <button
                                 onClick={() => {
-                                  const lineParam = issue.line ? `&line=${encodeURIComponent(issue.line)}` : '';
-                                  const headParam = issue.headName ? `&head=${encodeURIComponent(issue.headName)}` : '';
-                                  window.open(`https://jti-issues.pages.dev/?id=${issue.visitId}${lineParam}${headParam}`, '_blank');
+                                  // Same builder the customer page uses, so the
+                                  // two cannot drift — and it carries the
+                                  // customer id, which this one was leaving out
+                                  // and making CCW search every plant for.
+                                  window.open(ccwVisitLink({
+                                    visitId: issue.visitId,
+                                    customerId: issue.customerId,
+                                    line: issue.line,
+                                    head: issue.headName,
+                                  }), '_blank');
                                 }}
                                 style={{
                                   padding: '6px 12px',
@@ -1542,6 +1589,71 @@ import HighlightText from './HighlightText';
                             {d.matchedParts.length > 8 && (
                               <div style={{ fontSize: '11px', color: colors.textSecondary, textAlign: 'center' }}>
                                 +{d.matchedParts.length - 8} more — open the diagram to view
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parts orders — what was actually ordered for a plant.
+                Sits under the manuals because that is where the parts were
+                picked from, and answers the question the manual cannot: not
+                "what does this machine take?" but "did we already order it?" */}
+            {filteredOrders.length > 0 && (
+              <div style={{ background: colors.cardBg, borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <h3
+                  onClick={() => toggleSection('partsOrders')}
+                  style={{ fontSize: '16px', fontWeight: '600', color: '#0d9488', marginBottom: collapsedSections.partsOrders ? '0' : '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <Package size={20} />
+                  Parts orders ({filteredOrders.length})
+                  <ChevronDown size={18} style={{ marginLeft: 'auto', transform: collapsedSections.partsOrders ? 'rotate(-90deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                </h3>
+                {!collapsedSections.partsOrders && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {filteredOrders.map((o) => (
+                      <div key={o.id} style={{ padding: '14px', background: colors.hover, borderRadius: '8px', borderLeft: '4px solid #0d9488' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '15px', fontWeight: '600', color: colors.text }}>
+                            <HighlightText text={o.customer || 'Parts order'} searchTerm={results.searchTerm} />
+                          </div>
+                          <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+                            {o.orderedAt ? new Date(o.orderedAt).toLocaleDateString() : ''}
+                            {' · '}
+                            {o.itemCount} line{o.itemCount === 1 ? '' : 's'} · {o.totalQuantity} ordered
+                          </div>
+                        </div>
+                        {o.diagrams?.length > 0 && (
+                          <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '2px' }}>
+                            {o.diagrams.join(' · ')}
+                          </div>
+                        )}
+                        {/* The lines that matched, not the whole order: a
+                            search for one part code should not print eighty
+                            rows to show you the one you asked about. */}
+                        {o.matchedItems?.length > 0 && (
+                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {o.matchedItems.slice(0, 8).map((it, i) => (
+                              <div key={i} style={{ padding: '8px 10px', background: colors.cardBg, borderRadius: '6px', fontSize: '12px', color: colors.text, display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                {it.partCode && (
+                                  <strong style={{ color: '#0f766e', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                                    <HighlightText text={it.partCode} searchTerm={results.searchTerm} />
+                                  </strong>
+                                )}
+                                <span><HighlightText text={it.partName} searchTerm={results.searchTerm} /></span>
+                                <span style={{ marginLeft: 'auto', color: colors.textSecondary, whiteSpace: 'nowrap' }}>
+                                  ordered {it.orderQty}
+                                </span>
+                              </div>
+                            ))}
+                            {o.matchedItems.length > 8 && (
+                              <div style={{ fontSize: '11px', color: colors.textSecondary }}>
+                                +{o.matchedItems.length - 8} more on this order
                               </div>
                             )}
                           </div>

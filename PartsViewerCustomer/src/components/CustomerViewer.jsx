@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveImage, getImage, saveImagesBatch, clearAllImages, saveDiagrams, loadDiagrams } from '../utils/imageStorage';
 import { getCustomerNames, loadDiagramsByCustomer, loadDiagramImagesForExport } from '../firebase/diagramService';
+import { db } from '../firebase/config';
 
 const readLS = (key, fallback) => {
   try {
@@ -537,6 +538,31 @@ const CustomerViewer = ({ onLogout }) => {
     }
   };
 
+
+// Save an order to Firestore as well as downloading it.
+//
+// The download stays — people mail these files and file them — but a file in
+// somebody's Downloads folder is not a record: "what did we order for Flagstone
+// in April?" was answerable on exactly one laptop, and only if the file had
+// been filed into the right folder afterwards. Stored here, the dashboard can
+// show it against the plant.
+//
+// Best effort on purpose. This runs behind a share link as well as a login, and
+// an anonymous viewer cannot write. Failing to store an order must never cost
+// somebody the export they actually asked for, so it is logged and dropped.
+const storeOrder = async (order) => {
+  try {
+    const { collection, addDoc } = await import('firebase/firestore');
+    await addDoc(collection(db, 'parts-orders'), {
+      ...order,
+      source: 'parts-viewer',
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn('Order exported but not saved to Firebase:', error);
+  }
+};
+
   // Export order list to JSON
   const handleExportOrder = () => {
     const orderItems = Object.entries(globalOrderList).filter(([_, item]) => item.orderQty > 0);
@@ -556,6 +582,19 @@ const CustomerViewer = ({ onLogout }) => {
         ...item
       }))
     };
+
+    // The customer name here is whatever the viewer is showing — often
+    // "Multiple Customers (6)". Stored as-is rather than guessed at: the
+    // dashboard files an order against a plant when somebody uploads it, and a
+    // wrong name in the record would be worse than an honest vague one.
+    storeOrder({
+      customer: customerName || '',
+      orderedAt: exportData.exportDate,
+      itemCount: exportData.orderCount,
+      totalQuantity: exportData.totalQuantity,
+      diagrams: [...new Set(exportData.orderItems.map((i) => i.diagramName).filter(Boolean))],
+      items: exportData.orderItems,
+    });
 
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });

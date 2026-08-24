@@ -17,8 +17,12 @@ import BusyOverlay from './BusyOverlay.jsx';
 import {
   fetchPacket, fetchPacketSources, addPacketFile, removePacketFile, markPacketBuilt, fetchFileBytes,
   fetchUnifiedJobs, markPacketSent, closeJob, releaseJobNumber, updatePacketFile,
+  fetchExcludedReports, setReportExcluded, clearReportExcluded,
+  setPoNotApplicable, setReceiptsNotApplicable, setPacketSent, setPacketBuilt, setStepDoneByHand,
 } from '../data-service';
+import { normalizeSr } from '../utils/srMatch';
 import { jobFlowSteps, nextAction, flowProgress } from '../utils/jobFlow';
+import { releaseBlockers, describeBlockers } from '../utils/jobRelease';
 import { buildPacket, describeUnsupported, packetEmail, packetFileName, receiptsTotal, money, SECTIONS } from '../utils/jobPacket';
 import { matchCustomer } from '@shared/utils/customerMatch.js';
 import { scanReceipt } from '../utils/scanReceipt';
@@ -87,6 +91,17 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
 
   useEffect(() => { setResult(null); setError(''); load(sr); }, [sr, load]);
   useEffect(() => { fetchUnifiedJobs().then(setStarted).catch(() => {}); }, []);
+
+  // Numbers set aside — kept, but not offered as somewhere to file work.
+  const [excluded, setExcluded] = useState(new Map());
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [asideReason, setAsideReason] = useState('');
+  const [asideOpen, setAsideOpen] = useState(false);
+  const reloadExcluded = useCallback(
+    () => fetchExcludedReports().then(setExcluded).catch(() => {}), []);
+  useEffect(() => { reloadExcluded(); }, [reloadExcluded]);
+  const asideFor = (n) => excluded.get(normalizeSr(n)) || null;
+  const currentAside = asideFor(sr);
   // /packet/2026028 opens on that job.
   useEffect(() => { if (initialSr) setSr(initialSr); }, [initialSr]);
 
@@ -96,8 +111,24 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     const seen = new Set(serviceReports.map((r) => String(r.number)));
     const extra = started.filter((j) => !seen.has(String(j.sr)))
       .map((j) => ({ number: j.sr, visits: [], timesheets: [], startedHere: true, customer: j.customer }));
-    return [...extra, ...serviceReports];
-  }, [serviceReports, started]);
+    // Newest first, across BOTH sources.
+    //
+    // This used to be the started jobs (in whatever order they came back)
+    // followed by the report rows (in theirs), which put a number you created
+    // minutes ago somewhere in the middle of a hundred-odd options with no
+    // order to scan by. The number counts up, so sorting by it descending
+    // puts the job you are here to work on at the top.
+    const value = (r) => {
+      const n = parseInt(String(r.number || '').replace(/\D/g, ''), 10);
+      return Number.isFinite(n) ? n : -1;
+    };
+    const all = [...extra, ...serviceReports].sort((a, b) => value(b) - value(a));
+    // Set-aside numbers drop out of the list unless asked for — and the one
+    // currently open always stays, or selecting it would empty the picker
+    // and the page would look broken rather than filtered.
+    if (showExcluded) return all;
+    return all.filter((r) => !excluded.has(normalizeSr(r.number)) || String(r.number) === String(sr));
+  }, [serviceReports, started, excluded, showExcluded, sr]);
 
   // The job in the JOBS TRACKER — the only thing that knows whether it was
   // paid. `job` above is a service report entry, which carries visits and
@@ -109,12 +140,53 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
     () => jobs.find((j) => norm(j.sr || j.invoiceNumber) === norm(sr)) || null,
     [jobs, sr]);
 
+  // Toggling a step somebody has to assert. Both reload the packet, so the
+  // tick, the progress count and the "next" marker all move together rather
+  // than the button and the list disagreeing until a refresh.
+  const flag = async (key, fn) => {
+    setBusy(`flag:${key}`);
+    try { await fn(); await load(sr); }
+    catch (err) { setError(err.message || String(err)); }
+    clearBusy();
+  };
+
+  const byHandToggle = (key, markLabel, unmarkLabel) => (packet?.manualSteps?.[key]
+    ? { label: unmarkLabel, onClick: () => flag(key, () => setStepDoneByHand(sr, key, false)) }
+    : { label: markLabel, onClick: () => flag(key, () => setStepDoneByHand(sr, key, true)) });
+
+  const stepToggle = {
+    serviceReport: byHandToggle('serviceReport', 'Filed elsewhere', 'Not filed after all'),
+    invoice: byHandToggle('invoice', 'Raised elsewhere', 'Not raised after all'),
+    po: packet?.poNotApplicable
+      ? { label: 'This job did have a PO', onClick: () => flag('po', () => setPoNotApplicable(sr, false)) }
+      : { label: 'No PO on this job', onClick: () => flag('po', () => setPoNotApplicable(sr, true)) },
+    receipts: packet?.receiptsNotApplicable
+      ? { label: 'This job did have receipts', onClick: () => flag('receipts', () => setReceiptsNotApplicable(sr, false)) }
+      : { label: 'No receipts on this job', onClick: () => flag('receipts', () => setReceiptsNotApplicable(sr, true)) },
+    packet: packet?.builtAt
+      ? { label: 'Not built after all', onClick: () => flag('packet', () => setPacketBuilt(sr, false)) }
+      : { label: 'Mark as built', onClick: () => flag('packet', () => setPacketBuilt(sr, true)) },
+    sent: packet?.sentAt
+      ? { label: 'Not sent after all', onClick: () => flag('sent', () => setPacketSent(sr, false)) }
+      : { label: 'Mark as sent', onClick: () => flag('sent', () => setPacketSent(sr, true, apEmails)) },
+  };
+
   const steps = useMemo(() => jobFlowSteps({
     job: trackerJob,
     sources,
     packet,
     manualInvoice: null,
   }), [trackerJob, sources, packet]);
+
+  // Why this number could not go back in the pool, if it could not. One rule,
+  // shared with the job board — see utils/jobRelease.js for why the old inline
+  // test stopped working the day the dashboard started creating tracker jobs.
+  const blockers = useMemo(() => releaseBlockers({
+    trackerJob,
+    sources,
+    visits: job?.visits || [],
+    timesheets: job?.timesheets || [],
+  }), [trackerJob, sources, job]);
   const startedHere = started.find((j) => String(j.sr) === String(sr)) || null;
   const progress = flowProgress(steps);
   const todo = nextAction(steps);
@@ -343,13 +415,97 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
             <option key={r.number} value={r.number}>
               {r.number}
               {(() => {
+                // r.customer LAST but not forgotten: a job started on the
+                // dashboard carries its customer here and has no visit or
+                // timesheet yet, so the newest jobs — exactly the ones being
+                // looked for — were the only ones listed as a bare number.
                 const c = (r.visits || []).find((v) => v.customer)?.customer
-                  || (r.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer;
+                  || (r.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer
+                  || r.customer;
                 return c ? ` — ${c}` : '';
               })()}
+              {asideFor(r.number) ? ' · set aside' : ''}
             </option>
           ))}
         </select>
+
+        {/* How many are hidden, and the way back to them. A filtered list that
+            does not say it is filtered is a list somebody will think has lost
+            something. */}
+        {excluded.size > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: colors.textSecondary, cursor: 'pointer' }}>
+            <input type="checkbox" checked={showExcluded} onChange={(e) => setShowExcluded(e.target.checked)} />
+            Show the {excluded.size} number{excluded.size === 1 ? '' : 's'} set aside
+          </label>
+        )}
+
+        {sr && (
+          <div style={{ marginTop: '10px' }}>
+            {currentAside ? (
+              <div style={{ padding: '8px 12px', borderRadius: '6px', background: '#fffbeb', color: '#92400e', fontSize: '13px' }}>
+                <strong>Set aside.</strong> {currentAside.reason}
+                {currentAside.at ? ` (${new Date(currentAside.at).toLocaleDateString()})` : ''}
+                <div style={{ marginTop: '8px' }}>
+                  <button type="button"
+                    onClick={async () => {
+                      setBusy('Putting it back…');
+                      try { await clearReportExcluded(sr); await reloadExcluded(); }
+                      catch (err) { setError(err.message || String(err)); }
+                      clearBusy();
+                    }}
+                    style={ui.btn(colors, { size: 'sm' })}>
+                    Put this number back in play
+                  </button>
+                </div>
+              </div>
+            ) : asideOpen ? (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  autoFocus value={asideReason} onChange={(e) => setAsideReason(e.target.value)}
+                  placeholder="Why? e.g. typed wrong, voided, duplicate of 2026014"
+                  style={{ ...input, flex: '1 1 320px' }}
+                />
+                <button type="button" disabled={!asideReason.trim()}
+                  onClick={async () => {
+                    setBusy('Setting aside…');
+                    try {
+                      await setReportExcluded(sr, asideReason);
+                      await reloadExcluded();
+                      setAsideReason(''); setAsideOpen(false);
+                    } catch (err) { setError(err.message || String(err)); }
+                    clearBusy();
+                  }}
+                  style={ui.btn(colors, { tone: ui.TONE.warn, active: true, over: { opacity: asideReason.trim() ? 1 : 0.6 } })}>
+                  Set aside
+                </button>
+                <button type="button" onClick={() => { setAsideOpen(false); setAsideReason(''); }}
+                  style={ui.btn(colors, { size: 'sm' })}>Cancel</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setAsideOpen(true)} style={ui.btn(colors, { size: 'sm' })}>
+                Set this number aside…
+              </button>
+            )}
+            {!currentAside && !asideOpen && (
+              <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '6px' }}>
+                Keeps the number and its history, but stops offering it as somewhere to file work.
+                Nothing is deleted, and you can put it back.
+              </div>
+            )}
+          </div>
+        )}
+        {/* Not a number this dashboard handed out. Said out loud, for the same
+            reason the blocked case is: the close and release controls simply
+            were not rendered, which reads as "this screen cannot do that" when
+            the truth is there is no reservation to close or release. A number
+            that only appears on a past timesheet, visit or packet has no job
+            record behind it — setting it aside is the tool that applies. */}
+        {sr && !startedHere && (
+          <div style={{ marginTop: '10px', fontSize: '12px', color: colors.textSecondary }}>
+            {sr} was never reserved here — it only appears on past records, so there is no
+            job to close or delete. Set it aside if you do not want it offered.
+          </div>
+        )}
         {sr && startedHere && (
           <div style={{ marginTop: '10px' }}>
             {/* A cancelled job's number would otherwise sit in the pickers of
@@ -379,17 +535,18 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 the system. Those mean the number is on somebody's paperwork and
                 cannot be handed out again. Uploading a test receipt should not
                 strand a number, which is what the old rule did. */}
-            {!trackerJob && !job && !sources?.serviceReportUrl && !sources?.invoiceUrl && (
+            {blockers.length === 0 && (
               <button
                 type="button"
                 onClick={async () => {
                   const files = packet.files || [];
                   if (!window.confirm(
-                    `Release ${sr} back into the pool?\n\n`
+                    `Delete ${sr} and put the number back in the pool?\n\n`
+                    + 'The job record and its entry in the Jobs Tracker will be deleted.\n'
                     + (files.length
-                      ? `The ${files.length} file${files.length === 1 ? '' : 's'} attached here will be deleted.\n\n`
+                      ? `The ${files.length} file${files.length === 1 ? '' : 's'} attached here will be deleted.\n`
                       : '')
-                    + 'It becomes the next number offered again. Only do this if nothing was ever '
+                    + '\nIt becomes the next number offered again. Only do this if nothing was ever '
                     + 'filed against it — a number written on a report or an invoice should be closed, not released.')) return;
                   setBusy('Releasing…');
                   try {
@@ -406,8 +563,17 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                 }}
                 style={{ ...input, cursor: 'pointer', fontSize: '13px', padding: '5px 10px', marginLeft: '8px' }}
               >
-                Release the number
+                Delete and release the number
               </button>
+            )}
+            {/* Said out loud rather than left as an absent button. The old rule
+                hid this control for every job the dashboard created and gave no
+                account of itself, which reads as a feature that was never
+                built. */}
+            {blockers.length > 0 && (
+              <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '6px' }}>
+                {describeBlockers(blockers)} Close it instead — the number stays spent.
+              </div>
             )}
             {startedHere.closedAt && (
               <span style={{ color: '#f59e0b', fontSize: '13px', marginLeft: '8px' }}>
@@ -466,11 +632,30 @@ export default function JobPacketBuilder({ colors, serviceReports = [], customer
                       )}
                     </div>
                     <div style={{ paddingBottom: '4px' }}>
-                      <div style={{ color: st.done ? colors.textSecondary : colors.text, fontWeight: isNext ? 600 : 400, fontSize: '14px', textDecoration: st.done ? 'line-through' : 'none' }}>
+                      <div style={{ color: st.done ? colors.textSecondary : colors.text, fontWeight: isNext ? 600 : 400, fontSize: '14px', textDecoration: st.done && !st.na && !st.byHand ? 'line-through' : 'none' }}>
                         {st.label}
                         {st.optional && <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px' }}> · if applicable</span>}
+                        {st.na && <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px' }}> — not needed on this job</span>}
+                        {st.byHand && <span style={{ color: colors.textSecondary, fontWeight: 400, fontSize: '12px' }}> — recorded elsewhere</span>}
                       </div>
                       <div style={{ color: colors.textSecondary, fontSize: '12px' }}>{st.hint}</div>
+                      {/* The two steps nothing can observe. Everything else on
+                          this list is derived from a file or a record; these
+                          are somebody's word, so they get a control. */}
+                      {sr && stepToggle[st.key] && (
+                        <button
+                          type="button"
+                          disabled={busy === `flag:${st.key}`}
+                          onClick={() => stepToggle[st.key].onClick()}
+                          style={{
+                            marginTop: '4px', fontSize: '12px', padding: '3px 8px', borderRadius: '6px',
+                            border: `1px solid ${colors.border}`, background: colors.cardBg,
+                            color: colors.text, cursor: 'pointer', opacity: busy === `flag:${st.key}` ? 0.6 : 1,
+                          }}
+                        >
+                          {busy === `flag:${st.key}` ? 'Saving…' : stepToggle[st.key].label}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

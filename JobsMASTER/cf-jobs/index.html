@@ -390,6 +390,8 @@
         .toast-item.show { opacity: 1; transform: translateY(0); }
         .toast-success { border-left-color: var(--success); } .toast-success i { color: var(--success); }
         .toast-danger { border-left-color: var(--danger); } .toast-danger i { color: var(--danger); }
+        /* Not an error, but not nothing either — work waiting to upload. */
+        .toast-warning { border-left-color: #d9a54e; } .toast-warning i { color: #d9a54e; }
         .toast-info i { color: var(--primary); }
 
         /* Dialog */
@@ -797,7 +799,16 @@
                 // Read the mirror once so this session writes only what it
                 // changes, and so deletes have a snapshot to be measured
                 // against. Until this resolves, syncShadow does nothing.
-                loadShadowSnapshot();
+                //
+                // ...and then take what it holds, because it is the truth now.
+                // This app used to load only from localStorage, which was
+                // right when each year lived in one file and this was the only
+                // writer. It is not the only writer any more: the dashboard
+                // creates jobs directly, and so does this app on another
+                // device. Anything created elsewhere stayed invisible until
+                // somebody happened to press Refresh — and a job you cannot
+                // see is one you enter a second time.
+                loadShadowSnapshot().then(adoptMirrorAtStartup);
             } else {
                 document.getElementById('loginOverlay').style.display = 'flex';
                 document.getElementById('appContent').style.display = 'none';
@@ -832,7 +843,9 @@
         // === Toast + Dialog ===
         function toast(msg, type = 'info') {
             const host = document.getElementById('toastHost');
-            const icon = type === 'success' ? 'bi-check-circle-fill' : type === 'danger' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill';
+            const icon = type === 'success' ? 'bi-check-circle-fill'
+                : (type === 'danger' || type === 'warning') ? 'bi-exclamation-triangle-fill'
+                : 'bi-info-circle-fill';
             const el = document.createElement('div');
             el.className = `toast-item toast-${type}`;
             el.innerHTML = `<i class="bi ${icon}"></i><span></span>`;
@@ -1186,13 +1199,46 @@
         let shadowSnapshot = new Map();   // job id -> serialised, as last written
         let shadowReady = false;          // false until the collection has been read
 
+        // Jobs deleted HERE, by somebody pressing Delete, waiting to be removed
+        // from the mirror.
+        //
+        // Deletes used to be inferred: any id in the mirror that was not in the
+        // local data was assumed deleted and removed. That is only sound while
+        // this app is the mirror's only writer, and it has not been since the
+        // dashboard started creating jobs directly. On 2026-08-20 it read a
+        // mirror holding 175 jobs, held 173 locally, and concluded the two it
+        // had never heard of — 2026029 and 2026030, created on the dashboard
+        // twelve minutes earlier — had been deleted. They had not.
+        //
+        // A deletion is an EVENT, not a difference between two lists. Only ids
+        // recorded here are ever removed, so a job this app has simply not seen
+        // is left alone.
+        const pendingDeletes = new Set();
+
         // History is excluded from the comparison. It is written BECAUSE
         // something changed, so counting it as a change would have every edit
         // trigger a second write, which would append another history entry,
         // and so on.
+        // Key ORDER must not count as a change, and it silently did.
+        //
+        // JSON.stringify follows insertion order, so the same job serialised
+        // to a different string depending on where it came from — a document
+        // read back from the mirror puts `id` last, the local copy puts it
+        // first. Every job then looked edited, and simply opening the app
+        // rewrote all 175 of them on the next render. Sorting the keys makes
+        // the comparison about VALUES, which is what it was always meant to
+        // ask. `year` is included because it is part of what gets stored.
+        const stableStringify = (obj) => JSON.stringify(
+            Object.keys(obj).sort().reduce((acc, k) => { acc[k] = obj[k]; return acc; }, {}));
+
         const jobKey = (j, year) => {
-            const { history, ...rest } = j || {};
-            return JSON.stringify({ ...rest, year });
+            // history and the write stamps are excluded on BOTH sides. History
+            // is written BECAUSE something changed, so counting it as a change
+            // would have every edit trigger a second write, which would append
+            // another history entry, and so on. The snapshot used to keep it
+            // while this dropped it, so the two never agreed.
+            const { history, updatedAt, updatedBy, ...rest } = j || {};
+            return stableStringify({ ...rest, year: String(year) });
         };
 
         // === Who changed what ==============================================
@@ -1259,8 +1305,11 @@
                 const snap = await getDocs(collection(db, JOBS_COLLECTION));
                 shadowSnapshot = new Map();
                 snap.docs.forEach(d => {
-                    const { updatedAt, updatedBy, ...job } = d.data();
-                    shadowSnapshot.set(d.id, JSON.stringify(job));
+                    const job = d.data();
+                    // Through jobKey, so the snapshot and the comparison are
+                    // the same shape. Two serialisations of "the same job"
+                    // that disagree mean every job reads as changed.
+                    shadowSnapshot.set(d.id, jobKey({ ...job, id: d.id }, job.year));
                 });
                 shadowReady = true;
             } catch (e) {
@@ -1283,6 +1332,11 @@
             for (const y of Object.keys(data)) {
                 for (const j of (data[y] || [])) {
                     if (!j.id) continue;
+                    // Queued for deletion and back in `data` — a Refresh after
+                    // a sync that did not get through. Writing it and deleting
+                    // it in one batch is a coin toss; the delete is what was
+                    // asked for.
+                    if (pendingDeletes.has(j.id)) continue;
                     const key = jobKey(j, y);
                     const prevRaw = shadowSnapshot.get(j.id);
                     if (prevRaw !== key) {
@@ -1304,7 +1358,9 @@
                 }
             }
 
-            let deletes = [...shadowSnapshot.keys()].filter(id => !next.has(id));
+            // Only what somebody actually deleted. Not "everything in the
+            // mirror that is missing from here" — see pendingDeletes.
+            const deletes = [...pendingDeletes].filter(id => shadowSnapshot.has(id));
 
             // The one that could be a disaster.
             //
@@ -1312,9 +1368,12 @@
             // empty, every id looks deleted and this would empty the mirror.
             // Deleting everything is never a legitimate outcome of an edit, so
             // a pass that would remove all of it is refused rather than trusted.
+            //
+            // Kept even though deletes are now explicit: it costs nothing and
+            // it is the last thing standing between a bad load and the lot.
             if (deletes.length && next.size === 0) {
                 console.warn('[shadow] refusing to empty the mirror — local data looks lost, not deleted');
-                deletes = [];
+                return;
             }
 
             if (!writes.length && !deletes.length) return;
@@ -1328,7 +1387,11 @@
                 }));
                 deletes.forEach(id => batch.delete(doc(db, JOBS_COLLECTION, id)));
                 await batch.commit();
-                shadowSnapshot = next;
+                // Anything the mirror still holds and this pass did not touch
+                // stays in the snapshot: it belongs to another writer, and
+                // dropping it here would have the next pass treat it as new.
+                deletes.forEach(id => { shadowSnapshot.delete(id); pendingDeletes.delete(id); });
+                next.forEach((key, id) => shadowSnapshot.set(id, key));
                 console.log(`[shadow] ${writes.length} written, ${deletes.length} removed`);
             } catch (e) {
                 // Left out of the snapshot so the next save retries it.
@@ -1433,6 +1496,69 @@
                     }
                 }
             }, 4000);
+        }
+
+        /**
+         * Take the mirror's jobs at startup, without losing anything local.
+         *
+         * NOT a wholesale replace. `refreshFromCloud` replaces because a
+         * person asked it to; this runs on its own, and a job saved while the
+         * connection was down exists only in localStorage until syncShadow
+         * gets a chance to push it. Overwriting on every load would delete
+         * that work on the next start, silently, which is the one outcome
+         * worth more than any amount of staleness.
+         *
+         * So: the mirror wins for every job it holds, local-only jobs are
+         * kept, and syncShadow pushes them on the next save.
+         */
+        async function adoptMirrorAtStartup() {
+            const fresh = await loadFromMirror();
+            if (!fresh) {
+                // Offline, or nothing there yet — and in either case this
+                // session never reconciled with the mirror. It used to carry
+                // on with whatever localStorage held and let the next save
+                // push all of it, which on 2026-08-20 wrote a stale local copy
+                // over 173 jobs and took `history` and `payments` off every
+                // one of them: fields this device had never heard of, so its
+                // copy of each job "differed" and every job was rewritten.
+                //
+                // Reading the mirror is what earns the right to write to it.
+                // Without it this session reads and edits locally, and pushes
+                // nothing. Refresh (window.refreshFromCloud) re-reads and
+                // restores syncing.
+                shadowReady = false;
+                console.warn('[shadow] mirror not adopted — not writing to it this session');
+                toast('Working offline — your changes are saved on this device but not synced. Press Refresh when you are back online.', 'warning');
+                return;
+            }
+
+            const inMirror = new Set();
+            Object.values(fresh).forEach(arr => (arr || []).forEach(j => j.id && inMirror.add(j.id)));
+
+            let kept = 0;
+            Object.keys(data).forEach(y => {
+                (data[y] || []).forEach(j => {
+                    if (!j) return;
+                    if (j.id && inMirror.has(j.id)) return;    // the mirror has it
+                    // No id at all: a job added before jobs were given one at
+                    // birth. It was never synced (syncShadow skips those), so
+                    // it exists ONLY here — dropping it because it lacks an id
+                    // would delete the very work least protected. Give it one
+                    // and keep it; the next save uploads it.
+                    if (!j.id) j.id = crypto.randomUUID();
+                    (fresh[y] = fresh[y] || []).push(j);
+                    kept += 1;
+                });
+            });
+
+            data = fresh;
+            Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
+            localStorage.setItem('years', JSON.stringify(Object.keys(data)));
+            updateYearSelect();
+            updateYearPage();
+            // Said out loud, because a job quietly waiting to upload is
+            // something to know about rather than discover later.
+            if (kept) toast(`${kept} job${kept === 1 ? '' : 's'} on this device not in the cloud yet — they will upload on your next save`, 'warning');
         }
 
         window.refreshFromCloud = async () => {
@@ -1635,6 +1761,30 @@
                     (j.dateRange || '').toLowerCase().includes(term)
                 );
             }
+
+            // Newest first, by service report number.
+            //
+            // The order used to be however the jobs happened to arrive —
+            // append order once, and since the mirror became the source,
+            // whatever order Firestore returned. So a job you had just
+            // created turned up somewhere in the middle of the year and you
+            // went looking for it. The number counts up, so sorting by it
+            // descending puts the newest at the top, which is the one you
+            // came here for.
+            //
+            // A COPY: `filteredJobs` can still be the same array as `jobs`,
+            // and `data-index` below is resolved against `jobs` for edit and
+            // delete. Sorting in place would renumber every card's target.
+            const srValue = (j) => {
+                const n = parseInt(String(j.sr || '').replace(/\D/g, ''), 10);
+                return Number.isFinite(n) ? n : -1;   // no number: oldest-most
+            };
+            filteredJobs = [...filteredJobs].sort((a, b) => {
+                const d = srValue(b) - srValue(a);
+                if (d) return d;
+                // Same number, or both without one: the later invoice first.
+                return String(b.invoiceDate || '').localeCompare(String(a.invoiceDate || ''));
+            });
 
             const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -2119,10 +2269,28 @@
 
             const editIdx = document.getElementById('editIndex').value;
             if (editIdx !== '') {
-                data[currentYear][parseInt(editIdx)] = job;
+                // Keep the id and the history.
+                //
+                // This used to assign the freshly-built object straight over
+                // the old one, which threw away both. Losing `history` lost the
+                // record of who changed an invoiced amount. Losing `id` was
+                // worse: syncShadow keys the mirror by id, so the job stopped
+                // being written AND its old id — still in the snapshot, no
+                // longer in the data — counted as deleted. Editing a job
+                // removed it from the cloud copy.
+                const prev = data[currentYear][parseInt(editIdx)] || {};
+                data[currentYear][parseInt(editIdx)] = {
+                    ...job,
+                    id: prev.id || crypto.randomUUID(),
+                    ...(prev.history ? { history: prev.history } : {}),
+                };
             } else {
                 if (!data[currentYear]) data[currentYear] = [];
-                data[currentYear].push(job);
+                // An id at birth. Without one, syncShadow skips the job
+                // (`if (!j.id) continue`) and it never leaves this device —
+                // which is exactly how 2026028 was added here and stayed
+                // invisible to the dashboard and to every other device.
+                data[currentYear].push({ ...job, id: crypto.randomUUID() });
             }
 
             saveToStorage();
@@ -2224,6 +2392,10 @@
             if (!job) return;
             const ok = await confirmDialog(`Delete the job for "${job.customer || 'this customer'}"? This can't be undone.`, { title: 'Delete job', confirmText: 'Delete', danger: true });
             if (!ok) return;
+            // Recorded before the splice, because after it the job is gone from
+            // `data` and nothing else says it was deleted rather than never
+            // seen. This is the ONLY thing that removes a job from the mirror.
+            if (job.id) pendingDeletes.add(job.id);
             data[currentYear].splice(idx, 1);
             saveToStorage();
             updateYearPage();
@@ -2362,19 +2534,19 @@
             try {
                 loadFromStorage();
 
-                // The mirror is the source now. The year files are only reached
-                // if it cannot be read or has never been set up, which keeps a
-                // first run and a bad day behaving the same way.
-                await loadShadowSnapshot();
-                const fresh = await loadFromMirror();
-                if (fresh) {
-                    data = fresh;
-                    Object.keys(data).forEach(y => localStorage.setItem(`data-${y}`, JSON.stringify(data[y])));
-                    localStorage.setItem('years', JSON.stringify(Object.keys(data)));
-                } else {
-                    const hasData = Object.values(data).some(jobs => jobs && jobs.length > 0);
-                    if (!hasData) await window.loadFromCloud(true);
-                }
+                // The mirror is read once SIGNED IN, not here.
+                //
+                // This used to read it at this point, and it never worked: the
+                // read needs auth.currentUser and this runs before the auth
+                // state has resolved, so loadFromMirror returned null every
+                // time and the app quietly used localStorage. Jobs created on
+                // the dashboard or another device therefore did not appear on
+                // a reload — only on pressing Refresh, which happens late
+                // enough to be signed in. The read now hangs off the auth
+                // callback (adoptMirrorAtStartup), which is the point at which
+                // it can actually succeed.
+                const hasData = Object.values(data).some(jobs => jobs && jobs.length > 0);
+                if (!hasData) await window.loadFromCloud(true);
 
                 updateYearSelect();
                 updateYearPage();

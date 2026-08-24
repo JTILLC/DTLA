@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
+import { db, auth } from './firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 
 // Set up the worker for PDF.js using the local package
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -14,6 +17,16 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formatVersion, setFormatVersion] = useState(null);
+
+  // Sending straight to the TimeSheet app's inbox needs its sign-in (same
+  // Firebase project). The session persists, so the login form appears once
+  // per browser, not once per report.
+  const [user, setUser] = useState(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [sendState, setSendState] = useState({ busy: false, message: '' });
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
 
   const handleFileUpload = async (event, version) => {
     const file = event.target.files[0];
@@ -725,9 +738,7 @@ function App() {
     return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   };
 
-  const exportToTimeSheet = () => {
-    if (!extractedData) return;
-
+  const buildTimesheetData = () => {
     const serviceReportData = {};
     extractedData.timeEntries.forEach(entry => {
       const formattedDate = convertDateFormat(entry.date);
@@ -791,6 +802,13 @@ function App() {
       }
     };
 
+    return timesheetData;
+  };
+
+  const exportToTimeSheet = () => {
+    if (!extractedData) return;
+    const timesheetData = buildTimesheetData();
+
     const blob = new Blob([JSON.stringify(timesheetData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -798,6 +816,43 @@ function App() {
     a.download = `timesheet_${extractedData.srNumber}_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setSendState({ busy: true, message: '' });
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      setSendState({ busy: false, message: '' });
+      setLoginPassword('');
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+      setSendState({ busy: false, message: 'Sign-in failed — check the email and password.' });
+    }
+  };
+
+  // Straight into the TimeSheet app's inbox — the downloaded-JSON handoff
+  // stays available below as the fallback, but the file a person carries
+  // between two apps by hand is the step this exists to remove.
+  const sendToTimeSheet = async () => {
+    if (!extractedData || !user) return;
+    setSendState({ busy: true, message: '' });
+    try {
+      const payload = buildTimesheetData();
+      await addDoc(collection(db, 'import_inbox'), {
+        payload,
+        sr: extractedData.srNumber || '',
+        customer: payload.customerInfo?.company || '',
+        entryCount: payload.entries?.length || 0,
+        source: 'pdf-importer',
+        createdAt: new Date().toISOString(),
+        ownerUid: user.uid,
+      });
+      setSendState({ busy: false, message: `Sent. In the TimeSheet app: ⋯ menu → "Import from PDF importer…" — nothing is replaced until it's imported there.` });
+    } catch (err) {
+      console.error('Send failed:', err);
+      setSendState({ busy: false, message: 'Sending failed — the download button below still works.' });
+    }
   };
 
   return (
@@ -974,24 +1029,63 @@ function App() {
             </div>
           )}
 
+          {user ? (
+            <button
+              onClick={sendToTimeSheet}
+              disabled={sendState.busy}
+              style={{
+                padding: '12px 24px',
+                background: sendState.busy ? '#6ee7b7' : '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '16px',
+                cursor: sendState.busy ? 'default' : 'pointer',
+                marginTop: '20px'
+              }}
+            >
+              {sendState.busy ? 'Sending…' : 'Send to TimeSheet app'}
+            </button>
+          ) : (
+            <form onSubmit={handleLogin} style={{ marginTop: '20px', padding: '14px', border: '1px solid #d1d5db', borderRadius: '6px', maxWidth: '420px' }}>
+              <p style={{ margin: '0 0 10px', color: '#333', fontSize: '14px', fontWeight: 'bold' }}>
+                Sign in once to send parsed sheets straight to the TimeSheet app
+              </p>
+              <input type="email" placeholder="Email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '8px', marginBottom: '8px', border: '1px solid #d1d5db', borderRadius: '4px' }} />
+              <input type="password" placeholder="Password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '8px', marginBottom: '8px', border: '1px solid #d1d5db', borderRadius: '4px' }} />
+              <button type="submit" disabled={sendState.busy}
+                style={{ padding: '8px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                {sendState.busy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          )}
+          {sendState.message && (
+            <p style={{ marginTop: '10px', color: sendState.message.startsWith('Sent') ? '#047857' : '#b91c1c', fontSize: '14px' }}>
+              {sendState.message}
+            </p>
+          )}
+
           <button
             onClick={exportToTimeSheet}
             style={{
-              padding: '12px 24px',
-              background: '#10b981',
-              color: 'white',
+              padding: '8px 16px',
+              background: '#e5e7eb',
+              color: '#111',
               border: 'none',
               borderRadius: '4px',
-              fontSize: '16px',
+              fontSize: '14px',
               cursor: 'pointer',
-              marginTop: '20px'
+              marginTop: '14px',
+              display: 'block'
             }}
           >
-            Export to TimeSheet Format (JSON)
+            Download JSON instead
           </button>
 
           <p style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
-            This will download a JSON file that you can import into the TimeSheet app.
+            The fallback: downloads the same sheet as a file for the TimeSheet app&rsquo;s ⋯ → Import JSON.
           </p>
         </div>
       )}

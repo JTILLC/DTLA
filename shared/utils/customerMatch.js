@@ -216,7 +216,59 @@ export const looksLikeADifferentSite = (name, recordName) => {
   return shorter.every((tok, i) => longer[i] === tok);
 };
 
+/**
+ * "Is this row this customer's?" — the test a customer's own page filters by.
+ *
+ * A page about one plant pools rows from three sources that each carry a
+ * free-typed name, so it needs the same answer the customer LIST already
+ * reached when it decided those names were one customer. Getting a different
+ * answer here is what put a plant's jobs and its visits on the same screen
+ * disagreeing about how many there were: two jobs typed "Trident Seafoods"
+ * were absent from a page headed "Trident Seafood", while the visits for that
+ * exact work were listed below them, and the income totals were short.
+ *
+ * The rule is record identity: a name is this customer's when it RESOLVES to
+ * this customer's record. That inherits every tolerance matchCustomer has —
+ * truncation, pluralisation, a lost space, a recorded alias, a rename — and
+ * every refusal, so "Ajinomoto" still cannot claim Ajinomoto Portland's money.
+ *
+ * With no record to anchor it, there is nothing to resolve to and the fallback
+ * is "the same name typed differently", which is what consolidateCustomers
+ * does with unanchored names — so the two agree in that case too.
+ *
+ * Returns a predicate rather than a boolean because it caches: it is called
+ * once per row over hundreds of rows, and matchCustomer walks the record list
+ * every time.
+ *
+ * `record` is resolved from the name unless a caller has already done it.
+ */
+export const belongsToCustomer = (customerName, records = [], record = matchCustomer(customerName, records)) => {
+  const spellings = new Set([
+    normalizeCustomerName(customerName),
+    ...(record
+      ? [normalizeCustomerName(record.name), ...(record.profile?.aliases || record.aliases || []).map(normalizeCustomerName)]
+      : []),
+  ].filter(Boolean));
+
+  const answered = new Map();
+  return (value) => {
+    const key = normalizeCustomerName(value);
+    if (!key) return false;
+    if (spellings.has(key)) return true;
+    if (!answered.has(key)) {
+      const hit = matchCustomer(value, records);
+      answered.set(key, record
+        ? hit?.id === record.id
+        // Unanchored: only merge spellings, and never onto a name that belongs
+        // to somebody else's record.
+        : !hit && [...spellings].some((s) => sameCustomerName(s, key)));
+    }
+    return answered.get(key);
+  };
+};
+
 export default {
   normalizeCustomerName, matchCustomer, isSameCustomer, namesFor,
-  consolidateCustomers, looksLikeADifferentSite, sameCustomerName, KNOWN_FORMER_NAMES,
+  consolidateCustomers, looksLikeADifferentSite, sameCustomerName,
+  belongsToCustomer, KNOWN_FORMER_NAMES,
 };

@@ -1,6 +1,6 @@
 // The one box has to find receipts and customer records, not just jobs.
 import { describe, it, expect } from 'vitest';
-import { matchPackets, matchCustomerRecords } from './searchExtras.js';
+import { matchPackets, matchCustomerRecords, matchReservedJobs } from './searchExtras.js';
 
 // Stands in for the caller's matcher — the real one also handles "WH1"/"WH 1",
 // which is exactly why these take a predicate instead of comparing themselves.
@@ -95,5 +95,53 @@ describe('matchCustomerRecords', () => {
   it('survives records with no profile', () => {
     expect(() => matchCustomerRecords([null, { name: 'X' }], contains('x'))).not.toThrow();
     expect(matchCustomerRecords([{ name: 'X' }], contains('x'))).toHaveLength(1);
+  });
+});
+
+// A reserved number is findable everywhere EXCEPT the search box, because
+// search read the tracker's jobs and reservations live somewhere else. That
+// gap made a reserved number look like it did not exist — and the obvious
+// next move on "it does not exist" is to reserve it again.
+describe('matchReservedJobs', () => {
+  const norm = (v) => String(v ?? '').trim().replace(/[\s-]/g, '').toUpperCase();
+  const reserved = [
+    { sr: '2026028', customer: 'suntree', city: 'Phoenix', description: 'Weigher service' },
+    { sr: '2026031', customer: 'Utz', city: 'Hanover' },
+  ];
+
+  it('finds a reserved number the tracker has never heard of', () => {
+    const out = matchReservedJobs(reserved, [], contains('2026028'), norm);
+    expect(out).toHaveLength(1);
+    expect(out[0].sr).toBe('2026028');
+    // Flagged, so the row can say it is a reservation rather than showing a
+    // paid/unpaid badge for an invoice that does not exist.
+    expect(out[0].reservedOnly).toBe(true);
+    expect(out[0].matchedFields.some((m) => m.field === 'Service report')).toBe(true);
+  });
+
+  it('does not list a job the tracker already returned', () => {
+    const tracker = [{ sr: '2026028', customer: 'SunTree' }];
+    expect(matchReservedJobs(reserved, tracker, contains('2026028'), norm)).toHaveLength(0);
+  });
+
+  it('treats 2026-028 and 2026028 as the same job', () => {
+    const tracker = [{ sr: '2026-028' }];
+    expect(matchReservedJobs(reserved, tracker, contains('2026028'), norm)).toHaveLength(0);
+  });
+
+  it('matches an older job whose number was only ever the invoice number', () => {
+    const tracker = [{ invoiceNumber: '2026028' }];
+    expect(matchReservedJobs(reserved, tracker, contains('2026028'), norm)).toHaveLength(0);
+  });
+
+  it('finds a reservation by customer, city or description too', () => {
+    expect(matchReservedJobs(reserved, [], contains('suntree'), norm)).toHaveLength(1);
+    expect(matchReservedJobs(reserved, [], contains('hanover'), norm)).toHaveLength(1);
+    expect(matchReservedJobs(reserved, [], contains('weigher'), norm)).toHaveLength(1);
+  });
+
+  it('returns nothing rather than throwing on rubbish', () => {
+    expect(() => matchReservedJobs([null, { sr: '' }], [null], contains('x'), norm)).not.toThrow();
+    expect(matchReservedJobs(undefined, undefined, contains('x'), norm)).toEqual([]);
   });
 });

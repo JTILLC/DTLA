@@ -94,3 +94,25 @@ describe('replacePendingPhoto', () => {
     expect(count).toBe(2);
   });
 });
+
+describe('a photo taken against the LINE rather than a head', () => {
+  it('is written back like any other', () => {
+    // Machine-level faults — a guard off, a wet cabinet — belong to the line.
+    // Before this, the queue found nothing to replace, counted zero, and threw
+    // the finished upload away as an orphan.
+    const lines = [{
+      id: 'l1',
+      photos: [{ pendingId: 'p9' }],
+      heads: [{ id: 1, photos: [] }],
+    }];
+    const [next, replaced] = replacePendingPhoto(lines, 'p9', { path: 'x/y.jpg' });
+    expect(replaced).toBe(1);
+    expect(next[0].photos[0]).toEqual({ path: 'x/y.jpg' });
+  });
+
+  it('leaves a line with no photos alone', () => {
+    const [next, replaced] = replacePendingPhoto([{ id: 'l1', heads: [] }], 'p9', { path: 'x' });
+    expect(replaced).toBe(0);
+    expect(next[0].photos).toEqual([]);
+  });
+});

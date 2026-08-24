@@ -114,10 +114,18 @@ describe('buildBoard', () => {
     expect(board.groups).toHaveLength(1);
   });
 
-  it('puts the longest wait at the top of its bucket', () => {
+  // Was "longest wait first". That buried a job the moment it was created —
+  // a new job has waited no time, so it sorted below every older one and read
+  // as though it had never been made. Chasing is what `chasing` is for.
+  it('puts the newest number at the top of its bucket', () => {
     const board = buildBoard(inputs, TODAY);
     const waiting = board.groups.find((g) => g.key === 'paid');
-    expect(waiting.rows.map((r) => r.sr)).toEqual(['2026004', '2026005']);
+    expect(waiting.rows.map((r) => r.sr)).toEqual(['2026005', '2026004']);
+  });
+
+  it('still singles out what is worth chasing, whatever the order', () => {
+    const board = buildBoard(inputs, TODAY);
+    expect(board.chasing.map((r) => r.sr)).toEqual(['2026004']);
   });
 
   it('collects everything worth chasing, across buckets', () => {
@@ -143,5 +151,55 @@ describe('boardSummary', () => {
   it('says so plainly when there is nothing', () => {
     expect(boardSummary(buildBoard([], TODAY))).toBe('Nothing to show yet');
     expect(boardSummary(null)).toBe('Nothing to show yet');
+  });
+});
+
+describe('a closed number', () => {
+  // Closing says the job is not happening. It was already dropped from the
+  // timesheet and CCW pickers; the board never asked, so a cancelled job kept
+  // a row on "what needs doing" forever.
+  const closed = (sr, stuckAt) => ({ ...jobAt(sr, stuckAt), closedAt: '2026-08-13T10:00:00Z' });
+
+  it('is flagged on the row', () => {
+    expect(boardRow(closed('2026031', 'serviceReport'), TODAY).closed).toBe(true);
+    expect(boardRow(jobAt('2026032', 'serviceReport'), TODAY).closed).toBe(false);
+  });
+
+  it('leaves the open list and its bucket', () => {
+    const board = buildBoard([closed('2026031', 'serviceReport'), jobAt('2026032', 'serviceReport')], TODAY);
+    expect(board.open.map((r) => r.sr)).toEqual(['2026032']);
+    expect(board.groups.flatMap((g) => g.rows.map((r) => r.sr))).toEqual(['2026032']);
+  });
+
+  it('is kept and reachable rather than dropped — it may still owe money', () => {
+    const board = buildBoard([closed('2026031', 'paid')], TODAY);
+    expect(board.closed.map((r) => r.sr)).toEqual(['2026031']);
+    expect(board.total).toBe(1);
+  });
+
+  it('is not counted as finished, however far through it got', () => {
+    // A cancelled job is not an achievement, and listing it among the
+    // completed ones would say it was.
+    const board = buildBoard([closed('2026031', 'done')], TODAY);
+    expect(board.done).toEqual([]);
+    expect(board.closed).toHaveLength(1);
+  });
+
+  it('never appears in the chase list, even when it is long overdue', () => {
+    // Sent well past CHASE_AFTER_DAYS, so this would certainly be chased if
+    // closing did not take it out — which is what makes the assertion mean
+    // something. The control case proves the setup is actually overdue.
+    const longAgo = { sentAt: '2026-06-01' };
+    const stillOpen = jobAt('2026032', 'paid', longAgo);
+    expect(buildBoard([stillOpen], TODAY).chasing.map((r) => r.sr)).toEqual(['2026032']);
+
+    const cancelled = { ...jobAt('2026031', 'paid', longAgo), closedAt: '2026-08-13T10:00:00Z' };
+    expect(buildBoard([cancelled], TODAY).chasing).toEqual([]);
+  });
+
+  it('counts as open again once reopened', () => {
+    const board = buildBoard([{ ...jobAt('2026031', 'serviceReport'), closedAt: null }], TODAY);
+    expect(board.open.map((r) => r.sr)).toEqual(['2026031']);
+    expect(board.closed).toEqual([]);
   });
 });

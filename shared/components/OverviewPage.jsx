@@ -51,6 +51,10 @@ export default function OverviewPage({
   customerName, workspaceId, customerId, lines = [], visits = [], onGo,
   // 'log' for a plant's shift record, 'visit' for JTI's service call.
   noun = 'log',
+  // Is one actually OPEN? Without this, a screen with nothing open said "No
+  // lines on this log yet", which reads as an open log that happens to be
+  // empty — and sends somebody looking for the lines rather than for the log.
+  hasOpenRecord = true,
   // Given the lines rebuilt from this plant's own history, put them on the
   // open record. Absent → only the manual route is offered.
   onAdoptLines,
@@ -222,7 +226,21 @@ export default function OverviewPage({
           nothing to check. A log with no lines has to say so, and say where the
           plant's lines went, because they are still visible on Span Adjust and
           Pre-Start — which read every record rather than just the open one. */}
-      {lines.length === 0 ? (
+      {lines.length === 0 && !hasOpenRecord ? (
+        <div className="ccw-ov-clear ccw-ov-nolines">
+          <strong>Nothing open.</strong>{' '}
+          {`No ${noun} is open, so nothing is being recorded yet.`}
+          {onGo && (
+            <button
+              type="button"
+              className="btn btn-sm btn-primary ms-2"
+              onClick={() => onGo('current')}
+            >
+              {noun === 'log' ? 'Open today\u2019s log' : 'Open a visit'}
+            </button>
+          )}
+        </div>
+      ) : lines.length === 0 ? (
         <div className="ccw-ov-clear ccw-ov-nolines">
           <strong>No lines on this {noun} yet.</strong>{' '}
           {knownLineTitles.length > 0

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { Activity, AlertTriangle, BarChart3, Building2, Calendar, ClipboardList, HardDriveDownload, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Edit2, ExternalLink, FileText, Filter, LogOut, MapPin, Moon, Navigation, Paperclip, Plus, RefreshCw, Search, Settings, ShieldCheck, Sun, Trash2, TrendingUp, Users, Wrench, X, XCircle } from 'lucide-react';
-import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets, fetchUnifiedJobs } from './data-service';
+import { fetchJobsData, fetchDowntimeData, fetchTimesheetData, fetchRecentActivity, searchUnified, fetchCustomersList, fetchCustomerData, fetchCalendarEvents, deleteTimesheetEntry, clearDataCache, fetchFactoryLocations, saveFactoryLocations, hasAnyCache, subscribeAllUpdates, fetchServiceReports, fetchCustomerRecords, saveCustomerProfile, setJobCustomer, fetchAllPackets, fetchUnifiedJobs, syncDirectories, savePartsOrder, deletePartsOrder } from './data-service';
 import { useAuth } from './context/AuthContext';
 import { jobsMasterAuth } from './firebase-config';
 const Troubleshoot = lazy(() => import('./components/Troubleshoot/Troubleshoot'));
@@ -27,6 +27,8 @@ import JobBoard from './components/JobBoard';
 import NewJobPage from './components/NewJobPage';
 import BackupPanel from './components/BackupPanel';
 import { isPaid, formatRelativeTime, jobAmount, formatCurrency } from './utils/format';
+import { belongsToCustomer, matchCustomer } from '@shared/utils/customerMatch.js';
+import { readOrderExport } from './utils/partsOrder';
 
 
 function App() {
@@ -252,34 +254,37 @@ function App() {
       if (results && results.totalResults > 0) pushRecentSearch(term);
 
       // Filter by selected customer if search scope is 'customer'
+      //
+      // "This Customer" means the same customer the customer PAGE means. It
+      // used to mean `.includes()`, which is a different question and a worse
+      // one in both directions: scoping to Ajinomoto returned Portland's and
+      // Oakland's rows together, while a customer whose name is a substring of
+      // nothing missed the spellings its own page shows. One rule now, the one
+      // that resolves a typed name to a customer record.
       if (searchScope === 'customer' && selectedCustomer) {
-        const customerLower = selectedCustomer.toLowerCase();
+        const isOurs = belongsToCustomer(selectedCustomer, customerRecords);
+        // Inventory parts and boards are stocked for SEVERAL customers, so the
+        // field is a list and any one of them counts.
+        const anyOurs = (value) => (Array.isArray(value)
+          ? value.some((v) => isOurs(v))
+          : isOurs(value));
         const filteredResults = {
           ...results,
-          jobs: results.jobs.filter(job =>
-            (job.customer || job.customerName || '').toLowerCase().includes(customerLower)
-          ),
-          issues: results.issues.filter(issue =>
-            (issue.customer || '').toLowerCase().includes(customerLower)
-          ),
+          jobs: results.jobs.filter(job => isOurs(job.customer || job.customerName)),
+          issues: results.issues.filter(issue => isOurs(issue.customer)),
           timesheets: results.timesheets.filter(timesheet =>
-            (timesheet.customer || timesheet.visitName || '').toLowerCase().includes(customerLower)
-          ),
-          parts: (results.parts || []).filter(p =>
-            (Array.isArray(p.customers) ? p.customers.join(' ') : '').toLowerCase().includes(customerLower)
-          ),
-          boards: (results.boards || []).filter(b =>
-            (Array.isArray(b.customers) ? b.customers.join(' ') : '').toLowerCase().includes(customerLower)
-          ),
-          diagrams: (results.diagrams || []).filter(d =>
-            (d.customer || '').toLowerCase().includes(customerLower)
-          ),
+            isOurs(timesheet.customer || timesheet.visitName)),
+          parts: (results.parts || []).filter(p => anyOurs(p.customers)),
+          boards: (results.boards || []).filter(b => anyOurs(b.customers)),
+          diagrams: (results.diagrams || []).filter(d => isOurs(d.customer)),
+          partsOrders: (results.partsOrders || []).filter(o => isOurs(o.customer)),
           headHistory: results.headHistory || [],
         };
         filteredResults.totalResults =
           filteredResults.jobs.length + filteredResults.issues.length +
           filteredResults.timesheets.length + filteredResults.parts.length +
-          filteredResults.boards.length + filteredResults.diagrams.length;
+          filteredResults.boards.length + filteredResults.diagrams.length +
+          filteredResults.partsOrders.length;
         setSearchResults(filteredResults);
       } else {
         setSearchResults(results);
@@ -298,7 +303,10 @@ function App() {
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, searchScope, selectedCustomer]);
+    // customerRecords is a dependency because the customer scope is decided
+    // against it: they arrive a moment after a customer is picked, and a search
+    // filtered before they landed would quietly drop rows that do belong.
+  }, [searchTerm, searchScope, selectedCustomer, customerRecords]);
 
   // Save search state to localStorage for persistence across tab switches
   useEffect(() => {
@@ -448,6 +456,55 @@ function App() {
     ]);
     setCustomerData(data);
     setCustomerRecords(records);
+  };
+
+  // Upload a parts list exported from the Parts Viewer.
+  //
+  // Filed against the customer whose page it was dropped on — deliberately not
+  // the `customer` field inside the file, which is whatever the viewer happened
+  // to be showing and reads "Multiple Customers (6)" in every real export. The
+  // person uploading is looking at the plant's name while they do it; the file
+  // is not.
+  const handleUploadPartsOrder = async (files) => {
+    const record = matchCustomer(selectedCustomer, customerRecords);
+    const done = [];
+    const failed = [];
+    for (const file of files) {
+      try {
+        const data = JSON.parse(await file.text());
+        const { order, error } = readOrderExport(data, {
+          customer: record?.name || selectedCustomer,
+          customerId: record?.id || '',
+          fileName: file.name,
+        });
+        if (error) { failed.push(`${file.name}: ${error}`); continue; }
+        await savePartsOrder(order);
+        done.push(`${file.name}: ${order.itemCount} lines, ${order.totalQuantity} parts`);
+      } catch (err) {
+        failed.push(`${file.name}: ${err?.message || 'could not be read'}`);
+      }
+    }
+    // Re-read so the new orders are on screen, rather than asking somebody to
+    // reload to see the thing they just did.
+    if (done.length) {
+      const data = await fetchCustomerData(selectedCustomer);
+      setCustomerData(data);
+    }
+    return [
+      done.length ? `Saved ${done.length} order${done.length === 1 ? '' : 's'}. ${done.join(' · ')}` : '',
+      failed.length ? `Not saved — ${failed.join(' · ')}` : '',
+    ].filter(Boolean).join(' ');
+  };
+
+  const handleDeletePartsOrder = async (order) => {
+    if (!order?.id) return;
+    if (!window.confirm(
+      `Remove the parts order from ${order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : 'this date'}`
+      + ` (${order.itemCount} lines) from ${selectedCustomer}?\n\n`
+      + 'The order itself is not cancelled — this only removes the record here.'
+    )) return;
+    await deletePartsOrder(order.id);
+    setCustomerData(await fetchCustomerData(selectedCustomer));
   };
 
   // File a job against a different customer.
@@ -700,6 +757,18 @@ function App() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Push job numbers out to the apps that cannot read them.
+  //
+  // The Jobs Tracker creates numbers of its own and publishes nowhere, so a
+  // timesheet could not offer a number until the dashboard was next used for
+  // something else. The dashboard is the only app signed into all four
+  // projects, so being open IS the sync — it checks on load and republishes
+  // only if the copies have fallen behind.
+  //
+  // Deliberately not awaited and never surfaced: this is housekeeping for other
+  // apps, and nothing on this screen depends on it.
+  useEffect(() => { syncDirectories(); }, []);
 
   // Real-time updates: when jobs or timesheets change in Firestore, the
   // dashboard quietly refreshes itself without blanking the page.
@@ -1731,6 +1800,8 @@ function App() {
             onLinkCustomer={handleLinkCustomer}
             onMoveJob={handleMoveJob}
             moveTargets={customers.map((c) => c.name)}
+            onUploadPartsOrder={handleUploadPartsOrder}
+            onDeletePartsOrder={handleDeletePartsOrder}
           />
         )}
 

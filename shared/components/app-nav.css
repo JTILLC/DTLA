@@ -17,6 +17,14 @@
   /* One row, always. Wrapping is what turned eight tabs into three stacked
      rows on a phone and pushed the content off the screen. */
   overflow-x: auto;
+  /* Its sideways scrolling stops at its own edge.
+   *
+   * Without this, a swipe that runs off the end of the strip hands the rest of
+   * the gesture to the page — so scrolling a long list with a thumb, with the
+   * finger passing over the tabs and never quite vertical, slid the whole
+   * screen left and right. `contain` keeps the overscroll inside the strip;
+   * the strip still scrolls exactly as it did. */
+  overscroll-behavior-x: contain;
   flex-wrap: nowrap;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;

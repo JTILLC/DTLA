@@ -1,32 +1,14 @@
 // src/components/TimeSheet/SavedEntriesTable.jsx
 import React from 'react';
 import { useTimeSheet } from '../../context/TimeSheetContext';
+import { formatDateWithDay } from '../../utils/dateUtils';
 
 function SavedEntriesTable({ onEdit, onDelete }) {
   const context = useTimeSheet();
   if (!context) {
-    console.error('TimeSheetContext is undefined');
     return <div>Error: Time Sheet context is unavailable. Please try refreshing the page.</div>;
   }
   const { entries } = context;
-
-  // Format date as Day MM/DD/YY using UTC to avoid timezone issues
-  const formatDate = (dateString) => {
-    try {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(Date.UTC(year, month - 1, day)); // Use UTC
-      if (isNaN(date.getTime())) throw new Error('Invalid date');
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const dayName = days[date.getUTCDay()];
-      const formattedMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const formattedDay = String(date.getUTCDate()).padStart(2, '0');
-      const yearShort = String(date.getUTCFullYear()).slice(-2);
-      return `${dayName} ${formattedMonth}/${formattedDay}/${yearShort}`;
-    } catch (error) {
-      console.error('Error formatting date:', dateString, error);
-      return 'Invalid Date';
-    }
-  };
 
   // Calculate hours for each entry
   const calculateEntryHours = (entry) => {
@@ -40,12 +22,12 @@ function SavedEntriesTable({ onEdit, onDelete }) {
       if (entry.travel?.to?.active) {
         const [startHour, startMinute] = entry.travel.to.start.split(':').map(Number);
         const [endHour, endMinute] = entry.travel.to.end.split(':').map(Number);
-        travelHours += (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60;
+        travelHours += Math.max(0, (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60);
       }
       if (entry.travel?.home?.active) {
         const [startHour, startMinute] = entry.travel.home.start.split(':').map(Number);
         const [endHour, endMinute] = entry.travel.home.end.split(':').map(Number);
-        travelHours += (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60;
+        travelHours += Math.max(0, (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60);
       }
 
       // Calculate work hours
@@ -53,10 +35,13 @@ function SavedEntriesTable({ onEdit, onDelete }) {
       if (entry.onsite?.active && !entry.travelOnly) {
         const [startHour, startMinute] = entry.onsite.start.split(':').map(Number);
         const [endHour, endMinute] = entry.onsite.end.split(':').map(Number);
-        workHours = (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60;
+        workHours = Math.max(0, (endHour * 60 + endMinute - (startHour * 60 + startMinute)) / 60);
+        // Subtract lunch duration if lunch was taken
         if (entry.lunch) {
-          workHours -= Number(entry.lunchDuration) || 0;
+          const lunchHours = parseFloat(entry.lunchDuration) || 0.5;
+          workHours -= lunchHours;
         }
+        workHours = Math.max(0, workHours);
       }
 
       // Determine day type
@@ -90,7 +75,6 @@ function SavedEntriesTable({ onEdit, onDelete }) {
         total: total.toFixed(2),
       };
     } catch (error) {
-      console.error('Error calculating hours for entry:', entry, error);
       return {
         travelHours: '0.00',
         straight: '0.00',
@@ -129,7 +113,7 @@ function SavedEntriesTable({ onEdit, onDelete }) {
                   const hours = calculateEntryHours(entry);
                   return (
                     <tr key={index} className="even:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-2">{formatDate(entry.date)}</td>
+                      <td className="border border-gray-300 px-4 py-2">{formatDateWithDay(entry.date)}</td>
                       <td className="border border-gray-300 px-4 py-2">
                         {entry.travel?.to?.active ? `${entry.travel.to.start}-${entry.travel.to.end}` : 'N/A'}
                       </td>
@@ -175,7 +159,7 @@ function SavedEntriesTable({ onEdit, onDelete }) {
               return (
                 <div key={index} className="bg-white border border-gray-300 rounded-lg p-4 shadow-sm">
                   <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-semibold text-lg text-blue-600">{formatDate(entry.date)}</h4>
+                    <h4 className="font-semibold text-lg text-blue-600">{formatDateWithDay(entry.date)}</h4>
                     <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded">
                       {hours.total} hrs
                     </span>

@@ -1063,6 +1063,26 @@ const Line = ({ line, updateLine, removeLine, resetLine, isVisible, exportLineTo
       <div className="notes-container">
         <label><strong>Notes:</strong></label>
         <textarea name="notes" rows="4" value={localLine.notes} onChange={handleChange} />
+        {/* Photos for the LINE, not for a head.
+            Plenty of what gets noticed on a walk round belongs to the machine
+            rather than to one weigh head — a guard left off, a leaking hose, a
+            cabinet full of water — and until now the only way to photograph it
+            was to pick a head that had nothing to do with it and hang the
+            picture there. Same uploader, same offline queue and write-back as
+            the head photos; only the storage folder differs. */}
+        <IssuePhotos
+          photos={localLine.photos}
+          onChange={(next) => {
+            const updated = { ...localLine, photos: next };
+            setLocalLine(updated);
+            updateLine(updated);
+          }}
+          pathBase={`issue-photos/${userId}/${customerId}/${visitId}/${line.id}/line`}
+          docPath={visitDocPath}
+          disabled={photosDisabled}
+          disabledReason="Save the visit first before adding photos"
+          isDark={isDark}
+        />
       </div>
       <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
         <button onClick={() => exportLineToPDF(line)} className="btn btn-success">

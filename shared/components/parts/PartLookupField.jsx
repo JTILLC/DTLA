@@ -153,6 +153,21 @@ export default function PartLookupField({
     setOpen(false);
   };
 
+  // Put the typed number on the list and clear the box for the next one.
+  //
+  // Parts picked from a manual could always stack up — the browser adds them to
+  // `extras` — but a TYPED one could not, so a line with no manual bound to it
+  // (or a part the manual has never heard of) was limited to one part per
+  // replacement. That is not how the job goes: a water-damaged head takes the
+  // amp and the load cell out together.
+  const addTyped = () => {
+    const code = String(value || '').trim();
+    if (!code) return;
+    onExtras?.([...extras, { partCode: code, qty: clampQty(typedQty, null) || 1 }]);
+    onChange('');
+    onTypedQty?.(1);
+  };
+
   // Taking a part back off the replacement. Always asks: the ✕ sits beside a
   // quantity stepper, and a mis-tap that silently drops a part from the record
   // is not recoverable by undo.
@@ -261,6 +276,25 @@ export default function PartLookupField({
               >+</button>
             </div>
           </div>
+          {/* Only when the caller keeps a list. Without `onExtras` this field
+              records a single part and offering to add a second would promise
+              something the log cannot hold. */}
+          {onExtras && (
+            <div className="pui-picked-row">
+              <button
+                type="button"
+                className="pui-btn pui-btn-link pui-p-0"
+                disabled={disabled}
+                onClick={addTyped}
+                title="Put this part on the list and type another"
+              >
+                {/* Says what it is about to add, and how many. The count sits
+                    in a stepper directly above; reading it back is what stops
+                    a 1 that should have been a 4 reaching the log. */}
+                + Add {clampQty(typedQty, null) || 1} × {value.trim()}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -334,7 +368,10 @@ export default function PartLookupField({
       {open && matches.length > 0 && (
         <div
           className="pui-list-group pui-position-absolute pui-w-100 pui-shadow"
-          style={{ zIndex: 1050, maxHeight: '240px', overflowY: 'auto' }}
+          // Above the phone action bar, which is also 1050 and comes later in
+          // the document — so it won the tie and painted the Log button across
+          // the suggestions.
+          style={{ zIndex: 1060, maxHeight: '240px', overflowY: 'auto' }}
         >
           {matches.map((p) => (
             <button

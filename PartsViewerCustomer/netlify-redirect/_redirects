@@ -1,0 +1,12 @@
+# This site has moved to Cloudflare Pages.
+#
+# jti-ipm.netlify.app and jti-parts.pages.dev were two deployments of the same
+# app, and the app itself has always written jti-parts.pages.dev into the share
+# links it hands out. Keeping both meant deploying twice and paying Netlify for
+# the copy nobody was pointed at.
+#
+# So this site is now nothing but a forwarder. The path is carried across, so an
+# old bookmark or a /view/<token> link somebody was sent still lands on the
+# right diagram rather than on a home page. 301 because the move is permanent —
+# browsers and anything that crawled a link will learn the new address.
+/*    https://jti-parts.pages.dev/:splat    301!

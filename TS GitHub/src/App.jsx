@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useSearchParams } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimeSheetProvider, useTimeSheet } from './context/TimeSheetContext';
 import TimeSheet from './components/TimeSheet/TimeSheet';
 import ServiceReportPage from './pages/ServiceReportPage';
 import InvoicePage from './pages/InvoicePage';
+import LoginScreen from './components/LoginScreen';
 import './index.css';
 import Layout from './components/Layout';
 
@@ -15,7 +17,6 @@ function DeepLinkHandler() {
   useEffect(() => {
     const docId = searchParams.get('id') || searchParams.get('docId');
     if (docId) {
-      console.log('Deep linking to timesheet:', docId);
       loadFromHistory(docId);
     }
   }, [searchParams, loadFromHistory]);
@@ -23,40 +24,55 @@ function DeepLinkHandler() {
   return null;
 }
 
-function App() {
+function AppContent() {
+  const { user, loading, logout } = useAuth();
+
   // Dark mode state - defaults to dark
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('timesheet-theme');
-    const initialTheme = saved ? saved === 'dark' : true; // Default to dark mode
-    console.log('[Theme] Initial theme from localStorage:', saved, '-> isDark:', initialTheme);
-    return initialTheme;
+    return saved ? saved === 'dark' : true;
   });
 
-  // Apply theme on mount and when isDark changes
   useEffect(() => {
     const theme = isDark ? 'dark' : 'light';
-    console.log('[Theme] Setting theme to:', theme);
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('timesheet-theme', theme);
   }, [isDark]);
 
-  const toggleDarkMode = () => {
-    console.log('[Theme] Toggling from', isDark ? 'dark' : 'light', 'to', !isDark ? 'dark' : 'light');
-    setIsDark(!isDark);
-  };
+  const toggleDarkMode = () => setIsDark(!isDark);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   return (
+    <TimeSheetProvider>
+      <DeepLinkHandler />
+      <Layout isDark={isDark} toggleDarkMode={toggleDarkMode} onLogout={logout}>
+        <Routes>
+          <Route path="/" element={<TimeSheet />} />
+          <Route path="/service-report" element={<ServiceReportPage />} />
+          <Route path="/invoice" element={<InvoicePage />} />
+        </Routes>
+      </Layout>
+    </TimeSheetProvider>
+  );
+}
+
+function App() {
+  return (
     <Router>
-      <TimeSheetProvider>
-        <DeepLinkHandler />
-        <Layout isDark={isDark} toggleDarkMode={toggleDarkMode}>
-          <Routes>
-            <Route path="/" element={<TimeSheet />} />
-            <Route path="/service-report" element={<ServiceReportPage />} />
-            <Route path="/invoice" element={<InvoicePage />} />
-          </Routes>
-        </Layout>
-      </TimeSheetProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

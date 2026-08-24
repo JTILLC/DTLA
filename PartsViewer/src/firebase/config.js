@@ -1,5 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 
 // Firebase configuration - Using environment variables for security
 // These are set in .env for local development and in Netlify environment variables for production
@@ -18,5 +20,11 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 
 // Initialize Firestore
 export const db = getFirestore(app);
+
+// Initialize Firebase Storage (for images/PDFs)
+export const storage = getStorage(app);
+
+// Initialize Firebase Auth
+export const auth = getAuth(app);
 
 export default app;

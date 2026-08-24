@@ -7,13 +7,14 @@ import logo from "../assets/logo.png";
 import autoTable from 'jspdf-autotable';
 import { calculateCharges } from '../utils/calculations';
 import PDFPreview from '../components/PDFPreview/PDFPreview';
+import { LABOR_RATES, TRAVEL_RATES, PER_DIEM_RATES, COMPANY_INFO, DEFAULTS } from '../config/constants';
+import { formatDateWithDay } from '../utils/dateUtils';
 
 function ServiceReportPage() {
   const context = useTimeSheet();
   const navigate = useNavigate();
 
   if (!context) {
-    console.error('TimeSheetContext is undefined');
     return (
       <div className="p-4 text-red-600">
         Error: Time Sheet context is unavailable. Please try refreshing the page.
@@ -37,18 +38,9 @@ function ServiceReportPage() {
     (charges.travelChargesSubtotal || 0) +
     ((charges.travel && charges.travel.travelExpensesSubtotal) || 0);
 
-  const formatDate = (dateString) => {
-    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return 'N/A';
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    if (isNaN(date.getTime())) return 'N/A';
-    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    return `${days[date.getDay()]} ${String(month).padStart(2,'0')}/${String(day).padStart(2,'0')}/${String(year).slice(-2)}`;
-  };
-
   const getReportDate = () =>
     entries.length && entries[0].date
-      ? formatDate(entries[0].date)
+      ? formatDateWithDay(entries[0].date)
       : 'N/A';
 
   const generatePDF = async (preview = false) => {
@@ -60,13 +52,11 @@ function ServiceReportPage() {
       const colW = (pageWidth - marginX * 2 - gap) / 2;
       let y = 10;
 
-      // Load logo as data URI
-      console.log('[ServiceReport] Logo URL:', logo);
-      const logoDataURI = await new Promise((resolve) => {
+      // Load logo as data URI, preserving its natural aspect ratio
+      const logoData = await new Promise((resolve) => {
         const img = new Image();
 
         const timeout = setTimeout(() => {
-          console.warn('[ServiceReport] Logo load timeout, continuing without logo');
           resolve(null);
         }, 3000);
 
@@ -79,17 +69,14 @@ function ServiceReportPage() {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0);
             const dataUrl = canvas.toDataURL('image/png');
-            console.log('[ServiceReport] Logo loaded successfully as data URI');
-            resolve(dataUrl);
+            resolve({ dataUrl, width: img.width, height: img.height });
           } catch (err) {
-            console.error('[ServiceReport] Error converting logo to data URI:', err);
             resolve(null);
           }
         };
 
-        img.onerror = (err) => {
+        img.onerror = () => {
           clearTimeout(timeout);
-          console.error('[ServiceReport] Error loading logo image:', err);
           resolve(null);
         };
 
@@ -97,22 +84,32 @@ function ServiceReportPage() {
         img.src = logo;
       });
 
-      // Header - only add logo if it loaded successfully
-      if (logoDataURI) {
+      // Header - only add logo if it loaded successfully.
+      // Fit it into a 37.5mm-wide box while preserving the natural aspect ratio.
+      if (logoData) {
         try {
-          doc.addImage(logoDataURI, 'PNG', pageWidth - 52.5, 10, 37.5, 11.25);
+          const maxW = 37.5;  // mm
+          const maxH = 18;    // mm ceiling so the logo doesn't dominate the header
+          const aspect = logoData.width / logoData.height;
+          let w = maxW;
+          let h = w / aspect;
+          if (h > maxH) {
+            h = maxH;
+            w = h * aspect;
+          }
+          doc.addImage(logoData.dataUrl, 'PNG', pageWidth - 10 - w, 10, w, h);
         } catch (err) {
-          console.error('[ServiceReport] Error adding logo to PDF:', err);
+          // Logo failed to load, continue without it
         }
       }
       doc.setTextColor(0, 0, 255);
       doc.setFontSize(8);
-      doc.text('Joshua Todd Industries, LLC Service Report', marginX, y);
+      doc.text(`${COMPANY_INFO.name} Service Report`, marginX, y);
       y += 3;
       doc.setFontSize(7);
-      doc.text(`Email: josh@jtiaz.com`, marginX, y);
+      doc.text(`Email: ${COMPANY_INFO.email}`, marginX, y);
       y += 3;
-      doc.text('Phone: (623) 300-6445', marginX, y);
+      doc.text(`Phone: ${COMPANY_INFO.phone}`, marginX, y);
       y += 3;
       doc.text(`Date: ${getReportDate()}`, marginX, y);
       y += 3;
@@ -166,7 +163,7 @@ function ServiceReportPage() {
       doc.text('Service Work Details', marginX, y);
       y += 3;
       const workRows = entries.map(e => [
-        formatDate(e.date),
+        formatDateWithDay(e.date),
         serviceReportData?.[e.date] || 'No description'
       ]);
       if (workRows.length) {
@@ -200,14 +197,20 @@ function ServiceReportPage() {
         const onSite = entry.onsite?.active && entry.onsite.start && entry.onsite.end
           ? `${entry.onsite.start}-${entry.onsite.end}`
           : 'N/A';
-        const workHours = entry.onsite?.active && entry.onsite.start && entry.onsite.end
+        // Calculate work hours and subtract lunch if taken
+        let workHours = entry.onsite?.active && entry.onsite.start && entry.onsite.end
           ? ((new Date(`1970-01-01T${entry.onsite.end}:00Z`) - new Date(`1970-01-01T${entry.onsite.start}:00Z`)) / 3600000)
           : 0;
+        // Subtract lunch duration if lunch was taken
+        if (entry.lunch && workHours > 0) {
+          const lunchHours = parseFloat(entry.lunchDuration) || 0.5;
+          workHours -= lunchHours;
+        }
         const travelHours =
           (entry.travel?.to?.active ? (new Date(`1970-01-01T${entry.travel.to.end}:00Z`) - new Date(`1970-01-01T${entry.travel.to.start}:00Z`)) / 3600000 : 0) +
           (entry.travel?.home?.active ? (new Date(`1970-01-01T${entry.travel.home.end}:00Z`) - new Date(`1970-01-01T${entry.travel.home.start}:00Z`)) / 3600000 : 0);
         return [
-          formatDate(entry.date),
+          formatDateWithDay(entry.date),
           travelTo,
           onSite,
           travelHome,
@@ -225,11 +228,7 @@ function ServiceReportPage() {
           theme: 'grid',
           styles: { fontSize: 6, cellPadding: 1 },
           headStyles: { fillColor: [200, 200, 200], fontSize: 6 },
-          margin: { left: marginX, right: marginX },
-          columnStyles: {
-            0: { cellWidth: 20 }, 1: { cellWidth: 25 }, 2: { cellWidth: 25 }, 3: { cellWidth: 25 },
-            4: { cellWidth: 20 }, 5: { cellWidth: 20 }, 6: { cellWidth: 28 }, 7: { cellWidth: 20 }
-          }
+          margin: { left: marginX, right: marginX }
         });
         y = doc.lastAutoTable.finalY + 5;
       }
@@ -246,9 +245,9 @@ function ServiceReportPage() {
         tableWidth: colW,
         head: [['Category','Hours','Rate','Charge']],
         body: [
-          ['Straight', (charges.straight?.hours ?? 0).toFixed(2), '$120', `$${(charges.straight?.charge ?? 0).toFixed(2)}`],
-          ['Sat/OT', (charges.overtime?.hours ?? 0).toFixed(2), '$180', `$${(charges.overtime?.charge ?? 0).toFixed(2)}`],
-          ['Sun/Hol', (charges.double?.hours ?? 0).toFixed(2), '$240', `$${(charges.double?.charge ?? 0).toFixed(2)}`],
+          ['Straight', (charges.straight?.hours ?? 0).toFixed(2), `$${LABOR_RATES.STRAIGHT}`, `$${(charges.straight?.charge ?? 0).toFixed(2)}`],
+          ['Sat/OT', (charges.overtime?.hours ?? 0).toFixed(2), `$${LABOR_RATES.OVERTIME}`, `$${(charges.overtime?.charge ?? 0).toFixed(2)}`],
+          ['Sun/Hol', (charges.double?.hours ?? 0).toFixed(2), `$${LABOR_RATES.DOUBLE}`, `$${(charges.double?.charge ?? 0).toFixed(2)}`],
           ['Subtotal','','', `$${(charges.laborSubtotal ?? 0).toFixed(2)}`]
         ],
         theme: 'grid',
@@ -265,9 +264,9 @@ function ServiceReportPage() {
         tableWidth: colW,
         head: [['Category','Hours','Rate','Charge']],
         body: [
-          ['Weekday', (charges.weekdayTravel?.hours ?? 0).toFixed(2), '$80', `$${(charges.weekdayTravel?.charge ?? 0).toFixed(2)}`],
-          ['Saturday', (charges.saturdayTravel?.hours ?? 0).toFixed(2), '$120', `$${(charges.saturdayTravel?.charge ?? 0).toFixed(2)}`],
-          ['Sun/Hol', (charges.sundayTravel?.hours ?? 0).toFixed(2), '$160', `$${(charges.sundayTravel?.charge ?? 0).toFixed(2)}`],
+          ['Weekday', (charges.weekdayTravel?.hours ?? 0).toFixed(2), `$${TRAVEL_RATES.WEEKDAY}`, `$${(charges.weekdayTravel?.charge ?? 0).toFixed(2)}`],
+          ['Saturday', (charges.saturdayTravel?.hours ?? 0).toFixed(2), `$${TRAVEL_RATES.SATURDAY}`, `$${(charges.saturdayTravel?.charge ?? 0).toFixed(2)}`],
+          ['Sun/Hol', (charges.sundayTravel?.hours ?? 0).toFixed(2), `$${TRAVEL_RATES.SUNDAY_HOLIDAY}`, `$${(charges.sundayTravel?.charge ?? 0).toFixed(2)}`],
           ['Subtotal','','', `$${(charges.travelChargesSubtotal ?? 0).toFixed(2)}`]
         ],
         theme: 'grid',
@@ -287,8 +286,8 @@ function ServiceReportPage() {
         tableWidth: colW,
         head: [['Category','Amount','Details']],
         body: [
-          ['Per Diem', `$${(charges?.travel?.perDiemTotal ?? 0).toFixed(2)}`, `${travelData.perDiemType === 'local' ? '$65/day' : '$220/day'} x ${travelData.perDiemDays ?? 0}`],
-          ['Mileage', `$${(charges?.travel?.mileageTotal ?? 0).toFixed(2)}`, `${travelData.mileage ?? 0} miles at $0.63`],
+          ['Per Diem', `$${(charges?.travel?.perDiemTotal ?? 0).toFixed(2)}`, `${travelData.perDiemType === 'local' ? `$${PER_DIEM_RATES.LOCAL}/day` : `$${PER_DIEM_RATES.NON_LOCAL}/day`} x ${travelData.perDiemDays ?? 0}`],
+          ['Mileage', `$${(charges?.travel?.mileageTotal ?? 0).toFixed(2)}`, `${travelData.mileage ?? 0} miles at $${(charges?.travel?.mileageRate ?? DEFAULTS.MILEAGE_RATE).toFixed(2)}`],
           ['Auto/Taxi', `$${(charges?.travel?.otherTravel ?? 0).toFixed(2)}`, ''],
           ['Airfare', `$${(charges?.travel?.airTravel ?? 0).toFixed(2)}`, `To: ${travelData.airTravel?.destination ?? ''}, From: ${travelData.airTravel?.origin ?? ''}, Return: ${travelData.airTravel?.return ?? ''}`],
           ['Subtotal', `$${(charges?.travel?.travelExpensesSubtotal ?? 0).toFixed(2)}`, '']
@@ -345,8 +344,7 @@ function ServiceReportPage() {
         doc.save('JoshuaToddIndustriesServiceReport.pdf');
       }
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Failed to generate PDF. See console for details.');
+      alert('Failed to generate PDF. Please try again.');
     }
   };
 

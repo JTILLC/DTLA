@@ -1,6 +1,6 @@
-import { collection, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, collectionGroup, getDocs, query, where, orderBy, limit, doc, deleteDoc, updateDoc, getDoc, setDoc, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { showsWithoutEntries } from './utils/timesheetVisibility.js';
-import { matchPackets, matchCustomerRecords } from './utils/searchExtras.js';
+import { matchPackets, matchCustomerRecords, matchReservedJobs } from './utils/searchExtras.js';
 import { normalizeDraft } from './utils/jobDraft.js';
 import { recordFailure, recordSuccess } from './utils/dataHealth.js';
 import { duplicateIds } from './utils/jobMirror.js';
@@ -8,10 +8,15 @@ import { sumIncome } from './utils/payments.js';
 import { toTrackerJob } from './utils/toTrackerJob.js';
 import { ref, getDownloadURL, getBlob, uploadBytes, deleteObject } from 'firebase/storage';
 import { ref as dbRef, get } from 'firebase/database';
-import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth } from './firebase-config';
+import { ccwIssuesDb, jobsMasterDb, timesheetDb, jobsStorage, ccwIssuesStorage, shearersRealtimeDb, ccwIssuesAuth, jobsMasterAuth, timesheetAuth } from './firebase-config';
 import serviceLog from './components/Troubleshoot/serviceLog.json';
+import { openJobIndex, copyIsStale } from './utils/directorySync';
 import { isPaid, jobAmount} from './utils/format';
-import { matchCustomer, consolidateCustomers, normalizeCustomerName } from '@shared/utils/customerMatch.js';
+import { matchCustomer, consolidateCustomers, normalizeCustomerName, belongsToCustomer } from '@shared/utils/customerMatch.js';
+import { byNewest, orderMatches, matchingLines } from './utils/partsOrder.js';
+import { issueTypes, headFixedStatus, FIXED_STATUS } from './utils/headIssue.js';
+import { byNewestSr } from './utils/srOrder.js';
+import { normalizeSr } from '@shared/utils/srMatch.js';
 import { customerDefaults, missingDefaults } from '@shared/utils/customerDefaults.js';
 
 // ============================================
@@ -138,6 +143,8 @@ const dataCache = {
   headHistory: null,
   inventory: null,
   partsManual: null,
+  partsOrders: null,
+  serviceQuotes: null,
   timestamps: {}
 };
 
@@ -154,14 +161,25 @@ const setCache = (key, data) => {
   dataCache.timestamps[key] = Date.now();
 };
 
-// Export cache clearing function for manual refresh
-export const clearDataCache = () => {
+// Export cache clearing function for manual refresh.
+//
+// One key when something specific has just been written — uploading a parts
+// order should not throw away the jobs and timesheets that were just fetched —
+// and everything when the Refresh button is pressed.
+export const clearDataCache = (key) => {
+  if (key) {
+    dataCache[key] = null;
+    delete dataCache.timestamps[key];
+    return;
+  }
   dataCache.jobs = null;
   dataCache.downtime = null;
   dataCache.timesheets = null;
   dataCache.headHistory = null;
   dataCache.inventory = null;
   dataCache.partsManual = null;
+  dataCache.partsOrders = null;
+  dataCache.serviceQuotes = null;
   dataCache.timestamps = {};
 };
 
@@ -309,7 +327,7 @@ export const fetchJobsData = async () => {
     // only some screens honoured would be worse than none.
     const overrides = await fetchJobCustomerOverrides();
     const jobs = overrides.size === 0 ? allJobs : allJobs.map((job) => {
-      const to = overrides.get(srKey(job.sr || job.invoiceNumber));
+      const to = overrides.get(normalizeSr(job.sr || job.invoiceNumber));
       return to ? { ...job, customer: to, customerName: to, customerCorrected: true } : job;
     });
 
@@ -368,15 +386,13 @@ export const fetchJobsData = async () => {
 // was Oakland or Portland, and only somebody who was there knows.
 export const JOB_CUSTOMER_OVERRIDES = 'unified_job_customer_overrides';
 
-const srKey = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
-
 export const fetchJobCustomerOverrides = async () => {
   try {
     const snap = await getDocs(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES));
     const map = new Map();
     snap.docs.forEach((d) => {
       const v = d.data() || {};
-      if (v.customer) map.set(srKey(v.sr || d.id), v.customer);
+      if (v.customer) map.set(normalizeSr(v.sr || d.id), v.customer);
     });
     return map;
   } catch (error) {
@@ -388,7 +404,7 @@ export const fetchJobCustomerOverrides = async () => {
 
 /** File this service report's job against a different customer. */
 export const setJobCustomer = async (sr, customer, note = '') => {
-  const key = srKey(sr);
+  const key = normalizeSr(sr);
   if (!key) throw new Error('A service report number is required.');
   if (!String(customer || '').trim()) throw new Error('A customer is required.');
   await setDoc(doc(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES), key), {
@@ -403,7 +419,78 @@ export const setJobCustomer = async (sr, customer, note = '') => {
 
 /** Undo a correction — the job goes back to whatever the Jobs Tracker says. */
 export const clearJobCustomer = async (sr) => {
-  await deleteDoc(doc(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES), srKey(sr)));
+  await deleteDoc(doc(collection(jobsMasterDb, JOB_CUSTOMER_OVERRIDES), normalizeSr(sr)));
+  clearDataCache();
+  return true;
+};
+
+// ============================================
+// Numbers set aside
+// ============================================
+//
+// Not every number in the list is one you will ever file anything against. A
+// number typed wrong years ago, a test, one voided before the work happened,
+// a variant like 2026014LF1 that duplicates its parent — they are all real
+// history, so deleting them is wrong: the number WAS used, and a gap invites
+// somebody to hand it out again.
+//
+// So they are set aside instead. The number keeps existing, keeps being
+// reserved, and keeps showing on a screen that asks for it — it just stops
+// being offered as somewhere to file work, and it carries the reason it was
+// put aside, which is the part a person actually needs six months later.
+//
+// Reversible on purpose, and the reason is kept when it is brought back: this
+// is a judgement about a number, and judgements get revisited.
+export const EXCLUDED_REPORTS = 'unified_excluded_reports';
+
+/** Numbers set aside, keyed by comparison form. */
+export const fetchExcludedReports = async () => {
+  try {
+    const snap = await getDocs(collection(jobsMasterDb, EXCLUDED_REPORTS));
+    const map = new Map();
+    snap.docs.forEach((d) => {
+      const v = d.data() || {};
+      map.set(normalizeSr(v.sr || d.id), {
+        sr: v.sr || d.id,
+        reason: v.reason || '',
+        at: v.at || '',
+      });
+    });
+    return map;
+  } catch (error) {
+    console.error('Error fetching set-aside numbers:', error);
+    recordFailure('set-aside numbers', error);
+    // An empty map means "nothing is hidden", which shows MORE than it should
+    // rather than less. Hiding a number because the list failed to load would
+    // be the wrong way round.
+    return new Map();
+  }
+};
+
+/**
+ * Set a number aside, with the reason it should not be filed against.
+ *
+ * The reason is required. "Hidden" with no explanation is a decision nobody
+ * can check later, and this list is exactly the place that matters.
+ */
+export const setReportExcluded = async (sr, reason) => {
+  const key = normalizeSr(sr);
+  if (!key) throw new Error('A service report number is required.');
+  const why = String(reason || '').trim();
+  if (!why) throw new Error('Say why this number is being set aside.');
+  await setDoc(doc(collection(jobsMasterDb, EXCLUDED_REPORTS), key), {
+    sr: String(sr).trim(),
+    reason: why,
+    at: new Date().toISOString(),
+    by: ccwIssuesAuth.currentUser?.email || '',
+  });
+  clearDataCache();
+  return true;
+};
+
+/** Put a number back in play. */
+export const clearReportExcluded = async (sr) => {
+  await deleteDoc(doc(collection(jobsMasterDb, EXCLUDED_REPORTS), normalizeSr(sr)));
   clearDataCache();
   return true;
 };
@@ -451,12 +538,25 @@ export const fetchDowntimeData = async () => {
                 customerIssues.push({
                   id: `${visitDoc.id}-${line.title || line.name || 'line'}-${head.name || head.id || 'head'}`,
                   customer: customerName,
+                  // The CCW customer id, so a link back to this issue opens the
+                  // visit directly instead of making that app search every
+                  // plant it has for the id.
+                  customerId: customerDoc.id,
+                  // The visit's service report number, so a customer's issues
+                  // sort in the same order as everything else on their page.
+                  sr: visitData.globalData?.serviceReportNumber || visitData.serviceReportNumber || '',
                   line: line.title || line.name || 'Unknown Line',
                   visitId: visitDoc.id,
                   date: visitData.date,
                   headName: head.name || head.id,
                   status: head.status,
-                  error: head.error || head.errorMessage || 'No error info',
+                  // Read the way CCW reads it: a head carries an `issues`
+                  // list, and the top-level error/fixed pair is legacy. Reading
+                  // the pair reported a fixed "Other" fault as "Error: None,
+                  // Not Fixed" while the app it came from showed otherwise.
+                  error: issueTypes(head),
+                  fixedStatus: headFixedStatus(head),
+                  // Kept so anything still reading the old field keeps working.
                   fixed: head.fixed
                 });
               }
@@ -549,6 +649,123 @@ export const fetchPartsManualDiagrams = async () => {
   }
 };
 
+// Parts ORDERS — what was actually ordered for a plant, and when.
+//
+// Built in the Parts Viewer, which until now only offered them as a JSON
+// download. Filed by hand into an iCloud folder named after the plant, they
+// answered "what did we order for Flagstone in April?" on exactly one laptop.
+// Stored here, every app can ask.
+//
+// Same project as the diagrams they were picked from, so an order and the
+// manual behind it are never in two places.
+export const PARTS_ORDERS = 'parts-orders';
+
+export const fetchPartsOrders = async () => {
+  if (isCacheValid('partsOrders')) return dataCache.partsOrders;
+  try {
+    await waitForUser(jobsMasterAuth);
+    const snap = await getDocs(collection(jobsMasterDb, PARTS_ORDERS));
+    const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    setCache('partsOrders', orders);
+    return orders;
+  } catch (e) {
+    console.error('Error fetching parts orders:', e);
+    recordFailure('parts orders', e);
+    return [];
+  }
+};
+
+/** Store one order. Returns the stored record, id and all. */
+export const savePartsOrder = async (order) => {
+  const ref = await addDoc(collection(jobsMasterDb, PARTS_ORDERS), {
+    ...order,
+    createdAt: new Date().toISOString(),
+  });
+  // The cache holds a list that no longer matches the collection.
+  clearDataCache('partsOrders');
+  return { id: ref.id, ...order };
+};
+
+/** Remove one — an order uploaded twice, or filed against the wrong plant. */
+export const deletePartsOrder = async (id) => {
+  await deleteDoc(doc(jobsMasterDb, PARTS_ORDERS, id));
+  clearDataCache('partsOrders');
+  return true;
+};
+
+// Service quotes — what the job was priced at before it was done.
+//
+// Written by the Service Quote app into `service_quotes/{customerId}/quotes/{id}`,
+// and joined to a job by the `sr` field on the quote. That join used to be
+// makeable only in the quote app, by typing a service report number onto a
+// quote weeks after the fact; it can now be made from the job, which is where
+// somebody is actually standing when they know the answer.
+export const SERVICE_QUOTES = 'service_quotes';
+
+/** Every quote, with its total worked out. `sr` is '' until it is connected. */
+export const fetchServiceQuotes = async () => {
+  if (isCacheValid('serviceQuotes')) return dataCache.serviceQuotes;
+  try {
+    await waitForUser(jobsMasterAuth);
+    const snap = await getDocs(collectionGroup(jobsMasterDb, 'quotes'));
+    const quotes = snap.docs.map((d) => {
+      const q = d.data() || {};
+      const items = Array.isArray(q.items) ? q.items : [];
+      return {
+        // The full path IS the id: these are subcollection documents and the
+        // leaf id alone is not enough to write back to.
+        path: d.ref.path,
+        quoteNumber: q.quoteNumberValue || q.quoteNumber || '',
+        customer: q.customerName || '',
+        customerId: q.customerId || '',
+        sr: String(q.sr || '').trim(),
+        date: q.dateOfQuoteValue || q.dateOfQuote || '',
+        // The quoted figure is the sum of the line costs — the same arithmetic
+        // the quote itself prints. A line with no cost counts as nothing rather
+        // than breaking the total.
+        total: items.reduce((sum, it) => sum + (Number(it?.cost) || 0), 0),
+        itemCount: items.length,
+        // The chargeable lines themselves — service, rate, unit, quantity,
+        // cost. A total answers "am I over"; the lines answer "where", which is
+        // the question asked on site before agreeing to another day. Only the
+        // five fields that mean something downstream are carried, so a change
+        // to the quote app's own bookkeeping cannot bloat what is published.
+        items: items.map((it) => ({
+          service: String(it?.service || '').trim(),
+          rate: it?.rate ?? '',
+          unit: String(it?.unit || '').trim(),
+          quantity: Number(it?.quantity) || 0,
+          cost: Number(it?.cost) || 0,
+        })).filter((it) => it.service && (it.cost || it.quantity)),
+      };
+    });
+    setCache('serviceQuotes', quotes);
+    return quotes;
+  } catch (e) {
+    console.error('Error fetching service quotes:', e);
+    recordFailure('service quotes', e);
+    return [];
+  }
+};
+
+/**
+ * Connect a quote to a service report number — or disconnect it with ''.
+ *
+ * Writes the number onto the QUOTE, which is where the join has always lived,
+ * so the quote app and the dashboard keep agreeing about it rather than each
+ * holding half the answer.
+ */
+export const setQuoteSr = async (path, sr) => {
+  if (!path) throw new Error('Which quote?');
+  await setDoc(doc(jobsMasterDb, path), { sr: String(sr || '').trim() }, { merge: true });
+  clearDataCache('serviceQuotes');
+  // The timesheet budgets against the published figure, so a quote connected
+  // here is not much use until it has travelled. Fire-and-forget: the number is
+  // already saved, and the dashboard's next load re-checks anyway.
+  publishToTimesheet().catch((e) => console.warn('Quote connected, directory not updated:', e));
+  return true;
+};
+
 // Fetch Timesheet Data
 export const fetchTimesheetData = async () => {
   // Check cache first
@@ -632,8 +849,6 @@ export const fetchTimesheetData = async () => {
 // edited here, but one you typed should be.
 export const MANUAL_REPORTS = 'unified_manual_reports';
 
-const normalizeReportNumber = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
-
 export const fetchManualReports = async () => {
   const snap = await getDocs(collection(jobsMasterDb, MANUAL_REPORTS));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -660,7 +875,7 @@ export const saveManualReport = async ({ id, kind, number, customer, date, invoi
   const base = {
     kind,
     number: trimmedNumber,
-    norm: normalizeReportNumber(trimmedNumber),
+    norm: normalizeSr(trimmedNumber),
     customer: String(customer).trim(),
     date: date || '',
     invoiceNumber: String(invoiceNumber || '').trim(),
@@ -706,10 +921,9 @@ export const deleteManualReport = async (id) => {
 };
 
 export const fetchServiceReports = async () => {
-  // Normalize for the JOIN only (strip spaces/dashes, upper-case) so small
+  // normalizeSr for the JOIN only (strip spaces/dashes, upper-case) so small
   // formatting differences ("2025-016" vs "2025016") still match. Original text
   // is preserved for display.
-  const normalize = (n) => String(n || '').trim().replace(/[\s-]/g, '').toUpperCase();
   const yearOf = (norm) => { const m = /^(\d{4})/.exec(norm); return m ? m[1] : 'Other'; };
 
   try {
@@ -728,7 +942,7 @@ export const fetchServiceReports = async () => {
         kind: 'timesheet',
         id: t.id,
         number: raw,
-        norm: normalize(raw),
+        norm: normalizeSr(raw),
         customer: t.customer || t.customerInfo?.company || 'Unknown',
         customerInfo: t.customerInfo || {},
         invoiceInfo: t.invoiceInfo || {},
@@ -755,7 +969,7 @@ export const fetchServiceReports = async () => {
             customerId: customerName,
             customer: customerName,
             number: raw,
-            norm: normalize(raw),
+            norm: normalizeSr(raw),
             name: v.name || '',
             date: v.date || '',
             serviceReportUrl: v.serviceReportUrl || null,
@@ -779,7 +993,7 @@ export const fetchServiceReports = async () => {
         ...m,
         manual: true,
         kind: m.kind === 'invoice' ? 'manual-invoice' : 'manual-report',
-        norm: m.norm || normalize(m.number),
+        norm: m.norm || normalizeSr(m.number),
         // The two sides render different fields; give each the shape its
         // section already expects so nothing downstream special-cases them.
         ...(m.kind === 'invoice'
@@ -791,12 +1005,68 @@ export const fetchServiceReports = async () => {
       console.warn('Could not load manually entered reports:', e);
     }
 
+    // --- Validation certificates (MD Validation) ---
+    // Only ones stamped with a service report number can join; older
+    // certificates carry no number and no customer id, so they have nothing
+    // to join BY and are left out rather than guessed at.
+    let validations = [];
+    try {
+      const cols = [
+        ['metal_validations', 'Metal Detector'],
+        ['xray_validations', 'X-Ray'],
+        ['checkweigher_validations', 'Checkweigher'],
+      ];
+      const snaps = await Promise.all(cols.map(([c]) => getDocs(collection(ccwIssuesDb, c))));
+      validations = snaps.flatMap((snap, i) => snap.docs.map((d) => {
+        const v = d.data() || {};
+        const raw = v.serviceReportNumber || '';
+        return {
+          kind: 'validation',
+          validationKind: cols[i][1],
+          id: d.id,
+          collection: cols[i][0],
+          number: raw,
+          norm: normalizeSr(raw),
+          customer: v.company || v.customerName || '',
+          customerId: v.customerId || '',
+          serial: v.serialNumber || '',
+          date: v.dateOfValidation || v.date || '',
+        };
+      })).filter((v) => v.norm);
+    } catch (e) {
+      console.warn('Could not load validation certificates:', e);
+    }
+
+    // --- Service quotes ---
+    // Same deal: a quote joins once somebody fills in which SR it became.
+    let quotes = [];
+    try {
+      const snap = await getDocs(collectionGroup(jobsMasterDb, 'quotes'));
+      quotes = snap.docs.map((d) => {
+        const q = d.data() || {};
+        const raw = q.sr || '';
+        return {
+          kind: 'quote',
+          id: d.ref.path,
+          number: raw,
+          norm: normalizeSr(raw),
+          quoteNumber: q.quoteNumberValue || q.quoteNumber || '',
+          customer: q.customerName || '',
+          customerId: q.customerId || '',
+          date: q.dateOfQuoteValue || '',
+          total: (Array.isArray(q.items) ? q.items : []).reduce((s, it) => s + (Number(it?.cost) || 0), 0),
+        };
+      }).filter((q) => q.norm);
+    } catch (e) {
+      console.warn('Could not load service quotes:', e);
+    }
+
     // --- Join by normalized number ---
     const map = new Map();
     const add = (item, side) => {
       if (!item.norm) return; // no number → tracked separately as untagged
       if (!map.has(item.norm)) {
-        map.set(item.norm, { number: item.number, norm: item.norm, year: yearOf(item.norm), timesheets: [], visits: [] });
+        map.set(item.norm, { number: item.number, norm: item.norm, year: yearOf(item.norm), timesheets: [], visits: [], validations: [], quotes: [] });
       }
       map.get(item.norm)[side].push(item);
     };
@@ -806,6 +1076,12 @@ export const fetchServiceReports = async () => {
     // only ever half-recorded stops being reported as unmatched once you say
     // what the other half was.
     manual.forEach((m) => add(m, m.kind === 'manual-invoice' ? 'timesheets' : 'visits'));
+    // Certificates and quotes are extra context on a number, not a "side" —
+    // they never make a number count as matched or unmatched on their own,
+    // but a number that exists only as a validation still gets a row: it
+    // happened, and hiding it would repeat the packet-only mistake.
+    validations.forEach((v) => add(v, 'validations'));
+    quotes.forEach((q) => add(q, 'quotes'));
 
     const reports = [...map.values()].sort((a, b) => b.norm.localeCompare(a.norm));
     const years = [...new Set(reports.map((r) => r.year))].sort((a, b) => b.localeCompare(a));
@@ -850,7 +1126,9 @@ export const fetchRecentActivity = async () => {
     // Get recent downtime issues
     const downtimeData = await fetchDowntimeData();
     downtimeData.issues.slice(0, 5).forEach(issue => {
-      const fixedStatus = issue.fixed === true || issue.fixed === 'Yes' || issue.fixed === 'yes' || issue.fixed === 'fixed' || issue.fixed === 'Fixed' ? 'Fixed' : 'Offline';
+      // Same reading as the issue itself uses, so the activity feed and the
+      // customer page cannot say different things about one head.
+      const fixedStatus = issue.fixedStatus === FIXED_STATUS.FIXED ? 'Fixed' : 'Offline';
       activities.push({
         type: 'downtime',
         message: `${issue.customer || 'Unknown'} - ${issue.line} (${fixedStatus})`,
@@ -980,11 +1258,12 @@ export const fetchCustomerData = async (customerName) => {
 
   try {
     // Fetch all data in parallel
-    const [jobsData, downtimeData, timesheetData, records] = await Promise.all([
+    const [jobsData, downtimeData, timesheetData, records, partsOrders] = await Promise.all([
       fetchJobsData(),
       fetchDowntimeData(),
       fetchTimesheetData(),
-      fetchCustomerRecords()
+      fetchCustomerRecords(),
+      fetchPartsOrders(),
     ]);
 
     // The customer RECORD — address, contacts, invoice emails — and the visits
@@ -997,13 +1276,21 @@ export const fetchCustomerData = async (customerName) => {
     //
     // This used to be a substring test in both directions, which quietly made
     // "Ajinomoto" pick up Ajinomoto Portland's jobs and Ajinomoto Oakland's
-    // hours — two plants' money under one name. A customer is its own name,
-    // every spelling recorded against its record, and nothing else.
-    const spellings = new Set([
-      normalizeCustomerName(customerName),
-      ...(record ? [normalizeCustomerName(record.name), ...(record.profile?.aliases || []).map(normalizeCustomerName)] : []),
-    ].filter(Boolean));
-    const isOurs = (value) => spellings.has(normalizeCustomerName(value));
+    // hours — two plants' money under one name. That was replaced by an exact
+    // spelling test, which went too far the other way: a job typed "Trident
+    // Seafoods" was not the customer "Trident Seafood", so two jobs and their
+    // income were missing from the page while the visits and timesheets for
+    // the very same work were listed below them.
+    //
+    // The rule now is the one the rest of the app already uses to decide who a
+    // customer is: a name belongs here when it RESOLVES TO THIS RECORD.
+    // matchCustomer tolerates the ways a name gets typed — truncated,
+    // pluralised, missing a space — and refuses a name with a word missing, so
+    // "Ajinomoto" still cannot claim Ajinomoto Portland's money. Delegating to
+    // it means the customer page and the customer LIST can no longer disagree
+    // about what one customer is, which is how a job went missing in the first
+    // place.
+    const isOurs = belongsToCustomer(customerName, records, record);
 
     // Filter jobs for this customer
     const customerJobs = jobsData.jobs.filter(job => isOurs(job.customer || job.customerName));
@@ -1015,20 +1302,23 @@ export const fetchCustomerData = async (customerName) => {
     const customerTimesheets = timesheetData.timesheets.filter(
       timesheet => isOurs(timesheet.customer || timesheet.visitName));
 
-    // Sort by date (most recent first)
-    const sortByDate = (a, b) => {
-      const dateA = a.date?.toDate?.() || new Date(a.date || a.timestamp || 0);
-      const dateB = b.date?.toDate?.() || new Date(b.date || b.timestamp || 0);
-      return dateB - dateA;
-    };
+    // What has been ordered for this plant. Filed against a customer by a
+    // person, so the same name test applies as everywhere else on this page.
+    const customerOrders = (partsOrders || [])
+      .filter((o) => isOurs(o.customer))
+      .sort(byNewest);
 
-    customerJobs.sort(sortByDate);
-    customerIssues.sort((a, b) => {
-      const dateA = a.timestamp?.toDate?.() || new Date(a.timestamp || 0);
-      const dateB = b.timestamp?.toDate?.() || new Date(b.timestamp || 0);
-      return dateB - dateA;
-    });
-    customerTimesheets.sort(sortByDate);
+    // Everything on a customer's page reads newest first, and "newest" is the
+    // service report number — the one field assigned in order and present on
+    // all three. Dates disagree with each other: a job carries the day it was
+    // created, a timesheet the days worked, a visit the day it was opened.
+    customerJobs.sort(byNewestSr((j) => j.sr || j.invoiceNumber, (j) => j.date || j.invoiceDate));
+    customerIssues.sort(byNewestSr((i) => i.sr, (i) => i.date || i.timestamp));
+    customerTimesheets.sort(byNewestSr(
+      (t) => t.invoiceInfo?.invoiceNumber,
+      // A sheet's date is the first day worked on it, not when it was uploaded.
+      (t) => (t.entries || []).map((e) => e?.date).filter(Boolean).sort()[0] || t.timestamp || t.date,
+    ));
 
     // Calculate totals - use actual if available, otherwise quote
     const totalIncome = sumIncome(customerJobs);
@@ -1040,10 +1330,12 @@ export const fetchCustomerData = async (customerName) => {
       jobs: customerJobs,
       issues: customerIssues,
       timesheets: customerTimesheets,
+      partsOrders: customerOrders,
       totalVisits: visits.length,
       totalJobs: customerJobs.length,
       totalIssues: customerIssues.length,
       totalTimesheets: customerTimesheets.length,
+      totalPartsOrders: customerOrders.length,
       totalIncome,
       paidIncome,
       unpaidIncome: totalIncome - paidIncome
@@ -1080,6 +1372,7 @@ export const searchUnified = async (searchTerm) => {
       parts: [],
       boards: [],
       diagrams: [],
+      partsOrders: [],
       packets: [],
       customers: [],
       totalResults: 0
@@ -1117,7 +1410,7 @@ export const searchUnified = async (searchTerm) => {
   try {
     // Fetch all data in parallel
     const [jobsData, downtimeData, timesheetData, headHistoryResults, inventoryData, diagramsData,
-           packetsMap, customerRecords] = await Promise.all([
+           packetsMap, customerRecords, reservedJobs, partsOrders] = await Promise.all([
       fetchJobsData(),
       fetchDowntimeData(),
       fetchTimesheetData(),
@@ -1128,6 +1421,15 @@ export const searchUnified = async (searchTerm) => {
       // see. Both are single collection reads, in the same parallel batch.
       fetchAllPackets().catch(() => new Map()),
       fetchCustomerRecords().catch(() => []),
+      // The OTHER job source. The tracker's records come from fetchJobsData;
+      // a number reserved on the dashboard lives here and nowhere else until
+      // its tracker record is created — which is step one of eight, so a job
+      // spends its early life findable everywhere except the search box.
+      fetchUnifiedJobs().catch(() => []),
+      // What has been ordered, and for whom. A part code typed into the box
+      // should answer "we ordered ten of those for Flagstone in April", which
+      // was previously only answerable by opening a folder on one laptop.
+      fetchPartsOrders().catch(() => []),
     ]);
 
     // Helper function to find matched fields in an object
@@ -1181,20 +1483,14 @@ export const searchUnified = async (searchTerm) => {
       matchedFields: findMatchedFields(timesheet, term)
     }));
 
-    // Sort results by date (most recent first)
-    const sortByDate = (a, b) => {
-      const dateA = a.date?.toDate?.() || new Date(a.date || a.timestamp || 0);
-      const dateB = b.date?.toDate?.() || new Date(b.date || b.timestamp || 0);
-      return dateB - dateA;
-    };
-
-    matchingJobs.sort(sortByDate);
-    matchingIssues.sort((a, b) => {
-      const dateA = a.timestamp?.toDate?.() || new Date(a.timestamp || 0);
-      const dateB = b.timestamp?.toDate?.() || new Date(b.timestamp || 0);
-      return dateB - dateA;
-    });
-    matchingTimesheets.sort(sortByDate);
+    // Newest first by service report number here too, so a result list and a
+    // customer's page put the same records in the same order.
+    matchingJobs.sort(byNewestSr((j) => j.sr || j.invoiceNumber, (j) => j.date || j.invoiceDate));
+    matchingIssues.sort(byNewestSr((i) => i.sr, (i) => i.date || i.timestamp));
+    matchingTimesheets.sort(byNewestSr(
+      (t) => t.invoiceInfo?.invoiceNumber,
+      (t) => (t.entries || []).map((e) => e?.date).filter(Boolean).sort()[0] || t.timestamp || t.date,
+    ));
 
     // Inventory parts: search across name, sku, location, notes, category, customers.
     const matchInventoryItem = (item) => {
@@ -1296,25 +1592,52 @@ export const searchUnified = async (searchTerm) => {
       }
     });
 
+    // Parts orders. Matched on the part code, the part name, the manual it came
+    // from and the plant it was for — the lines that matched come back with the
+    // order so a result says WHAT was ordered rather than just that something
+    // was. Same matchesAny, so "000 052" finds "000-052-3359-08".
+    const matchingOrders = (partsOrders || [])
+      .filter((o) => orderMatches(o, matchesAny))
+      .map((o) => ({
+        id: o.id,
+        customer: o.customer || '',
+        orderedAt: o.orderedAt || o.createdAt || null,
+        fileName: o.fileName || '',
+        itemCount: o.itemCount ?? (o.items || []).length,
+        totalQuantity: o.totalQuantity ?? 0,
+        diagrams: o.diagrams || [],
+        matchedItems: matchingLines(o, matchesAny),
+      }))
+      .sort(byNewest);
+
     // Reuses matchesAny, so a receipt or a contact is found by the same
     // "WH1" = "WH 1" rules as everything else in the box.
     const matchingPackets = matchPackets([...packetsMap.values()], matchesAny);
     const matchingCustomers = matchCustomerRecords(customerRecords, matchesAny);
 
+    // Reserved numbers with no tracker record yet, appended to the jobs the
+    // tracker did know about. Compared on the normalized SR so "2026-028"
+    // finds the same job as "2026028", and so a job present in both sources
+    // is listed once.
+    const matchingReserved = matchReservedJobs(reservedJobs, jobsData.jobs, matchesAny, normalizeSr);
+    const allMatchingJobs = [...matchingJobs, ...matchingReserved];
+
     return {
-      jobs: matchingJobs,
+      jobs: allMatchingJobs,
       issues: matchingIssues,
       timesheets: matchingTimesheets,
       headHistory: headHistoryResults,
       parts: matchingParts,
       boards: matchingBoards,
       diagrams: matchingDiagrams,
+      partsOrders: matchingOrders,
       packets: matchingPackets,
       customers: matchingCustomers,
       totalResults:
-        matchingJobs.length + matchingIssues.length + matchingTimesheets.length +
+        allMatchingJobs.length + matchingIssues.length + matchingTimesheets.length +
         headHistoryResults.length + matchingParts.length + matchingBoards.length +
-        matchingDiagrams.length + matchingPackets.length + matchingCustomers.length,
+        matchingDiagrams.length + matchingOrders.length + matchingPackets.length
+        + matchingCustomers.length,
       searchTerm: searchTerm.trim()
     };
   } catch (error) {
@@ -1327,6 +1650,7 @@ export const searchUnified = async (searchTerm) => {
       parts: [],
       boards: [],
       diagrams: [],
+      partsOrders: [],
       packets: [],
       customers: [],
       totalResults: 0,
@@ -1872,7 +2196,10 @@ export const fetchCustomerVisits = async (customerId) => {
     return snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((v) => !v.deleted)
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+      // By service report number, because that is what is assigned in order.
+      // The date is the fallback for a visit opened before a number was put on
+      // it — which is most of them, on the day.
+      .sort(byNewestSr((v) => v.globalData?.serviceReportNumber || v.serviceReportNumber, (v) => v.date));
   } catch (error) {
     console.error('Error fetching customer visits:', error);
     recordFailure('customer visits', error);
@@ -1972,10 +2299,20 @@ const sourcesFromLists = (sr, report, manual) => {
   return {
     serviceReportUrl: visitWithFile?.serviceReportUrl || reportEntry?.fileUrl || null,
     serviceReportName: visitWithFile?.serviceReportUrl ? `Service report ${sr}.pdf` : (reportEntry?.fileName || null),
+    // Who this number was for, from whichever source recorded it.
+    //
+    // A QUOTE counts, and did not until now. Connecting a quote to a job gives
+    // that number a row here for the first time, which moved it off the
+    // "started jobs" branch that reads the customer straight off the job — so a
+    // job whose only history was a quote suddenly read "Customer not recorded"
+    // the moment its quote was connected. The name was never lost; nothing was
+    // asking the source that had it.
     customer: (report?.visits || []).find((v) => v.customer)?.customer
       || (report?.timesheets || []).find((t) => t.customer && t.customer !== 'Unknown')?.customer
+      || (report?.quotes || []).find((q) => q.customer)?.customer
       || '',
-    date: (report?.visits || [])[0]?.date || (report?.timesheets || [])[0]?.date || '',
+    date: (report?.visits || [])[0]?.date || (report?.timesheets || [])[0]?.date
+      || (report?.quotes || [])[0]?.date || '',
     invoiceUrl: invoiceEntry?.fileUrl || null,
     invoiceName: invoiceEntry?.fileName || null,
     invoiceNumber: invoiceEntry?.invoiceNumber || invoiceEntry?.number || null,
@@ -2025,15 +2362,35 @@ export const fetchJobBoardRows = async () => {
   // job reserved this morning belongs on the board today, not once it has been
   // through another app.
   const seen = new Set(list.map((r) => packetKey(r.number)));
+
+  // Closing a number says the job is not happening. It was already taken out
+  // of the timesheet's and CCW's pickers by publishToTimesheet, but the board
+  // never asked, so a cancelled job kept a row on "what needs doing" forever —
+  // the one screen where that is most obviously wrong.
+  const closedFor = (sr) => (started || []).find(
+    (j) => packetKey(j.sr) === packetKey(sr))?.closedAt || null;
+
   const rows = list.map((r) => {
     const sources = sourcesFromLists(r.number, r, manual);
+    // The job record is the last word on who a job is for: it is the thing
+    // somebody typed a customer into deliberately, while the sources above are
+    // derived from whatever happened to be filed. Used as the fallback rather
+    // than the first answer, because a visit or timesheet names the plant as
+    // the work was actually done.
+    const tracker = trackerFor(r.number);
     return {
       sr: r.number,
-      customer: sources.customer,
-      date: sources.date,
-      job: trackerFor(r.number),
+      customer: sources.customer || tracker?.customer || '',
+      date: sources.date || tracker?.date || '',
+      job: tracker,
       sources,
+      closedAt: closedFor(r.number),
       packet: packets.get(packetKey(r.number)) || { files: [] },
+      // Carried so the board can answer "can this number be released" with the
+      // same rule the packet page uses, without a read per row. The same array
+      // references, not copies.
+      visits: r.visits || [],
+      timesheets: r.timesheets || [],
     };
   });
 
@@ -2045,7 +2402,12 @@ export const fetchJobBoardRows = async () => {
       date: j.date || '',
       job: trackerFor(j.sr),
       sources: sourcesFromLists(j.sr, null, manual),
+      closedAt: j.closedAt || null,
       packet: packets.get(packetKey(j.sr)) || { files: [] },
+      // Started here and unknown to every other system — which is precisely the
+      // job most likely to have been a mistake worth undoing.
+      visits: [],
+      timesheets: [],
     });
   });
 
@@ -2221,12 +2583,18 @@ export const startJob = async (draft) => {
   // what happens — the number is offered on the Tracker's SR field and the job
   // is entered there.
   let trackerJobId = null;
+  let trackerError = null;
   try {
     const jobRef = doc(collection(jobsMasterDb, 'jobs'));
     await setDoc(jobRef, toTrackerJob({ ...d, sr: key }, jobRef.id));
     trackerJobId = jobRef.id;
   } catch (err) {
-    console.warn('Job not created in the Jobs Tracker:', err?.message || err);
+    // Still not fatal — but no longer silent. The write IS the reservation
+    // now ("the job IS the record"), so a failure here means the number was
+    // not recorded anywhere, while the page went on to say it was yours.
+    // Reported back so the page can say what actually happened.
+    trackerError = err?.message || String(err);
+    console.warn('Job not created in the Jobs Tracker:', trackerError);
   }
   // Push it out immediately. Reserving a number and having it appear nowhere
   // until somebody happened to save a customer is the same as not reserving it:
@@ -2234,7 +2602,7 @@ export const startJob = async (draft) => {
   // it. Fire-and-forget — a directory that failed to update must not make it
   // look like the number failed to reserve.
   publishToTimesheet().catch((e) => console.warn('Could not publish the new number:', e));
-  return { ...record, trackerJobId };
+  return { ...record, trackerJobId, trackerError };
 };
 
 /**
@@ -2303,6 +2671,132 @@ export const markPacketSent = async (sr, to = []) => {
   return true;
 };
 
+// ============================================
+// Saying so by hand
+// ============================================
+//
+// Two steps cannot be observed, only asserted.
+//
+// A purchase order that does not exist leaves no trace to detect — plenty of
+// customers never issue one — so the step sat unticked forever and every one
+// of those jobs read as unfinished. "No PO on this job" has to be something a
+// person SAYS, which is also why it is recorded rather than merely hidden.
+//
+// And a packet emailed from a mail client the app never sees is sent just as
+// surely as one sent from here; `sentAt` was only ever written by the button
+// in this app, so sending it any other way left the job looking unsent.
+//
+// Both are reversible, because both are judgements: marked in error, unmark.
+
+/**
+ * Mark an optional step as not applying to this job.
+ *
+ * One implementation for both optional steps, so a third cannot arrive with
+ * its own subtly different behaviour.
+ */
+const setNotApplicable = async (sr, field, value) => {
+  const key = packetKey(sr);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, [field]: !!value }, { merge: true });
+  return true;
+};
+
+/** "This job never had a purchase order." */
+export const setPoNotApplicable = (sr, value = true) =>
+  setNotApplicable(sr, 'poNotApplicable', value);
+
+/** "Nothing was rebilled on this job." */
+export const setReceiptsNotApplicable = (sr, value = true) =>
+  setNotApplicable(sr, 'receiptsNotApplicable', value);
+
+/**
+ * Say a step is done when the system cannot see it.
+ *
+ * The service report and the invoice are read from real things — a signed PDF
+ * in CCW, an invoice on the job. That is right nearly always, and wrong in the
+ * cases that matter most: a report filed in CCW under a different number, an
+ * invoice raised in the accounting package and never uploaded. The work is
+ * done; only the evidence is somewhere this app cannot reach.
+ *
+ * Kept in one `manualSteps` map rather than a field per step, so saying so
+ * about a fifth step later needs no new shape. The step still reports that it
+ * was taken on somebody's word, because a tick that claims a file is here when
+ * it is not would be worse than the open step it replaced.
+ */
+export const setStepDoneByHand = async (sr, step, value = true) => {
+  const key = packetKey(sr);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key),
+    { sr: key, manualSteps: { [step]: !!value } }, { merge: true });
+  return true;
+};
+
+/**
+ * Carry out a completion plan: everything a job still needs, in flow order.
+ *
+ * Written one step at a time and in order, so a failure half way leaves a job
+ * that is genuinely further along rather than one claiming to be paid with no
+ * invoice against it. Returns what was actually written.
+ *
+ * `paid` goes on the Tracker job itself — it is the Tracker's field and the
+ * income figures read it, so this must write where they look rather than
+ * keeping a second opinion here.
+ */
+export const markJobComplete = async (row, plan) => {
+  const sr = String(row?.sr || '').trim();
+  if (!sr) throw new Error('No service report number.');
+  const steps = plan?.steps || [];
+  const written = [];
+
+  for (const step of steps) {
+    if (step === 'serviceReport' || step === 'invoice') {
+      await setStepDoneByHand(sr, step, true);
+    } else if (step === 'packet') {
+      await setPacketBuilt(sr, true);
+    } else if (step === 'sent') {
+      await setPacketSent(sr, true);
+    } else if (step === 'paid') {
+      // Boolean, matching what toTrackerJob writes on a new job. `isPaid`
+      // tolerates the legacy 'Yes'/1 forms on older records; new writes should
+      // not add another spelling to that pile.
+      await setDoc(doc(jobsMasterDb, 'jobs', row.jobId), { paid: true }, { merge: true });
+    }
+    written.push(step);
+  }
+
+  // The board reads jobs and packets; both have just changed underneath it.
+  clearDataCache('jobs');
+  return written;
+};
+
+/**
+ * Mark the packet built by hand — or take that back.
+ *
+ * Building the PDF here sets `builtAt` as a side effect, which is right when
+ * that is how it was made. It is not the only way: a packet assembled in
+ * Preview, or sent as four separate attachments, is just as finished, and
+ * there was no way to say so — the step stayed open on jobs that were done
+ * and dusted, which is how a checklist stops being believed.
+ */
+export const setPacketBuilt = async (sr, value = true) => {
+  const key = packetKey(sr);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key), value
+    ? { sr: key, builtAt: new Date().toISOString(), builtBy: 'hand' }
+    : { sr: key, builtAt: null, builtBy: null }, { merge: true });
+  return true;
+};
+
+/** Mark the packet sent — or take that back. */
+export const setPacketSent = async (sr, value = true, to = []) => {
+  const key = packetKey(sr);
+  await setDoc(doc(jobsMasterDb, JOB_PACKETS, key), value
+    // `sentBy: 'hand'` so a packet somebody marked sent is distinguishable
+    // from one this app actually emailed, which matters when the question is
+    // "did AP definitely get it".
+    ? { sr: key, sentAt: new Date().toISOString(), sentTo: to, sentBy: 'hand' }
+    : { sr: key, sentAt: null, sentTo: [], sentBy: null }, { merge: true });
+  return true;
+};
+
 /**
  * Everything another app needs about a job, from its service report number.
  *
@@ -2350,9 +2844,41 @@ export const lookupJobDefaults = async (sr) => {
 export const CUSTOMER_DIRECTORY = 'customer_directory';
 export const SR_DIRECTORY = 'sr_directory';
 
+/**
+ * Quoted money per service report number.
+ *
+ * More than one quote can end up against a number — a revision, an addition —
+ * and they are SUMMED rather than one being picked, because two quotes for one
+ * job is two lots of agreed work.
+ */
+const quotedBySr = (quotes = []) => {
+  const out = new Map();
+  quotes.forEach((q) => {
+    const key = String(q?.sr || '').trim();
+    if (!key) return;
+    const prev = out.get(key) || { total: 0, numbers: [], items: [] };
+    prev.total += Number(q.total) || 0;
+    if (q.quoteNumber) prev.numbers.push(q.quoteNumber);
+    // Two quotes against one number contribute both sets of lines; the
+    // timesheet bands them by rate, so they add up rather than collide.
+    prev.items.push(...(q.items || []));
+    out.set(key, prev);
+  });
+  return out;
+};
+
 export const publishToTimesheet = async () => {
-  const [records, started] = await Promise.all([fetchCustomerRecords(), fetchUnifiedJobs()]);
+  const [records, started, quotes] = await Promise.all([
+    fetchCustomerRecords(), fetchUnifiedJobs(), fetchServiceQuotes(),
+  ]);
   const at = new Date().toISOString();
+
+  // What each number was quoted at, so a timesheet can say whether the day it
+  // is adding up is still inside what the customer agreed to pay. The timesheet
+  // cannot read the quotes itself — they live in another Firebase project, and
+  // its sign-in means nothing there — so the figure travels with the number.
+  //
+  const quoted = quotedBySr(quotes);
 
   // Defaults are computed HERE so the timesheet copies rather than interprets.
   // The rules for what a customer's details are should not be re-implemented in
@@ -2378,6 +2904,9 @@ export const publishToTimesheet = async () => {
   await Promise.all(started.filter((j) => !j.closedAt).map((j) => setDoc(doc(timesheetDb, SR_DIRECTORY, String(j.sr)), {
     sr: String(j.sr),
     customer: j.customer || '',
+    // The canonical customer id goes with the number so the picker joins by
+    // id, not by how the customer's name happened to be spelled on the job.
+    customerId: matchCustomer(j.customer, records)?.id || '',
     date: j.date || '',
     // Where and how long. The timesheet asks for both and they were being
     // typed again from whatever the person remembered.
@@ -2387,6 +2916,11 @@ export const publishToTimesheet = async () => {
     city: j.city || '',
     state: j.state || '',
     description: j.description || '',
+    // Zero means "no quote", which the timesheet shows as nothing at all rather
+    // than as a budget of nothing.
+    quoteTotal: quoted.get(String(j.sr))?.total || 0,
+    quoteNumbers: quoted.get(String(j.sr))?.numbers || [],
+    quoteItems: quoted.get(String(j.sr))?.items || [],
     updatedAt: at,
   })));
 
@@ -2401,6 +2935,7 @@ export const publishToTimesheet = async () => {
     doc(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY, String(j.sr)),
     {
       sr: String(j.sr), customer: j.customer || '', date: j.date || '',
+      customerId: matchCustomer(j.customer, records)?.id || '',
       dateStart: j.dateStart || j.date || '', dateEnd: j.dateEnd || '',
       description: j.description || '', updatedAt: at,
       // No address here on purpose: CCW knows its own customers and their
@@ -2422,6 +2957,135 @@ export const publishToTimesheet = async () => {
   })));
 
   return { customers: records.length, jobs: openJobs.length, at };
+};
+
+// ============================================
+// Keeping the published copies honest on their own
+// ============================================
+//
+// publishToTimesheet only runs when the DASHBOARD does something — a job
+// started or closed here, a customer saved, or the button on Customer Records.
+// A job created in the Jobs Tracker app goes straight into `jobs` and pushes
+// nowhere, so its number was invisible to a timesheet until somebody happened
+// to use the dashboard for something else. It always arrived eventually, which
+// is the worst kind of bug: it looks fixed whenever you go looking.
+//
+// So the dashboard checks on load. The check is deliberately not "publish
+// again": a full publish rewrites every customer and every open job into three
+// projects and re-issues a delete for every closed one, which is a few hundred
+// writes to discover that nothing changed. Instead it READS what is published,
+// compares it with the jobs, and only republishes when the two disagree —
+// nothing to do costs a couple of reads and no writes at all.
+//
+// Only the job NUMBERS are checked. Customer details are edited in this app and
+// publish on save, so they cannot drift behind our back; job numbers can,
+// because another app creates them.
+
+/** The published documents reduced to the fingerprint being compared. */
+const asPublished = (snap, fingerprint) =>
+  snap.docs.map((d) => ({ id: d.id, fingerprint: fingerprint(d.data() || {}) }));
+
+/**
+ * True when either published copy of the job numbers has fallen behind.
+ *
+ * The two copies carry different things, so they are compared on different
+ * fingerprints: the timesheet's includes the quoted figure it budgets against,
+ * while CCW's is only ever the number and the plant. Comparing CCW on a field
+ * it does not store would report it stale on every single load.
+ */
+const directoriesAreStale = async () => {
+  const [started, quotes, tsSnap, ccwSnap] = await Promise.all([
+    fetchUnifiedJobs(),
+    fetchServiceQuotes(),
+    getDocs(collection(timesheetDb, SR_DIRECTORY)),
+    getDocs(collection(ccwIssuesDb, 'user_files', WORKSPACE_UID, SR_DIRECTORY)),
+  ]);
+  const quotedFor = quotedBySr(quotes);
+  // The line count rides along with the total, so a quote revised into the same
+  // money — eight travel hours moved onto labour — is still noticed.
+  const withQuote = (j) => {
+    const q = quotedFor.get(String(j.sr));
+    return `${j.customer || ''}|${q?.total || 0}|${(q?.items || []).length}`;
+  };
+  const byCustomer = (j) => j.customer || '';
+
+  return copyIsStale(
+    asPublished(tsSnap, (d) => `${d.customer || ''}|${d.quoteTotal || 0}|${(d.quoteItems || []).length}`),
+    openJobIndex(started, withQuote),
+  ) || copyIsStale(
+    asPublished(ccwSnap, (d) => d.customer || ''),
+    openJobIndex(started, byCustomer),
+  );
+};
+
+// Once per page load.
+//
+// A BOOLEAN was not enough. The flag is set on entry and cleared again when the
+// run could not proceed — auth not ready yet, or an error — and with the App
+// mounting more than once on a cold load, each attempt cleared the flag in time
+// for the next one to start from scratch. The result was the whole check
+// running four times over: four reads of the jobs and of both published
+// directories, to reach the same answer four times.
+//
+// Holding the PROMISE instead means a second caller waits on the first run
+// rather than starting its own, which is what "once" was supposed to mean.
+let syncRun = null;
+
+// Firebase Auth is per project and the three sign-ins run in parallel at login,
+// so on a cold load this can easily start before the other projects have a
+// user. Reading then fails as PERMISSION_DENIED and the check quietly decides
+// nothing needs publishing — the exact bug it exists to fix. Waits for a real
+// user, with a ceiling so a signed-out tab cannot leave a listener behind.
+const authReady = (a, ms = 15000) => (a.currentUser
+  ? Promise.resolve(a.currentUser)
+  : new Promise((resolve) => {
+    const done = (u) => { clearTimeout(timer); unsub(); resolve(u); };
+    const timer = setTimeout(() => done(null), ms);
+    const unsub = a.onAuthStateChanged((u) => { if (u) done(u); });
+  }));
+
+/**
+ * Bring the other apps' copies up to date, if they are behind.
+ *
+ * Fire-and-forget from the dashboard's mount. Never throws: a directory that
+ * could not be checked must not stop the dashboard loading, and the next load
+ * tries again.
+ */
+export const syncDirectories = async () => {
+  if (syncRun) return syncRun;
+  syncRun = (async () => {
+  try {
+    const [tsUser, jobsUser, ccwUser] = await Promise.all([
+      authReady(timesheetAuth), authReady(jobsMasterAuth), authReady(ccwIssuesAuth),
+    ]);
+    if (!tsUser || !jobsUser || !ccwUser) {
+      // Not signed in everywhere. Publishing now would half-succeed, and a
+      // half-published directory is harder to reason about than a stale one.
+      return { checked: false };
+    }
+    if (!(await directoriesAreStale())) {
+      // Said out loud even when there is nothing to do, because "it silently
+      // did nothing" and "it silently never ran" look identical from outside,
+      // and this runs where nobody is watching.
+      console.info('Job numbers: the timesheet and CCW copies are up to date.');
+      return { checked: true, published: false };
+    }
+    const result = await publishToTimesheet();
+    console.info('Job numbers republished to the timesheet and CCW:', result);
+    return { checked: true, published: true, ...result };
+  } catch (error) {
+    console.warn('Could not check the published job numbers:', error);
+    recordFailure('published job numbers', error);
+    return { checked: false, error };
+  }
+  })();
+
+  const result = await syncRun;
+  // A run that never got to look is not a run. Cleared so the next mount — or
+  // the next navigation, once auth has settled — tries again, while a real
+  // answer stands for the rest of the page's life.
+  if (!result?.checked) syncRun = null;
+  return result;
 };
 
 /**

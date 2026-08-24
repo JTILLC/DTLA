@@ -18,7 +18,7 @@ const services = [
       'Full mechanical and electrical repair',
       'Calibration and accuracy verification',
       'Validation and compliance documentation',
-      'Preventive maintenance',
+      'Preventive maintenance programs',
     ],
   },
   {

@@ -31,7 +31,12 @@ import VisitsSidebar from './components/VisitsSidebar.jsx';
 import SetupLinesModal from '@shared/components/SetupLinesModal.jsx';
 import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
+import { WRITER_ID } from '@shared/utils/writerId.js';
+import { stableStringify } from '@shared/utils/stableJson.js';
 import { drawPhotoGrid } from '@shared/utils/photoGrid.js';
+import { listLog, LOG_BOARD } from '@shared/services/logs.js';
+import { replacementsForVisit, replacementRows, visitWindow as windowForVisit } from '@shared/utils/visitReplacements.js';
+import { NOT_A_BOARD } from '@shared/components/BoardReplacementPage.jsx';
 import { shouldAdoptMerge } from '@shared/utils/mergeApply.js';
 import BackfillPanel from './components/BackfillPanel.jsx';
 import { timesheetDb, signInToTimesheet, isTimesheetSignedIn } from './config/timesheetApp.js';
@@ -259,7 +264,7 @@ async function deleteVisitAssets(uid, custId, visitId) {
   }
 }
 
-const exportDashboardToPDF = async (lines, globalData, includePhotos = false) => {
+const exportDashboardToPDF = async (lines, globalData, includePhotos = false, replacements = [], visitWindow = null) => {
   if (lines.length === 0) return alert('No data to export');
   await ensurePdfLibs();
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
@@ -274,11 +279,18 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
   const photoStats = { requested: 0, embedded: 0 };
   if (includePhotos) {
     const found = [];
-    migratedLines.forEach(line => (line.heads || []).forEach(head => {
-      if (!headHasIssues(head)) return;
-      (head.issues || []).forEach(iss => (iss.photos || []).forEach(p => photoKey(p) && found.push(p)));
-      (head.photos || []).forEach(p => photoKey(p) && found.push(p));
-    }));
+    migratedLines.forEach(line => {
+      // A photo on the line itself — the machine-level faults that belong to no
+      // single head. Collected whether or not any head has an issue: a leaking
+      // hose photographed against the line is the whole reason the picture was
+      // taken, and a line with no head faults is exactly when it would be lost.
+      (line.photos || []).forEach(p => photoKey(p) && found.push(p));
+      (line.heads || []).forEach(head => {
+        if (!headHasIssues(head)) return;
+        (head.issues || []).forEach(iss => (iss.photos || []).forEach(p => photoKey(p) && found.push(p)));
+        (head.photos || []).forEach(p => photoKey(p) && found.push(p));
+      });
+    });
     const byKey = new Map();
     found.forEach(p => { if (!byKey.has(photoKey(p))) byKey.set(photoKey(p), p); });
     const keys = [...byKey.keys()];
@@ -387,36 +399,88 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
       });
       y = doc.lastAutoTable.finalY + 8;
 
-      // Embed any photos attached to this line's issue heads
-      if (includePhotos) {
-        // One grid for the whole line, captioned per head, rather than a
-        // heading and a row per head. Most heads have a single photo, so the
-        // per-head call produced a column: heading, photo, heading, photo. The
-        // caption keeps the attribution the headings were carrying.
-        const linePhotos = issueHeads.flatMap(head => [
-          ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
-          ...(head.photos || []).map(photoKey),
-        ].filter(k => photoMap.has(k)).map(k => ({ ...photoMap.get(k), label: `Head ${head.id}` })));
-
-        if (linePhotos.length) {
-          if (y + 12 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
-          doc.setFontSize(9);
-          doc.setFont(undefined, 'bold');
-          doc.text('Photos:', 14, y);
-          doc.setFont(undefined, 'normal');
-          y = drawPhotoGrid(doc, linePhotos, y + 4, {
-            // Page breaks have to put the running header back, and content
-            // resumes below it — 35, not the top of the page.
-            pageTop: 35,
-            pageBottom: pageHeight - 15,
-            onNewPage: drawPageHeader,
-          }) + 4;
-        }
-      }
     } else {
       doc.setFontSize(10);
       doc.text('No issues were found', 14, y);
       y += 10;
+    }
+
+    // Photos for this line — the line's own, and any on heads with issues.
+    //
+    // OUTSIDE the has-issues branch on purpose. It used to live inside it,
+    // which was fine while every photo hung off a faulty head. A photo taken
+    // against the line itself is most useful on a line where nothing is
+    // broken yet — the wet cabinet, the guard left off — and that is exactly
+    // the line the old placement printed nothing for.
+    if (includePhotos) {
+      // One grid for the whole line, captioned per head, rather than a
+      // heading and a row per head. Most heads have a single photo, so the
+      // per-head call produced a column: heading, photo, heading, photo. The
+      // caption keeps the attribution the headings were carrying.
+      const linePhotos = [
+        // The line's own photos first, captioned for the line rather than a
+        // head, so the reader is not left working out which head a picture of
+        // a cabinet belongs to.
+        ...(line.photos || []).map(photoKey)
+          .filter(k => photoMap.has(k))
+          .map(k => ({ ...photoMap.get(k), label: line.title || 'Line' })),
+        ...issueHeads.flatMap(head => [
+          ...(head.issues || []).flatMap(iss => (iss.photos || []).map(photoKey)),
+          ...(head.photos || []).map(photoKey),
+        ].filter(k => photoMap.has(k)).map(k => ({ ...photoMap.get(k), label: `Head ${head.id}` }))),
+      ];
+
+      if (linePhotos.length) {
+        if (y + 12 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Photos:', 14, y);
+        doc.setFont(undefined, 'normal');
+        y = drawPhotoGrid(doc, linePhotos, y + 4, {
+          // Page breaks have to put the running header back, and content
+          // resumes below it — 35, not the top of the page.
+          pageTop: 35,
+          pageBottom: pageHeight - 15,
+          onNewPage: drawPageHeader,
+        }) + 4;
+      }
+    }
+
+    // What was replaced on this line, during this visit — see
+    // visitReplacements.js for why the window runs to the NEXT visit rather
+    // than matching the visit's own day.
+    const lineParts = replacementsForVisit(replacements, {
+      lineTitle: line.title,
+      window: visitWindow,
+    });
+
+    if (lineParts.length) {
+      if (y + 20 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Parts replaced:', 14, y);
+      doc.setFont(undefined, 'normal');
+      y += 2;
+
+      const rows = lineParts.flatMap((r) => replacementRows(r, NOT_A_BOARD));
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Where', 'Board type', 'Part', 'Qty', 'Reason']],
+        body: rows,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [0, 102, 204], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 22 },
+          1: { halign: 'left', cellWidth: 32 },
+          2: { halign: 'left', cellWidth: 70 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'left' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 8;
     }
 
     // Add spacing between lines
@@ -955,6 +1019,9 @@ const AppContent = () => {
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [editTimestamp, setEditTimestamp] = useState('');
   const [currentVisitId, setCurrentVisitId] = useState(null);
+  // Which customer's visit list has actually arrived — an empty list means
+  // "this plant has no visits", and only this can tell that from "not yet".
+  const [visitsLoadedFor, setVisitsLoadedFor] = useState(null);
   const [serviceReportUrl, setServiceReportUrl] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [deepLinkProcessed, setDeepLinkProcessed] = useState(false);
@@ -1065,8 +1132,12 @@ const AppContent = () => {
 
   // One serializer used everywhere we baseline/compare visit content, so the
   // "has it changed?" check is always apples-to-apples.
+  // Key-sorted, because half of these comparisons are between a local object
+  // and the same object after a round trip through Firestore, which does not
+  // return the key order it was given. Plain JSON.stringify made those two read
+  // as different visits.
   const serializeVisitContent = (l, g, n, s) =>
-    JSON.stringify({ lines: l || [], globalData: g || {}, name: n || '', serviceReportUrl: s ?? null });
+    stableStringify({ lines: l || [], globalData: g || {}, name: n || '', serviceReportUrl: s ?? null });
 
   const updateLineStable = useCallback((updated) => {
     setLines(prev => prev.map(l => l.id === updated.id ? updated : l));
@@ -1243,6 +1314,14 @@ const AppContent = () => {
 
         setActiveLineId(targetLineId);
         setShowDashboardView(false); // Make sure we're viewing the line, not dashboard
+        // …and open the tab the line actually lives on.
+        //
+        // `showDashboardView` predates the tab bar, so clearing it no longer
+        // moves anybody: a link that named a line and a head landed on Overview
+        // with the head one more click away, which is the click the link was
+        // supposed to save. Only when the link asked for somewhere specific —
+        // a plain visit link should still open on the summary.
+        if (lineName || headName) setActiveTab('current');
         setCurrentVisitName(data.name || '');
         setCurrentVisitId(visitId);
         setServiceReportUrl(data.serviceReportUrl || null);
@@ -1406,6 +1485,16 @@ const AppContent = () => {
         .collection('visits')
         .doc(visitId)
         .get();
+      // The customer may have changed while this read was in flight.
+      //
+      // Switching plants fires a fresh load, and the outgoing customer's read
+      // can land after it — putting the previous plant's visit on screen under
+      // the new plant's name. Seen in the console as three loads in one second
+      // on a single switch, one of them for the customer just left.
+      if (currentCustomerRef.current?.id && currentCustomerRef.current.id !== effectiveCustomerId) {
+        console.log('[loadVisit] discarded — customer changed while loading', path);
+        return;
+      }
       if (doc.exists) {
         const data = doc.data();
         const loadedLines = (data.lines || []).map(line => ({
@@ -1651,6 +1740,24 @@ const AppContent = () => {
     }
   };
 
+  // The replacement log for this customer, plus the day this visit happened.
+  //
+  // Read on demand rather than subscribed: the PDF is exported occasionally and
+  // the log is only needed at that moment. A log that cannot be read gives an
+  // empty list — a report missing its parts table is a smaller failure than an
+  // export that refuses to run.
+  const replacementsForPdf = async () => {
+    const custId = currentCustomerRef.current?.id;
+    const window = windowForVisit(visits, currentVisitId);
+    if (!session?.uid || !custId) return { parts: [], window };
+    try {
+      return { parts: await listLog(session.uid, custId, LOG_BOARD, 300), window };
+    } catch (err) {
+      console.warn('Replacement log unavailable for the PDF:', err);
+      return { parts: [], window };
+    }
+  };
+
   const updateVisitTimestamp = async () => {
     if (!visitToEdit) return;
     try {
@@ -1715,7 +1822,9 @@ const AppContent = () => {
         mergedGlobal = globalChanged ? localGlobal : (remote.globalData !== undefined ? remote.globalData : localGlobal);
         const nameChanged = (localName || '') !== (base.name || '');
         mergedName = nameChanged ? localName : (remote.name !== undefined ? remote.name : localName);
-        tx.update(ref, { name: mergedName, globalData: mergedGlobal, lines: merged });
+        // Stamped so the live subscription below can tell this tab's own write
+        // from somebody else's and stop announcing our own saves back to us.
+        tx.update(ref, { name: mergedName, globalData: mergedGlobal, lines: merged, lastWriter: WRITER_ID });
       });
 
       const newBaseline = serializeVisitContent(merged, mergedGlobal, mergedName, srUrl);
@@ -2256,6 +2365,9 @@ const AppContent = () => {
   // Auto-resume last customer on first customers-loaded (skip if deep-link in progress)
   const autoResumedRef = useRef(false);
   const pendingVisitIdRef = useRef(null);
+  // Until the resume has had its turn, the remembered visit id is INPUT, not
+  // something this session may overwrite.
+  const resumeSettledRef = useRef(false);
   useEffect(() => {
     if (autoResumedRef.current) return;
     if (!user || customers.length === 0 || currentCustomer) return;
@@ -2276,14 +2388,40 @@ const AppContent = () => {
     }
   }, [user, customers, currentCustomer]);
 
-  // After customer is selected, flush any pending visit load (from auto-resume)
+  // Open where you left off.
+  //
+  // Waits for the visit LIST rather than firing the remembered id blind: a visit
+  // deleted since last time would otherwise fail to load and leave the app on
+  // no visit at all, which is the state this exists to avoid. If the remembered
+  // one is gone — or there never was one, on a new device — the newest visit is
+  // opened instead, because "the last one" is what somebody coming back to this
+  // app means either way.
+  //
+  // Once per customer, and never over the top of something already open.
+  const resumedForRef = useRef(null);
   useEffect(() => {
-    if (currentCustomer?.id && pendingVisitIdRef.current) {
-      const vid = pendingVisitIdRef.current;
-      pendingVisitIdRef.current = null;
-      loadVisit(vid);
-    }
-  }, [currentCustomer?.id]);
+    const cid = currentCustomer?.id;
+    if (!cid || visitsLoadedFor !== cid) return;      // list not in yet
+    if (resumedForRef.current === cid) return;        // already had its turn
+    resumedForRef.current = cid;
+    resumeSettledRef.current = true;                  // the stored id may now be rewritten
+
+    const remembered = pendingVisitIdRef.current;
+    pendingVisitIdRef.current = null;
+    // Something already open for THIS customer — a deep link got there first.
+    //
+    // Membership in this customer's list, not merely "an id is set": switching
+    // customer leaves the previous visit's id in place for a render or two, and
+    // testing the bare id made the resume skip itself on every switch. It then
+    // marked itself done, so nothing opened at all.
+    if (currentVisitId && visits.some((v) => v.id === currentVisitId)) return;
+    if (!visits.length) return;                       // nothing to open
+
+    const target = (remembered && visits.some((v) => v.id === remembered))
+      ? remembered
+      : visits[0].id;                                 // newest — the list is date-desc
+    loadVisit(target);
+  }, [currentCustomer?.id, visitsLoadedFor, visits, currentVisitId]);
 
   // Persist last customer + visit so we can auto-resume next session
   useEffect(() => {
@@ -2294,9 +2432,14 @@ const AppContent = () => {
   useEffect(() => {
     if (currentVisitId) {
       localStorage.setItem('ccwissues-last-visit-id', currentVisitId);
-    } else {
-      localStorage.removeItem('ccwissues-last-visit-id');
+      return;
     }
+    // No visit open. On a fresh load that is the state the app STARTS in, and
+    // erasing here threw away the id the resume above was about to read — which
+    // is why the last visit never came back, while the last customer always
+    // did. Only a close that happens after the resume has had its turn is a
+    // real "no visit open".
+    if (resumeSettledRef.current) localStorage.removeItem('ccwissues-last-visit-id');
   }, [currentVisitId]);
 
   // Real-time visits subscription — keeps the sidebar in sync across devices.
@@ -2310,6 +2453,7 @@ const AppContent = () => {
     // Clear immediately so the old customer's visits don't flash in the UI
     // before the new subscription's first snapshot arrives.
     setVisits([]);
+    setVisitsLoadedFor(null);
     const unsub = firebase
       .firestore()
       .collection('user_files')
@@ -2323,6 +2467,7 @@ const AppContent = () => {
           .map((d) => ({ id: d.id, customerId: subscribedCustomerId, ...d.data() }))
           .filter((v) => !v.deleted);
         setVisits(list);
+        setVisitsLoadedFor(subscribedCustomerId);
       });
     return () => unsub();
   }, [user, currentCustomer?.id]);
@@ -2384,6 +2529,19 @@ const AppContent = () => {
         if (doc.metadata.hasPendingWrites) return; // local write in flight
 
         const remote = doc.data() || {};
+
+        // Our own write, acknowledged and echoed back.
+        //
+        // hasPendingWrites above only covers the moment it is in flight. The
+        // acknowledged copy arrives a beat later looking like any other update,
+        // and the check below compares it against what is on screen NOW — so
+        // anyone who kept typing while their own save was in the air was told
+        // the visit had been changed on another device. Which is most of an
+        // audit, on a phone, where the typing does not stop.
+        if (remote.lastWriter && remote.lastWriter === WRITER_ID) {
+          dismissPrompt();
+          return;
+        }
         const remoteLines = (remote.lines || []).map((line) => ({
           ...line,
           heads: (line.heads || []).map((head, i) => ({ ...head, id: head.id || i + 1 })),
@@ -2391,8 +2549,8 @@ const AppContent = () => {
 
         // Compare remote to current local state (via refs). If same, it's our
         // own just-saved snapshot echoing back — dismiss any pending prompt.
-        const sameLines = JSON.stringify(remoteLines) === JSON.stringify(linesRef.current);
-        const sameGlobal = JSON.stringify(remote.globalData || {}) === JSON.stringify(globalDataRef.current);
+        const sameLines = stableStringify(remoteLines) === stableStringify(linesRef.current);
+        const sameGlobal = stableStringify(remote.globalData || {}) === stableStringify(globalDataRef.current);
         const sameName = (remote.name || '') === currentVisitNameRef.current;
         if (sameLines && sameGlobal && sameName) {
           dismissPrompt();
@@ -2427,6 +2585,19 @@ const AppContent = () => {
         );
         const hasUnsavedEdits =
           savedSnapshotRef.current !== null && localSnapshot !== savedSnapshotRef.current;
+
+        // The remote copy is one we have already stored ourselves: an unstamped
+        // echo of our own work — a photo URL written back by the upload queue,
+        // or a save made before this tab started stamping. Not somebody else's
+        // change, so not worth interrupting for.
+        const remoteSnapshot = serializeVisitContent(
+          remoteLines, remote.globalData || {}, remote.name || '', remote.serviceReportUrl ?? null
+        );
+        if (remoteSnapshot === savedSnapshotRef.current) {
+          dismissPrompt();
+          return;
+        }
+
         if (!hasUnsavedEdits) {
           applyRemote();
           return;
@@ -2670,7 +2841,12 @@ const AppContent = () => {
   // split one machine's history in two. Extend this list when it happens again.
   // Written as the timesheet app actually spells them: the query below is an
   // exact-string Firestore `in`, so a normalised key would match nothing.
-  const CUSTOMER_ALIASES = {
+  // The renames every app starts from — the raw spellings, because the query
+  // below matches the exact string an invoice was filed under. This is a SEED,
+  // same two renames customerMatch.js seeds; everything else comes off the
+  // customer record's own alias list, so a spelling linked in the dashboard
+  // reaches this panel with no code change here.
+  const KNOWN_FORMER_SPELLINGS = {
     'DatePac': 'Oasis Date',
     'Oasis Dates': 'Oasis Date',
     'B&G Foods': 'Seneca Foods',
@@ -2680,14 +2856,18 @@ const AppContent = () => {
   const [backfillCreating, setBackfillCreating] = useState(null);
 
   // Every timesheet spelling that means this CCW customer, so the query below
-  // catches the invoices filed under an old name too.
+  // catches the invoices filed under an old name too. The customer list
+  // spreads the profile onto the record, so the aliases sit at cust.aliases.
   const timesheetNamesFor = useCallback((cust) => {
     if (!cust?.name) return [];
-    const names = [cust.name];
-    Object.entries(CUSTOMER_ALIASES).forEach(([alias, target]) => {
-      if (customerKey(target) === customerKey(cust.name)) names.push(alias);
+    const names = new Set(
+      [cust.name, ...(cust.aliases || cust.profile?.aliases || [])]
+        .map((s) => String(s || '').trim()).filter(Boolean),
+    );
+    Object.entries(KNOWN_FORMER_SPELLINGS).forEach(([alias, target]) => {
+      if (customerKey(target) === customerKey(cust.name)) names.add(alias);
     });
-    return names;
+    return [...names];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3227,7 +3407,8 @@ const AppContent = () => {
                   className="dropdown-item d-flex align-items-center gap-2"
                   onClick={async () => {
                     try {
-                      await exportDashboardToPDF(lines, globalData);
+                      const { parts, window } = await replacementsForPdf();
+                      await exportDashboardToPDF(lines, globalData, false, parts, window);
                     } catch (err) {
                       console.error('Export failed:', err);
                       toast.error(`Could not export the PDF: ${err?.message || err}`);
@@ -3250,7 +3431,8 @@ const AppContent = () => {
                     setExportingPhotos(true);
                     toast.success('Loading photos into PDF…');
                     try {
-                      const stats = await exportDashboardToPDF(lines, globalData, true);
+                      const { parts, window } = await replacementsForPdf();
+                      const stats = await exportDashboardToPDF(lines, globalData, true, parts, window);
                       if (stats && stats.requested > stats.embedded) {
                         // The PDF still saved. Say what is missing from it
                         // rather than letting it look complete.
@@ -3897,6 +4079,7 @@ const AppContent = () => {
               customerId={currentCustomer?.id}
               lines={lines}
               visits={visits}
+              hasOpenRecord={!!currentVisitId || !!viewingPlantLogId}
               onGo={(tab, lineId) => {
                 // A line picked on the overview must still be the line showing
                 // when the Current Log opens.

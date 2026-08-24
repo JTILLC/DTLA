@@ -46,6 +46,7 @@ export default function BackupPanel({ colors }) {
   const [verify, setVerify] = useState(null);
   const [status, setStatus] = useState(null);      // what /admin/backup-status said
   const [checking, setChecking] = useState(true);
+  const [publish, setPublish] = useState(null);    // what /admin/publish-directory said
 
   // Did the scheduled job run? Asked on open, because the answer is only useful
   // if nobody has to remember to ask. A failure to check is recorded as a
@@ -151,6 +152,32 @@ export default function BackupPanel({ colors }) {
     checkStatus();   // the run just moved latest.json; say so rather than go stale
   };
 
+  // Republish the customer / job-number directories from the Worker.
+  //
+  // The dashboard has always been able to do this itself (Customers →
+  // Publish), and still can. This runs the SERVER copy — the same code the
+  // 01:30 cron runs — which is the one that keeps working when nobody opens
+  // this page. Its manifest names any project whose service account cannot
+  // write, which a browser-side publish would never discover.
+  const publishNow = async () => {
+    setBusy('publish'); setError(''); setPublish(null);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Sign in first.');
+      const token = await user.getIdToken();
+      const res = await fetch(`${BROKER}/admin/publish-directory`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `the server answered ${res.status}`);
+      setPublish(JSON.parse(text));
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+    setBusy('');
+  };
+
   // Normalised at this boundary, which every caller crosses — including the
   // ones handed this callback that call it themselves. See progressText.js.
   const say = (m) => {
@@ -251,6 +278,43 @@ export default function BackupPanel({ colors }) {
       })()}
 
       <div style={card}>
+        <div style={ui.label(colors)}>Customer &amp; job-number directories</div>
+        <p style={{ color: colors.textSecondary, fontSize: '13px', margin: '8px 0 12px' }}>
+          Copies the customer records and open job numbers into the timesheet, CCW and Jobs
+          projects, which cannot read them directly. Runs by itself at 01:30 Arizona time;
+          this button runs the same server-side job now.
+        </p>
+        <button type="button" onClick={publishNow} disabled={!!busy}
+          style={ui.btn(colors, { over: { display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: busy ? 0.6 : 1 } })}>
+          <Upload size={14} /> {busy === 'publish' ? 'Publishing…' : 'Publish directories now'}
+        </button>
+        {publish && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ color: colors.text, fontSize: '13px', marginBottom: '6px' }}>
+              {publish.customers ?? 0} customer{publish.customers === 1 ? '' : 's'},{' '}
+              {publish.openJobs ?? 0} open job number{publish.openJobs === 1 ? '' : 's'}.
+            </div>
+            {publish.fatal && (
+              <div style={{ color: ui.TONE.bad, fontSize: '13px', marginBottom: '6px' }}>{publish.fatal}</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {(publish.results || []).map((r) => (
+                <span key={r.name} style={{ fontSize: '12px', color: colors.textSecondary }}>
+                  <span style={{ fontWeight: 700, color: r.ok ? ui.TONE.ok : r.skipped ? colors.textSecondary : ui.TONE.bad }}>
+                    {r.ok ? '✓' : r.skipped ? '–' : '✕'}
+                  </span>{' '}
+                  {r.name}
+                  {r.ok ? ` · ${r.writes} write${r.writes === 1 ? '' : 's'}` : ''}
+                  {r.reason ? ` · ${r.reason}` : ''}
+                  {r.error ? ` · ${r.error}` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
         <div style={ui.label(colors)}>Take a copy</div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
           {APPS.map((a) => (
@@ -272,9 +336,11 @@ export default function BackupPanel({ colors }) {
       <div style={card}>
         <div style={ui.label(colors)}>Nightly backup</div>
         <p style={{ color: colors.textSecondary, fontSize: '13px', margin: '8px 0 12px' }}>
-          Runs by itself at 02:00 Arizona time, into the CCW storage bucket under
-          <code style={{ margin: '0 4px' }}>backups/</code>. Run it now to see whether it works,
-          rather than finding out on the night you need it.
+          Runs by itself in two passes — 02:00 Arizona time for the jobs and parts catalogue,
+          02:20 for the rest — into the CCW storage bucket under
+          <code style={{ margin: '0 4px' }}>backups/</code>. Two passes because one run of all
+          four projects exceeded what a single job is allowed to fetch, and stopped partway.
+          Run it now to see whether it works, rather than finding out on the night you need it.
         </p>
         <button type="button" onClick={runNightlyNow} disabled={!!busy}
           style={ui.btn(colors, { over: { display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: busy ? 0.6 : 1 } })}>

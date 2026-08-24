@@ -12,6 +12,7 @@
 // photo is queued — heads get added, issues get removed — and any positional
 // reference would rot.
 import firebase from 'firebase/compat/app';
+import { WRITER_ID } from './writerId.js';
 import 'firebase/compat/storage';
 import 'firebase/compat/firestore';
 import photoQueue from './photoQueue.js';
@@ -32,6 +33,12 @@ export function replacePendingPhoto(lines, pendingId, resolved) {
 
   const nextLines = (lines || []).map((line) => ({
     ...line,
+    // The LINE's own photos, not just its heads'. Without this a photo taken
+    // against a line while offline uploaded fine and then found nothing to
+    // write itself back to — `replaced` stayed 0, the queue treated it as
+    // belonging to something deleted, and the picture was dropped from the
+    // visit while its blob sat in Storage referenced by nothing.
+    photos: mapPhotos(line.photos),
     heads: (line.heads || []).map((head) => ({
       ...head,
       photos: mapPhotos(head.photos),
@@ -70,7 +77,10 @@ async function reconcile(entry, resolved) {
     // forever; the blob is already in Storage but nothing references it.
     return true;
   }
-  await docRef.update({ lines: nextLines });
+  // Stamped as this tab's own write. Without it, a photo finishing its upload
+  // mid-audit landed on the watcher as a change from somewhere else and told
+  // the person holding the phone that another device had edited their visit.
+  await docRef.update({ lines: nextLines, lastWriter: WRITER_ID });
   return true;
 }
 

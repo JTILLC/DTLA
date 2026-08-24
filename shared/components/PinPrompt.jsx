@@ -13,10 +13,16 @@
 // People without a PIN are shown greyed rather than hidden. "My name isn't
 // there" sends someone to find a supervisor; "my name is there but greyed"
 // tells them exactly what is missing.
+//
+// A JTI super admin is never asked. Every PIN in the app is asked through this
+// one component, so the bypass lives here rather than being repeated at each
+// gate — one place to read, and no gate can be added later that forgets it. See
+// superUser.js for why that is attribution rather than a hole.
 import { useEffect, useRef, useState } from 'react';
 import { KeyRound, X } from 'lucide-react';
 import { verifyPin, hasPin } from '../utils/pin.js';
 import { isSiteLead, SITE_LEAD_LABEL } from '../utils/roles.js';
+import { useSuperUser } from '../utils/superUser.js';
 
 export default function PinPrompt({
   customerId,
@@ -33,6 +39,22 @@ export default function PinPrompt({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pinRef = useRef(null);
+  const superUser = useSuperUser();
+  // onVerified is usually an inline arrow, so it is a new function every
+  // render. Held in a ref so the auto-verify effect below fires once per
+  // prompt rather than once per render of the parent.
+  const verifiedRef = useRef(onVerified);
+  verifiedRef.current = onVerified;
+  const passedRef = useRef(false);
+
+  // Signed in as JTI: this prompt has no question to ask. Answered in an effect
+  // rather than during render because onVerified closes the dialog and usually
+  // writes something, and neither belongs in a render pass.
+  useEffect(() => {
+    if (!superUser || passedRef.current) return;
+    passedRef.current = true;
+    verifiedRef.current?.(superUser);
+  }, [superUser]);
 
   const eligible = people.filter((p) => (
     (requireSiteLead ? isSiteLead(p) : true)
@@ -63,6 +85,11 @@ export default function PinPrompt({
       setBusy(false);
     }
   };
+
+  // Nothing on screen for a JTI account — the effect above is already letting
+  // the action through, and a dialog that flashes up and closes itself reads as
+  // a bug.
+  if (superUser) return null;
 
   return (
     <div

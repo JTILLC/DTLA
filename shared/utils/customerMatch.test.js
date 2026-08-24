@@ -4,8 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeCustomerName, matchCustomer, isSameCustomer, namesFor,
-  consolidateCustomers, looksLikeADifferentSite, sameCustomerName,
-} from './customerMatch.js';
+  consolidateCustomers, looksLikeADifferentSite, sameCustomerName, belongsToCustomer } from './customerMatch.js';
 
 const rec = (name, over = {}) => ({ id: name.toLowerCase().replace(/\W/g, ''), name, ...over });
 
@@ -229,5 +228,87 @@ describe('consolidateCustomers — spelling variants', () => {
     const out = consolidateCustomers(
       [e('Ajinomoto'), e('Ajinomoto Oakland'), e('Ajinomoto Portland')], []);
     expect(out.map((g) => g.name)).toEqual(['Ajinomoto', 'Ajinomoto Oakland', 'Ajinomoto Portland']);
+  });
+});
+
+describe('belongsToCustomer — what a customer\'s own page shows', () => {
+  // The real shape: one record, an alias somebody added, and jobs typed four
+  // different ways across four years.
+  const TRIDENT = { id: 'c-trident', name: 'Trident Seafood', profile: { aliases: ['Trident'] } };
+  const AJI_PORTLAND = { id: 'c-ajip', name: 'Ajinomoto Portland', profile: {} };
+  const AJI_OAKLAND = { id: 'c-ajio', name: 'Ajinomoto Oakland', profile: {} };
+  const RECORDS = [TRIDENT, AJI_PORTLAND, AJI_OAKLAND];
+
+  const mine = belongsToCustomer('Trident Seafood', RECORDS);
+
+  it('takes the name as filed', () => {
+    expect(mine('Trident Seafood')).toBe(true);
+  });
+
+  it('takes the pluralised spelling — the bug that hid two jobs', () => {
+    expect(mine('Trident Seafoods')).toBe(true);
+  });
+
+  it('takes a recorded alias', () => {
+    expect(mine('Trident')).toBe(true);
+  });
+
+  it('takes a truncation, which is how the sources arrive', () => {
+    expect(mine('Trident Sea')).toBe(true);
+  });
+
+  it('is not fooled by whitespace or case', () => {
+    expect(mine('  TRIDENT SEAFOODS  ')).toBe(true);
+  });
+
+  it('refuses another plant', () => {
+    expect(mine('Ajinomoto Portland')).toBe(false);
+    expect(mine('SunTree')).toBe(false);
+  });
+
+  it('refuses an empty name rather than matching everything', () => {
+    expect(mine('')).toBe(false);
+    expect(mine(null)).toBe(false);
+    expect(mine(undefined)).toBe(false);
+  });
+
+  // The reason the strict rule existed. It must survive the loosening.
+  it('still keeps two sites of one company apart', () => {
+    const portland = belongsToCustomer('Ajinomoto Portland', RECORDS);
+    expect(portland('Ajinomoto Oakland')).toBe(false);
+    // And the bare company name belongs to neither — nothing says which plant.
+    expect(portland('Ajinomoto')).toBe(false);
+  });
+
+  describe('with no record to anchor it', () => {
+    const orphan = belongsToCustomer('Shearers (Brewster)', RECORDS);
+
+    it('takes its own name', () => {
+      expect(orphan('Shearers (Brewster)')).toBe(true);
+    });
+
+    it('does not swallow the name it is a site of', () => {
+      expect(orphan('Shearers')).toBe(false);
+    });
+
+    it('merges its own spellings', () => {
+      const newPlant = belongsToCustomer('Zephyr Foods', RECORDS);
+      expect(newPlant('Zephyr Food')).toBe(true);
+      expect(newPlant('Zephyr Foo')).toBe(true);
+    });
+
+    it('never claims a name that belongs to somebody\'s record', () => {
+      const newPlant = belongsToCustomer('Zephyr Foods', RECORDS);
+      expect(newPlant('Trident Seafood')).toBe(false);
+      expect(newPlant('Trident')).toBe(false);
+    });
+
+    // A name that is only a misspelling of a real customer resolves to that
+    // customer — it is not a new plant, and treating it as one would split a
+    // history in two.
+    it('resolves a near-miss spelling onto the record it belongs to', () => {
+      const nearMiss = belongsToCustomer('Trident Seafoodz', RECORDS);
+      expect(nearMiss('Trident Seafood')).toBe(true);
+    });
   });
 });

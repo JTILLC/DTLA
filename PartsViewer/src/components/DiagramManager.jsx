@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import InteractiveDiagram from './InteractiveDiagram';
 import PdfToCsvConverter from './PdfToCsvConverter';
 import { partsData, partPositions } from '../partsData';
@@ -7,19 +7,205 @@ import {
   loadDiagram as loadFromFirebase,
   loadAllDiagrams,
   syncDiagramsToFirebase,
-  deleteDiagram as deleteFromFirebase
+  deleteDiagram as deleteFromFirebase,
+  repairMissingImageReferences,
+  loadDiagramImagesForExport
 } from '../firebase/diagramService';
+import {
+  saveDiagramsToIndexedDB,
+  loadDiagramsFromIndexedDB,
+  loadSingleDiagramFromIndexedDB,
+  deleteDiagramFromIndexedDB
+} from '../utils/indexedDBStorage';
 
-const DiagramManager = () => {
+const DiagramManager = ({ onLogout }) => {
   const [savedDiagrams, setSavedDiagrams] = useState({});
   const [currentDiagramId, setCurrentDiagramId] = useState(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [manifestImporting, setManifestImporting] = useState(false);
+
+  // Parse a single-space-delimited Ishida-style parts list:
+  //   "1 000-146-9411-14 MAIN BODY AS :: 1"
+  //   = [partNo] [partCode] [partName...] [qty]
+  // Returns a partsData object keyed by partNo (the index number), with
+  // each entry shaped to match what the rest of PartsViewer expects:
+  // { partNo, partCode, partName, qty, pmst }.
+  const parseIshidaPartsList = (text) => {
+    if (!text) return {};
+    const out = {};
+    const PN_RE = /(\d{3}-\d{3}-\d{4}-\d{2})/;
+    let fallbackIdx = 0;
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      const m = line.match(PN_RE);
+      if (!m) continue;
+      const partCode = m[1];
+      const start = line.indexOf(partCode);
+      const before = line.slice(0, start).trim();
+      const after = line.slice(start + partCode.length).trim();
+      const indexMatch = before.match(/^(\d+)/);
+      const qtyMatch = after.match(/(\d+)\s*$/);
+      let name = qtyMatch ? after.slice(0, qtyMatch.index).trim() : after;
+      name = name.replace(/(?:::|:)\s*$/g, '').trim();
+      // Use the index number as partNo so it lines up with hotspots that
+      // store the visible index ("1", "2", …). If no index is on the line
+      // (header / summary row), fall back to a unique key prefixed with H.
+      const partNo = indexMatch ? indexMatch[1] : `H${++fallbackIdx}`;
+      // If the same partNo appears twice (e.g. multiple parts numbered "1"
+      // across rows), keep the first and skip the rest.
+      if (out[partNo]) continue;
+      out[partNo] = {
+        partNo,
+        partCode,
+        partName: name,
+        qty: qtyMatch ? qtyMatch[1] : '',
+        pmst: '',
+      };
+    }
+    return out;
+  };
+
+  // Import a ManualProcessor JSON manifest. Auto-creates one diagram per
+  // Draw No, pre-places hotspots from OCR-detected part-number positions,
+  // and stores the parts-list raw text for later parsing. Eliminates the
+  // manual "unzip → re-upload PDFs → place every hotspot" workflow.
+  const importManualManifest = async (file) => {
+    setManifestImporting(true);
+    try {
+      const text = await file.text();
+      const manifest = JSON.parse(text);
+      if (!manifest || !Array.isArray(manifest.diagrams)) {
+        throw new Error('Manifest is missing a "diagrams" array. Generate it from ManualProcessor → Download JSON for PartsViewer.');
+      }
+      const customer = manifest.customer || 'General';
+      const folder = manifest.folder || 'General';
+      let createdCount = 0;
+      let hotspotCount = 0;
+      const incoming = {};
+      manifest.diagrams.forEach((d, idx) => {
+        const id = `mfst-${Date.now()}-${idx}`;
+        const exploded = (d.explodedViews && d.explodedViews[0]) || null;
+        const partsListImages = (d.explodedViews || []).slice(1)
+          .map((p) => p.imageData)
+          .concat((d.partsLists || []).map((p) => p.imageData))
+          .filter(Boolean);
+        // Parse the parts-list text *during* import using the same parser
+        // PartsViewer uses for CSV uploads. That way names + quantities are
+        // already filled in by the time the diagram opens — no separate
+        // "import parts list" step required.
+        const partsListText = (d.partsLists || [])
+          .map((p) => p.extractedText || '')
+          .filter(Boolean)
+          .join('\n');
+        let partsData = {};
+        if (partsListText.trim()) {
+          try {
+            partsData = parsePartsCSV(partsListText) || {};
+          } catch (err) {
+            console.warn('[importManualManifest] parsePartsCSV failed:', err);
+            partsData = {};
+          }
+          // Fallback for Ishida-style single-space-delimited lists, which the
+          // generic CSV parser doesn't recognize.
+          if (Object.keys(partsData).length < 2) {
+            const ish = parseIshidaPartsList(partsListText);
+            if (Object.keys(ish).length > Object.keys(partsData).length) {
+              console.log(`[importManualManifest] Ishida parser found ${Object.keys(ish).length} parts (CSV parser found ${Object.keys(partsData).length})`);
+              partsData = ish;
+            }
+          }
+        }
+
+        // InteractiveDiagram expects:
+        //   hotspots:  { '<partNo>-<unique>' : { x, y, partNumber } }   x/y in PERCENT (0..100)
+        //   partsData: { '<partNo>'           : { partNo, partCode, partName, qty, pmst } }
+        // The hotspot's `partNumber` field holds the index number visible on
+        // the diagram ("1", "2", …) — that's the key used to look up parts.
+        const hotspots = {};
+        (d.hotspots || []).forEach((hs, hi) => {
+          const partNo = String(hs.partNumber || '').trim();
+          if (!partNo) return;
+          const hotspotId = `${partNo}-mfst-${hi}`;
+          hotspots[hotspotId] = {
+            x: Math.round(hs.x * 10000) / 100, // 0..1 fraction → 0..100 percent, 2 dp
+            y: Math.round(hs.y * 10000) / 100,
+            partNumber: partNo,
+          };
+          // Only add a placeholder if the parts-list parse missed this index.
+          if (!partsData[partNo]) {
+            partsData[partNo] = {
+              partNo,
+              partCode: '',
+              partName: '',
+              qty: '',
+              pmst: '',
+            };
+          }
+          hotspotCount += 1;
+        });
+        incoming[id] = {
+          id,
+          name: d.name || d.drawNo || `Diagram ${idx + 1}`,
+          number: d.drawNo || '',
+          pdfData: exploded ? exploded.imageData : null,
+          partsData,
+          partsListImages,
+          hotspots,
+          partsListRawText: (d.partsLists || []).map((p) => p.extractedText || '').join('\n\n---\n\n'),
+          folder,
+          customer,
+          createdAt: new Date().toISOString(),
+          source: 'manual-processor-manifest',
+          manifestVersion: manifest.version || 1,
+        };
+        createdCount += 1;
+      });
+
+      setSavedDiagrams((prev) => ({ ...prev, ...incoming }));
+      try {
+        await saveDiagramsToIndexedDB({ ...savedDiagrams, ...incoming });
+      } catch (e) {
+        console.warn('[importManualManifest] IndexedDB save failed:', e);
+      }
+      // Sync to Firebase one at a time (keeps the size error handling local).
+      let synced = 0;
+      for (const [id, diagram] of Object.entries(incoming)) {
+        try {
+          await saveToFirebase(id, diagram);
+          synced += 1;
+        } catch (e) {
+          console.warn(`[importManualManifest] Firebase save failed for ${id}:`, e?.message || e);
+        }
+      }
+      const totalParts = Object.values(incoming).reduce(
+        (acc, d) => acc + Object.keys(d.partsData || {}).length,
+        0,
+      );
+      const noHotspotsNote = hotspotCount === 0
+        ? `\n\n⚠️ No hotspots were pre-placed. The exploded-view PDF pages had no embedded text (likely scanned).\n` +
+          `Open each diagram and click "Auto-detect numbers" (Google Vision OCR) to place hotspots automatically.`
+        : '';
+      alert(
+        `Imported manifest: ${createdCount} diagrams, ${totalParts} parts parsed, ${hotspotCount} hotspots pre-placed.\n` +
+        `Synced ${synced} of ${createdCount} to Firebase.\n\n` +
+        `Customer: ${customer}\nFolder: ${folder}` +
+        noHotspotsNote
+      );
+    } catch (error) {
+      console.error('[importManualManifest] Import failed:', error);
+      alert(`Failed to import manifest: ${error.message}`);
+    } finally {
+      setManifestImporting(false);
+    }
+  };
   const [showPartsReview, setShowPartsReview] = useState(false);
   const [reviewData, setReviewData] = useState(null);
   const [ocrProgress, setOcrProgress] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [collapsedFolders, setCollapsedFolders] = useState({});
+  const [collapsedCustomers, setCollapsedCustomers] = useState({});
   const [showFolderManager, setShowFolderManager] = useState(false);
+  const [showCustomerManager, setShowCustomerManager] = useState(false);
   const [globalOrderList, setGlobalOrderList] = useState({});
   const [currentView, setCurrentView] = useState('viewer'); // 'viewer' or 'pdf-converter'
   const [importedCsvData, setImportedCsvData] = useState(null);
@@ -42,6 +228,35 @@ const DiagramManager = () => {
   const [tocEntries, setTocEntries] = useState([]); // Parsed TOC entries
   const [tocMappings, setTocMappings] = useState({}); // Map TOC index to diagram ID
   const [tocSelectedFolder, setTocSelectedFolder] = useState(''); // Folder filter for TOC renaming
+  const [showPartsListReview, setShowPartsListReview] = useState(false); // Parts list PDF review modal
+  const [partsListData, setPartsListData] = useState(null); // Parsed parts list data
+  const [partsListSourceFile, setPartsListSourceFile] = useState(null); // Source file for parts list (to store as image)
+  const [tocSelectedCustomer, setTocSelectedCustomer] = useState(''); // Customer filter for TOC renaming
+  const [showHelp, setShowHelp] = useState(false); // Help modal
+  const [showBulkImageUpload, setShowBulkImageUpload] = useState(false); // Bulk image upload modal
+  const [bulkImageFiles, setBulkImageFiles] = useState([]); // Array of {file, matchedDiagramId, confidence}
+  const [bulkUploadFolder, setBulkUploadFolder] = useState(''); // Folder filter for bulk upload
+  const [bulkUploadCustomer, setBulkUploadCustomer] = useState(''); // Customer for bulk upload
+  const [bulkUploadZipMode, setBulkUploadZipMode] = useState(false); // ZIP mode vs individual files
+  const [bulkUploadTocText, setBulkUploadTocText] = useState(''); // TOC text for ZIP upload
+  const [showPartsDebugModal, setShowPartsDebugModal] = useState(false); // Parts extraction debug modal
+  const [partsDebugData, setPartsDebugData] = useState(null); // Data for debugging parts extraction
+  const [showStorageDiagnostic, setShowStorageDiagnostic] = useState(false); // Storage diagnostic modal
+  const [diagnosticData, setDiagnosticData] = useState(null); // Diagnostic results
+  const [fixingStorage, setFixingStorage] = useState(false); // Currently fixing storage issues
+  const [showQuickStartWizard, setShowQuickStartWizard] = useState(false); // Quick start wizard
+  const [wizardStep, setWizardStep] = useState(1); // Current wizard step
+  const [wizardData, setWizardData] = useState({
+    customer: '',
+    folder: '',
+    tocText: '',
+    diagramCount: 0,
+    createdDiagramIds: []
+  }); // Wizard data
+  const [showPartsListSource, setShowPartsListSource] = useState(false); // Show parts list source images
+
+  // Ref for scrolling to diagram viewer
+  const diagramViewerRef = useRef(null);
 
   // Convert old format hotspots to new format
   const migrateHotspots = (hotspots) => {
@@ -67,16 +282,6 @@ const DiagramManager = () => {
 
     return migratedHotspots;
   };
-
-  // Track window resize for responsive layout
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Load dark mode preference from localStorage
   useEffect(() => {
@@ -104,13 +309,35 @@ const DiagramManager = () => {
     localStorage.setItem('globalOrderList', JSON.stringify(globalOrderList));
   }, [globalOrderList]);
 
-  // Load saved diagrams from localStorage on mount
+  // Reset parts list source display when changing diagrams
+  useEffect(() => {
+    setShowPartsListSource(false);
+  }, [currentDiagramId]);
+
+  // Load saved diagrams from IndexedDB on mount
   useEffect(() => {
     const initializeDiagrams = async () => {
-      const saved = localStorage.getItem('savedDiagrams');
-      if (saved) {
-        const diagrams = JSON.parse(saved);
+      // Try loading from IndexedDB first
+      let diagrams = await loadDiagramsFromIndexedDB();
 
+      // Fallback to localStorage if IndexedDB is empty (migration path)
+      if (Object.keys(diagrams).length === 0) {
+        const saved = localStorage.getItem('savedDiagrams');
+        if (saved) {
+          try {
+            diagrams = JSON.parse(saved);
+            console.log('[Storage] Migrating from localStorage to IndexedDB');
+            // Save to IndexedDB and clear localStorage
+            await saveDiagramsToIndexedDB(diagrams);
+            localStorage.removeItem('savedDiagrams');
+          } catch (error) {
+            console.error('[Storage] Error migrating from localStorage:', error);
+            diagrams = {};
+          }
+        }
+      }
+
+      if (Object.keys(diagrams).length > 0) {
         // Migrate any old format hotspots and add folder/number/customer fields if missing
         const migratedDiagrams = {};
         Object.keys(diagrams).forEach(diagramId => {
@@ -127,11 +354,13 @@ const DiagramManager = () => {
           };
         });
 
-        // Collapse all folders on initial load to reduce render overhead on mobile
+        // Collapse all folders on initial load to reduce render overhead
         const allFolders = {};
         Object.values(migratedDiagrams).forEach(diagram => {
+          const customer = diagram.customer || 'General';
           const folder = diagram.folder || 'General';
-          allFolders[folder] = true; // All collapsed
+          const folderKey = `${customer}-${folder}`;
+          allFolders[folderKey] = true; // All collapsed
         });
         setCollapsedFolders(allFolders);
 
@@ -160,60 +389,144 @@ const DiagramManager = () => {
 
         setSavedDiagrams(initialDiagrams);
         setCurrentDiagramId(defaultDiagramId);
-        localStorage.setItem('savedDiagrams', JSON.stringify(initialDiagrams));
+        await saveDiagramsToIndexedDB(initialDiagrams);
       }
     };
 
     initializeDiagrams();
   }, []);
 
-  // Save diagrams to localStorage whenever they change (unless sync is disabled)
+  // Save diagrams to IndexedDB whenever they change (unless sync is disabled)
+  // IndexedDB has much larger storage limits than localStorage (typically hundreds of MB)
   useEffect(() => {
     if (!skipLocalStorageSync && Object.keys(savedDiagrams).length > 0) {
-      localStorage.setItem('savedDiagrams', JSON.stringify(savedDiagrams));
+      // Save asynchronously, don't block UI
+      saveDiagramsToIndexedDB(savedDiagrams).catch(error => {
+        console.error('[Storage] Error saving diagrams to IndexedDB:', error);
+      });
     }
   }, [savedDiagrams, skipLocalStorageSync]);
 
   // Load PDF on-demand when diagram is selected (for Firebase-loaded diagrams without PDF data)
+  // Also clear PDF data from other diagrams to save memory
   useEffect(() => {
     const loadPdfForDiagram = async () => {
-      if (!currentDiagramId) return;
+      if (!currentDiagramId) {
+        console.log('[PDF Loader] No currentDiagramId');
+        return;
+      }
 
       const diagram = savedDiagrams[currentDiagramId];
-      if (!diagram) return;
+      if (!diagram) {
+        console.log('[PDF Loader] No diagram found for ID:', currentDiagramId);
+        return;
+      }
 
-      // If diagram doesn't have PDF data, try to load it from Firebase
+      console.log('[PDF Loader] Checking diagram:', currentDiagramId, 'Has pdfData:', !!diagram.pdfData);
+
+      // First, clear PDF data from ALL other diagrams to save memory
+      // BUT preserve pdfData for diagrams that haven't been saved to Firebase yet
+      const clearedDiagrams = {};
+      Object.keys(savedDiagrams).forEach(id => {
+        if (id !== currentDiagramId) {
+          const diagram = savedDiagrams[id];
+          // Only clear pdfData if diagram has been saved to Firebase (has pdfStoragePath)
+          // OR if pdfData is already an HTTPS URL (already loaded from Firebase)
+          const hasFirebaseBackup = diagram.pdfStoragePath ||
+                                    (diagram.pdfData && typeof diagram.pdfData === 'string' && diagram.pdfData.startsWith('https://'));
+
+          if (hasFirebaseBackup) {
+            // Safe to clear - can be reloaded from Firebase
+            const { pdfData, ...diagramWithoutPdf } = savedDiagrams[id];
+            clearedDiagrams[id] = diagramWithoutPdf;
+          } else {
+            // Keep pdfData - not yet backed up to Firebase
+            clearedDiagrams[id] = savedDiagrams[id];
+          }
+        } else {
+          clearedDiagrams[id] = savedDiagrams[id];
+        }
+      });
+      console.log('[PDF Loader] Cleared PDF data from', Object.keys(savedDiagrams).length - 1, 'other diagrams');
+
+      // If current diagram doesn't have PDF data, try to load it from IndexedDB first, then Firebase
       if (!diagram.pdfData) {
-        console.log('PDF data missing for diagram:', currentDiagramId, 'Attempting to load from Firebase...');
+        console.log('PDF data missing for diagram:', currentDiagramId, 'Attempting to load from IndexedDB...');
         setSyncStatus('Loading PDF...');
+
         try {
-          const fullDiagram = await loadFromFirebase(currentDiagramId);
-          console.log('Loaded diagram from Firebase:', fullDiagram);
-          if (fullDiagram && fullDiagram.pdfData) {
-            console.log('PDF data found, updating diagram...');
-            // Update the diagram with PDF data
+          // Try IndexedDB first (faster, local)
+          const indexedDBDiagram = await loadSingleDiagramFromIndexedDB(currentDiagramId);
+
+          if (indexedDBDiagram && indexedDBDiagram.pdfData) {
+            console.log('PDF data found in IndexedDB, updating diagram...');
+            // Update the diagram with PDF data from IndexedDB
             setSavedDiagrams(prev => ({
-              ...prev,
+              ...clearedDiagrams,
               [currentDiagramId]: {
                 ...prev[currentDiagramId],
-                pdfData: fullDiagram.pdfData
+                pdfData: indexedDBDiagram.pdfData
               }
             }));
             setSyncStatus(null);
           } else {
-            console.error('No PDF data in loaded diagram');
-            setSyncStatus('⚠️ PDF not available');
-            setTimeout(() => setSyncStatus(null), 3000);
+            // Fall back to Firebase if not in IndexedDB
+            console.log('PDF data not in IndexedDB, trying Firebase...');
+            setSyncStatus('Loading PDF from cloud...');
+
+            try {
+              const fullDiagram = await loadFromFirebase(currentDiagramId);
+              console.log('Loaded diagram from Firebase:', fullDiagram);
+              if (fullDiagram && fullDiagram.pdfData) {
+                console.log('PDF data found in Firebase, updating diagram...');
+                // Update the diagram with PDF data
+                setSavedDiagrams(prev => ({
+                  ...clearedDiagrams,
+                  [currentDiagramId]: {
+                    ...prev[currentDiagramId],
+                    pdfData: fullDiagram.pdfData
+                  }
+                }));
+                setSyncStatus(null);
+              } else {
+                console.error('No PDF data in loaded diagram');
+                // Still clear other diagrams even if load failed
+                setSavedDiagrams(clearedDiagrams);
+                setSyncStatus('⚠️ PDF not available');
+                setTimeout(() => setSyncStatus(null), 3000);
+              }
+            } catch (error) {
+              console.error('Failed to load PDF from Firebase:', error);
+              // Still clear other diagrams even if load failed
+              setSavedDiagrams(clearedDiagrams);
+              setSyncStatus('⚠️ Failed to load PDF');
+              setTimeout(() => setSyncStatus(null), 3000);
+            }
           }
         } catch (error) {
-          console.error('Failed to load PDF from Firebase:', error);
+          console.error('Failed to load PDF from IndexedDB:', error);
+          // Still clear other diagrams even if load failed
+          setSavedDiagrams(clearedDiagrams);
           setSyncStatus('⚠️ Failed to load PDF');
           setTimeout(() => setSyncStatus(null), 3000);
         }
+      } else {
+        // Current diagram already has PDF data, just clear others
+        setSavedDiagrams(clearedDiagrams);
       }
     };
 
     loadPdfForDiagram();
+  }, [currentDiagramId]);
+
+  // Auto-scroll to diagram viewer when a diagram is selected
+  useEffect(() => {
+    if (currentDiagramId && diagramViewerRef.current) {
+      diagramViewerRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
   }, [currentDiagramId]);
 
   const handleFileUpload = async (e) => {
@@ -265,10 +578,18 @@ const DiagramManager = () => {
       }
 
       let partsData = {};
+      let partsListImages = [];
 
       // Use imported CSV data if available, otherwise parse from file
       if (importedCsvData) {
-        partsData = importedCsvData;
+        // Handle both old format (just partsData) and new format (object with partsData and partsListImages)
+        if (importedCsvData.partsData) {
+          partsData = importedCsvData.partsData;
+          partsListImages = importedCsvData.partsListImages || [];
+        } else {
+          // Old format - just partsData
+          partsData = importedCsvData;
+        }
         setImportedCsvData(null); // Clear after use
       } else if (partsFile && partsFile.size > 0) {
         // Read parts file based on type
@@ -309,6 +630,7 @@ const DiagramManager = () => {
         diagramNumber,
         pdfData,
         partsData,
+        partsListImages,
         folder: folderName,
         customer: customerName
       });
@@ -321,19 +643,41 @@ const DiagramManager = () => {
     }
   };
 
-  const confirmPartsData = () => {
-    const { diagramName, diagramNumber, pdfData, partsData, folder, customer, isEditing, diagramId } = reviewData;
+  const confirmPartsData = async () => {
+    const { diagramName, diagramNumber, pdfData, partsData, partsListImages, folder, customer, isEditing, diagramId } = reviewData;
 
     if (isEditing) {
       // Update existing diagram
+      const updatedDiagram = {
+        ...savedDiagrams[diagramId],
+        pdfData: pdfData,
+        partsData: partsData
+      };
+
       setSavedDiagrams(prev => ({
         ...prev,
-        [diagramId]: {
-          ...prev[diagramId],
-          pdfData: pdfData,
-          partsData: partsData
-        }
+        [diagramId]: updatedDiagram
       }));
+
+      // Auto-sync to Firebase
+      try {
+        setSyncStatus('Saving to Firebase...');
+        await saveToFirebase(diagramId, updatedDiagram);
+        console.log('[confirmPartsData] Saved updated diagram to Firebase:', diagramId);
+        setSyncStatus('✓ Saved to Firebase');
+        setTimeout(() => setSyncStatus(null), 2000);
+      } catch (error) {
+        if (error.isWarning) {
+          // Size warning - diagram saved locally with full data, but Firebase has metadata only
+          console.warn('[confirmPartsData] Size warning:', error.message);
+          setSyncStatus('⚠️ Too large for Firebase (saved locally)');
+          setTimeout(() => setSyncStatus(null), 5000);
+        } else {
+          console.error('[confirmPartsData] Failed to sync to Firebase:', error);
+          setSyncStatus('⚠️ Firebase sync failed');
+          setTimeout(() => setSyncStatus(null), 3000);
+        }
+      }
 
       setEditingDiagram(null);
       setShowPartsReview(false);
@@ -360,6 +704,7 @@ const DiagramManager = () => {
         number: finalDiagramNumber,
         pdfData: pdfData,
         partsData: partsData,
+        partsListImages: partsListImages || [],
         hotspots: {},
         folder: folder || 'General',
         customer: customer || 'General',
@@ -370,6 +715,26 @@ const DiagramManager = () => {
         ...prev,
         [newDiagramId]: newDiagram
       }));
+
+      // Auto-sync to Firebase
+      try {
+        setSyncStatus('Saving to Firebase...');
+        await saveToFirebase(newDiagramId, newDiagram);
+        console.log('[confirmPartsData] Saved new diagram to Firebase:', newDiagramId);
+        setSyncStatus('✓ Saved to Firebase');
+        setTimeout(() => setSyncStatus(null), 2000);
+      } catch (error) {
+        if (error.isWarning) {
+          // Size warning - diagram saved locally with full data, but Firebase has metadata only
+          console.warn('[confirmPartsData] Size warning:', error.message);
+          setSyncStatus('⚠️ Too large for Firebase (saved locally)');
+          setTimeout(() => setSyncStatus(null), 5000);
+        } else {
+          console.error('[confirmPartsData] Failed to sync to Firebase:', error);
+          setSyncStatus('⚠️ Firebase sync failed');
+          setTimeout(() => setSyncStatus(null), 3000);
+        }
+      }
 
       setCurrentDiagramId(newDiagramId);
       setShowPartsReview(false);
@@ -403,16 +768,59 @@ const DiagramManager = () => {
 
     // Process PDF if provided
     if (pdfFile?.size) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        pdfData = event.target.result;
+      try {
+        const reader = new FileReader();
 
-        // Process parts list if provided
-        if (partsFile?.size) {
-          const text = await partsFile.text();
-          const parsed = parsePartsCSV(text);
-          partsData = parsed;
-        }
+        reader.onload = async (event) => {
+          try {
+            pdfData = event.target.result;
+
+            // Process parts list if provided
+            if (partsFile?.size) {
+              const text = await partsFile.text();
+              const parsed = parsePartsCSV(text);
+              partsData = parsed;
+            }
+
+            // Show review
+            setReviewData({
+              diagramId: editingDiagram.id,
+              diagramName: editingDiagram.name,
+              diagramNumber: editingDiagram.number,
+              pdfData,
+              partsData,
+              folder: editingDiagram.folder,
+              customer: editingDiagram.customer,
+              isEditing: true
+            });
+            setShowPartsReview(true);
+          } catch (error) {
+            console.error('Error processing files:', error);
+            alert('Failed to process files: ' + error.message);
+          }
+        };
+
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+          alert('Failed to read PDF file. The file may have been moved, deleted, or access was denied.');
+        };
+
+        reader.onabort = () => {
+          console.error('File read was aborted');
+          alert('File read was cancelled.');
+        };
+
+        reader.readAsDataURL(pdfFile);
+      } catch (error) {
+        console.error('Error starting file read:', error);
+        alert('Failed to read PDF file: ' + error.message);
+      }
+    } else if (partsFile?.size) {
+      // Only parts list provided
+      try {
+        const text = await partsFile.text();
+        const parsed = parsePartsCSV(text);
+        partsData = parsed;
 
         // Show review
         setReviewData({
@@ -426,39 +834,49 @@ const DiagramManager = () => {
           isEditing: true
         });
         setShowPartsReview(true);
-      };
-      reader.readAsDataURL(pdfFile);
-    } else if (partsFile?.size) {
-      // Only parts list provided
-      const text = await partsFile.text();
-      const parsed = parsePartsCSV(text);
-      partsData = parsed;
-
-      // Show review
-      setReviewData({
-        diagramId: editingDiagram.id,
-        diagramName: editingDiagram.name,
-        diagramNumber: editingDiagram.number,
-        pdfData,
-        partsData,
-        folder: editingDiagram.folder,
-        customer: editingDiagram.customer,
-        isEditing: true
-      });
-      setShowPartsReview(true);
+      } catch (error) {
+        console.error('Error reading parts file:', error);
+        alert('Failed to read parts file. The file may have been moved, deleted, or access was denied.');
+      }
     }
   };
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
+      // Validate file before reading
+      if (!file || !file.size) {
+        reject(new Error('Invalid file or file is empty'));
+        return;
+      }
+
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+
       reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
+
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        reject(new Error('Failed to read file. The file may have been moved, deleted, or access was denied.'));
+      };
+
+      reader.onabort = () => {
+        reject(new Error('File read was aborted'));
+      };
+
+      try {
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Error starting file read:', error);
+        reject(new Error('Failed to start reading file: ' + error.message));
+      }
     });
   };
 
   const extractTextFromPDF = async (file) => {
+    // Validate file before processing
+    if (!file || !file.size) {
+      throw new Error('Invalid file or file is empty');
+    }
+
     const pdfjs = await import('pdfjs-dist');
     const { getDocument } = pdfjs;
 
@@ -470,10 +888,14 @@ const DiagramManager = () => {
 
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
+
       reader.onload = async (e) => {
         try {
           const typedArray = new Uint8Array(e.target.result);
-          const pdf = await getDocument(typedArray).promise;
+          const pdf = await getDocument({
+            data: typedArray,
+            ignoreEncryption: true
+          }).promise;
 
           console.log('PDF loaded, pages:', pdf.numPages);
 
@@ -542,8 +964,22 @@ const DiagramManager = () => {
           reject(new Error('Failed to extract text from PDF: ' + error.message));
         }
       };
-      reader.onerror = () => reject(new Error('Failed to read PDF file'));
-      reader.readAsArrayBuffer(file);
+
+      reader.onerror = (error) => {
+        console.error('FileReader error reading PDF:', error);
+        reject(new Error('Failed to read PDF file. The file may have been moved, deleted, or access was denied.'));
+      };
+
+      reader.onabort = () => {
+        reject(new Error('PDF file read was aborted'));
+      };
+
+      try {
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        console.error('Error starting PDF file read:', error);
+        reject(new Error('Failed to start reading PDF file: ' + error.message));
+      }
     });
   };
 
@@ -562,7 +998,10 @@ const DiagramManager = () => {
         reader.onload = async (e) => {
           try {
             const typedArray = new Uint8Array(e.target.result);
-            const pdf = await getDocument(typedArray).promise;
+            const pdf = await getDocument({
+              data: typedArray,
+              ignoreEncryption: true
+            }).promise;
 
             console.log('Running OCR on', pdf.numPages, 'pages...');
             let fullText = '';
@@ -624,17 +1063,20 @@ const DiagramManager = () => {
       }
     });
 
+    // Extract parts list images if available
+    const partsListImages = csvData.partsListImages || [];
+
     // Check if there are existing diagrams
     const existingDiagrams = Object.keys(savedDiagrams);
 
     if (existingDiagrams.length === 0) {
       // No existing diagrams, create new
-      setImportedCsvData(partsData);
+      setImportedCsvData({ partsData, partsListImages });
       setCurrentView('viewer');
       setShowUploadForm(true);
     } else {
       // Show diagram selector modal
-      setPendingCsvData(partsData);
+      setPendingCsvData({ partsData, partsListImages });
       setShowDiagramSelector(true);
       setCurrentView('viewer');
     }
@@ -643,22 +1085,25 @@ const DiagramManager = () => {
   const handleSelectDiagramForImport = (diagramId) => {
     if (!pendingCsvData) return;
 
-    // Update the existing diagram's parts data
+    const { partsData, partsListImages } = pendingCsvData;
+
+    // Update the existing diagram's parts data and parts list images
     setSavedDiagrams(prev => ({
       ...prev,
       [diagramId]: {
         ...prev[diagramId],
         partsData: {
           ...prev[diagramId].partsData,
-          ...pendingCsvData // Merge new parts with existing
-        }
+          ...partsData // Merge new parts with existing
+        },
+        partsListImages: partsListImages && partsListImages.length > 0 ? partsListImages : prev[diagramId].partsListImages
       }
     }));
 
     setCurrentDiagramId(diagramId);
     setShowDiagramSelector(false);
     setPendingCsvData(null);
-    alert(`Successfully added ${Object.keys(pendingCsvData).length} parts to "${savedDiagrams[diagramId].name}"!`);
+    alert(`Successfully added ${Object.keys(partsData).length} parts${partsListImages && partsListImages.length > 0 ? ` and ${partsListImages.length} parts list image(s)` : ''} to "${savedDiagrams[diagramId].name}"!`);
   };
 
   const handleCreateNewDiagramWithImport = () => {
@@ -674,26 +1119,57 @@ const DiagramManager = () => {
   const handleSaveToFirebase = async (diagramId) => {
     try {
       setSyncStatus('Saving...');
-      const diagram = savedDiagrams[diagramId];
+      let diagram = savedDiagrams[diagramId];
+
+      // If diagram doesn't have pdfData in memory, try to get it from localStorage
+      if (!diagram.pdfData) {
+        console.log('[handleSaveToFirebase] No pdfData in memory, checking localStorage...');
+        const saved = localStorage.getItem('savedDiagrams');
+        if (saved) {
+          const localDiagrams = JSON.parse(saved);
+          if (localDiagrams[diagramId] && localDiagrams[diagramId].pdfData) {
+            console.log('[handleSaveToFirebase] Found pdfData in localStorage');
+            diagram = {
+              ...diagram,
+              pdfData: localDiagrams[diagramId].pdfData
+            };
+          } else {
+            console.warn('[handleSaveToFirebase] No pdfData in localStorage either');
+            if (!confirm('Warning: This diagram has no image data. Save anyway (metadata only)?')) {
+              setSyncStatus(null);
+              return;
+            }
+          }
+        }
+      }
+
       await saveToFirebase(diagramId, {
         ...diagram,
         createdAt: diagram.createdAt || Date.now()
       });
+      console.log('[handleSaveToFirebase] Manually saved diagram to Firebase:', diagramId);
       setSyncStatus('✓ Saved to Firebase');
       setTimeout(() => setSyncStatus(null), 3000);
       alert('Diagram saved to Firebase successfully!');
     } catch (error) {
-      setSyncStatus('✗ Save failed');
-      console.error('Firebase save error:', error);
-      alert('Failed to save to Firebase. Please check your Firebase configuration.\n\nError: ' + error.message);
+      if (error.isWarning) {
+        // Size warning - metadata saved, pdfData excluded
+        setSyncStatus('⚠️ Too large - metadata only');
+        setTimeout(() => setSyncStatus(null), 5000);
+        alert(`⚠️ ${error.message}\n\nThe diagram is saved locally with full PDF/image data.\nFirebase has the metadata only (name, parts, hotspots, etc.)`);
+      } else {
+        setSyncStatus('✗ Save failed');
+        console.error('Firebase save error:', error);
+        alert('Failed to save to Firebase. Please check your Firebase configuration.\n\nError: ' + error.message);
+      }
     }
   };
 
   const handleLoadFromFirebase = async () => {
     try {
       setIsLoadingHeavy(true); // Show loading overlay
-      setSkipLocalStorageSync(true); // Disable localStorage during load to prevent mobile crash
-      setSyncStatus('Loading...');
+      setSkipLocalStorageSync(true); // Disable localStorage during load
+      setSyncStatus('Loading diagrams from Firebase...');
       const diagrams = await loadAllDiagrams();
 
       if (diagrams.length === 0) {
@@ -704,15 +1180,22 @@ const DiagramManager = () => {
         return;
       }
 
-      setSyncStatus(`Processing ${diagrams.length} diagrams...`);
+      setSyncStatus(`Loading images for ${diagrams.length} diagrams...`);
 
-      // Strip out PDF data to reduce memory usage (PDFs can be huge)
-      // We'll load PDFs on-demand when user selects a diagram
+      // Load images from Firebase Storage and convert to base64 for local IndexedDB
+      const { loadDiagramImagesForExport } = await import('../firebase/diagramService');
+      const diagramsWithImages = await loadDiagramImagesForExport(diagrams, (current, total) => {
+        setSyncStatus(`Loading images: ${current}/${total}...`);
+      });
+
+      setSyncStatus(`Processing ${diagramsWithImages.length} diagrams...`);
+
+      // Convert to object with diagram IDs as keys
       const diagramsObj = {};
-      diagrams.forEach(diagram => {
+      diagramsWithImages.forEach(diagram => {
         diagramsObj[diagram.id] = {
           ...diagram,
-          pdfData: null // Remove PDF data for now - too heavy for mobile
+          // pdfData is now base64, ready for IndexedDB
         };
       });
 
@@ -727,13 +1210,13 @@ const DiagramManager = () => {
         setCollapsedFolders(allFolders);
 
         setTimeout(() => {
-          // Load all diagrams at once (without PDF data, they're lightweight)
+          // Load all diagrams with images into IndexedDB
           setSavedDiagrams(prev => ({
             ...prev,
             ...diagramsObj
           }));
 
-          setSyncStatus(`✓ Loaded ${diagrams.length} diagrams (PDFs excluded)`);
+          setSyncStatus(`✓ Loaded ${diagrams.length} diagrams with images`);
 
           setTimeout(() => {
             setIsLoadingHeavy(false);
@@ -766,7 +1249,26 @@ const DiagramManager = () => {
 
     try {
       setSyncStatus('Syncing all...');
-      await syncDiagramsToFirebase(savedDiagrams);
+
+      // Check localStorage for pdfData if missing in memory
+      const saved = localStorage.getItem('savedDiagrams');
+      const localDiagrams = saved ? JSON.parse(saved) : {};
+      const diagramsToSync = {};
+
+      Object.keys(savedDiagrams).forEach(diagramId => {
+        let diagram = savedDiagrams[diagramId];
+        // If diagram doesn't have pdfData in memory, try localStorage
+        if (!diagram.pdfData && localDiagrams[diagramId]?.pdfData) {
+          console.log(`[handleSyncAllToFirebase] Found pdfData in localStorage for ${diagramId}`);
+          diagram = {
+            ...diagram,
+            pdfData: localDiagrams[diagramId].pdfData
+          };
+        }
+        diagramsToSync[diagramId] = diagram;
+      });
+
+      await syncDiagramsToFirebase(diagramsToSync);
       setSyncStatus(`✓ Synced ${Object.keys(savedDiagrams).length} diagrams`);
       setTimeout(() => setSyncStatus(null), 3000);
       alert(`Successfully synced ${Object.keys(savedDiagrams).length} diagram(s) to Firebase!`);
@@ -777,25 +1279,42 @@ const DiagramManager = () => {
     }
   };
 
-  const handleSaveFolderToFirebase = async (folderName, diagrams) => {
+  const handleSaveFolderToFirebase = async (customerName, folderName, diagrams) => {
     if (diagrams.length === 0) {
       alert('No diagrams in this folder to save.');
       return;
     }
 
     try {
-      setSyncStatus(`Saving ${folderName}...`);
+      setSyncStatus(`Saving ${customerName} > ${folderName}...`);
 
       // Convert diagrams array to object format for syncDiagramsToFirebase
+      // Check localStorage for pdfData if missing in memory (backup for unsaved diagrams)
       const diagramsToSync = {};
+      const saved = localStorage.getItem('savedDiagrams');
+      const localDiagrams = saved ? JSON.parse(saved) : {};
+
       diagrams.forEach(diagram => {
-        diagramsToSync[diagram.id] = diagram;
+        console.log(`[handleSaveFolderToFirebase] Checking ${diagram.id}:`);
+        console.log(`  - Has pdfData: ${!!diagram.pdfData} (type: ${typeof diagram.pdfData})`);
+        console.log(`  - Has pdfStoragePath: ${!!diagram.pdfStoragePath} (value: ${diagram.pdfStoragePath})`);
+
+        let diagramToSave = diagram;
+        // If diagram doesn't have pdfData in memory, try localStorage
+        if (!diagram.pdfData && localDiagrams[diagram.id]?.pdfData) {
+          console.log(`[handleSaveFolderToFirebase] Found pdfData in localStorage for ${diagram.id}`);
+          diagramToSave = {
+            ...diagram,
+            pdfData: localDiagrams[diagram.id].pdfData
+          };
+        }
+        diagramsToSync[diagram.id] = diagramToSave;
       });
 
       await syncDiagramsToFirebase(diagramsToSync);
-      setSyncStatus(`✓ Saved ${diagrams.length} diagrams from ${folderName}`);
+      setSyncStatus(`✓ Saved ${diagrams.length} diagrams from ${customerName} > ${folderName}`);
       setTimeout(() => setSyncStatus(null), 3000);
-      alert(`Successfully saved ${diagrams.length} diagram(s) from "${folderName}" to Firebase!`);
+      alert(`Successfully saved ${diagrams.length} diagram(s) from "${customerName} > ${folderName}" to Firebase!`);
     } catch (error) {
       setSyncStatus('✗ Save failed');
       console.error('Firebase save error:', error);
@@ -804,18 +1323,19 @@ const DiagramManager = () => {
     }
   };
 
-  const handleLoadFolderFromFirebase = async (folderName) => {
+  const handleLoadFolderFromFirebase = async (customerName, folderName) => {
     try {
-      setSyncStatus(`Loading ${folderName}...`);
+      setSyncStatus(`Loading ${customerName} > ${folderName}...`);
       const allDiagrams = await loadAllDiagrams();
 
-      // Filter diagrams by folder
+      // Filter diagrams by customer AND folder
       const folderDiagrams = allDiagrams.filter(diagram =>
+        (diagram.customer || 'General') === customerName &&
         (diagram.folder || 'General') === folderName
       );
 
       if (folderDiagrams.length === 0) {
-        alert(`No diagrams found in folder "${folderName}" on Firebase.`);
+        alert(`No diagrams found in "${customerName} > ${folderName}" on Firebase.`);
         setSyncStatus(null);
         return;
       }
@@ -828,10 +1348,11 @@ const DiagramManager = () => {
 
       // Collapse the folder to reduce render load
       // Collapse folder first with delay for mobile
+      const folderKey = `${customerName}-${folderName}`;
       setTimeout(() => {
         setCollapsedFolders(prev => ({
           ...prev,
-          [folderName]: true
+          [folderKey]: true
         }));
 
         // Load diagrams after folder is collapsed
@@ -842,7 +1363,7 @@ const DiagramManager = () => {
             ...diagramsObj
           }));
 
-          setSyncStatus(`✓ Loaded ${folderDiagrams.length} from ${folderName}`);
+          setSyncStatus(`✓ Loaded ${folderDiagrams.length} from ${customerName} > ${folderName}`);
           setTimeout(() => {
             setSyncStatus(null);
           }, 4000);
@@ -871,6 +1392,25 @@ const DiagramManager = () => {
     }
   };
 
+  const handleRepairImages = async () => {
+    if (!window.confirm('This will scan all diagrams and reconnect them to orphaned images in Firebase Storage.\n\nContinue?')) {
+      return;
+    }
+
+    try {
+      setSyncStatus('Repairing image references...');
+      const result = await repairMissingImageReferences();
+      setSyncStatus(`✓ Repaired ${result.repaired} of ${result.checked} diagrams`);
+      setTimeout(() => setSyncStatus(null), 5000);
+      alert(`Repair complete!\n\nChecked: ${result.checked} diagrams\nRepaired: ${result.repaired} diagrams\n\nReload from Firebase to see updated images.`);
+    } catch (error) {
+      setSyncStatus('✗ Repair failed');
+      console.error('Repair error:', error);
+      alert('Failed to repair images.\n\nError: ' + error.message);
+      setTimeout(() => setSyncStatus(null), 3000);
+    }
+  };
+
   const handleDeleteFromFirebase = async (diagramId, diagramName) => {
     const confirm = window.confirm(
       `Delete "${diagramName}" from Firebase?\n\nThis will only delete from cloud storage. Your local copy will remain.`
@@ -888,6 +1428,909 @@ const DiagramManager = () => {
       console.error('Firebase delete error:', error);
       alert('Failed to delete from Firebase.\n\nError: ' + error.message);
     }
+  };
+
+  const handleExportCustomer = async () => {
+    if (selectedCustomer === 'All Customers') {
+      alert('Please select a specific customer to export.');
+      return;
+    }
+
+    // Get all diagrams for the selected customer
+    const customerDiagrams = Object.values(savedDiagrams).filter(
+      diagram => diagram.customer === selectedCustomer
+    );
+
+    if (customerDiagrams.length === 0) {
+      alert(`No diagrams found for customer "${selectedCustomer}".`);
+      return;
+    }
+
+    try {
+      // Show loading status
+      setSyncStatus(`Loading images for export... 0/${customerDiagrams.length}`);
+
+      // Load all images from Firebase Storage and convert to base64
+      const diagramsWithImages = await loadDiagramImagesForExport(
+        customerDiagrams,
+        (current, total) => {
+          setSyncStatus(`Loading images for export... ${current}/${total}`);
+        }
+      );
+
+      setSyncStatus('Preparing export file...');
+
+      // Create export data
+      const exportData = {
+        customer: selectedCustomer,
+        exportDate: new Date().toISOString(),
+        diagramCount: diagramsWithImages.length,
+        diagrams: diagramsWithImages
+      };
+
+      // Download as JSON
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${selectedCustomer.replace(/[^a-zA-Z0-9]/g, '_')}_diagrams_${Date.now()}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      setSyncStatus(`✓ Exported ${diagramsWithImages.length} diagram(s) with images`);
+      setTimeout(() => setSyncStatus(null), 3000);
+
+      alert(`Successfully exported ${diagramsWithImages.length} diagram(s) for "${selectedCustomer}" with all images included.`);
+    } catch (error) {
+      setSyncStatus('✗ Export failed');
+      console.error('Export error:', error);
+      alert('Failed to export customer data.\n\nError: ' + error.message);
+      setTimeout(() => setSyncStatus(null), 3000);
+    }
+  };
+
+  const handleExportCustomerByName = async (customerName) => {
+    // Get all diagrams for the specified customer
+    const customerDiagrams = Object.values(savedDiagrams).filter(
+      diagram => diagram.customer === customerName
+    );
+
+    if (customerDiagrams.length === 0) {
+      alert(`No diagrams found for customer "${customerName}".`);
+      return;
+    }
+
+    try {
+      // Show loading status
+      setSyncStatus(`Loading images for export... 0/${customerDiagrams.length}`);
+
+      // Load all images from Firebase Storage and convert to base64
+      const diagramsWithImages = await loadDiagramImagesForExport(
+        customerDiagrams,
+        (current, total) => {
+          setSyncStatus(`Loading images for export... ${current}/${total}`);
+        }
+      );
+
+      setSyncStatus('Preparing export file...');
+
+      // Create export data
+      const exportData = {
+        customer: customerName,
+        exportDate: new Date().toISOString(),
+        diagramCount: diagramsWithImages.length,
+        diagrams: diagramsWithImages
+      };
+
+      // Download as JSON
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${customerName.replace(/[^a-zA-Z0-9]/g, '_')}_diagrams_${Date.now()}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      setSyncStatus(`✓ Exported ${diagramsWithImages.length} diagram(s) with images`);
+      setTimeout(() => setSyncStatus(null), 3000);
+
+      alert(`Successfully exported ${diagramsWithImages.length} diagram(s) for "${customerName}" with all images included.`);
+    } catch (error) {
+      setSyncStatus('✗ Export failed');
+      console.error('Export error:', error);
+      alert('Failed to export customer data.\n\nError: ' + error.message);
+      setTimeout(() => setSyncStatus(null), 3000);
+    }
+  };
+
+  const handleImportCustomer = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importData = JSON.parse(event.target.result);
+
+        if (!importData.diagrams || !Array.isArray(importData.diagrams)) {
+          alert('Invalid import file format. Must contain diagrams array.');
+          return;
+        }
+
+        // Ask user for customer name
+        const customerName = prompt(
+          `Import ${importData.diagramCount || importData.diagrams.length} diagram(s)\n\n` +
+          `Enter Customer name:`,
+          importData.customer || 'General'
+        );
+
+        if (!customerName || !customerName.trim()) {
+          alert('Import cancelled - customer name is required.');
+          return;
+        }
+
+        // Ask user for folder name
+        const folderName = prompt(
+          `Customer: ${customerName}\n\n` +
+          `Enter Folder/Subfolder name:`,
+          importData.diagrams[0]?.folder || 'General'
+        );
+
+        if (!folderName || !folderName.trim()) {
+          alert('Import cancelled - folder name is required.');
+          return;
+        }
+
+        const confirm = window.confirm(
+          `Import ${importData.diagrams.length} diagram(s)?\n\n` +
+          `Customer: ${customerName}\n` +
+          `Folder: ${folderName}\n\n` +
+          `This will add/update diagrams in your local storage.`
+        );
+
+        if (!confirm) return;
+
+        console.log(`[Import] Starting import of ${importData.diagrams.length} diagrams to ${customerName} > ${folderName}`);
+
+        // Deep clean function to remove undefined values (but keep empty objects and preserve binary data)
+        const deepClean = (obj) => {
+          if (obj === null || obj === undefined) return null;
+          if (typeof obj !== 'object') return obj;
+
+          if (Array.isArray(obj)) {
+            return obj.map(item => deepClean(item)).filter(item => item !== null && item !== undefined);
+          }
+
+          const cleaned = {};
+          for (const [key, value] of Object.entries(obj)) {
+            // Skip undefined values and internal debug fields
+            if (value === undefined || key.startsWith('_')) continue;
+
+            // CRITICAL: Preserve pdfData, imageData, and other large string fields without cleaning
+            if (key === 'pdfData' || key === 'imageData' || key === 'pdfUrl') {
+              if (value) {
+                cleaned[key] = value;
+                console.log(`[Import] Preserving ${key} (length: ${typeof value === 'string' ? value.length : 'N/A'})`);
+              }
+              continue;
+            }
+
+            if (value === null) {
+              cleaned[key] = null;
+            } else if (typeof value === 'object') {
+              // Clean nested objects but keep empty objects (needed for partsData, hotspots)
+              const cleanedValue = deepClean(value);
+              // Keep empty objects and arrays
+              if (cleanedValue !== null && cleanedValue !== undefined) {
+                cleaned[key] = cleanedValue;
+              } else if (Array.isArray(value) || Object.keys(value).length === 0) {
+                cleaned[key] = value;
+              }
+            } else {
+              cleaned[key] = value;
+            }
+          }
+          return cleaned;
+        };
+
+        // Import diagrams
+        const newDiagrams = { ...savedDiagrams };
+        importData.diagrams.forEach(diagram => {
+          // Generate new ID if one doesn't exist
+          const diagramId = diagram.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          console.log(`[Import] Processing diagram: ${diagram.name}`);
+          console.log(`[Import]   - Has pdfData: ${!!diagram.pdfData}`);
+          if (diagram.pdfData) {
+            console.log(`[Import]   - pdfData type: ${typeof diagram.pdfData}`);
+            console.log(`[Import]   - pdfData length: ${diagram.pdfData.length}`);
+            console.log(`[Import]   - pdfData preview: ${diagram.pdfData.substring(0, 50)}`);
+          }
+
+          // Clean the diagram before adding
+          const cleanDiagram = deepClean({
+            ...diagram,
+            id: diagramId
+          });
+
+          console.log(`[Import]   - After deepClean, has pdfData: ${!!cleanDiagram.pdfData}`);
+          if (cleanDiagram.pdfData) {
+            console.log(`[Import]   - After deepClean, pdfData length: ${cleanDiagram.pdfData.length}`);
+          }
+
+          // Ensure required fields exist with defaults
+          newDiagrams[diagramId] = {
+            ...cleanDiagram,
+            hotspots: cleanDiagram.hotspots || {},
+            partsData: cleanDiagram.partsData || {},
+            folder: folderName.trim(),
+            customer: customerName.trim(),
+            name: cleanDiagram.name || 'Untitled',
+            number: cleanDiagram.number || '',
+            itemNo: cleanDiagram.itemNo || ''
+          };
+
+          console.log(`[Import]   - Final diagram has pdfData: ${!!newDiagrams[diagramId].pdfData}`);
+        });
+
+        console.log(`[Import] Total diagrams after import: ${Object.keys(newDiagrams).length}`);
+
+        setSavedDiagrams(newDiagrams);
+        setSelectedCustomer(customerName.trim());
+
+        alert(`Successfully imported ${importData.diagrams.length} diagram(s) for "${customerName}" in folder "${folderName}".`);
+      } catch (error) {
+        console.error('Import error:', error);
+        alert('Failed to import diagrams. Invalid file format.\n\nError: ' + error.message);
+      }
+    };
+    reader.readAsText(file);
+
+    // Clear the input so the same file can be imported again
+    e.target.value = '';
+  };
+
+  const handlePartsListPDFUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isPDF = file.type === 'application/pdf';
+    const isText = file.type === 'text/plain' || file.name.endsWith('.txt');
+
+    if (!isImage && !isPDF && !isText) {
+      alert('Please select a PDF, image, or text file (.pdf, .jpg, .jpeg, .png, .txt)');
+      return;
+    }
+
+    try {
+      let fullText = '';
+
+      if (isText) {
+        // Read .txt file directly
+        setOcrProgress('Reading text file...');
+        fullText = await file.text();
+        console.log(`[Parts List Import] Read ${fullText.length} characters from text file`);
+
+      } else if (isImage) {
+        // Use OCR for images
+        setOcrProgress('Running OCR on image...');
+
+        const imageUrl = URL.createObjectURL(file);
+
+        // Import Tesseract dynamically
+        const { createWorker } = await import('tesseract.js');
+        const worker = await createWorker('eng');
+
+        setOcrProgress('Extracting text from image...');
+        const { data: { text } } = await worker.recognize(imageUrl);
+        await worker.terminate();
+        URL.revokeObjectURL(imageUrl);
+
+        fullText = text;
+        console.log(`[Parts List Import] OCR extracted ${fullText.length} characters`);
+
+      } else {
+        // Use PDF.js for PDFs
+        setOcrProgress('Extracting text from PDF...');
+
+        // Load pdf.js library dynamically
+        const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+        // Read file as array buffer
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Load PDF
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, ignoreEncryption: true }).promise;
+
+        // Extract text from first page (assuming parts list is on page 1)
+        const page = await pdf.getPage(1);
+        const textContent = await page.getTextContent();
+
+        // Combine text items into full text
+        fullText = textContent.items.map(item => item.str).join(' ');
+      }
+
+      setOcrProgress('Parsing parts list...');
+
+      console.log('[Parts List Import] Extracted text (first 1000 chars):', fullText.substring(0, 1000));
+      console.log('[Parts List Import] Total text length:', fullText.length);
+
+      // Parse the extracted text
+      const parsed = parsePartsListText(fullText);
+
+      if (parsed.error) {
+        setOcrProgress(null);
+
+        // Show extracted text in error for debugging
+        const preview = fullText.substring(0, 500);
+        alert(`Failed to parse parts list:\n\n${parsed.error}\n\n--- Extracted Text Preview (first 500 chars) ---\n${preview}\n\nCheck browser console for full text.`);
+        return;
+      }
+
+      // Store the source file for later conversion to image
+      setPartsListSourceFile(file);
+
+      // Show review screen
+      setPartsListData(parsed);
+      setShowPartsListReview(true);
+      setOcrProgress(null);
+
+    } catch (error) {
+      console.error('Parts list extraction error:', error);
+      setOcrProgress(null);
+      alert('Failed to extract text from file.\n\nError: ' + error.message);
+    }
+
+    e.target.value = '';
+  };
+
+  const parsePartsListText = (text, isContinuationPage = false) => {
+    try {
+      // Extract UNIT NAME and DRAW NO. (only on first page)
+      let unitName = '';
+      let drawNo = '';
+
+      if (!isContinuationPage) {
+        const unitNameMatch = text.match(/UNIT\s+NAME\s+([A-Z0-9\s:]+?)\s+(?:DRAW|NO\.)/i);
+        if (unitNameMatch) {
+          unitName = unitNameMatch[1].trim();
+        }
+
+        const drawNoMatch = text.match(/(?:DRAW|NO\.)\s+NO\.\s+([A-Z0-9-]+)/i);
+        if (drawNoMatch) {
+          drawNo = drawNoMatch[1].trim();
+        }
+      }
+
+      // Match both formats: XXX-XXX-XXXX-XX and XXX-XXXX-XX (with optional spaces around dashes)
+      const partCodePattern = /\b\d{3}\s*-\s*(?:\d{3}\s*-\s*\d{4}|\d{4})\s*-\s*\d{2}\b/g;
+      const partsData = {};
+
+      // Find all part codes in the text
+      const partCodeMatches = [...text.matchAll(partCodePattern)];
+      console.log(`[Parser] Found ${partCodeMatches.length} part codes in text (formats: XXX-XXX-XXXX-XX or XXX-XXXX-XX)`);
+
+      if (partCodeMatches.length === 0) {
+        return { error: 'No parts found in the text. Please check the format.' };
+      }
+
+      // Process each part code
+      // Format: NO. PART_CODE PART_NAME QTY
+      // First part (assembly): ASSEMBLY_NAME PART_CODE (no NO. before it)
+      for (let i = 0; i < partCodeMatches.length; i++) {
+        const match = partCodeMatches[i];
+        const partCode = match[0];
+        const codeStartIndex = match.index;
+        const codeEndIndex = match.index + partCode.length;
+
+        // Get text BEFORE this part code (for part number)
+        const prevMatch = partCodeMatches[i - 1];
+        const beforeStartIndex = prevMatch ? (prevMatch.index + prevMatch[0].length) : 0;
+        const beforeCode = text.substring(beforeStartIndex, codeStartIndex).trim();
+
+        // Get text AFTER this part code (for part name and quantity)
+        const nextMatch = partCodeMatches[i + 1];
+        const afterEndIndex = nextMatch ? nextMatch.index : text.length;
+        const afterCode = text.substring(codeEndIndex, afterEndIndex).trim();
+
+        let partNumber = '*';
+        let qty = '1';
+        let partName = '';
+
+        if (i === 0 && !isContinuationPage) {
+          // First part (assembly) - name is before the part code, no NO./QTY
+          partNumber = '*';
+          qty = '1';
+
+          // Extract assembly name from beforeCode, removing header text
+          partName = beforeCode
+            .replace(/UNIT\s+NAME\s+DRAW\s+NO\.\s+[A-Z0-9-]+/gi, '')
+            .replace(/NO\.\s+PART\s+CODE\s+PART\s+NAME\s+QUANT(?:ITY)?/gi, '')
+            .trim();
+
+          // Clean up part name
+          partName = partName.replace(/::+$/, '').trim();
+          partName = partName.replace(/:+$/, '').trim();
+
+          console.log(`[Parser] ✓ Assembly (Part #*): "${partName}" [${partCode}] Qty: ${qty}`);
+        } else {
+          // Regular part - format is: NO. PART_CODE PART_NAME QTY
+          // Part number is in beforeCode, part name and qty are in afterCode
+
+          // Get part number from text before code
+          const beforeTokens = beforeCode.split(/\s+/).filter(t => t.length > 0);
+          const lastBeforeToken = beforeTokens.length > 0 ? beforeTokens[beforeTokens.length - 1] : null;
+
+          if (!lastBeforeToken || !/^\d+$/.test(lastBeforeToken)) {
+            console.log(`[Parser] ✗ Skipping part code ${partCode} - no valid part number before code (got: "${lastBeforeToken}")`);
+            continue;
+          }
+
+          partNumber = lastBeforeToken;
+
+          // Get part name and quantity from text after code
+          const afterTokens = afterCode.split(/\s+/).filter(t => t.length > 0);
+
+          if (afterTokens.length === 0) {
+            console.log(`[Parser] ✗ Skipping part code ${partCode} - no data after code`);
+            continue;
+          }
+
+          // Find the first numeric token from the end working backwards
+          // This should be the quantity (second-to-last numeric, as last is next part number)
+          let qtyIndex = -1;
+          let foundCount = 0;
+          for (let j = afterTokens.length - 1; j >= 0; j--) {
+            if (/^\d+(\.\d+)?$/.test(afterTokens[j])) {
+              foundCount++;
+              if (foundCount === 2) {
+                // Second numeric token from the end is the quantity
+                qtyIndex = j;
+                break;
+              }
+            }
+          }
+
+          if (qtyIndex >= 0) {
+            qty = afterTokens[qtyIndex];
+            partName = afterTokens.slice(0, qtyIndex).join(' ').trim();
+          } else {
+            // Only one or zero numeric tokens found
+            // Look for the first numeric token (might be the only one, which is the qty)
+            let firstNumIndex = -1;
+            for (let j = 0; j < afterTokens.length; j++) {
+              if (/^\d+(\.\d+)?$/.test(afterTokens[j])) {
+                firstNumIndex = j;
+                break;
+              }
+            }
+            if (firstNumIndex >= 0) {
+              qty = afterTokens[firstNumIndex];
+              partName = afterTokens.slice(0, firstNumIndex).join(' ').trim();
+            } else {
+              // No quantity found at all
+              partName = afterTokens.join(' ').trim();
+              qty = '1';
+            }
+          }
+
+          // Clean up part name
+          partName = partName.replace(/::+$/, '').trim();
+          partName = partName.replace(/:+$/, '').trim();
+
+          // Skip if part name is empty or just headers
+          if (!partName || /^(NO\.|PART|CODE|NAME|QUANTITY|UNIT|DRAW)$/i.test(partName)) {
+            console.log(`[Parser] ✗ Skipping part code ${partCode} - invalid part name: "${partName}"`);
+            continue;
+          }
+
+          console.log(`[Parser] ✓ Part #${partNumber}: "${partName}" [${partCode}] Qty: ${qty}`);
+        }
+
+        partsData[partNumber] = {
+          partCode: partCode,
+          partName: partName || 'UNNAMED PART',
+          qty: qty
+        };
+      }
+
+      if (Object.keys(partsData).length === 0) {
+        return { error: 'No parts found in the text. Please check the format.' };
+      }
+
+      console.log(`[Parser] Successfully parsed ${Object.keys(partsData).length} parts`);
+
+      return {
+        unitName,
+        drawNo,
+        partsData
+      };
+
+    } catch (error) {
+      console.error('Parse error:', error);
+      return { error: 'Failed to parse parts list: ' + error.message };
+    }
+  };
+
+  const handleBulkUploadPartsListImages = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files || files.length === 0) return;
+
+    try {
+      setOcrProgress(`Processing ${files.length} file(s)...`);
+
+      // Group files by diagram name
+      const filesByDiagram = {};
+
+      for (const file of files) {
+        // Extract base name from filename
+        // Remove extension first
+        let baseName = file.name.replace(/\.(pdf|jpg|jpeg|png)$/i, '');
+        // Remove -parts, -parts2, -parts3 suffix
+        baseName = baseName.replace(/-parts\d*$/i, '');
+        // Remove drawing number suffix (e.g., -4D-32819, -4D-44864, etc.)
+        baseName = baseName.replace(/-\d+[A-Z]+-\d+$/i, '');
+
+        if (!filesByDiagram[baseName]) {
+          filesByDiagram[baseName] = [];
+        }
+        filesByDiagram[baseName].push(file);
+      }
+
+      console.log('[Bulk Parts List Upload] Grouped files by diagram:', Object.keys(filesByDiagram));
+
+      // Match each group to a diagram
+      const updatedDiagrams = { ...savedDiagrams };
+      let matchedCount = 0;
+      let unmatchedFiles = [];
+
+      for (const [baseName, fileGroup] of Object.entries(filesByDiagram)) {
+        console.log(`[Bulk Parts List Upload] Looking for diagram matching "${baseName}"`);
+
+        // Normalize function: remove all non-alphanumeric characters for comparison
+        const normalize = (str) => {
+          if (!str) return '';
+          return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
+
+        // Find matching diagram using normalized comparison
+        const normalizedSearchName = normalize(baseName);
+
+        const matchedDiagram = Object.values(savedDiagrams).find(diagram => {
+          const normalizedDiagramName = normalize(diagram.name);
+          const normalizedDiagramNumber = normalize(diagram.number);
+
+          const nameMatch = normalizedDiagramName === normalizedSearchName;
+          const numberMatch = normalizedDiagramNumber === normalizedSearchName;
+
+          console.log(`  Checking diagram "${diagram.name}": normalized name="${normalizedDiagramName}" number="${normalizedDiagramNumber}" vs search="${normalizedSearchName}" → nameMatch=${nameMatch}, numberMatch=${numberMatch}`);
+
+          return nameMatch || numberMatch;
+        });
+
+        if (matchedDiagram) {
+          console.log(`[Bulk Parts List Upload] Matched "${baseName}" to diagram "${matchedDiagram.name}"`);
+
+          // Process all files in this group
+          const newImages = [];
+
+          for (const file of fileGroup) {
+            setOcrProgress(`Converting ${file.name}...`);
+
+            const isImage = file.type.startsWith('image/');
+            const isPDF = file.type === 'application/pdf';
+
+            if (isImage) {
+              const imageBase64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+
+              newImages.push({
+                fileName: file.name,
+                data: imageBase64
+              });
+            } else if (isPDF) {
+              const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+              pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+              const arrayBuffer = await file.arrayBuffer();
+              const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+              for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 2.0 });
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({
+                  canvasContext: context,
+                  viewport: viewport
+                }).promise;
+
+                const imageBase64 = canvas.toDataURL('image/jpeg', 0.9);
+
+                newImages.push({
+                  fileName: pdf.numPages > 1 ? `${file.name} - Page ${pageNum}` : file.name,
+                  data: imageBase64
+                });
+              }
+            }
+          }
+
+          // Replace existing images with new ones (overwrites any incorrect uploads)
+          updatedDiagrams[matchedDiagram.id] = {
+            ...matchedDiagram,
+            partsListImages: newImages
+          };
+
+          matchedCount += newImages.length;
+          console.log(`[Bulk Parts List Upload] Added ${newImages.length} image(s) to "${matchedDiagram.name}"`);
+        } else {
+          console.warn(`[Bulk Parts List Upload] No match found for "${baseName}"`);
+          unmatchedFiles.push(...fileGroup.map(f => f.name));
+        }
+      }
+
+      // Update all diagrams at once
+      setSavedDiagrams(updatedDiagrams);
+
+      setOcrProgress(null);
+
+      let message = `Successfully added ${matchedCount} parts list image(s) to diagrams.`;
+      if (unmatchedFiles.length > 0) {
+        message += `\n\nUnmatched files (${unmatchedFiles.length}):\n${unmatchedFiles.join('\n')}`;
+      }
+      alert(message);
+
+    } catch (error) {
+      console.error('Failed to bulk upload parts list images:', error);
+      setOcrProgress(null);
+      alert('Failed to upload images.\n\nError: ' + error.message);
+    }
+
+    e.target.value = '';
+  };
+
+  const handleUploadPartsListImages = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files || files.length === 0) return;
+
+    if (!currentDiagramId) {
+      alert('Please select a diagram first.');
+      e.target.value = '';
+      return;
+    }
+
+    const diagram = savedDiagrams[currentDiagramId];
+    if (!diagram) {
+      alert('Current diagram not found.');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      setOcrProgress(`Converting ${files.length} file(s)...`);
+
+      const newPartsListImages = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        const isImage = file.type.startsWith('image/');
+        const isPDF = file.type === 'application/pdf';
+
+        if (!isImage && !isPDF) {
+          console.warn(`Skipping unsupported file: ${file.name}`);
+          continue;
+        }
+
+        if (isImage) {
+          // Convert image to base64
+          const imageBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          newPartsListImages.push({
+            fileName: file.name,
+            data: imageBase64
+          });
+
+          console.log(`[Parts List Images] ✓ Added image: ${file.name}`);
+        } else if (isPDF) {
+          // Convert PDF pages to images
+          setOcrProgress(`Converting PDF: ${file.name}...`);
+
+          const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+          // Convert each page to image
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 });
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({
+              canvasContext: context,
+              viewport: viewport
+            }).promise;
+
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.9);
+
+            newPartsListImages.push({
+              fileName: pdf.numPages > 1 ? `${file.name} - Page ${pageNum}` : file.name,
+              data: imageBase64
+            });
+
+            console.log(`[Parts List Images] ✓ Converted PDF page ${pageNum}/${pdf.numPages}: ${file.name}`);
+          }
+
+          console.log(`[Parts List Images] ✓ Added ${pdf.numPages} page(s) from PDF: ${file.name}`);
+        }
+      }
+
+      if (newPartsListImages.length === 0) {
+        alert('No valid image or PDF files found.');
+        setOcrProgress(null);
+        e.target.value = '';
+        return;
+      }
+
+      // Update diagram with new images (append to existing)
+      const existingPartsListImages = diagram.partsListImages || [];
+      const updatedDiagram = {
+        ...diagram,
+        partsListImages: [...existingPartsListImages, ...newPartsListImages]
+      };
+
+      setSavedDiagrams({
+        ...savedDiagrams,
+        [currentDiagramId]: updatedDiagram
+      });
+
+      setOcrProgress(null);
+      alert(`Successfully added ${newPartsListImages.length} parts list source image(s) to diagram "${diagram.name}".`);
+
+    } catch (error) {
+      console.error('Failed to upload parts list images:', error);
+      setOcrProgress(null);
+      alert('Failed to upload images.\n\nError: ' + error.message);
+    }
+
+    e.target.value = '';
+  };
+
+  const handleConfirmPartsListImport = async () => {
+    if (!partsListData || !currentDiagramId) {
+      alert('No diagram selected or no parts data to import.');
+      return;
+    }
+
+    const diagram = savedDiagrams[currentDiagramId];
+    if (!diagram) {
+      alert('Current diagram not found.');
+      return;
+    }
+
+    // Ask if user wants to update diagram name/number
+    let updateMetadata = false;
+    if (partsListData.unitName || partsListData.drawNo) {
+      let message = 'Update diagram metadata from PDF?\n\n';
+      if (partsListData.unitName) {
+        message += `Name: "${diagram.name}" → "${partsListData.unitName}"\n`;
+      }
+      if (partsListData.drawNo) {
+        message += `Number: "${diagram.number || '(none)'}" → "${partsListData.drawNo}"\n`;
+      }
+      updateMetadata = window.confirm(message);
+    }
+
+    // Convert source file to base64 image(s) if available
+    let newPartsListImages = [];
+    if (partsListSourceFile) {
+      try {
+        setOcrProgress('Saving source image...');
+
+        const isImage = partsListSourceFile.type.startsWith('image/');
+        const isPDF = partsListSourceFile.type === 'application/pdf';
+
+        if (isImage) {
+          // Convert image to base64
+          const imageBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(partsListSourceFile);
+          });
+
+          newPartsListImages.push({
+            fileName: partsListSourceFile.name,
+            data: imageBase64
+          });
+
+          console.log(`[Parts List Import] ✓ Captured source image: ${partsListSourceFile.name}`);
+        } else if (isPDF) {
+          // Convert PDF pages to images
+          const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+          const arrayBuffer = await partsListSourceFile.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+          // Convert each page to image
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 });
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({
+              canvasContext: context,
+              viewport: viewport
+            }).promise;
+
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.9);
+
+            newPartsListImages.push({
+              fileName: `${partsListSourceFile.name} - Page ${pageNum}`,
+              data: imageBase64
+            });
+
+            console.log(`[Parts List Import] ✓ Captured PDF page ${pageNum} as image`);
+          }
+        }
+
+        setOcrProgress(null);
+      } catch (error) {
+        console.error('[Parts List Import] Failed to capture source image:', error);
+        setOcrProgress(null);
+        // Continue without the image - don't block the import
+      }
+    }
+
+    // Update diagram with parts data, metadata, and source images
+    const existingPartsListImages = diagram.partsListImages || [];
+    const updatedDiagram = {
+      ...diagram,
+      partsData: partsListData.partsData,
+      name: updateMetadata && partsListData.unitName ? partsListData.unitName : diagram.name,
+      number: updateMetadata && partsListData.drawNo ? partsListData.drawNo : diagram.number,
+      partsListImages: [...existingPartsListImages, ...newPartsListImages]
+    };
+
+    setSavedDiagrams({
+      ...savedDiagrams,
+      [currentDiagramId]: updatedDiagram
+    });
+
+    setShowPartsListReview(false);
+    setPartsListData(null);
+    setPartsListSourceFile(null);
+
+    const imageMessage = newPartsListImages.length > 0 ? `\n${newPartsListImages.length} source image(s) added.` : '';
+    alert(`Successfully imported ${Object.keys(partsListData.partsData).length} parts to diagram "${updatedDiagram.name}".${imageMessage}`);
   };
 
   const parsePartsCSV = (csvText) => {
@@ -1019,11 +2462,25 @@ const DiagramManager = () => {
     return partsData;
   };
 
-  const deleteDiagram = (diagramId) => {
+  const deleteDiagram = async (diagramId) => {
     if (!window.confirm('Are you sure you want to delete this diagram?')) {
       return;
     }
 
+    setSyncStatus('Deleting...');
+
+    // Delete from Firebase
+    try {
+      console.log(`Attempting to delete diagram ${diagramId} from Firebase...`);
+      await deleteFromFirebase(diagramId);
+      console.log(`✓ Successfully deleted diagram ${diagramId} from Firebase`);
+    } catch (error) {
+      console.error('✗ Error deleting from Firebase:', error);
+      alert(`Warning: Failed to delete from Firebase.\n\nError: ${error.message}\n\nThe diagram will be removed locally but may still exist in Firebase.`);
+      // Continue with local deletion even if Firebase fails
+    }
+
+    // Delete from local state
     setSavedDiagrams(prev => {
       const newDiagrams = { ...prev };
       delete newDiagrams[diagramId];
@@ -1034,6 +2491,9 @@ const DiagramManager = () => {
       const remaining = Object.keys(savedDiagrams).filter(id => id !== diagramId);
       setCurrentDiagramId(remaining.length > 0 ? remaining[0] : null);
     }
+
+    setSyncStatus('✓ Deleted');
+    setTimeout(() => setSyncStatus(null), 2000);
   };
 
   const toggleDiagramSelection = (diagramId) => {
@@ -1081,23 +2541,18 @@ const DiagramManager = () => {
       return;
     }
 
-    // Delete from Firebase if enabled
-    if (firebaseEnabled) {
-      try {
-        console.log('Deleting IDs from Firebase:', Array.from(selectedDiagramIds));
-        const deletePromises = Array.from(selectedDiagramIds).map(id => {
-          console.log('Deleting:', id);
-          return deleteFromFirebase(id);
-        });
-        await Promise.all(deletePromises);
-        console.log(`Successfully deleted ${count} diagram(s) from Firebase`);
-      } catch (error) {
-        console.error('Error deleting from Firebase:', error);
-        alert('Error deleting from Firebase. Check console for details.');
-        return;
-      }
-    } else {
-      console.warn('Firebase not enabled - only deleting from local state');
+    // Delete from Firebase
+    try {
+      console.log('Deleting IDs from Firebase:', Array.from(selectedDiagramIds));
+      const deletePromises = Array.from(selectedDiagramIds).map(id => {
+        console.log('Deleting:', id);
+        return deleteFromFirebase(id);
+      });
+      await Promise.all(deletePromises);
+      console.log(`Successfully deleted ${count} diagram(s) from Firebase`);
+    } catch (error) {
+      console.error('Error deleting from Firebase:', error);
+      // Continue with local deletion even if Firebase fails
     }
 
     // Delete from local state
@@ -1144,6 +2599,16 @@ const DiagramManager = () => {
     }));
   };
 
+  const updateDiagramRotation = (diagramId, rotation) => {
+    setSavedDiagrams(prev => ({
+      ...prev,
+      [diagramId]: {
+        ...prev[diagramId],
+        rotation: rotation
+      }
+    }));
+  };
+
   const exportDiagram = (diagramId) => {
     const diagram = savedDiagrams[diagramId];
     const dataStr = JSON.stringify(diagram, null, 2);
@@ -1170,7 +2635,9 @@ const DiagramManager = () => {
         [diagramId]: {
           ...diagram,
           id: diagramId,
-          folder: diagram.folder || 'General'
+          folder: diagram.folder || 'General',
+          partsData: diagram.partsData || {},
+          hotspots: diagram.hotspots || {}
         }
       }));
 
@@ -1239,6 +2706,46 @@ const DiagramManager = () => {
         const dateB = new Date(b.createdAt || 0).getTime();
         return dateA - dateB;
       });
+    });
+
+    return grouped;
+  };
+
+  // Get diagrams grouped by customer first, then by folder (machine type)
+  // Returns: { customerName: { folderName: [diagrams] } }
+  const getDiagramsByCustomerAndFolder = () => {
+    const grouped = {};
+
+    Object.values(savedDiagrams).forEach(diagram => {
+      const customer = diagram.customer || 'General';
+      const folder = diagram.folder || 'General';
+
+      if (!grouped[customer]) {
+        grouped[customer] = {};
+      }
+      if (!grouped[customer][folder]) {
+        grouped[customer][folder] = [];
+      }
+
+      grouped[customer][folder].push(diagram);
+    });
+
+    // Sort each folder's diagrams by createdAt
+    Object.keys(grouped).forEach(customer => {
+      Object.keys(grouped[customer]).forEach(folder => {
+        grouped[customer][folder].sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0).getTime();
+          const dateB = new Date(b.createdAt || 0).getTime();
+          return dateA - dateB;
+        });
+      });
+    });
+
+    // Debug logging for folder structure
+    Object.keys(grouped).forEach(customer => {
+      const folderNames = Object.keys(grouped[customer]);
+      const totalDiagrams = Object.values(grouped[customer]).reduce((sum, diagrams) => sum + diagrams.length, 0);
+      console.log(`[Folders] Customer "${customer}": ${folderNames.length} folders (${totalDiagrams} diagrams) - Folders: [${folderNames.join(', ')}]`);
     });
 
     return grouped;
@@ -1428,6 +2935,11 @@ const DiagramManager = () => {
       return;
     }
 
+    if (!tocSelectedCustomer) {
+      alert('Please select a customer first');
+      return;
+    }
+
     if (!tocSelectedFolder) {
       alert('Please select a folder first');
       return;
@@ -1437,7 +2949,7 @@ const DiagramManager = () => {
     const diagramIds = Object.keys(savedDiagrams)
       .filter(id => {
         const diagram = savedDiagrams[id];
-        const customerMatch = selectedCustomer === 'All Customers' || diagram.customer === selectedCustomer;
+        const customerMatch = diagram.customer === tocSelectedCustomer;
         const folderMatch = diagram.folder === tocSelectedFolder;
         return customerMatch && folderMatch;
       })
@@ -1503,6 +3015,1260 @@ const DiagramManager = () => {
 
     // Clear mappings but keep entries for more renaming
     setTocMappings({});
+  };
+
+  // Normalize name for matching (remove special chars, lowercase, trim)
+  const normalizeName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '') // Remove all non-alphanumeric
+      .trim();
+  };
+
+  // Handle bulk image file selection
+  const handleBulkZipUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.zip')) {
+      alert('Please select a ZIP file.');
+      return;
+    }
+
+    // Extract actual customer name (remove __NEW__ prefix if present)
+    const actualCustomer = bulkUploadCustomer.replace(/^__NEW__/, '').trim();
+
+    if (!actualCustomer || !bulkUploadFolder) {
+      alert('Please enter customer name and folder first.');
+      return;
+    }
+
+    try {
+      setOcrProgress('Extracting ZIP file...');
+
+      // Dynamically import JSZip
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const contents = await zip.loadAsync(file);
+
+      setOcrProgress('Finding images and parts lists...');
+
+      // Extract images from Exploded-Views folder
+      const imageFiles = [];
+      const partsListFiles = {};
+
+      // Find all files in Exploded-Views and Parts-Lists folders
+      console.log('[ZIP Import] Scanning ZIP contents...');
+      console.log('[ZIP Import] Total files in ZIP:', Object.keys(contents.files).length);
+
+      for (const [path, file] of Object.entries(contents.files)) {
+        if (file.dir) continue;
+
+        // Skip macOS metadata files and __MACOSX folder
+        const fileName = path.split('/').pop();
+        if (path.includes('__MACOSX') || fileName.startsWith('._')) {
+          console.log(`[ZIP Import] Skipping macOS metadata file: ${fileName}`);
+          continue;
+        }
+
+        if (path.match(/Exploded-Views\/.+\.(jpg|jpeg|png)$/i)) {
+          // Remove extension, but keep any -parts suffix in the filename
+          // (will deduplicate later if needed)
+          const baseName = fileName.replace(/\.(jpg|jpeg|png)$/i, '');
+          imageFiles.push({ path, fileName, baseName, zipFile: file });
+          console.log(`[ZIP Import]   Image: ${fileName} → baseName: "${baseName}"`);
+        } else if (path.match(/Parts-Lists\/.+\.(pdf|txt|jpg|jpeg|png)$/i)) {
+          // Match any PDF, TXT, or image in Parts-Lists folder
+          const fileName = path.split('/').pop();
+
+          // First remove extension, then remove any -parts, -parts2, -parts3 suffix
+          let baseName = fileName.replace(/\.(pdf|txt|jpg|jpeg|png)$/i, '');
+          console.log(`[ZIP Import]   Step 1: ${fileName} → after removing extension: "${baseName}"`);
+          baseName = baseName.replace(/-parts\d*$/i, '');
+          console.log(`[ZIP Import]   Step 2: after removing -parts suffix: "${baseName}"`);
+
+          console.log(`[ZIP Import]   ✓ Parts file: ${fileName} → baseName: "${baseName}"`);
+
+          // Initialize array if this is the first parts file for this diagram
+          if (!partsListFiles[baseName]) {
+            partsListFiles[baseName] = [];
+          }
+
+          partsListFiles[baseName].push({ path, fileName, zipFile: file });
+        }
+      }
+
+      // Deduplicate images - if there are multiple images for the same diagram
+      // (e.g., "diagram.jpg", "diagram-parts.jpg", "diagram-parts2.jpg"),
+      // keep only ONE (prefer the one without -parts suffix)
+      const uniqueImages = {};
+      imageFiles.forEach(imageFile => {
+        // Get the true base name by removing any -parts suffix
+        const trueBaseName = imageFile.baseName.replace(/-parts\d*$/i, '');
+
+        // If we haven't seen this diagram yet, or if this is the base image (no -parts suffix)
+        if (!uniqueImages[trueBaseName] || !imageFile.baseName.match(/-parts\d*$/i)) {
+          uniqueImages[trueBaseName] = imageFile;
+        }
+      });
+
+      // Use deduplicated images
+      const deduplicatedImageFiles = Object.values(uniqueImages);
+
+      console.log(`[ZIP Import] Found ${imageFiles.length} image files (${deduplicatedImageFiles.length} unique diagrams) and ${Object.keys(partsListFiles).length} parts list groups`);
+
+      if (imageFiles.length !== deduplicatedImageFiles.length) {
+        console.log(`[ZIP Import] Removed ${imageFiles.length - deduplicatedImageFiles.length} duplicate image files`);
+      }
+
+      // Log all unique image base names FOR MATCHING
+      console.log('[ZIP Import] === Image Files for Matching ===');
+      deduplicatedImageFiles.forEach(f => {
+        const matchingBaseName = f.baseName.replace(/-parts\d*$/i, '');
+        console.log(`  Image: "${f.fileName}" → baseName: "${f.baseName}" → matchKey: "${matchingBaseName}"`);
+      });
+      console.log('[ZIP Import] === End Image Files ===');
+
+      // Log all parts list base names with counts
+      console.log('[ZIP Import] === Parts List Groupings ===');
+      Object.keys(partsListFiles).forEach(baseName => {
+        const count = partsListFiles[baseName].length;
+        const fileNames = partsListFiles[baseName].map(p => p.fileName).join(', ');
+        console.log(`  matchKey: "${baseName}" → ${count} page(s)`);
+        console.log(`    Files: ${fileNames}`);
+      });
+      console.log('[ZIP Import] === End Parts List Groupings ===');
+
+      // Update imageFiles to use deduplicated list
+      imageFiles.length = 0;
+      imageFiles.push(...deduplicatedImageFiles);
+
+      if (imageFiles.length === 0) {
+        setOcrProgress(null);
+        alert('No images found in Exploded-Views folder.');
+        return;
+      }
+
+      // Parse TOC if provided
+      let tocEntries = [];
+      if (bulkUploadTocText.trim()) {
+        setOcrProgress('Parsing table of contents...');
+        const lines = bulkUploadTocText.trim().split('\n');
+        const parsed = [];
+
+        for (let i = 0; i < lines.length; i += 4) {
+          if (i + 3 < lines.length) {
+            const itemNo = lines[i].trim();
+            const name = lines[i + 1].trim();
+            const partCode = lines[i + 2].trim();
+            const drawingNo = lines[i + 3].trim();
+
+            parsed.push({ itemNo, name, partCode, drawingNo });
+          }
+        }
+
+        tocEntries = parsed;
+        console.log(`[ZIP Import] Parsed ${tocEntries.length} TOC entries`);
+
+        if (tocEntries.length !== imageFiles.length) {
+          const continueImport = window.confirm(
+            `Warning: You have ${imageFiles.length} images but ${tocEntries.length} TOC entries.\n\n` +
+            `${tocEntries.length < imageFiles.length ? 'Some diagrams will use filenames instead of TOC names.' : 'Some TOC entries will be unused.'}\n\n` +
+            `Continue with import?`
+          );
+
+          if (!continueImport) {
+            setOcrProgress(null);
+            return;
+          }
+        }
+      }
+
+      setOcrProgress(`Processing ${imageFiles.length} diagrams with parts lists...`);
+
+      // Process each image with its matching parts list
+      const newDiagrams = {};
+      const failedDiagrams = [];
+      let processedCount = 0;
+
+      for (let imageIndex = 0; imageIndex < imageFiles.length; imageIndex++) {
+        const imageFile = imageFiles[imageIndex];
+        processedCount++;
+        setOcrProgress(`Processing ${processedCount}/${imageFiles.length}: ${imageFile.fileName}`);
+
+        try {
+          // Extract image as base64 with correct MIME type
+          const imageArrayBuffer = await imageFile.zipFile.async('arraybuffer');
+
+          // Determine MIME type from file extension
+          const extension = imageFile.fileName.toLowerCase().split('.').pop();
+          const mimeTypes = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp'
+          };
+          const mimeType = mimeTypes[extension] || 'image/jpeg';
+
+          // Create blob with correct MIME type
+          const imageBlob = new Blob([imageArrayBuffer], { type: mimeType });
+          console.log(`[ZIP Import] Image blob size: ${imageBlob.size} bytes, type: ${imageBlob.type}`);
+
+          const imageBase64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(imageBlob);
+          });
+
+          console.log(`[ZIP Import] Extracted image ${imageFile.fileName}`);
+          console.log(`  - Base64 length: ${imageBase64?.length || 0}`);
+          console.log(`  - Starts with: ${imageBase64?.substring(0, 50)}`);
+          console.log(`  - Is data URL: ${imageBase64?.startsWith('data:')}`);
+          console.log(`  - Is image data URL: ${imageBase64?.startsWith('data:image/')}`)
+
+          // Match TOC entry by drawing number (not by index!)
+          // The drawing number in TOC should match the filename
+          let tocEntry = null;
+          if (tocEntries.length > 0) {
+            // Try to find TOC entry where drawingNo matches the filename
+            tocEntry = tocEntries.find(entry => {
+              // Check if the image filename contains the drawing number
+              const drawingNo = entry.drawingNo?.trim();
+              if (drawingNo && imageFile.baseName.includes(drawingNo)) {
+                return true;
+              }
+              // Also try the partCode field
+              const partCode = entry.partCode?.trim();
+              if (partCode && imageFile.baseName.includes(partCode)) {
+                return true;
+              }
+              return false;
+            });
+
+            if (tocEntry) {
+              console.log(`[ZIP Import] Matched TOC entry: "${tocEntry.name}" (drawing: ${tocEntry.drawingNo}) → image: "${imageFile.fileName}"`);
+            } else {
+              console.log(`[ZIP Import] No TOC match found for image: "${imageFile.fileName}"`);
+            }
+          }
+
+          // Always use filename but strip off the drawing number suffix (e.g., -4D-44864)
+          // Pattern: hyphen followed by digits, letter(s), hyphen, digits at the end
+          // Example: "10-1-MAIN-BODY-UNIT-4D-44864" → "10-1-MAIN-BODY-UNIT"
+          const diagramName = imageFile.baseName.replace(/-\d+[A-Z]+-\d+$/i, '');
+          console.log(`[ZIP Import] Diagram name: "${imageFile.baseName}" → "${diagramName}"`);
+
+          // Extract drawing number from filename (e.g., "4D-44864" from "10-1-MAIN-BODY-UNIT-4D-44864")
+          const drawingNumberMatch = imageFile.baseName.match(/-(\d+[A-Z]+-\d+)$/i);
+          const extractedDrawingNumber = drawingNumberMatch ? drawingNumberMatch[1] : '';
+
+          // Use TOC values if available and not undefined, otherwise use extracted/empty values
+          const diagramNumber = (tocEntry?.drawingNo) || extractedDrawingNumber || '';
+          const diagramItemNo = (tocEntry?.itemNo) || '';
+
+          // Search for existing diagram with matching name in the same folder/customer
+          // Check BOTH savedDiagrams and newDiagrams (to avoid duplicates within this batch)
+
+          // Extract prefix for matching (e.g., "70-1" from "70-1-REMOTE-CONTROL-BOX-UNIT")
+          // Match pattern: one or more digits, hyphen, one or more digits/letters
+          const prefixMatch = diagramName.match(/^(\d+[-]\d+[A-Z]?)/);
+          const diagramPrefix = prefixMatch ? prefixMatch[1] : null;
+
+          const existingInSaved = Object.values(savedDiagrams).find(d => {
+            // Must match folder AND customer
+            if (d.folder !== bulkUploadFolder || d.customer !== actualCustomer) return false;
+
+            // Try exact match first
+            if (d.name === diagramName) return true;
+
+            // Try prefix match if we have a prefix
+            if (diagramPrefix && d.name.startsWith(diagramPrefix)) return true;
+
+            return false;
+          });
+
+          const existingInNew = Object.values(newDiagrams).find(d => {
+            // Must match folder AND customer
+            if (d.folder !== bulkUploadFolder || d.customer !== actualCustomer) return false;
+
+            // Try exact match first
+            if (d.name === diagramName) return true;
+
+            // Try prefix match if we have a prefix
+            if (diagramPrefix && d.name.startsWith(diagramPrefix)) return true;
+
+            return false;
+          });
+
+          const existingDiagram = existingInSaved || existingInNew;
+
+          let diagramId, newDiagram;
+
+          if (existingDiagram) {
+            // Update existing diagram
+            console.log(`[ZIP Import] ✓ Found existing diagram "${diagramName}" (${existingInSaved ? 'in saved' : 'in batch'}) - updating instead of creating new`);
+            diagramId = existingDiagram.id;
+            newDiagram = {
+              ...existingDiagram,
+              pdfData: imageBase64,  // Update the exploded view image
+              number: diagramNumber || existingDiagram.number,  // Update number if provided
+              itemNo: diagramItemNo || existingDiagram.itemNo,  // Update itemNo if provided
+              // Keep existing hotspots and partsData - will be updated later if parts list found
+            };
+          } else {
+            // Create new diagram
+            console.log(`[ZIP Import] ✗ No existing diagram found for "${diagramName}" (folder: "${bulkUploadFolder}", customer: "${actualCustomer}") - creating new`);
+            diagramId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            newDiagram = {
+              id: diagramId,
+              name: diagramName,
+              number: diagramNumber,
+              itemNo: diagramItemNo,
+              folder: bulkUploadFolder,
+              customer: actualCustomer,
+              pdfData: imageBase64,
+              hotspots: {},
+              partsData: {},
+              createdAt: new Date().toISOString()
+            };
+          }
+
+          console.log(`[ZIP Import] Created diagram ${diagramId} "${diagramName}" with pdfData type: ${typeof newDiagram.pdfData}, starts with: ${newDiagram.pdfData?.substring(0, 30)}`);
+
+          // Check if matching parts lists exist (can be multiple pages)
+          // Strip any -parts suffix from image baseName to match with parts lists
+          const imageBaseName = imageFile.baseName.replace(/-parts\d*$/i, '');
+          console.log(`[ZIP Import] ====================================`);
+          console.log(`[ZIP Import] MATCHING for image: "${imageFile.fileName}"`);
+          console.log(`[ZIP Import]   Image baseName: "${imageFile.baseName}"`);
+          console.log(`[ZIP Import]   Match key: "${imageBaseName}"`);
+
+          const matchingPartsLists = partsListFiles[imageBaseName];
+          if (matchingPartsLists && matchingPartsLists.length > 0) {
+            console.log(`[ZIP Import]   ✓ MATCH FOUND: ${matchingPartsLists.length} parts list page(s)`);
+            console.log(`[ZIP Import]   Files: ${matchingPartsLists.map(p => p.fileName).join(', ')}`);
+
+            // Sort parts lists to ensure correct order (base file or -parts first, then -parts2, -parts3, etc.)
+            matchingPartsLists.sort((a, b) => {
+              const getPageNum = (fileName) => {
+                const match = fileName.match(/-parts(\d*)\.(pdf|txt|jpg|jpeg|png)$/i);
+                if (!match) return 0; // File without -parts suffix comes first
+                return match[1] ? parseInt(match[1]) : 1; // -parts = 1, -parts2 = 2, -parts3 = 3, etc.
+              };
+              return getPageNum(a.fileName) - getPageNum(b.fileName);
+            });
+
+            try {
+              const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+              pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+              // Process each parts list PDF (parts, parts2, parts3, etc.)
+              const allPartsData = {};
+              const pageDetails = []; // Track what was extracted from each page
+              let foundUnitName = null;
+              let foundDrawNo = null;
+
+              for (let pdfIndex = 0; pdfIndex < matchingPartsLists.length; pdfIndex++) {
+                const partsList = matchingPartsLists[pdfIndex];
+
+                // Treat any page after the first as a continuation page (after sorting, first page is index 0)
+                const isContinuationPage = pdfIndex > 0;
+
+                console.log(`[ZIP Import] Processing parts list page ${pdfIndex + 1}/${matchingPartsLists.length}: ${partsList.fileName} ${isContinuationPage ? '(continuation page)' : '(first page)'}`);
+
+                try {
+                  let fullText = '';
+
+                  // Check if this is a text file, image file, or PDF
+                  const isText = partsList.fileName.match(/\.txt$/i);
+                  const isImage = partsList.fileName.match(/\.(jpg|jpeg|png)$/i);
+
+                  if (isText) {
+                    // Read .txt file directly (from ManualProcessor)
+                    fullText = await partsList.zipFile.async('text');
+                    console.log(`[ZIP Import] ✓ Reading text file: ${partsList.fileName} (${fullText.length} chars)`);
+                  } else if (isImage) {
+                    // First, check if there's a .txt file with pre-extracted text (from ManualProcessor)
+                    const textFileName = partsList.fileName.replace(/\.(jpg|jpeg|png)$/i, '.txt');
+                    const textFilePath = partsList.path.replace(/\.(jpg|jpeg|png)$/i, '.txt');
+
+                    let textFile = null;
+                    try {
+                      textFile = await zip.file(textFilePath);
+                    } catch (e) {
+                      // Text file doesn't exist, will use OCR
+                    }
+
+                    if (textFile) {
+                      // Use pre-extracted text from ManualProcessor
+                      fullText = await textFile.async('text');
+                      console.log(`[ZIP Import] ✓ Using pre-extracted text from ${textFileName} (${fullText.length} chars) - skipping OCR`);
+                    } else {
+                      // No text file found, use OCR with Tesseract
+                      console.log(`[ZIP Import] No .txt file found, using OCR for image: ${partsList.fileName}`);
+                      const imageBlob = await partsList.zipFile.async('blob');
+                      const imageUrl = URL.createObjectURL(imageBlob);
+
+                      // Import Tesseract dynamically
+                      const { createWorker } = await import('tesseract.js');
+                      const worker = await createWorker('eng');
+                      const { data: { text } } = await worker.recognize(imageUrl);
+                      await worker.terminate();
+                      URL.revokeObjectURL(imageUrl);
+
+                      fullText = text;
+                      console.log(`[ZIP Import] OCR extracted ${fullText.length} characters from ${partsList.fileName}`);
+                    }
+                  } else {
+                    // For PDFs: extract text using PDF.js
+                    const pdfBlob = await partsList.zipFile.async('arraybuffer');
+
+                    const pdf = await pdfjsLib.getDocument({ data: pdfBlob, ignoreEncryption: true }).promise;
+                    const page = await pdf.getPage(1);
+                    const textContent = await page.getTextContent();
+
+                    // Group text items by Y position to reconstruct table rows
+                    const lines = {};
+                    textContent.items.forEach((item) => {
+                      if (!item.str || !item.transform) return;
+                      const y = Math.round(item.transform[5]);
+                      const x = item.transform[4];
+                      if (!lines[y]) lines[y] = [];
+                      lines[y].push({ x, text: item.str });
+                    });
+
+                    // Sort lines by Y position (top to bottom)
+                    const sortedY = Object.keys(lines).sort((a, b) => b - a);
+                    sortedY.forEach(y => {
+                      const lineItems = lines[y].sort((a, b) => a.x - b.x);
+                      const lineText = lineItems.map(item => item.text).join(' ');
+                      if (lineText.trim()) {
+                        fullText += lineText + '\n';
+                      }
+                    });
+
+                    // Clean up excessive spaces
+                    fullText = fullText.replace(/\s{3,}/g, '  ');
+                  }
+
+                  console.log(`[ZIP Import] Extracted text from ${partsList.fileName} (first 500 chars):`, fullText.substring(0, 500));
+
+                  // Parse parts list (pass flag if it's a continuation page)
+                  const parsed = parsePartsListText(fullText, isContinuationPage);
+
+                  if (parsed.partsData) {
+                    console.log(`[ZIP Import] Successfully parsed parts from ${partsList.fileName}:`, Object.keys(parsed.partsData).length, 'parts');
+                    console.log(`[ZIP Import] Sample parts:`, Object.entries(parsed.partsData).slice(0, 3));
+                  } else if (parsed.error) {
+                    console.error(`[ZIP Import] Parse error for ${partsList.fileName}:`, parsed.error);
+                  }
+
+                  const pageDetail = {
+                    fileName: partsList.fileName,
+                    pageNumber: pdfIndex + 1,
+                    isContinuation: isContinuationPage,
+                    success: !parsed.error,
+                    error: parsed.error,
+                    partsCount: parsed.partsData ? Object.keys(parsed.partsData).length : 0,
+                    partsData: parsed.partsData || {},
+                    partNumbers: parsed.partsData ? Object.keys(parsed.partsData).sort((a, b) => {
+                      // "*" always comes first
+                      if (a === '*') return -1;
+                      if (b === '*') return 1;
+                      // Sort numerically if both are numbers
+                      const aNum = parseInt(a);
+                      const bNum = parseInt(b);
+                      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                      return a.localeCompare(b);
+                    }) : []
+                  };
+                  pageDetails.push(pageDetail);
+
+                  if (!parsed.error && parsed.partsData) {
+                    const pagePartCount = Object.keys(parsed.partsData).length;
+                    const pagePartNumbers = Object.keys(parsed.partsData).join(', ');
+
+                    console.log(`[ZIP Import] Page ${pdfIndex + 1} parsed ${pagePartCount} parts: ${pagePartNumbers}`);
+
+                    // Check for duplicate part numbers before merging
+                    const duplicates = Object.keys(parsed.partsData).filter(key => allPartsData[key]);
+                    if (duplicates.length > 0) {
+                      console.warn(`[ZIP Import] ⚠️ Page ${pdfIndex + 1} has duplicate part numbers that will overwrite previous: ${duplicates.join(', ')}`);
+                    }
+
+                    // Merge parts data from this page
+                    Object.assign(allPartsData, parsed.partsData);
+
+                    // Use the first found unit name and drawing number (only from first page)
+                    if (!foundUnitName && parsed.unitName) foundUnitName = parsed.unitName;
+                    if (!foundDrawNo && parsed.drawNo) foundDrawNo = parsed.drawNo;
+
+                    console.log(`[ZIP Import] Total parts after page ${pdfIndex + 1}: ${Object.keys(allPartsData).length}`);
+                  } else {
+                    console.warn(`[ZIP Import] Failed to parse parts list page ${pdfIndex + 1}: ${parsed.error}`);
+                  }
+                } catch (pdfError) {
+                  console.error(`[ZIP Import] Failed to parse parts list page ${pdfIndex + 1} (${partsList.fileName}):`, pdfError);
+                  pageDetails.push({
+                    fileName: partsList.fileName,
+                    pageNumber: pdfIndex + 1,
+                    isContinuation: isContinuationPage,
+                    success: false,
+                    error: pdfError.message,
+                    partsCount: 0,
+                    partsData: {},
+                    partNumbers: []
+                  });
+                  // Continue with next page
+                }
+              }
+
+              // Store debug info for this diagram
+              if (!newDiagram._partsDebugInfo) {
+                newDiagram._partsDebugInfo = {
+                  diagramName: diagramName,
+                  imageFileName: imageFile.fileName,
+                  pageDetails: pageDetails,
+                  totalParts: Object.keys(allPartsData).length
+                };
+              }
+
+              // Apply merged parts data
+              if (Object.keys(allPartsData).length > 0) {
+                newDiagram.partsData = allPartsData;
+                // Only override if we have actual values (not undefined, not null, not empty)
+                if (foundUnitName && !tocEntry) newDiagram.name = foundUnitName;
+                if (foundDrawNo && foundDrawNo !== 'undefined') newDiagram.number = foundDrawNo;
+                console.log(`[ZIP Import] Total merged parts: ${Object.keys(allPartsData).length} from ${matchingPartsLists.length} page(s)`);
+              }
+
+              // Also capture the parts list source images
+              console.log(`[ZIP Import] Checking for parts list images in ${matchingPartsLists.length} file(s)...`);
+              const partsListImages = [];
+              for (const partsList of matchingPartsLists) {
+                console.log(`[ZIP Import]   Checking file: ${partsList.fileName}`);
+                const isImage = partsList.fileName.match(/\.(jpg|jpeg|png)$/i);
+                if (isImage) {
+                  console.log(`[ZIP Import]   ✓ Found image file: ${partsList.fileName}`);
+                  try {
+                    const imageBlob = await partsList.zipFile.async('blob');
+                    const imageBase64 = await new Promise((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result);
+                      reader.readAsDataURL(imageBlob);
+                    });
+                    partsListImages.push({
+                      fileName: partsList.fileName,
+                      data: imageBase64
+                    });
+                    console.log(`[ZIP Import]   ✓ Captured parts list source image: ${partsList.fileName} (${imageBase64.length} chars)`);
+                  } catch (imgError) {
+                    console.error(`[ZIP Import]   ✗ Failed to capture parts list image ${partsList.fileName}:`, imgError);
+                  }
+                } else {
+                  console.log(`[ZIP Import]   - Not an image file (skipping)`);
+                }
+              }
+              if (partsListImages.length > 0) {
+                newDiagram.partsListImages = partsListImages;
+                console.log(`[ZIP Import] ✓ Stored ${partsListImages.length} parts list source image(s) in diagram`);
+              } else {
+                console.log(`[ZIP Import] ⚠️ No parts list images found to store`);
+              }
+            } catch (error) {
+              console.error(`[ZIP Import] Failed to process parts lists for ${imageFile.fileName}:`, error);
+              // Continue without parts data
+            }
+          } else {
+            console.log(`[ZIP Import]   ✗ NO MATCH FOUND`);
+            console.log(`[ZIP Import]   Looking for: "${imageBaseName}"`);
+            console.log(`[ZIP Import]   Available parts list keys:`);
+            Object.keys(partsListFiles).forEach(key => {
+              console.log(`[ZIP Import]     - "${key}"`);
+            });
+          }
+
+          // Deep clean to remove all undefined values (Firestore doesn't allow undefined)
+          const deepClean = (obj) => {
+            if (obj === null || obj === undefined) return null;
+            if (typeof obj !== 'object') return obj;
+
+            if (Array.isArray(obj)) {
+              return obj.map(item => deepClean(item)).filter(item => item !== null && item !== undefined);
+            }
+
+            const cleaned = {};
+            for (const [key, value] of Object.entries(obj)) {
+              // Skip undefined and internal debug fields
+              if (value === undefined || key.startsWith('_')) continue;
+
+              if (value === null) {
+                cleaned[key] = null;
+              } else if (typeof value === 'object') {
+                const cleanedValue = deepClean(value);
+                // Keep empty objects and arrays (needed for partsData, hotspots)
+                if (cleanedValue !== null && cleanedValue !== undefined) {
+                  cleaned[key] = cleanedValue;
+                } else if (Array.isArray(value) || Object.keys(value).length === 0) {
+                  cleaned[key] = value;
+                }
+              } else {
+                cleaned[key] = value;
+              }
+            }
+            return cleaned;
+          };
+
+          const cleanedDiagram = deepClean(newDiagram);
+          // Ensure required fields exist
+          newDiagrams[diagramId] = {
+            ...cleanedDiagram,
+            hotspots: cleanedDiagram.hotspots || {},
+            partsData: cleanedDiagram.partsData || {}
+          };
+        } catch (diagramError) {
+          console.error(`[ZIP Import] Failed to process diagram ${imageFile.fileName}:`, diagramError);
+          failedDiagrams.push({
+            fileName: imageFile.fileName,
+            error: diagramError.message
+          });
+          // Continue with next diagram
+        }
+      }
+
+      console.log(`[ZIP Import] Created ${Object.keys(newDiagrams).length} diagrams, adding to savedDiagrams...`);
+
+      // Collect debug info BEFORE diagrams are added (since _partsDebugInfo gets cleaned out)
+      const debugInfo = Object.values(newDiagrams)
+        .filter(d => d._partsDebugInfo)
+        .map(d => d._partsDebugInfo);
+
+      console.log(`[ZIP Import] Collected debug info for ${debugInfo.length} diagrams BEFORE cleaning`);
+
+      // Log a sample diagram to verify pdfData
+      const sampleId = Object.keys(newDiagrams)[0];
+      if (sampleId) {
+        const sample = newDiagrams[sampleId];
+        console.log(`[ZIP Import] Sample diagram "${sample.name}":`);
+        console.log(`  - ID: ${sampleId}`);
+        console.log(`  - pdfData type: ${typeof sample.pdfData}`);
+        console.log(`  - pdfData length: ${sample.pdfData?.length || 0}`);
+        console.log(`  - pdfData preview: ${sample.pdfData?.substring(0, 100)}`);
+        console.log(`  - Parts count: ${Object.keys(sample.partsData || {}).length}`);
+      }
+
+      // Add all diagrams
+      const mergedDiagrams = { ...savedDiagrams, ...newDiagrams };
+      console.log(`[ZIP Import] Total diagrams after merge: ${Object.keys(mergedDiagrams).length}`);
+      setSavedDiagrams(mergedDiagrams);
+
+      setOcrProgress(null);
+      setShowBulkImageUpload(false);
+      setBulkUploadZipMode(false);
+      setBulkImageFiles([]);
+      setBulkUploadCustomer('');
+      setBulkUploadTocText('');
+
+      console.log(`[ZIP Import] Total diagrams created: ${Object.keys(newDiagrams).length}`);
+      console.log(`[ZIP Import] Diagrams with debug info: ${debugInfo.length}`);
+      console.log(`[ZIP Import] Multi-page diagrams: ${debugInfo.filter(d => d.pageDetails.length > 1).length}`);
+
+      if (debugInfo.length > 0) {
+        setPartsDebugData(debugInfo);
+        console.log('[ZIP Import] Set partsDebugData with', debugInfo.length, 'diagrams');
+      }
+
+      const diagsWithParts = debugInfo.length;
+      const multiPageDiagrams = debugInfo.filter(d => d.pageDetails.length > 1);
+      const multiPageCount = multiPageDiagrams.length;
+
+      let message = `Successfully imported ${Object.keys(newDiagrams).length} of ${imageFiles.length} diagrams to folder "${bulkUploadFolder}" for customer "${actualCustomer}".`;
+
+      if (diagsWithParts > 0) {
+        message += `\n\n${diagsWithParts} diagram(s) with parts lists imported`;
+
+        if (multiPageCount > 0) {
+          message += ` (${multiPageCount} multi-page)`;
+          message += `\n\nMulti-page parts lists:`;
+          multiPageDiagrams.forEach(d => {
+            message += `\n• ${d.diagramName}: ${d.pageDetails.length} pages, ${d.totalParts} total parts`;
+          });
+        }
+
+        message += `\n\nClick "🔍 Review Parts Extraction" button to inspect details.`;
+      }
+
+      if (failedDiagrams.length > 0) {
+        message += `\n\n⚠️ ${failedDiagrams.length} diagram(s) failed to process:`;
+        failedDiagrams.forEach(f => {
+          message += `\n• ${f.fileName}: ${f.error}`;
+        });
+        console.error('[ZIP Import] Failed diagrams:', failedDiagrams);
+      }
+
+      alert(message);
+
+    } catch (error) {
+      console.error('[ZIP Import] Error:', error);
+      setOcrProgress(null);
+      alert('Failed to process ZIP file.\n\nError: ' + error.message);
+    }
+
+    e.target.value = '';
+  };
+
+  const handleBulkImageSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Get diagrams in selected folder
+    const diagramsInFolder = Object.values(savedDiagrams).filter(d =>
+      d.folder === bulkUploadFolder &&
+      (selectedCustomer === 'All Customers' || d.customer === selectedCustomer)
+    );
+
+    if (diagramsInFolder.length === 0) {
+      alert('No diagrams found in the selected folder');
+      return;
+    }
+
+    // Match each file to a diagram
+    const matches = files.map(file => {
+      // Remove file extension and normalize filename
+      const fileName = file.name.replace(/\.(jpg|jpeg|png)$/i, '');
+      const normalizedFileName = normalizeName(fileName);
+
+      // Try to find best matching diagram
+      let bestMatch = null;
+      let bestScore = 0;
+
+      diagramsInFolder.forEach(diagram => {
+        const normalizedDiagramName = normalizeName(diagram.name);
+
+        // Calculate similarity score (simple string match)
+        // Check if diagram name is contained in filename or vice versa
+        let score = 0;
+
+        if (normalizedFileName.includes(normalizedDiagramName)) {
+          score = normalizedDiagramName.length / normalizedFileName.length;
+        } else if (normalizedDiagramName.includes(normalizedFileName)) {
+          score = normalizedFileName.length / normalizedDiagramName.length;
+        } else {
+          // Calculate character overlap
+          let overlap = 0;
+          const minLength = Math.min(normalizedFileName.length, normalizedDiagramName.length);
+          for (let i = 0; i < minLength; i++) {
+            if (normalizedFileName[i] === normalizedDiagramName[i]) {
+              overlap++;
+            }
+          }
+          score = overlap / Math.max(normalizedFileName.length, normalizedDiagramName.length);
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = diagram;
+        }
+      });
+
+      return {
+        file,
+        matchedDiagramId: bestMatch ? bestMatch.id : null,
+        matchedDiagramName: bestMatch ? bestMatch.name : null,
+        confidence: Math.round(bestScore * 100)
+      };
+    });
+
+    setBulkImageFiles(matches);
+  };
+
+  // Compress image to stay under 1MB
+  const compressImage = async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        const img = new Image();
+
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Scale down if too large (max 2000px on longest side)
+          const maxDimension = 2000;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = (height / width) * maxDimension;
+              width = maxDimension;
+            } else {
+              width = (width / height) * maxDimension;
+              height = maxDimension;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Try different quality levels until under 700KB
+          // (Target 700KB for image to leave room for metadata in Firestore's 1MB limit)
+          let quality = 0.8;
+          let imageData = canvas.toDataURL('image/jpeg', quality);
+          let sizeKB = Math.round(imageData.length / 1024);
+
+          while (sizeKB > 700 && quality > 0.3) {
+            quality -= 0.1;
+            imageData = canvas.toDataURL('image/jpeg', quality);
+            sizeKB = Math.round(imageData.length / 1024);
+          }
+
+          console.log(`[Image Compression] Final size: ${sizeKB}KB at quality ${quality.toFixed(1)}`);
+
+          if (sizeKB > 700) {
+            reject(new Error(`Image too large (${sizeKB}KB) even at lowest quality. Target is 700KB for Firebase compatibility.`));
+          } else {
+            resolve(imageData);
+          }
+        };
+
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target.result;
+      };
+
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Re-compress an existing base64 image to reduce size
+  const recompressExistingImage = async (base64Data) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Scale down if too large (max 2000px on longest side)
+        const maxDimension = 2000;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension;
+            width = maxDimension;
+          } else {
+            width = (width / height) * maxDimension;
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Try different quality levels until under 1MB
+        let quality = 0.8;
+        let imageData = canvas.toDataURL('image/jpeg', quality);
+        let sizeKB = Math.round(imageData.length / 1024);
+
+        while (sizeKB > 1024 && quality > 0.3) {
+          quality -= 0.1;
+          imageData = canvas.toDataURL('image/jpeg', quality);
+          sizeKB = Math.round(imageData.length / 1024);
+        }
+
+        if (sizeKB > 1024) {
+          reject(new Error(`Image too large (${sizeKB}KB) even at lowest quality`));
+        } else {
+          resolve(imageData);
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = base64Data;
+    });
+  };
+
+  // Run storage diagnostic to check localStorage usage and identify issues
+  const runStorageDiagnostic = () => {
+    try {
+      // Calculate total localStorage size
+      let totalSize = 0;
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          totalSize += localStorage[key].length + key.length;
+        }
+      }
+      const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
+
+      // Analyze saved diagrams
+      const saved = localStorage.getItem('savedDiagrams');
+      if (!saved) {
+        setDiagnosticData({
+          totalSizeMB,
+          diagramsCount: 0,
+          corruptedDiagrams: [],
+          largeDiagrams: [],
+          validDiagrams: []
+        });
+        setShowStorageDiagnostic(true);
+        return;
+      }
+
+      const diagrams = JSON.parse(saved);
+      const corruptedDiagrams = [];
+      const largeDiagrams = [];
+      const validDiagrams = [];
+
+      Object.keys(diagrams).forEach(diagramId => {
+        const diagram = diagrams[diagramId];
+        const pdfData = diagram.pdfData;
+
+        if (!pdfData) {
+          corruptedDiagrams.push({
+            id: diagramId,
+            name: diagram.name,
+            reason: 'Missing pdfData',
+            size: 0
+          });
+        } else if (typeof pdfData === 'string') {
+          const sizeKB = Math.round(pdfData.length / 1024);
+          const isImage = pdfData.startsWith('data:image');
+          const isPdf = !isImage; // Assume PDF if not image
+          const isValid = isImage || isPdf;
+
+          const info = {
+            id: diagramId,
+            name: diagram.name,
+            size: sizeKB,
+            type: isImage ? 'image' : isPdf ? 'pdf' : 'unknown',
+            isValid
+          };
+
+          if (!isValid || sizeKB > 5000) { // Flag if > 5MB
+            if (!isValid) {
+              corruptedDiagrams.push({ ...info, reason: 'Invalid format' });
+            } else {
+              largeDiagrams.push(info);
+            }
+          } else if (sizeKB > 1024) { // Flag if > 1MB but < 5MB
+            largeDiagrams.push(info);
+          } else {
+            validDiagrams.push(info);
+          }
+        } else {
+          corruptedDiagrams.push({
+            id: diagramId,
+            name: diagram.name,
+            reason: 'Invalid pdfData type',
+            size: 0
+          });
+        }
+      });
+
+      setDiagnosticData({
+        totalSizeMB,
+        diagramsCount: Object.keys(diagrams).length,
+        corruptedDiagrams,
+        largeDiagrams: largeDiagrams.sort((a, b) => b.size - a.size),
+        validDiagrams: validDiagrams.sort((a, b) => b.size - a.size)
+      });
+      setShowStorageDiagnostic(true);
+    } catch (error) {
+      console.error('Diagnostic error:', error);
+      alert(`Error running diagnostic: ${error.message}`);
+    }
+  };
+
+  // Fix storage issues by re-compressing large images
+  const fixStorageIssues = async () => {
+    if (!diagnosticData) return;
+
+    const { largeDiagrams } = diagnosticData;
+    const imagesToFix = largeDiagrams.filter(d => d.type === 'image');
+
+    if (imagesToFix.length === 0) {
+      alert('No images to re-compress. Corrupted diagrams may need to be re-uploaded manually.');
+      return;
+    }
+
+    if (!window.confirm(`Re-compress ${imagesToFix.length} large image(s)? This will reduce their quality to save space.`)) {
+      return;
+    }
+
+    setFixingStorage(true);
+    setSyncStatus(`Re-compressing images... 0/${imagesToFix.length}`);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    const newDiagrams = { ...savedDiagrams };
+
+    for (let i = 0; i < imagesToFix.length; i++) {
+      const diagramInfo = imagesToFix[i];
+      const diagram = newDiagrams[diagramInfo.id];
+
+      try {
+        setSyncStatus(`Re-compressing images... ${i + 1}/${imagesToFix.length}`);
+
+        const compressedData = await recompressExistingImage(diagram.pdfData);
+        const newSizeKB = Math.round(compressedData.length / 1024);
+
+        console.log(`Re-compressed ${diagramInfo.name}: ${diagramInfo.size}KB → ${newSizeKB}KB`);
+
+        newDiagrams[diagramInfo.id] = {
+          ...diagram,
+          pdfData: compressedData
+        };
+
+        successCount++;
+
+        // Add delay to prevent UI freezing
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error(`Error re-compressing ${diagramInfo.name}:`, error);
+        errors.push(`${diagramInfo.name}: ${error.message}`);
+        errorCount++;
+      }
+    }
+
+    // Update saved diagrams
+    setSavedDiagrams(newDiagrams);
+
+    setFixingStorage(false);
+    setSyncStatus(null);
+
+    if (errors.length > 0) {
+      alert(`Re-compression completed with errors:\n\nSuccessful: ${successCount}\nFailed: ${errorCount}\n\nErrors:\n${errors.join('\n')}`);
+    } else {
+      alert(`✓ Successfully re-compressed ${successCount} image(s)!`);
+    }
+
+    // Re-run diagnostic to show new stats
+    setTimeout(() => runStorageDiagnostic(), 500);
+  };
+
+  // Delete corrupted diagrams
+  const deleteCorruptedDiagrams = async () => {
+    if (!diagnosticData || diagnosticData.corruptedDiagrams.length === 0) return;
+
+    const count = diagnosticData.corruptedDiagrams.length;
+    if (!window.confirm(`Delete ${count} corrupted diagram(s)? This will delete from BOTH localStorage AND Firebase.`)) {
+      return;
+    }
+
+    setSyncStatus('Deleting corrupted diagrams...');
+
+    // Delete from Firebase
+    try {
+      console.log('[deleteCorruptedDiagrams] Deleting from Firebase...');
+      const deletePromises = diagnosticData.corruptedDiagrams.map(d => {
+        console.log('[deleteCorruptedDiagrams] Deleting:', d.id);
+        return deleteFromFirebase(d.id);
+      });
+      await Promise.all(deletePromises);
+      console.log('[deleteCorruptedDiagrams] ✓ Deleted all from Firebase');
+    } catch (error) {
+      console.error('[deleteCorruptedDiagrams] Error deleting from Firebase:', error);
+      // Continue with local deletion even if Firebase fails
+    }
+
+    // Delete from local state
+    const newDiagrams = { ...savedDiagrams };
+    diagnosticData.corruptedDiagrams.forEach(d => {
+      delete newDiagrams[d.id];
+    });
+
+    console.log('[deleteCorruptedDiagrams] Remaining diagrams:', Object.keys(newDiagrams).length);
+    setSavedDiagrams(newDiagrams);
+
+    // Wait for state update and localStorage save to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    setSyncStatus(null);
+    alert(`✓ Deleted ${count} corrupted diagram(s) from localStorage and Firebase`);
+
+    // Re-run diagnostic after a delay to ensure localStorage is updated
+    setTimeout(() => runStorageDiagnostic(), 500);
+  };
+
+  // Clean localStorage AND Firebase by removing ALL pdfData (diagrams will load from Firebase on-demand)
+  const cleanLocalStorage = async () => {
+    if (!window.confirm(
+      `Clean BOTH localStorage AND Firebase by removing all PDF/image data?\n\n` +
+      `This will:\n` +
+      `✓ Keep all diagram names, folders, parts lists, and hotspots\n` +
+      `✓ Remove all PDF/image data from localStorage AND Firebase\n` +
+      `✓ You'll need to re-upload diagram images using "Update Diagram" or "Bulk Upload"\n\n` +
+      `This is SAFE and will fix all corruption issues.\n\n` +
+      `Continue?`
+    )) {
+      return;
+    }
+
+    setIsLoadingHeavy(true);
+    setSyncStatus('Cleaning localStorage and Firebase...');
+
+    try {
+      // Remove pdfData from all diagrams in state
+      const cleanedDiagrams = {};
+      Object.keys(savedDiagrams).forEach(id => {
+        const { pdfData, ...diagramWithoutPdf } = savedDiagrams[id];
+        cleanedDiagrams[id] = diagramWithoutPdf;
+      });
+
+      // First update local state
+      setSavedDiagrams(cleanedDiagrams);
+
+      // Then sync cleaned versions to Firebase (to overwrite corrupted data)
+      setSyncStatus('Syncing cleaned diagrams to Firebase...');
+      let syncedCount = 0;
+      const totalDiagrams = Object.keys(cleanedDiagrams).length;
+
+      for (const diagramId of Object.keys(cleanedDiagrams)) {
+        try {
+          await saveToFirebase(diagramId, cleanedDiagrams[diagramId]);
+          console.log('[cleanLocalStorage] Saved cleaned diagram to Firebase:', diagramId);
+          syncedCount++;
+          setSyncStatus(`Syncing to Firebase... ${syncedCount}/${totalDiagrams}`);
+        } catch (error) {
+          console.error(`[cleanLocalStorage] Failed to sync ${diagramId}:`, error);
+        }
+      }
+
+      setIsLoadingHeavy(false);
+      setSyncStatus('✓ Cleanup complete');
+      setTimeout(() => setSyncStatus(null), 2000);
+
+      alert(
+        `✓ Cleanup complete!\n\n` +
+        `${syncedCount} diagram(s) cleaned and synced to Firebase.\n\n` +
+        `All diagram metadata (names, folders, parts, hotspots) preserved.\n` +
+        `PDF/image data removed.\n\n` +
+        `Next steps:\n` +
+        `1. Use "Update Diagram" to re-upload individual images\n` +
+        `2. OR use "Bulk Image Upload" to upload many images at once`
+      );
+
+      // Re-run diagnostic
+      setTimeout(() => runStorageDiagnostic(), 500);
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      setIsLoadingHeavy(false);
+      setSyncStatus(null);
+      alert(`Error during cleanup: ${error.message}`);
+    }
+  };
+
+  // Apply bulk image uploads
+  const handleApplyBulkUpload = async () => {
+    const validMatches = bulkImageFiles.filter(m => m.matchedDiagramId !== null);
+
+    if (validMatches.length === 0) {
+      alert('No valid matches found. Please check the folder selection.');
+      return;
+    }
+
+    if (!window.confirm(`Upload ${validMatches.length} parts list image(s) to matched diagrams?`)) {
+      return;
+    }
+
+    setIsLoadingHeavy(true);
+    setSyncStatus(`Compressing and uploading images... 0/${validMatches.length}`);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    for (let i = 0; i < validMatches.length; i++) {
+      const match = validMatches[i];
+
+      try {
+        setSyncStatus(`Compressing and uploading images... ${i + 1}/${validMatches.length}`);
+
+        // Compress image to stay under 1MB
+        const compressedImageData = await compressImage(match.file);
+
+        // Update diagram with new parts list image
+        const diagram = savedDiagrams[match.matchedDiagramId];
+        const existingPartsListImages = diagram.partsListImages || [];
+
+        // Check if this filename already exists in the parts list images
+        const existingIndex = existingPartsListImages.findIndex(img => img.fileName === match.file.name);
+
+        let updatedPartsListImages;
+        if (existingIndex >= 0) {
+          // Replace existing image
+          updatedPartsListImages = [...existingPartsListImages];
+          updatedPartsListImages[existingIndex] = {
+            fileName: match.file.name,
+            data: compressedImageData
+          };
+          console.log(`[bulkUpload] Replaced existing parts list image: ${match.file.name}`);
+        } else {
+          // Add new image to array
+          updatedPartsListImages = [
+            ...existingPartsListImages,
+            {
+              fileName: match.file.name,
+              data: compressedImageData
+            }
+          ];
+          console.log(`[bulkUpload] Added new parts list image: ${match.file.name}`);
+        }
+
+        const updatedDiagram = {
+          ...diagram,
+          partsListImages: updatedPartsListImages
+        };
+
+        setSavedDiagrams(prev => ({
+          ...prev,
+          [match.matchedDiagramId]: updatedDiagram
+        }));
+
+        // Auto-sync to Firebase
+        try {
+          await saveToFirebase(match.matchedDiagramId, updatedDiagram);
+          console.log('[bulkUpload] Saved diagram to Firebase:', match.matchedDiagramId);
+        } catch (error) {
+          if (error.isWarning) {
+            console.warn('[bulkUpload] Size warning:', error.message);
+          } else {
+            console.error('[bulkUpload] Failed to sync to Firebase:', error);
+          }
+        }
+
+        successCount++;
+
+        // Small delay to prevent overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        errorCount++;
+        errors.push(`${match.file.name}: ${error.message}`);
+      }
+    }
+
+    setIsLoadingHeavy(false);
+    setSyncStatus(null);
+
+    let message = `✓ Bulk parts list upload complete!\n\nSuccess: ${successCount}\nFailed: ${errorCount}`;
+    if (errors.length > 0 && errors.length <= 5) {
+      message += '\n\nErrors:\n' + errors.join('\n');
+    }
+    alert(message);
+
+    // Clear bulk upload state
+    setShowBulkImageUpload(false);
+    setBulkImageFiles([]);
   };
 
   // Copy diagram to a different folder/customer
@@ -1631,6 +4397,123 @@ const DiagramManager = () => {
     return filtered;
   };
 
+  // Customer management functions
+  const handleAddCustomer = () => {
+    const customerName = prompt('Enter new customer name:');
+    if (!customerName || !customerName.trim()) return;
+
+    const trimmedName = customerName.trim();
+    const existingCustomers = getCustomers();
+
+    if (existingCustomers.includes(trimmedName)) {
+      alert(`Customer "${trimmedName}" already exists!`);
+      return;
+    }
+
+    // Create a placeholder diagram for this customer so it shows up in the list
+    // Or just show a success message - the customer will be created when a diagram is assigned to it
+    alert(`Customer "${trimmedName}" will be available when you create a diagram.\n\nTo use it:\n1. Create or edit a diagram\n2. Select "${trimmedName}" from the customer dropdown`);
+  };
+
+  const handleRenameCustomer = (oldName) => {
+    if (oldName === 'General') {
+      alert('Cannot rename the "General" customer');
+      return;
+    }
+
+    const newName = prompt(`Rename customer "${oldName}" to:`, oldName);
+    if (!newName || !newName.trim() || newName.trim() === oldName) return;
+
+    const trimmedName = newName.trim();
+    const existingCustomers = getCustomers();
+
+    if (existingCustomers.includes(trimmedName)) {
+      alert(`Customer "${trimmedName}" already exists!`);
+      return;
+    }
+
+    // Update all diagrams with this customer
+    const updatedDiagrams = {};
+    Object.keys(savedDiagrams).forEach(id => {
+      if (savedDiagrams[id].customer === oldName) {
+        updatedDiagrams[id] = {
+          ...savedDiagrams[id],
+          customer: trimmedName
+        };
+      } else {
+        updatedDiagrams[id] = savedDiagrams[id];
+      }
+    });
+
+    setSavedDiagrams(updatedDiagrams);
+
+    // Update selected customer if it was the one being renamed
+    if (selectedCustomer === oldName) {
+      setSelectedCustomer(trimmedName);
+    }
+
+    alert(`✓ Renamed "${oldName}" to "${trimmedName}"`);
+  };
+
+  const handleDeleteCustomer = (customerName) => {
+    if (customerName === 'General') {
+      alert('Cannot delete the "General" customer');
+      return;
+    }
+
+    const diagramsInCustomer = Object.values(savedDiagrams).filter(
+      d => d.customer === customerName
+    );
+
+    if (!window.confirm(
+      `Delete customer "${customerName}"?\n\n` +
+      `${diagramsInCustomer.length} diagram(s) will be moved to "General" customer.\n\n` +
+      `This cannot be undone.`
+    )) {
+      return;
+    }
+
+    // Move all diagrams to General customer
+    const updatedDiagrams = {};
+    Object.keys(savedDiagrams).forEach(id => {
+      if (savedDiagrams[id].customer === customerName) {
+        updatedDiagrams[id] = {
+          ...savedDiagrams[id],
+          customer: 'General'
+        };
+      } else {
+        updatedDiagrams[id] = savedDiagrams[id];
+      }
+    });
+
+    setSavedDiagrams(updatedDiagrams);
+
+    alert(`✓ Deleted customer "${customerName}"\n${diagramsInCustomer.length} diagram(s) moved to "General"`);
+  };
+
+  const deleteCustomer = (customerName) => {
+    if (customerName === 'General') {
+      alert('Cannot delete the "General" customer');
+      return;
+    }
+
+    const diagramsInCustomer = Object.values(savedDiagrams).filter(
+      d => d.customer === customerName
+    );
+
+    // Delete all diagrams in this customer
+    const updatedDiagrams = {};
+    Object.keys(savedDiagrams).forEach(id => {
+      if (savedDiagrams[id].customer !== customerName) {
+        updatedDiagrams[id] = savedDiagrams[id];
+      }
+    });
+
+    setSavedDiagrams(updatedDiagrams);
+
+    alert(`✓ Deleted customer "${customerName}" and ${diagramsInCustomer.length} diagram(s)`);
+  };
+
   // Create diagrams from book layout text
   const handleCreateDiagramBook = () => {
     if (!diagramBookText.trim()) {
@@ -1752,12 +4635,12 @@ const DiagramManager = () => {
 
   return (
     <div style={{
-      padding: isMobile ? '4px' : '20px',
+      padding: '20px',
       backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
       minHeight: '100vh',
       transition: 'background-color 0.3s ease'
     }}>
-      <div style={{ maxWidth: '100%', margin: '0 auto', padding: isMobile ? '0 4px' : '0 20px' }}>
+      <div style={{ maxWidth: '100%', margin: '0 auto', padding: '0 20px' }}>
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -1772,7 +4655,7 @@ const DiagramManager = () => {
             color: darkMode ? '#fff' : '#333',
             flex: 1
           }}>
-            Interactive Parts Diagram Viewer
+            Interactive Parts Manual Editor
           </h1>
           <button
             onClick={() => setDarkMode(!darkMode)}
@@ -1794,6 +4677,28 @@ const DiagramManager = () => {
           >
             {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
           </button>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.3s ease'
+              }}
+              title="Sign Out"
+            >
+              Sign Out
+            </button>
+          )}
         </div>
 
         {/* Navigation Tabs */}
@@ -1847,7 +4752,7 @@ const DiagramManager = () => {
         <div style={{
           backgroundColor: darkMode ? '#2a2a2a' : '#fff',
           borderRadius: '8px',
-          padding: isMobile ? '12px' : '16px',
+          padding: '16px',
           marginBottom: '20px',
           boxShadow: darkMode ? '0 2px 4px rgba(0,0,0,0.5)' : '0 2px 4px rgba(0,0,0,0.1)',
           border: darkMode ? '1px solid #444' : 'none',
@@ -1862,27 +4767,98 @@ const DiagramManager = () => {
           }}>
             <strong style={{
               color: darkMode ? '#fff' : '#333',
-              fontSize: isMobile ? '13px' : '14px'
-            }}>Saved Diagrams</strong>
+              fontSize: '14px'
+            }}>Saved Diagrams (by Customer)</strong>
 
-            <select
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
+            <label
               style={{
-                padding: '8px 12px',
-                backgroundColor: darkMode ? '#333' : '#fff',
-                color: darkMode ? '#fff' : '#000',
-                border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                padding: '8px 16px',
+                backgroundColor: '#2196f3',
+                color: 'white',
+                border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
+                fontWeight: 'bold',
                 fontSize: '13px'
               }}
+              title="Import customer diagrams from JSON"
             >
-              <option value="All Customers">All Customers</option>
-              {getCustomers().map(customer => (
-                <option key={customer} value={customer}>{customer}</option>
-              ))}
-            </select>
+              📤 Import Customer
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImportCustomer}
+                style={{ display: 'none' }}
+              />
+            </label>
+
+            <button
+              onClick={() => {
+                setShowBulkImageUpload(true);
+                setBulkUploadZipMode(false);
+                setBulkUploadFolder('');
+                setBulkUploadCustomer(selectedCustomer === 'All Customers' ? '' : selectedCustomer);
+                setBulkImageFiles([]);
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#00bcd4',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Bulk upload parts list images with manual diagram selection"
+            >
+              🖼️ Bulk Add Parts Images
+            </button>
+
+            <button
+              onClick={() => {
+                setShowQuickStartWizard(true);
+                setWizardStep(1);
+                setWizardData({
+                  customer: selectedCustomer === 'All Customers' ? 'General' : selectedCustomer,
+                  folder: '',
+                  tocText: '',
+                  diagramCount: 0,
+                  createdDiagramIds: []
+                });
+              }}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#ff9800',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                boxShadow: '0 2px 4px rgba(255,152,0,0.3)'
+              }}
+              title="Step-by-step wizard to create diagrams quickly"
+            >
+              🚀 Quick Start Wizard
+            </button>
+
+            <button
+              onClick={() => setShowCustomerManager(true)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#9c27b0',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Manage customers"
+            >
+              👥 Manage Customers
+            </button>
 
             <button
               onClick={() => setShowDiagramBookForm(!showDiagramBookForm)}
@@ -1913,9 +4889,9 @@ const DiagramManager = () => {
                 fontWeight: 'bold',
                 fontSize: '13px'
               }}
-              title="Quick rename diagrams using table of contents"
+              title="Batch create or rename diagrams using table of contents"
             >
-              {showTocRenamer ? 'Cancel TOC' : '📋 TOC Quick Rename'}
+              {showTocRenamer ? 'Cancel' : '📋 Batch Create/Rename'}
             </button>
 
             <button
@@ -1936,6 +4912,80 @@ const DiagramManager = () => {
             </button>
 
             <button
+              onClick={() => setShowHelp(true)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#2196f3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="View help guide for Parts Viewer"
+            >
+              📖 Help Guide
+            </button>
+
+            <button
+              onClick={runStorageDiagnostic}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Check localStorage usage and fix corrupted diagrams"
+            >
+              🔧 Storage Diagnostic
+            </button>
+
+            <button
+              onClick={() => {
+                setShowBulkImageUpload(!showBulkImageUpload);
+                setBulkImageFiles([]);
+                setBulkUploadFolder('');
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#9c27b0',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Upload multiple images and auto-match to diagrams"
+            >
+              {showBulkImageUpload ? 'Cancel Bulk Upload' : '🖼️ Bulk Image Upload'}
+            </button>
+
+            {partsDebugData && partsDebugData.length > 0 && (
+              <button
+                onClick={() => setShowPartsDebugModal(true)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#2196f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '13px'
+                }}
+                title="Review parts extraction from all parts list PDFs"
+              >
+                🔍 Review Parts Extraction ({partsDebugData.length})
+              </button>
+            )}
+
+            <button
               onClick={() => setShowUploadForm(!showUploadForm)}
               style={{
                 padding: '8px 16px',
@@ -1946,11 +4996,49 @@ const DiagramManager = () => {
                 cursor: 'pointer',
                 fontWeight: 'bold',
                 fontSize: '13px',
-                marginLeft: isMobile ? '0' : 'auto'
+                marginLeft: 'auto'
               }}
             >
               {showUploadForm ? 'Cancel' : '+ New Diagram'}
             </button>
+
+            <label
+              title="Pick a Manual-Manifest-*.json from ManualProcessor → Step 3 → Download JSON for PartsViewer."
+              style={{
+                padding: '8px 16px',
+                backgroundColor: manifestImporting ? '#666' : '#3b82f6',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: manifestImporting ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {manifestImporting ? 'Importing…' : '🔗 Import Manifest'}
+              <input
+                type="file"
+                accept="application/json,.json"
+                style={{ display: 'none' }}
+                disabled={manifestImporting}
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0];
+                  if (f) importManualManifest(f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <span style={{
+              fontSize: '11px',
+              color: '#6b7280',
+              marginLeft: '4px',
+              maxWidth: '260px',
+              lineHeight: 1.3
+            }}>
+              ManualProcessor → Step 3 → <strong>Download JSON for PartsViewer</strong>, then drop it here. Hotspots come pre-placed.
+            </span>
 
             <label style={{
               padding: '8px 16px',
@@ -2020,6 +5108,23 @@ const DiagramManager = () => {
             >
               📁 Manage Firebase Files
             </button>
+
+            <button
+              onClick={handleRepairImages}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+              title="Reconnect diagrams to orphaned images in Firebase Storage"
+            >
+              🔧 Repair Missing Images
+            </button>
           </div>
 
           {syncStatus && (
@@ -2039,41 +5144,186 @@ const DiagramManager = () => {
             </div>
           )}
 
-          {/* Folders */}
+          {/* Customer > Folder Hierarchy */}
           {Object.keys(savedDiagrams).length > 0 ? (
-            Object.entries(getDiagramsByFolder(selectedCustomer)).map(([folderName, diagrams]) => (
-              <div key={folderName} style={{
-                marginBottom: '12px',
-                border: darkMode ? '1px solid #444' : '1px solid #e0e0e0',
-                borderRadius: '6px',
-                overflow: 'hidden'
-              }}>
-                {/* Folder Header */}
-                <div style={{
-                  backgroundColor: darkMode ? '#333' : '#f5f5f5',
-                  padding: '8px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  borderBottom: collapsedFolders[folderName] ? 'none' : (darkMode ? '1px solid #444' : '1px solid #e0e0e0'),
-                  flexWrap: isMobile ? 'wrap' : 'nowrap',
-                  overflowX: isMobile ? 'hidden' : 'visible'
-                }}
-                  onClick={() => setCollapsedFolders(prev => ({
-                    ...prev,
-                    [folderName]: !prev[folderName]
-                  }))}
-                >
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    color: darkMode ? '#fff' : '#666',
-                    width: isMobile ? '100%' : 'auto',
-                    marginBottom: isMobile ? '4px' : '0'
+            Object.entries(getDiagramsByCustomerAndFolder()).map(([customerName, folders]) => {
+              const totalDiagrams = Object.values(folders).reduce((sum, diagrams) => sum + diagrams.length, 0);
+
+              return (
+                <div key={customerName} style={{
+                  marginBottom: '16px',
+                  border: darkMode ? '2px solid #555' : '2px solid #ccc',
+                  borderRadius: '8px',
+                  overflow: 'hidden'
+                }}>
+                  {/* Customer Header */}
+                  <div style={{
+                    backgroundColor: darkMode ? '#2a2a2a' : '#e8e8e8',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    borderBottom: collapsedCustomers[customerName] ? 'none' : (darkMode ? '2px solid #555' : '2px solid #ccc'),
+                    flexWrap: 'nowrap'
                   }}>
-                    {collapsedFolders[folderName] ? '▶' : '▼'} {folderName} ({diagrams.length})
-                  </span>
+                    <span
+                      style={{
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: darkMode ? '#4fc3f7' : '#1976d2',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                      onClick={() => setCollapsedCustomers(prev => ({
+                        ...prev,
+                        [customerName]: !prev[customerName]
+                      }))}
+                    >
+                      {collapsedCustomers[customerName] ? '▶' : '▼'} {customerName} ({totalDiagrams} diagrams)
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportCustomerByName(customerName);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#4caf50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        flexShrink: 0
+                      }}
+                      title={`Export ${customerName}'s diagrams`}
+                    >
+                      📥 Export
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRenameCustomer(customerName);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: 'transparent',
+                        color: darkMode ? '#aaa' : '#666',
+                        border: darkMode ? '1px solid #666' : '1px solid #999',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        flexShrink: 0
+                      }}
+                      title="Rename customer"
+                    >
+                      ✎
+                    </button>
+                    {customerName !== 'General' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete customer "${customerName}" and all ${totalDiagrams} diagrams?`)) {
+                            deleteCustomer(customerName);
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: 'transparent',
+                          color: '#f44336',
+                          border: '1px solid #f44336',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          flexShrink: 0
+                        }}
+                        title="Delete customer and all diagrams"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const folderName = prompt(`Create new folder (machine type) under "${customerName}":`, '');
+                        if (folderName && folderName.trim()) {
+                          // Check if folder already exists for this customer
+                          const existingFolders = Object.keys(folders);
+                          if (existingFolders.includes(folderName.trim())) {
+                            alert(`Folder "${folderName.trim()}" already exists under this customer.`);
+                            return;
+                          }
+                          // Create a placeholder diagram to establish the folder
+                          const newDiagramId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                          const newDiagram = {
+                            id: newDiagramId,
+                            name: `New Diagram in ${folderName.trim()}`,
+                            number: '',
+                            customer: customerName,
+                            folder: folderName.trim(),
+                            partsData: {},
+                            hotspots: {},
+                            pdfData: null,
+                            createdAt: new Date().toISOString()
+                          };
+                          setSavedDiagrams(prev => ({
+                            ...prev,
+                            [newDiagramId]: newDiagram
+                          }));
+                          setCurrentDiagramId(newDiagramId);
+                          alert(`✓ Created new folder "${folderName.trim()}" under "${customerName}"\n\nA placeholder diagram was created. You can rename it or add more diagrams to this folder.`);
+                        }
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#009688',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        flexShrink: 0
+                      }}
+                      title="Create new folder under this customer"
+                    >
+                      + New Folder
+                    </button>
+                  </div>
+
+                  {/* Folders within Customer */}
+                  {!collapsedCustomers[customerName] && Object.entries(folders).map(([folderName, diagrams]) => (
+                    <div key={`${customerName}-${folderName}`} style={{
+                      marginBottom: '0',
+                      borderTop: darkMode ? '1px solid #444' : '1px solid #e0e0e0'
+                    }}>
+                      {/* Folder Header */}
+                      <div style={{
+                        backgroundColor: darkMode ? '#333' : '#f5f5f5',
+                        padding: '8px 12px 8px 28px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        borderBottom: collapsedFolders[`${customerName}-${folderName}`] ? 'none' : (darkMode ? '1px solid #444' : '1px solid #e0e0e0'),
+                        flexWrap: 'nowrap',
+                        overflowX: 'visible'
+                      }}
+                        onClick={() => setCollapsedFolders(prev => ({
+                          ...prev,
+                          [`${customerName}-${folderName}`]: !prev[`${customerName}-${folderName}`]
+                        }))}
+                      >
+                        <span style={{
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: darkMode ? '#fff' : '#666',
+                          width: 'auto',
+                          marginBottom: '0'
+                        }}>
+                          {collapsedFolders[`${customerName}-${folderName}`] ? '▶' : '▼'} {folderName} ({diagrams.length})
+                        </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2087,7 +5337,7 @@ const DiagramManager = () => {
                       borderRadius: '4px',
                       cursor: 'pointer',
                       fontSize: '11px',
-                      marginLeft: isMobile ? '0' : 'auto',
+                      marginLeft: 'auto',
                       flexShrink: 0
                     }}
                     title={`Arrange diagrams in "${folderName}" numerically`}
@@ -2097,7 +5347,7 @@ const DiagramManager = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSaveFolderToFirebase(folderName, diagrams);
+                      handleSaveFolderToFirebase(customerName, folderName, diagrams);
                     }}
                     style={{
                       padding: '4px 8px',
@@ -2109,14 +5359,14 @@ const DiagramManager = () => {
                       fontSize: '11px',
                       flexShrink: 0
                     }}
-                    title={`Save all diagrams in "${folderName}" to Firebase`}
+                    title={`Save all diagrams in "${customerName} > ${folderName}" to Firebase`}
                   >
                     ☁️↑
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleLoadFolderFromFirebase(folderName);
+                      handleLoadFolderFromFirebase(customerName, folderName);
                     }}
                     style={{
                       padding: '4px 8px',
@@ -2128,7 +5378,7 @@ const DiagramManager = () => {
                       fontSize: '11px',
                       flexShrink: 0
                     }}
-                    title={`Load diagrams from "${folderName}" on Firebase`}
+                    title={`Load diagrams from "${customerName} > ${folderName}" on Firebase`}
                   >
                     ☁️↓
                   </button>
@@ -2177,40 +5427,40 @@ const DiagramManager = () => {
                   )}
                 </div>
 
-                {/* Folder Contents */}
-                {!collapsedFolders[folderName] && (
-                  <div style={{
-                    padding: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    backgroundColor: darkMode ? '#222' : 'transparent'
-                  }}>
+                      {/* Folder Contents */}
+                      {!collapsedFolders[`${customerName}-${folderName}`] && (
+                        <div style={{
+                          padding: '12px 12px 12px 40px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          backgroundColor: darkMode ? '#1a1a1a' : '#fafafa'
+                        }}>
                     {diagrams.map(diagram => (
                       <div key={diagram.id} style={{
                         display: 'flex',
                         gap: '4px',
                         alignItems: 'center',
-                        overflowX: isMobile ? 'auto' : 'visible',
+                        overflowX: 'visible',
                         overflowY: 'hidden',
-                        padding: isMobile ? '4px' : '0'
+                        padding: '0'
                       }}>
                         <button
                           onClick={() => setCurrentDiagramId(diagram.id)}
                           style={{
-                            padding: isMobile ? '6px 12px' : '8px 16px',
+                            padding: '8px 16px',
                             backgroundColor: currentDiagramId === diagram.id ? '#2196f3' : (darkMode ? '#444' : '#e0e0e0'),
                             color: currentDiagramId === diagram.id ? 'white' : (darkMode ? '#fff' : '#333'),
                             border: darkMode ? '1px solid #555' : 'none',
                             borderRadius: '6px',
                             cursor: 'pointer',
                             fontWeight: currentDiagramId === diagram.id ? 'bold' : 'normal',
-                            fontSize: isMobile ? '12px' : '13px',
+                            fontSize: '13px',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            minWidth: isMobile ? '180px' : '200px',
-                            maxWidth: isMobile ? '180px' : '200px',
+                            minWidth: '200px',
+                            maxWidth: '200px',
                             flexShrink: 0
                           }}
                         >
@@ -2384,12 +5634,15 @@ const DiagramManager = () => {
                         >
                           ✕
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
+                          </div>
+                        ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })
           ) : (
             <div style={{
               padding: '20px',
@@ -2525,7 +5778,7 @@ const DiagramManager = () => {
             <h2 style={{
               marginBottom: '16px',
               color: darkMode ? '#fff' : '#333'
-            }}>📋 TOC Quick Rename</h2>
+            }}>📋 Batch Create/Rename from TOC</h2>
             <p style={{
               marginBottom: '16px',
               color: darkMode ? '#aaa' : '#666',
@@ -2543,7 +5796,7 @@ const DiagramManager = () => {
               border: darkMode ? '1px solid #2c5f75' : '1px solid #90caf9'
             }}>
               <strong>How it works:</strong><br/>
-              1. Select the folder containing the diagrams you want to rename<br/>
+              1. Select the customer and folder containing the diagrams you want to rename<br/>
               2. Paste the table of contents below<br/>
               3. Click "Parse TOC" to extract all entries<br/>
               4. Click "Auto-Map in Order" to automatically assign TOC entries to diagrams in order<br/>
@@ -2555,6 +5808,41 @@ const DiagramManager = () => {
               Line 2: Unit name (e.g., "MAIN BODY UNIT::HIGHSPEED")<br/>
               Line 3: Part code (ignored - e.g., "000-128-2893-16")<br/>
               Line 4: Draw number (e.g., "4D-38837")
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: darkMode ? '#fff' : '#333',
+                fontWeight: 'bold'
+              }}>
+                Select Customer:
+              </label>
+              <select
+                value={tocSelectedCustomer}
+                onChange={(e) => {
+                  setTocSelectedCustomer(e.target.value);
+                  setTocSelectedFolder(''); // Clear folder when customer changes
+                  setTocMappings({}); // Clear mappings when customer changes
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                  borderRadius: '6px',
+                  backgroundColor: darkMode ? '#333' : '#fff',
+                  color: darkMode ? '#fff' : '#000',
+                  fontSize: '14px',
+                  marginBottom: '16px'
+                }}
+              >
+                <option value="">-- Select a customer --</option>
+                {getCustomers().map(customer => (
+                  <option key={customer} value={customer}>
+                    {customer}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ marginBottom: '16px' }}>
               <label style={{
@@ -2585,10 +5873,10 @@ const DiagramManager = () => {
                 <option value="">-- Select a folder --</option>
                 {(() => {
                   const folders = getFolders().filter(folder => {
-                    // Only show folders that match the selected customer
+                    // Only show folders that match the selected TOC customer
                     const diagramsInFolder = Object.values(savedDiagrams).filter(d =>
                       d.folder === folder &&
-                      (selectedCustomer === 'All Customers' || d.customer === selectedCustomer)
+                      d.customer === tocSelectedCustomer
                     );
                     return diagramsInFolder.length > 0;
                   });
@@ -2596,7 +5884,7 @@ const DiagramManager = () => {
                     <option key={folder} value={folder}>
                       {folder} ({Object.values(savedDiagrams).filter(d =>
                         d.folder === folder &&
-                        (selectedCustomer === 'All Customers' || d.customer === selectedCustomer)
+                        d.customer === tocSelectedCustomer
                       ).length} diagrams)
                     </option>
                   ));
@@ -2845,6 +6133,601 @@ const DiagramManager = () => {
           </div>
         )}
 
+        {/* Bulk Image Upload Form */}
+        {showBulkImageUpload && (
+          <div style={{
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            borderRadius: '8px',
+            padding: '24px',
+            marginBottom: '20px',
+            boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.15)',
+            border: darkMode ? '1px solid #444' : 'none'
+          }}>
+            <h2 style={{
+              marginBottom: '16px',
+              color: darkMode ? '#fff' : '#333'
+            }}>🖼️ Bulk Import</h2>
+
+            {/* Mode Selector */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: darkMode ? '#fff' : '#333',
+                fontWeight: 'bold'
+              }}>
+                Import Mode:
+              </label>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                marginBottom: '16px'
+              }}>
+                <button
+                  onClick={() => {
+                    setBulkUploadZipMode(false);
+                    setBulkUploadTocText('');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: !bulkUploadZipMode ? '#2196f3' : (darkMode ? '#333' : '#e0e0e0'),
+                    color: !bulkUploadZipMode ? 'white' : (darkMode ? '#aaa' : '#666'),
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  📄 Individual Images
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkUploadZipMode(true);
+                    setBulkImageFiles([]);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: bulkUploadZipMode ? '#2196f3' : (darkMode ? '#333' : '#e0e0e0'),
+                    color: bulkUploadZipMode ? 'white' : (darkMode ? '#aaa' : '#666'),
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  📦 ZIP with Parts Lists
+                </button>
+              </div>
+            </div>
+
+            {/* Description based on mode */}
+            <p style={{
+              marginBottom: '16px',
+              color: darkMode ? '#aaa' : '#666',
+              fontSize: '14px'
+            }}>
+              {bulkUploadZipMode
+                ? 'Upload a ZIP file containing diagram images and parts list PDFs. The system will automatically match and import parts data.'
+                : 'Select multiple diagram images and automatically match them to diagrams by name.'
+              }
+            </p>
+
+            {/* Instructions based on mode */}
+            <div style={{
+              backgroundColor: darkMode ? '#1a3a4a' : '#e3f2fd',
+              padding: '12px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontSize: '13px',
+              color: darkMode ? '#aaa' : '#666',
+              border: darkMode ? '1px solid #2c5f75' : '1px solid #90caf9'
+            }}>
+              {bulkUploadZipMode ? (
+                <>
+                  <strong>How it works:</strong><br/>
+                  1. Select the customer and folder where diagrams will be created<br/>
+                  2. Upload a ZIP file with this structure:<br/>
+                  &nbsp;&nbsp;&nbsp;• Exploded-Views/ (diagram images)<br/>
+                  &nbsp;&nbsp;&nbsp;• Parts-Lists/ (parts list PDFs)<br/>
+                  3. System automatically matches images with parts lists by filename<br/>
+                  4. All diagrams created with images and parts data imported<br/>
+                  <br/>
+                  <strong>Example:</strong> "10-1-MAIN-BODY.jpg" matches "10-1-MAIN-BODY-parts.pdf"
+                </>
+              ) : (
+                <>
+                  <strong>How it works:</strong><br/>
+                  1. Select the folder containing the diagrams you want to add images to<br/>
+                  2. Click "Choose Files" and select all your diagram images (from Exploded-Views folder)<br/>
+                  3. The system will automatically match each image to a diagram by name<br/>
+                  4. Review the matches and adjust if needed<br/>
+                  5. Click "Upload All" to apply all images at once<br/>
+                  <br/>
+                  <strong>Note:</strong> Image filenames should match diagram names as closely as possible.
+                </>
+              )}
+            </div>
+
+            {/* Customer Selector (for ZIP mode) */}
+            {bulkUploadZipMode && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: darkMode ? '#fff' : '#333',
+                  fontWeight: 'bold'
+                }}>
+                  Select or Create Customer:
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: darkMode ? '#aaa' : '#666',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={bulkUploadCustomer.startsWith('__NEW__')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkUploadCustomer('__NEW__');
+                        } else {
+                          setBulkUploadCustomer('');
+                        }
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Create New Customer
+                  </label>
+                </div>
+                {bulkUploadCustomer.startsWith('__NEW__') ? (
+                  <input
+                    type="text"
+                    value={bulkUploadCustomer.replace('__NEW__', '')}
+                    onChange={(e) => setBulkUploadCustomer('__NEW__' + e.target.value)}
+                    placeholder="Enter new customer name"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                      borderRadius: '6px',
+                      backgroundColor: darkMode ? '#333' : '#fff',
+                      color: darkMode ? '#fff' : '#000',
+                      fontSize: '14px'
+                    }}
+                  />
+                ) : (
+                  <select
+                    value={bulkUploadCustomer}
+                    onChange={(e) => setBulkUploadCustomer(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                      borderRadius: '6px',
+                      backgroundColor: darkMode ? '#333' : '#fff',
+                      color: darkMode ? '#fff' : '#000',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <option value="">-- Select a customer --</option>
+                    {getCustomers().map(customer => (
+                      <option key={customer} value={customer}>
+                        {customer}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Folder Selector */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: darkMode ? '#fff' : '#333',
+                fontWeight: 'bold'
+              }}>
+                {bulkUploadZipMode ? 'Select or Create Folder:' : 'Select Folder:'}
+              </label>
+              {bulkUploadZipMode ? (
+                <input
+                  type="text"
+                  value={bulkUploadFolder}
+                  onChange={(e) => setBulkUploadFolder(e.target.value)}
+                  placeholder="Enter folder name (or select existing)"
+                  list="existing-folders"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                    borderRadius: '6px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    fontSize: '14px'
+                  }}
+                />
+              ) : (
+                <select
+                  value={bulkUploadFolder}
+                  onChange={(e) => {
+                    setBulkUploadFolder(e.target.value);
+                    setBulkImageFiles([]);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                    borderRadius: '6px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">-- Select a folder --</option>
+                  {(() => {
+                    const folders = getFolders().filter(folder => {
+                      const diagramsInFolder = Object.values(savedDiagrams).filter(d =>
+                        d.folder === folder &&
+                        (selectedCustomer === 'All Customers' || d.customer === selectedCustomer)
+                      );
+                      return diagramsInFolder.length > 0;
+                    });
+                    return folders.map(folder => (
+                      <option key={folder} value={folder}>
+                        {folder} ({Object.values(savedDiagrams).filter(d =>
+                          d.folder === folder &&
+                          (selectedCustomer === 'All Customers' || d.customer === selectedCustomer)
+                        ).length} diagrams)
+                      </option>
+                    ));
+                  })()}
+                </select>
+              )}
+              {bulkUploadZipMode && (
+                <datalist id="existing-folders">
+                  {getFolders().map(folder => (
+                    <option key={folder} value={folder} />
+                  ))}
+                </datalist>
+              )}
+            </div>
+
+            {/* TOC Text Area - ZIP mode */}
+            {bulkUploadZipMode && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: darkMode ? '#fff' : '#333',
+                  fontWeight: 'bold'
+                }}>
+                  Table of Contents (Optional):
+                </label>
+                <div style={{
+                  backgroundColor: darkMode ? '#1a3a4a' : '#e3f2fd',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
+                  fontSize: '12px',
+                  color: darkMode ? '#aaa' : '#666',
+                  border: darkMode ? '1px solid #2c5f75' : '1px solid #90caf9'
+                }}>
+                  Paste your table of contents (4 lines per entry) to automatically name diagrams. If not provided, filenames will be used.
+                </div>
+                <textarea
+                  value={bulkUploadTocText}
+                  onChange={(e) => setBulkUploadTocText(e.target.value)}
+                  placeholder="10- 1&#10;MAIN BODY UNIT::HIGHSPEED&#10;000-128-2893-16&#10;4D-38837&#10;10- 2&#10;PLATE UNIT:MAIN BODY:&#10;000-055-6933-09&#10;4D-10137"
+                  rows={8}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                    borderRadius: '6px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* File Input - ZIP mode */}
+            {bulkUploadZipMode && bulkUploadCustomer && bulkUploadFolder && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: darkMode ? '#fff' : '#333',
+                  fontWeight: 'bold'
+                }}>
+                  Select ZIP File:
+                </label>
+                <input
+                  type="file"
+                  accept=".zip"
+                  onChange={handleBulkZipUpload}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                    borderRadius: '6px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* File Input - Individual Images mode */}
+            {!bulkUploadZipMode && bulkUploadFolder && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: darkMode ? '#fff' : '#333',
+                  fontWeight: 'bold'
+                }}>
+                  Select Image Files:
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/jpg,image/png"
+                  onChange={handleBulkImageSelect}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                    borderRadius: '6px',
+                    backgroundColor: darkMode ? '#333' : '#fff',
+                    color: darkMode ? '#fff' : '#000',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Show matched files */}
+            {bulkImageFiles.length > 0 && (
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                borderRadius: '6px',
+                border: darkMode ? '1px solid #333' : '1px solid #e0e0e0'
+              }}>
+                <h3 style={{
+                  marginTop: 0,
+                  marginBottom: '16px',
+                  color: darkMode ? '#fff' : '#333'
+                }}>
+                  Matched Files ({bulkImageFiles.filter(m => m.matchedDiagramId).length} / {bulkImageFiles.length})
+                </h3>
+                <div style={{
+                  maxHeight: '400px',
+                  overflowY: 'auto'
+                }}>
+                  {bulkImageFiles.map((match, idx) => {
+                    // Get diagrams in selected folder
+                    const diagramsInFolder = Object.values(savedDiagrams).filter(d =>
+                      d.folder === bulkUploadFolder &&
+                      (bulkUploadCustomer ? d.customer === bulkUploadCustomer : true)
+                    ).sort((a, b) => a.name.localeCompare(b.name));
+
+                    const showDropdown = !match.matchedDiagramId || match.confidence < 70;
+
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '12px',
+                          marginBottom: '8px',
+                          backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                          borderRadius: '6px',
+                          border: match.matchedDiagramId
+                            ? (darkMode ? '2px solid #4caf50' : '2px solid #4caf50')
+                            : (darkMode ? '2px solid #f44336' : '2px solid #f44336')
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <div style={{
+                            fontWeight: 'bold',
+                            color: darkMode ? '#4fc3f7' : '#0277bd',
+                            fontSize: '13px',
+                            flex: 1,
+                            wordBreak: 'break-all'
+                          }}>
+                            {match.file.name}
+                          </div>
+                          {match.confidence >= 70 && (
+                            <div style={{
+                              fontSize: '11px',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: darkMode ? '#1b5e20' : '#c8e6c9',
+                              color: darkMode ? '#81c784' : '#2e7d32',
+                              fontWeight: 'bold',
+                              marginLeft: '8px'
+                            }}>
+                              {match.confidence}% match
+                            </div>
+                          )}
+                        </div>
+
+                        {showDropdown ? (
+                          <div style={{ marginBottom: '8px' }}>
+                            <label style={{
+                              display: 'block',
+                              fontSize: '12px',
+                              color: darkMode ? '#aaa' : '#666',
+                              marginBottom: '4px'
+                            }}>
+                              {match.matchedDiagramId ? 'Low confidence - verify match:' : 'No match found - select diagram:'}
+                            </label>
+                            <select
+                              value={match.matchedDiagramId || ''}
+                              onChange={(e) => {
+                                const newMatches = [...bulkImageFiles];
+                                const selectedDiagram = savedDiagrams[e.target.value];
+                                newMatches[idx] = {
+                                  ...match,
+                                  matchedDiagramId: e.target.value || null,
+                                  matchedDiagramName: selectedDiagram ? selectedDiagram.name : null,
+                                  confidence: e.target.value ? 100 : 0
+                                };
+                                setBulkImageFiles(newMatches);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '8px',
+                                border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                                borderRadius: '4px',
+                                backgroundColor: darkMode ? '#333' : '#fff',
+                                color: darkMode ? '#fff' : '#000',
+                                fontSize: '12px'
+                              }}
+                            >
+                              <option value="">-- Select diagram --</option>
+                              {diagramsInFolder.map(diagram => (
+                                <option key={diagram.id} value={diagram.id}>
+                                  {diagram.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div style={{
+                            marginBottom: '8px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}>
+                            <div style={{
+                              fontSize: '12px',
+                              color: darkMode ? '#81c784' : '#2e7d32'
+                            }}>
+                              ✓ Auto-matched to: <strong>{match.matchedDiagramName}</strong>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newMatches = [...bulkImageFiles];
+                                newMatches[idx] = {
+                                  ...match,
+                                  confidence: 0 // Force dropdown to show
+                                };
+                                setBulkImageFiles(newMatches);
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                backgroundColor: darkMode ? '#555' : '#e0e0e0',
+                                color: darkMode ? '#fff' : '#333',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Change
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: '12px',
+                  marginTop: '16px'
+                }}>
+                  <button
+                    onClick={handleApplyBulkUpload}
+                    disabled={bulkImageFiles.filter(m => m.matchedDiagramId).length === 0}
+                    style={{
+                      padding: '12px 24px',
+                      backgroundColor: bulkImageFiles.filter(m => m.matchedDiagramId).length > 0 ? '#4caf50' : '#666',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: bulkImageFiles.filter(m => m.matchedDiagramId).length > 0 ? 'pointer' : 'not-allowed',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  >
+                    ✓ Upload All ({bulkImageFiles.filter(m => m.matchedDiagramId).length})
+                  </button>
+                  <button
+                    onClick={() => setBulkImageFiles([])}
+                    style={{
+                      padding: '12px 24px',
+                      backgroundColor: darkMode ? '#555' : '#999',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Clear Files
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              marginTop: '16px'
+            }}>
+              <button
+                onClick={() => {
+                  setShowBulkImageUpload(false);
+                  setBulkImageFiles([]);
+                  setBulkUploadFolder('');
+                  setBulkUploadCustomer('');
+                  setBulkUploadZipMode(false);
+                  setBulkUploadTocText('');
+                }}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: darkMode ? '#555' : '#999',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Edit Diagram Form */}
         {editingDiagram && (
           <div style={{
@@ -2874,11 +6757,11 @@ const DiagramManager = () => {
                   fontWeight: 'bold',
                   color: darkMode ? '#ccc' : '#555'
                 }}>
-                  PDF Diagram: {editingDiagram.pdfData ? '(Current: Yes)' : '(Current: None)'}
+                  Diagram Image/PDF: {editingDiagram.pdfData ? '(Current: Yes)' : '(Current: None)'}
                   <input
                     type="file"
                     name="pdfFile"
-                    accept=".pdf"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -3266,19 +7149,19 @@ const DiagramManager = () => {
                   fontWeight: 'bold',
                   color: darkMode ? '#ccc' : '#555'
                 }}>
-                  Diagram PDF File (optional - can add later):
+                  Diagram Image/PDF File (optional - can add later):
                   <div style={{
                     fontSize: '12px',
                     fontWeight: 'normal',
                     color: darkMode ? '#888' : '#666',
                     marginBottom: '4px'
                   }}>
-                    Upload the PDF diagram/schematic that you want to add hotspots to
+                    Upload a PDF or image file (JPG, PNG) of the diagram/schematic
                   </div>
                   <input
                     type="file"
                     name="pdfFile"
-                    accept=".pdf"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -3626,6 +7509,322 @@ const DiagramManager = () => {
           </div>
         )}
 
+        {/* Parts List PDF Review Modal */}
+        {showPartsListReview && partsListData && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}>
+            <div style={{
+              backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '1000px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              color: darkMode ? '#fff' : '#333'
+            }}>
+              <h2 style={{ marginBottom: '16px', color: darkMode ? '#fff' : '#333' }}>
+                Review Parts List Import
+              </h2>
+
+              {partsListData.unitName && (
+                <div style={{ marginBottom: '16px' }}>
+                  <strong>Unit Name:</strong> {partsListData.unitName}
+                </div>
+              )}
+
+              {partsListData.drawNo && (
+                <div style={{ marginBottom: '16px' }}>
+                  <strong>Drawing #:</strong> {partsListData.drawNo}
+                </div>
+              )}
+
+              <p style={{ marginBottom: '20px', color: darkMode ? '#aaa' : '#666' }}>
+                {Object.keys(partsListData.partsData).length} parts extracted. Review and edit as needed.
+              </p>
+
+              <div style={{ maxHeight: '500px', overflow: 'auto', marginBottom: '20px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead style={{ position: 'sticky', top: 0, backgroundColor: '#4caf50', color: 'white', zIndex: 1 }}>
+                    <tr>
+                      <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>Part #</th>
+                      <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>Part Code</th>
+                      <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>Part Name</th>
+                      <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>Qty</th>
+                      <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #ddd' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(partsListData.partsData).map((partNo, index) => {
+                      const part = partsListData.partsData[partNo];
+                      return (
+                        <tr key={partNo} style={{ backgroundColor: index % 2 === 0 ? (darkMode ? '#333' : '#f9f9f9') : (darkMode ? '#3a3a3a' : 'white') }}>
+                          <td style={{ padding: '8px', border: '1px solid #ddd', color: darkMode ? '#fff' : '#000' }}>
+                            <strong>{partNo}</strong>
+                          </td>
+                          <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                            <input
+                              type="text"
+                              value={part.partCode}
+                              onChange={(e) => {
+                                const newPartsData = { ...partsListData.partsData };
+                                newPartsData[partNo].partCode = e.target.value;
+                                setPartsListData({ ...partsListData, partsData: newPartsData });
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: darkMode ? '#444' : '#fff',
+                                color: darkMode ? '#fff' : '#000'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                            <input
+                              type="text"
+                              value={part.partName}
+                              onChange={(e) => {
+                                const newPartsData = { ...partsListData.partsData };
+                                newPartsData[partNo].partName = e.target.value;
+                                setPartsListData({ ...partsListData, partsData: newPartsData });
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: darkMode ? '#444' : '#fff',
+                                color: darkMode ? '#fff' : '#000'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                            <input
+                              type="text"
+                              value={part.qty}
+                              onChange={(e) => {
+                                const newPartsData = { ...partsListData.partsData };
+                                newPartsData[partNo].qty = e.target.value;
+                                setPartsListData({ ...partsListData, partsData: newPartsData });
+                              }}
+                              style={{
+                                width: '60px',
+                                padding: '4px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: darkMode ? '#444' : '#fff',
+                                color: darkMode ? '#fff' : '#000'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                const newPartsData = { ...partsListData.partsData };
+                                delete newPartsData[partNo];
+                                setPartsListData({ ...partsListData, partsData: newPartsData });
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#f44336',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '11px'
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowPartsListReview(false);
+                    setPartsListData(null);
+                  }}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: '#999',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmPartsListImport}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: '#4caf50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Import to Current Diagram ({Object.keys(partsListData.partsData).length} parts)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Parts Extraction Debug Modal */}
+        {showPartsDebugModal && partsDebugData && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '1200px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              color: darkMode ? '#fff' : '#000'
+            }}>
+              <h2 style={{ marginBottom: '16px' }}>🔍 Parts Extraction Debug</h2>
+
+              <p style={{ marginBottom: '20px', color: darkMode ? '#aaa' : '#666' }}>
+                This shows how parts were extracted from each parts list PDF.
+                For multi-page PDFs, review each page to verify continuation pages are parsed correctly.
+              </p>
+
+              {partsDebugData.map((diagram, diagIdx) => (
+                <div key={diagIdx} style={{
+                  marginBottom: '32px',
+                  padding: '16px',
+                  backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                  borderRadius: '8px',
+                  border: darkMode ? '1px solid #444' : '1px solid #ddd'
+                }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '12px', color: darkMode ? '#4fc3f7' : '#0277bd' }}>
+                    {diagram.diagramName}
+                  </h3>
+                  <div style={{ fontSize: '13px', color: darkMode ? '#aaa' : '#666', marginBottom: '16px' }}>
+                    Image: {diagram.imageFileName} | Total Parts: {diagram.totalParts}
+                  </div>
+
+                  {diagram.pageDetails.map((page, pageIdx) => (
+                    <div key={pageIdx} style={{
+                      marginBottom: '16px',
+                      padding: '12px',
+                      backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                      borderRadius: '6px',
+                      border: page.success
+                        ? (darkMode ? '2px solid #4caf50' : '2px solid #4caf50')
+                        : (darkMode ? '2px solid #f44336' : '2px solid #f44336')
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '8px'
+                      }}>
+                        <strong style={{ fontSize: '14px' }}>
+                          Page {page.pageNumber}: {page.fileName}
+                          {page.isContinuation && ' (Continuation Page)'}
+                        </strong>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          backgroundColor: page.success ? '#4caf50' : '#f44336',
+                          color: 'white',
+                          fontWeight: 'bold'
+                        }}>
+                          {page.success ? `✓ ${page.partsCount} parts` : '✗ Failed'}
+                        </span>
+                      </div>
+
+                      {page.error && (
+                        <div style={{
+                          padding: '8px',
+                          backgroundColor: darkMode ? '#3a1a1a' : '#ffebee',
+                          color: darkMode ? '#ff5252' : '#c62828',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          marginBottom: '8px'
+                        }}>
+                          Error: {page.error}
+                        </div>
+                      )}
+
+                      {page.partNumbers.length > 0 && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: darkMode ? '#aaa' : '#666',
+                          fontFamily: 'monospace',
+                          marginTop: '8px'
+                        }}>
+                          <strong>Part Numbers:</strong> {page.partNumbers.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowPartsDebugModal(false)}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: darkMode ? '#555' : '#999',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Firebase Manager Modal */}
         {showFirebaseManager && (
           <div style={{
@@ -3687,7 +7886,9 @@ const DiagramManager = () => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '20px'
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                gap: '10px'
               }}>
                 <p style={{
                   color: darkMode ? '#aaa' : '#666',
@@ -3695,23 +7896,60 @@ const DiagramManager = () => {
                 }}>
                   {firebaseDiagrams.length} diagram(s) stored in Firebase
                 </p>
-                {selectedDiagramIds.size > 0 && (
-                  <button
-                    onClick={deleteSelectedDiagrams}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#f44336',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    Delete Selected ({selectedDiagramIds.size})
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {firebaseDiagrams.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`DELETE ALL ${firebaseDiagrams.length} diagrams from Firebase?\n\nThis will:\n✓ Delete ALL diagrams from Firebase\n✓ Keep local diagrams unchanged\n\nThis cannot be undone!`)) {
+                          return;
+                        }
+                        try {
+                          setSyncStatus('Deleting all from Firebase...');
+                          const deletePromises = firebaseDiagrams.map(d => deleteFromFirebase(d.id));
+                          await Promise.all(deletePromises);
+                          setFirebaseDiagrams([]);
+                          setSyncStatus('✓ All deleted from Firebase');
+                          setTimeout(() => setSyncStatus(null), 2000);
+                          alert(`✓ Successfully deleted all ${deletePromises.length} diagrams from Firebase`);
+                        } catch (error) {
+                          console.error('Error deleting all from Firebase:', error);
+                          setSyncStatus('✗ Delete failed');
+                          setTimeout(() => setSyncStatus(null), 3000);
+                          alert('Error deleting from Firebase: ' + error.message);
+                        }
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#d32f2f',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      🗑️ Delete All from Firebase
+                    </button>
+                  )}
+                  {selectedDiagramIds.size > 0 && (
+                    <button
+                      onClick={deleteSelectedDiagrams}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Delete Selected ({selectedDiagramIds.size})
+                    </button>
+                  )}
+                </div>
               </div>
 
               {firebaseDiagrams.length === 0 ? (
@@ -3934,13 +8172,13 @@ const DiagramManager = () => {
 
         {/* Current Diagram */}
         {!showPartsReview && currentDiagram ? (
-          <div>
+          <div ref={diagramViewerRef}>
             {/* Navigation Controls */}
             {(() => {
               const diagramIds = Object.keys(savedDiagrams);
               const currentIndex = diagramIds.indexOf(currentDiagramId);
-              const hasPrevious = currentIndex > 0;
               const hasNext = currentIndex < diagramIds.length - 1;
+              const hasPrevious = currentIndex > 0;
 
               return (
                 <div style={{
@@ -4014,15 +8252,267 @@ const DiagramManager = () => {
               );
             })()}
 
+            {/* Parts List PDF Import */}
+            <div style={{
+              padding: '12px 16px',
+              backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+              borderLeft: darkMode ? '1px solid #444' : '1px solid #ddd',
+              borderRight: darkMode ? '1px solid #444' : '1px solid #ddd',
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <label style={{
+                padding: '10px 20px',
+                backgroundColor: '#4caf50',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                📄 Import Parts List
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.txt"
+                  onChange={handlePartsListPDFUpload}
+                  style={{ display: 'none' }}
+                />
+              </label>
+
+              <label style={{
+                padding: '10px 20px',
+                backgroundColor: '#00bcd4',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                🖼️ Add Parts List Images
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={handleUploadPartsListImages}
+                  style={{ display: 'none' }}
+                />
+              </label>
+
+              <button
+                onClick={() => setCurrentView('pdf-converter')}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#ff9800',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                🔄 PDF to CSV Converter
+              </button>
+
+              {currentDiagram.partsListImages && currentDiagram.partsListImages.length > 0 && (
+                <button
+                  onClick={() => setShowPartsListSource(!showPartsListSource)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: showPartsListSource ? '#9c27b0' : '#673ab7',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {showPartsListSource ? '👁️ Hide' : '📋 Show'} Source for Parts List
+                </button>
+              )}
+            </div>
+
             <InteractiveDiagram
               diagram={currentDiagram}
               onHotspotsUpdate={(hotspots) => updateDiagramHotspots(currentDiagram.id, hotspots)}
               onPartsDataUpdate={(partsData) => updateDiagramPartsData(currentDiagram.id, partsData)}
+              onRotationUpdate={(rotation) => updateDiagramRotation(currentDiagram.id, rotation)}
               globalOrderList={globalOrderList}
               setGlobalOrderList={setGlobalOrderList}
               allDiagrams={savedDiagrams}
               darkMode={darkMode}
             />
+
+            {/* Parts List Source Images Modal */}
+            {showPartsListSource && currentDiagram.partsListImages && currentDiagram.partsListImages.length > 0 && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10000,
+                padding: '20px',
+                overflowY: 'auto'
+              }}>
+                <div style={{
+                  backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                  color: darkMode ? '#fff' : '#333',
+                  borderRadius: '12px',
+                  maxWidth: '90vw',
+                  maxHeight: '90vh',
+                  overflow: 'auto',
+                  padding: '30px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '20px',
+                    position: 'sticky',
+                    top: 0,
+                    backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+                    zIndex: 1,
+                    paddingBottom: '10px'
+                  }}>
+                    <div>
+                      <h2 style={{ margin: 0, marginBottom: '5px' }}>📋 Parts List Source Images</h2>
+                      <div style={{
+                        fontSize: '14px',
+                        color: darkMode ? '#aaa' : '#666',
+                        fontWeight: 'normal'
+                      }}>
+                        {currentDiagram.name} ({currentDiagram.partsListImages.length} image{currentDiagram.partsListImages.length !== 1 ? 's' : ''})
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Clear all ${currentDiagram.partsListImages.length} parts list image(s) from "${currentDiagram.name}"?`)) {
+                            setSavedDiagrams(prev => ({
+                              ...prev,
+                              [currentDiagramId]: {
+                                ...prev[currentDiagramId],
+                                partsListImages: []
+                              }
+                            }));
+                            setShowPartsListSource(false);
+                          }
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: '#ff9800',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        🗑️ Clear All
+                      </button>
+                      <button
+                        onClick={() => setShowPartsListSource(false)}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '20px'
+                  }}>
+                    {currentDiagram.partsListImages.map((image, index) => (
+                      <div key={index} style={{
+                        border: darkMode ? '2px solid #444' : '2px solid #ddd',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        backgroundColor: darkMode ? '#1a1a1a' : '#f9f9f9'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '10px'
+                        }}>
+                          <div style={{
+                            fontWeight: 'bold',
+                            color: darkMode ? '#aaa' : '#666'
+                          }}>
+                            {image.fileName}
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete "${image.fileName}" from parts list?`)) {
+                                setSavedDiagrams(prev => ({
+                                  ...prev,
+                                  [currentDiagramId]: {
+                                    ...prev[currentDiagramId],
+                                    partsListImages: prev[currentDiagramId].partsListImages.filter((_, i) => i !== index)
+                                  }
+                                }));
+                              }
+                            }}
+                            style={{
+                              padding: '4px 12px',
+                              backgroundColor: '#f44336',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                        <img
+                          src={image.data}
+                          alt={image.fileName}
+                          style={{
+                            width: '100%',
+                            height: 'auto',
+                            borderRadius: '4px',
+                            border: darkMode ? '1px solid #555' : '1px solid #ccc'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{
@@ -4103,6 +8593,1232 @@ const DiagramManager = () => {
               }
             `}
           </style>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px',
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#fff' : '#333',
+            borderRadius: '12px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            padding: '30px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>📖 Parts Viewer Help Guide</h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ lineHeight: '1.6' }}>
+              <h3 style={{ color: '#2196f3', marginTop: '20px' }}>🎯 What is Parts Viewer?</h3>
+              <p>
+                Parts Viewer is an interactive diagram tool that lets you create clickable parts diagrams with hotspots.
+                Click on any part in a diagram to see its details, add it to orders, and manage your parts inventory.
+              </p>
+
+              <h3 style={{ color: '#2196f3', marginTop: '30px' }}>🚀 Quick Start: The Complete Workflow</h3>
+
+              <h4 style={{ color: '#ff9800', marginTop: '20px' }}>Method 1: Batch Create/Rename (Fastest for Multiple Diagrams)</h4>
+              <p>This method is perfect when you have a table of contents from a manual and want to create many diagrams at once.</p>
+              <ol>
+                <li><strong>Create blank diagrams first:</strong>
+                  <ul>
+                    <li>Click "📖 Create Diagram Book"</li>
+                    <li>Enter each diagram on a new line (e.g., "Diagram 1", "Diagram 2", etc.)</li>
+                    <li>Or just enter numbers: "1", "2", "3" - you'll rename them next</li>
+                    <li>Click "Create Diagrams" - this creates all diagrams with placeholder names</li>
+                  </ul>
+                </li>
+                <li><strong>Use Batch Create/Rename:</strong>
+                  <ul>
+                    <li>Click "📋 Batch Create/Rename"</li>
+                    <li>Select the folder containing your blank diagrams</li>
+                    <li>Paste your table of contents (4 lines per entry):
+                      <div style={{
+                        backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                        padding: '12px',
+                        borderRadius: '6px',
+                        marginTop: '8px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px'
+                      }}>
+                        10-1<br/>
+                        MAIN BODY UNIT<br/>
+                        000-146-9410-11<br/>
+                        4D-44864
+                      </div>
+                    </li>
+                    <li>Click "📄 Parse TOC" to extract all entries</li>
+                    <li>Click "🔄 Auto-Map in Order" to automatically assign names</li>
+                    <li>Click "✓ Apply Renames" when done</li>
+                  </ul>
+                </li>
+                <li><strong>Add images to diagrams:</strong>
+                  <ul>
+                    <li>Click on a diagram to open it</li>
+                    <li>In the upload form, click "Choose File" under "Diagram Image"</li>
+                    <li>Select your JPG diagram image</li>
+                    <li>The diagram number and folder info is already filled in!</li>
+                    <li>Click "Update Diagram"</li>
+                  </ul>
+                </li>
+                <li><strong>Add parts lists (optional):</strong>
+                  <ul>
+                    <li>Upload a PDF parts list</li>
+                    <li>Or use the PDF to CSV Converter to convert PDF parts lists to CSV</li>
+                    <li>Import the CSV and click hotspots on the diagram to place parts</li>
+                  </ul>
+                </li>
+              </ol>
+
+              <h4 style={{ color: '#ff9800', marginTop: '30px' }}>Method 2: Create Individual Diagrams</h4>
+              <ol>
+                <li>Click "+ New Diagram"</li>
+                <li>Fill in:
+                  <ul>
+                    <li>Customer name (e.g., "Shearers")</li>
+                    <li>Folder/Equipment (e.g., "CCW-R")</li>
+                    <li>Diagram name (e.g., "10-1 MAIN BODY UNIT")</li>
+                    <li>Diagram number (e.g., "4D-44864")</li>
+                  </ul>
+                </li>
+                <li>Upload diagram image (JPG file)</li>
+                <li>Upload parts list (PDF file) - optional</li>
+                <li>Click "Create Diagram"</li>
+              </ol>
+
+              <h3 style={{ color: '#2196f3', marginTop: '30px' }}>📋 Working with the ManualProcessor</h3>
+              <p>The ManualProcessor and Parts Viewer work together seamlessly!</p>
+
+              <h4 style={{ color: '#4caf50' }}>Workflow:</h4>
+              <ol>
+                <li><strong>In ManualProcessor:</strong>
+                  <ul>
+                    <li>Process your parts manual PDF</li>
+                    <li>Use "🚀 Auto-Map All Pages in Order" to map pages to TOC entries</li>
+                    <li>Mark duplicate diagrams using "🔄 Mark as Duplicate" button</li>
+                    <li>Download the ZIP file with organized Exploded-Views and Parts-Lists folders</li>
+                  </ul>
+                </li>
+                <li><strong>In Parts Viewer:</strong>
+                  <ul>
+                    <li>Use "📖 Create Diagram Book" to create blank diagrams (one for each unique diagram)</li>
+                    <li>Use "📋 Batch Create/Rename" with the same TOC text to name all diagrams</li>
+                    <li>Extract the ZIP file from ManualProcessor</li>
+                    <li>Upload images from the Exploded-Views folder to each diagram</li>
+                    <li>Upload parts lists from the Parts-Lists folder (optional)</li>
+                  </ul>
+                </li>
+              </ol>
+
+              <h3 style={{ color: '#2196f3', marginTop: '30px' }}>🔧 Key Features</h3>
+
+              <h4 style={{ marginTop: '15px' }}>📖 Create Diagram Book</h4>
+              <p>
+                Quickly create multiple diagrams at once. Enter diagram names (one per line) or just numbers,
+                then use Batch Create/Rename to give them proper names.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>📋 Batch Create/Rename from TOC</h4>
+              <p>
+                Bulk rename diagrams using your table of contents. Perfect for when you have 30+ diagrams to name.
+                The system auto-maps TOC entries to diagrams in order within a selected folder.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}># Auto-Populate Numbers</h4>
+              <p>
+                Automatically extracts diagram numbers from diagram names. If your diagram is named
+                "10-1-MAIN-BODY-UNIT-4D-44864", it will extract "4D-44864" as the diagram number.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>🔍 PDF to CSV Converter</h4>
+              <p>
+                Switch to "PDF Converter" view to convert PDF parts lists into CSV format. The app can OCR the parts
+                list if it's image-based. You can then import the CSV directly into a diagram.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>📱 Interactive Hotspots</h4>
+              <p>
+                Click anywhere on a diagram image to place a hotspot. Assign a part number to each hotspot.
+                When users click on that spot, they'll see the part details and can add it to their order.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>🛒 Global Order List</h4>
+              <p>
+                Parts added from any diagram accumulate in a global order list. You can view, edit quantities,
+                and export orders to Excel.
+              </p>
+
+              <h3 style={{ color: '#2196f3', marginTop: '30px' }}>💡 Tips & Tricks</h3>
+              <ul>
+                <li><strong>Use folders to organize:</strong> Group diagrams by customer and equipment model</li>
+                <li><strong>Diagram numbers help with orders:</strong> They appear in the order export for easy reference</li>
+                <li><strong>Create diagrams first, add details later:</strong> Don't wait to have everything - create the structure first</li>
+                <li><strong>TOC format matters:</strong> Make sure your table of contents has exactly 4 lines per entry</li>
+                <li><strong>Image size limit:</strong> Keep diagram images under 1MB for best performance</li>
+                <li><strong>Firebase sync:</strong> Enable Firebase in Settings to sync diagrams across devices</li>
+              </ul>
+
+              <h3 style={{ color: '#2196f3', marginTop: '30px' }}>❓ Common Questions</h3>
+
+              <h4 style={{ marginTop: '15px' }}>Q: Can I edit a diagram after creating it?</h4>
+              <p>
+                Yes! Click on any diagram to open it, then click the "✏️ Edit" button. You can change the name,
+                number, image, parts list, or hotspots.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>Q: What if I don't have a parts list yet?</h4>
+              <p>
+                No problem! You can create the diagram with just the image, then add the parts list later when you
+                have it. Or you can manually create hotspots and enter part numbers.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>Q: How do I delete multiple diagrams at once?</h4>
+              <p>
+                Click the checkbox on each diagram you want to delete, then click the "🗑️ Delete Selected" button
+                that appears.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>Q: Can I use this without the ManualProcessor?</h4>
+              <p>
+                Absolutely! The ManualProcessor is just a helper tool. You can upload diagrams and parts lists
+                directly to Parts Viewer, or create everything manually.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>Q: What's the difference between the diagram name and number?</h4>
+              <p>
+                The <strong>name</strong> is descriptive (e.g., "10-1 MAIN BODY UNIT"). The <strong>number</strong> is
+                the technical reference (e.g., "4D-44864"). Both appear in orders and help identify parts.
+              </p>
+
+              <h4 style={{ marginTop: '15px' }}>Q: How many diagrams can I create?</h4>
+              <p>
+                There's no hard limit! The app uses localStorage for local storage and Firebase for cloud sync.
+                You can easily manage hundreds of diagrams.
+              </p>
+            </div>
+
+            <div style={{ marginTop: '30px', textAlign: 'center' }}>
+              <button
+                onClick={() => setShowHelp(false)}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#2196f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Got It!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Storage Diagnostic Modal */}
+      {showStorageDiagnostic && diagnosticData && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px',
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#fff' : '#333',
+            borderRadius: '12px',
+            maxWidth: '1000px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            padding: '30px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>🔧 Storage Diagnostic Report</h2>
+              <button
+                onClick={() => setShowStorageDiagnostic(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ lineHeight: '1.6' }}>
+              {/* Summary Section */}
+              <div style={{
+                backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                padding: '20px',
+                borderRadius: '8px',
+                marginBottom: '20px'
+              }}>
+                <h3 style={{ marginTop: 0 }}>📊 Storage Summary</h3>
+                <p style={{ fontSize: '16px', margin: '10px 0' }}>
+                  <strong>Total localStorage Size:</strong> {diagnosticData.totalSizeMB} MB / ~5-10 MB limit
+                </p>
+                <p style={{ fontSize: '16px', margin: '10px 0' }}>
+                  <strong>Total Diagrams:</strong> {diagnosticData.diagramsCount}
+                </p>
+                <p style={{ fontSize: '16px', margin: '10px 0', color: diagnosticData.corruptedDiagrams.length > 0 ? '#f44336' : '#4caf50' }}>
+                  <strong>Corrupted Diagrams:</strong> {diagnosticData.corruptedDiagrams.length}
+                </p>
+                <p style={{ fontSize: '16px', margin: '10px 0', color: diagnosticData.largeDiagrams.length > 0 ? '#ff9800' : '#4caf50' }}>
+                  <strong>Large Diagrams (&gt;1MB):</strong> {diagnosticData.largeDiagrams.length}
+                </p>
+                <p style={{ fontSize: '16px', margin: '10px 0', color: '#4caf50' }}>
+                  <strong>Valid Diagrams:</strong> {diagnosticData.validDiagrams.length}
+                </p>
+              </div>
+
+              {/* Corrupted Diagrams */}
+              {diagnosticData.corruptedDiagrams.length > 0 && (
+                <div style={{ marginBottom: '30px' }}>
+                  <h3 style={{ color: '#f44336' }}>⚠️ Corrupted Diagrams ({diagnosticData.corruptedDiagrams.length})</h3>
+                  <p>These diagrams have invalid or missing image data and cannot be displayed.</p>
+                  <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px' }}>
+                    {diagnosticData.corruptedDiagrams.map(d => (
+                      <div key={d.id} style={{
+                        backgroundColor: darkMode ? '#3a1a1a' : '#ffebee',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        marginBottom: '8px',
+                        border: '1px solid #f44336'
+                      }}>
+                        <strong>{d.name}</strong><br/>
+                        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+                          Reason: {d.reason} | Size: {d.size}KB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={deleteCorruptedDiagrams}
+                    disabled={fixingStorage}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#f44336',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: fixingStorage ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      opacity: fixingStorage ? 0.5 : 1
+                    }}
+                  >
+                    🗑️ Delete All Corrupted Diagrams
+                  </button>
+                </div>
+              )}
+
+              {/* Large Diagrams */}
+              {diagnosticData.largeDiagrams.length > 0 && (
+                <div style={{ marginBottom: '30px' }}>
+                  <h3 style={{ color: '#ff9800' }}>📦 Large Diagrams ({diagnosticData.largeDiagrams.length})</h3>
+                  <p>These diagrams are taking up significant storage space and may cause issues.</p>
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '10px' }}>
+                    {diagnosticData.largeDiagrams.map(d => (
+                      <div key={d.id} style={{
+                        backgroundColor: darkMode ? '#3a2a1a' : '#fff3e0',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        marginBottom: '8px',
+                        border: '1px solid #ff9800'
+                      }}>
+                        <strong>{d.name}</strong><br/>
+                        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+                          Type: {d.type.toUpperCase()} | Size: <span style={{
+                            fontWeight: 'bold',
+                            color: d.size > 5000 ? '#f44336' : d.size > 2000 ? '#ff9800' : '#4caf50'
+                          }}>{d.size}KB</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={fixStorageIssues}
+                    disabled={fixingStorage}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#ff9800',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: fixingStorage ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      opacity: fixingStorage ? 0.5 : 1
+                    }}
+                  >
+                    🔧 Re-compress Large Images
+                  </button>
+                  <p style={{ fontSize: '12px', marginTop: '8px', opacity: 0.7 }}>
+                    Note: This will reduce image quality to save space. PDFs cannot be compressed.
+                  </p>
+                </div>
+              )}
+
+              {/* Valid Diagrams */}
+              {diagnosticData.validDiagrams.length > 0 && (
+                <div style={{ marginBottom: '30px' }}>
+                  <h3 style={{ color: '#4caf50' }}>✅ Valid Diagrams ({diagnosticData.validDiagrams.length})</h3>
+                  <details>
+                    <summary style={{ cursor: 'pointer', marginBottom: '10px', fontWeight: 'bold' }}>
+                      Show details
+                    </summary>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {diagnosticData.validDiagrams.map(d => (
+                        <div key={d.id} style={{
+                          backgroundColor: darkMode ? '#1a2a1a' : '#e8f5e9',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          marginBottom: '6px',
+                          border: '1px solid #4caf50'
+                        }}>
+                          <strong style={{ fontSize: '13px' }}>{d.name}</strong>
+                          <span style={{ fontSize: '11px', opacity: 0.7, marginLeft: '10px' }}>
+                            ({d.type.toUpperCase()}, {d.size}KB)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              <div style={{
+                backgroundColor: darkMode ? '#1a1a2a' : '#e3f2fd',
+                padding: '20px',
+                borderRadius: '8px',
+                marginTop: '20px',
+                border: '2px solid #2196f3'
+              }}>
+                <h3 style={{ marginTop: 0, color: '#2196f3' }}>💡 Recommendations</h3>
+                <ul style={{ marginBottom: 0 }}>
+                  {diagnosticData.corruptedDiagrams.length > 0 && (
+                    <li>Delete corrupted diagrams and re-upload them with fresh images</li>
+                  )}
+                  {diagnosticData.largeDiagrams.length > 0 && (
+                    <li>Re-compress large images to reduce storage usage</li>
+                  )}
+                  {parseFloat(diagnosticData.totalSizeMB) > 5 && (
+                    <li style={{ color: '#f44336', fontWeight: 'bold' }}>
+                      Warning: localStorage is near or over its limit! Consider enabling Firebase sync to move data to the cloud.
+                    </li>
+                  )}
+                  {parseFloat(diagnosticData.totalSizeMB) < 5 && diagnosticData.corruptedDiagrams.length === 0 && (
+                    <li style={{ color: '#4caf50' }}>Your storage looks healthy! No action needed.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '30px', textAlign: 'center' }}>
+              <button
+                onClick={cleanLocalStorage}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  marginRight: '10px',
+                  marginBottom: '0'
+                }}
+                title="Remove all PDF/image data from localStorage (diagrams will load from Firebase)"
+              >
+                🧹 Clean localStorage
+              </button>
+              <button
+                onClick={() => runStorageDiagnostic()}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#2196f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  marginRight: '10px',
+                  marginBottom: '0'
+                }}
+              >
+                🔄 Refresh Diagnostic
+              </button>
+              <button
+                onClick={() => setShowStorageDiagnostic(false)}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: darkMode ? '#444' : '#ccc',
+                  color: darkMode ? '#fff' : '#333',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Start Wizard Modal */}
+      {showQuickStartWizard && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: darkMode ? '#1e1e1e' : '#fff',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '800px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+          }}>
+            {/* Header with progress */}
+            <div style={{
+              padding: '24px',
+              borderBottom: darkMode ? '1px solid #444' : '1px solid #ddd',
+              position: 'sticky',
+              top: 0,
+              backgroundColor: darkMode ? '#1e1e1e' : '#fff',
+              zIndex: 1
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ margin: 0, color: darkMode ? '#fff' : '#333' }}>
+                  🚀 Quick Start Wizard
+                </h2>
+                <button
+                  onClick={() => setShowQuickStartWizard(false)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#d32f2f',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: '8px',
+                  color: darkMode ? '#aaa' : '#666',
+                  fontSize: '13px'
+                }}>
+                  <span>Step {wizardStep} of 3</span>
+                  <span>{Math.round((wizardStep / 3) * 100)}% Complete</span>
+                </div>
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  backgroundColor: darkMode ? '#333' : '#e0e0e0',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${(wizardStep / 3) * 100}%`,
+                    height: '100%',
+                    backgroundColor: '#ff9800',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+
+              {/* Step indicators */}
+              <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '16px' }}>
+                {['Setup', 'Import', 'Images'].map((label, idx) => (
+                  <div key={label} style={{
+                    textAlign: 'center',
+                    opacity: idx + 1 <= wizardStep ? 1 : 0.4
+                  }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: idx + 1 === wizardStep ? '#ff9800' : (idx + 1 < wizardStep ? '#4caf50' : (darkMode ? '#444' : '#ddd')),
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 8px',
+                      fontWeight: 'bold',
+                      fontSize: '14px'
+                    }}>
+                      {idx + 1 < wizardStep ? '✓' : idx + 1}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      color: darkMode ? '#aaa' : '#666',
+                      fontWeight: idx + 1 === wizardStep ? 'bold' : 'normal'
+                    }}>
+                      {label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '32px' }}>
+              {wizardStep === 1 && (
+                <div>
+                  <h3 style={{ color: darkMode ? '#fff' : '#333', marginTop: 0 }}>
+                    Step 1: Project Setup
+                  </h3>
+                  <p style={{ color: darkMode ? '#aaa' : '#666', marginBottom: '24px' }}>
+                    First, let's organize your diagrams by customer and folder.
+                  </p>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      color: darkMode ? '#fff' : '#333',
+                      fontWeight: 'bold'
+                    }}>
+                      Customer:
+                    </label>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <select
+                        value={wizardData.customer}
+                        onChange={(e) => {
+                          if (e.target.value === '__ADD_NEW__') {
+                            const newCustomer = prompt('Enter new customer name:');
+                            if (newCustomer && newCustomer.trim()) {
+                              const trimmedName = newCustomer.trim();
+                              const existingCustomers = getCustomers();
+                              if (existingCustomers.includes(trimmedName)) {
+                                alert(`Customer "${trimmedName}" already exists!`);
+                                return;
+                              }
+                              setWizardData(prev => ({ ...prev, customer: trimmedName }));
+                            }
+                          } else {
+                            setWizardData(prev => ({ ...prev, customer: e.target.value }));
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '12px',
+                          backgroundColor: darkMode ? '#333' : '#fff',
+                          color: darkMode ? '#fff' : '#000',
+                          border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        {getCustomers().map(customer => (
+                          <option key={customer} value={customer}>{customer}</option>
+                        ))}
+                        <option value="__ADD_NEW__">➕ Add New Customer...</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      color: darkMode ? '#fff' : '#333',
+                      fontWeight: 'bold'
+                    }}>
+                      Folder Name:
+                    </label>
+                    <input
+                      type="text"
+                      value={wizardData.folder}
+                      onChange={(e) => setWizardData(prev => ({ ...prev, folder: e.target.value }))}
+                      placeholder="e.g., Main Body Units, Hydraulic Systems"
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        backgroundColor: darkMode ? '#333' : '#fff',
+                        color: darkMode ? '#fff' : '#000',
+                        border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (!wizardData.folder.trim()) {
+                        alert('Please enter a folder name');
+                        return;
+                      }
+                      setWizardStep(2);
+                    }}
+                    style={{
+                      padding: '12px 32px',
+                      backgroundColor: '#ff9800',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '16px',
+                      width: '100%'
+                    }}
+                  >
+                    Next: Import Diagrams →
+                  </button>
+                </div>
+              )}
+
+              {wizardStep === 2 && (
+                <div>
+                  <h3 style={{ color: darkMode ? '#fff' : '#333', marginTop: 0 }}>
+                    Step 2: Import Diagrams
+                  </h3>
+                  <p style={{ color: darkMode ? '#aaa' : '#666', marginBottom: '24px' }}>
+                    Paste your table of contents below. Each diagram will be created automatically.
+                  </p>
+
+                  <div style={{
+                    backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    marginBottom: '16px',
+                    fontSize: '13px',
+                    color: darkMode ? '#aaa' : '#666'
+                  }}>
+                    <strong>Format (4 lines per diagram):</strong><br />
+                    Line 1: Section (e.g., "10-1")<br />
+                    Line 2: Name (e.g., "MAIN BODY UNIT")<br />
+                    Line 3: Part code (skipped)<br />
+                    Line 4: Drawing number (e.g., "4D-38837")
+                  </div>
+
+                  <textarea
+                    value={wizardData.tocText}
+                    onChange={(e) => setWizardData(prev => ({ ...prev, tocText: e.target.value }))}
+                    placeholder={'10-1\nMAIN BODY UNIT\n000-146-9410-11\n4D-44864\n\n10-2\nPLATE UNIT\n000-055-2083-09\n4D-09794'}
+                    style={{
+                      width: '100%',
+                      minHeight: '300px',
+                      padding: '12px',
+                      backgroundColor: darkMode ? '#333' : '#fff',
+                      color: darkMode ? '#fff' : '#000',
+                      border: darkMode ? '1px solid #555' : '1px solid #ccc',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      resize: 'vertical',
+                      marginBottom: '16px'
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                      onClick={() => setWizardStep(1)}
+                      style={{
+                        padding: '12px 24px',
+                        backgroundColor: darkMode ? '#444' : '#ddd',
+                        color: darkMode ? '#fff' : '#000',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '14px'
+                      }}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!wizardData.tocText.trim()) {
+                          alert('Please paste your table of contents');
+                          return;
+                        }
+
+                        // Parse TOC
+                        const lines = wizardData.tocText.trim().split('\n');
+                        const createdIds = [];
+
+                        for (let i = 0; i < lines.length; i += 4) {
+                          if (i + 3 >= lines.length) break;
+
+                          const section = lines[i].trim();
+                          const unitName = lines[i + 1].trim();
+                          const drawNo = lines[i + 3].trim();
+
+                          if (section && unitName && drawNo) {
+                            const diagramId = Date.now().toString() + '-' + createdIds.length;
+                            const fullName = `${section} - ${unitName} - ${drawNo}`;
+
+                            const newDiagram = {
+                              id: diagramId,
+                              name: fullName,
+                              section,
+                              unitName,
+                              drawNo,
+                              number: section,
+                              pdfData: null,
+                              partsData: {},
+                              hotspots: {},
+                              folder: wizardData.folder,
+                              customer: wizardData.customer,
+                              createdAt: new Date().toISOString()
+                            };
+
+                            setSavedDiagrams(prev => ({
+                              ...prev,
+                              [diagramId]: newDiagram
+                            }));
+
+                            createdIds.push(diagramId);
+
+                            // Small delay to prevent overwhelming the browser
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                          }
+                        }
+
+                        setWizardData(prev => ({
+                          ...prev,
+                          diagramCount: createdIds.length,
+                          createdDiagramIds: createdIds
+                        }));
+
+                        alert(`✓ Created ${createdIds.length} diagram(s)!`);
+                        setWizardStep(3);
+                      }}
+                      style={{
+                        padding: '12px 32px',
+                        backgroundColor: '#ff9800',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '16px',
+                        flex: 1
+                      }}
+                    >
+                      Create Diagrams & Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 3 && (
+                <div>
+                  <h3 style={{ color: darkMode ? '#fff' : '#333', marginTop: 0 }}>
+                    Step 3: Upload Images
+                  </h3>
+                  <p style={{ color: darkMode ? '#aaa' : '#666', marginBottom: '24px' }}>
+                    Select all diagram images from your computer. They'll be automatically matched to diagrams by filename.
+                  </p>
+
+                  <div style={{
+                    backgroundColor: darkMode ? '#2a4a2a' : '#e8f5e9',
+                    padding: '16px',
+                    borderRadius: '6px',
+                    marginBottom: '24px',
+                    border: darkMode ? '1px solid #4caf50' : '1px solid #4caf50'
+                  }}>
+                    <div style={{ fontSize: '18px', marginBottom: '8px' }}>
+                      ✓ Success!
+                    </div>
+                    <div style={{ color: darkMode ? '#aaa' : '#666', fontSize: '14px' }}>
+                      Created {wizardData.diagramCount} diagrams in folder "{wizardData.folder}" for customer "{wizardData.customer}"
+                    </div>
+                  </div>
+
+                  <div style={{
+                    backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    marginBottom: '16px',
+                    fontSize: '13px',
+                    color: darkMode ? '#aaa' : '#666'
+                  }}>
+                    <strong>💡 Tip:</strong> Name your image files similar to the diagram names for automatic matching.<br />
+                    Example: "10-1 MAIN BODY UNIT.jpg" will match the diagram named "10-1 - MAIN BODY UNIT - 4D-44864"
+                  </div>
+
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+
+                      setIsLoadingHeavy(true);
+                      setSyncStatus(`Processing ${files.length} images...`);
+
+                      const diagramsInFolder = Object.values(savedDiagrams).filter(d =>
+                        d.folder === wizardData.folder &&
+                        d.customer === wizardData.customer
+                      );
+
+                      let successCount = 0;
+
+                      for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        setSyncStatus(`Processing image ${i + 1}/${files.length}...`);
+
+                        try {
+                          // Simple matching: check if diagram name contains filename (without extension)
+                          const fileName = file.name.replace(/\.(jpg|jpeg|png)$/i, '');
+                          const matchedDiagram = diagramsInFolder.find(d =>
+                            normalizeName(d.name).includes(normalizeName(fileName)) ||
+                            normalizeName(fileName).includes(normalizeName(d.name))
+                          );
+
+                          if (matchedDiagram) {
+                            const compressedImageData = await compressImage(file);
+
+                            setSavedDiagrams(prev => ({
+                              ...prev,
+                              [matchedDiagram.id]: {
+                                ...prev[matchedDiagram.id],
+                                pdfData: compressedImageData
+                              }
+                            }));
+
+                            // Auto-save to Firebase
+                            try {
+                              await saveToFirebase(matchedDiagram.id, {
+                                ...matchedDiagram,
+                                pdfData: compressedImageData
+                              });
+                            } catch (err) {
+                              console.warn('Firebase save failed:', err);
+                            }
+
+                            successCount++;
+                          }
+
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                        } catch (error) {
+                          console.error('Error processing image:', error);
+                        }
+                      }
+
+                      setIsLoadingHeavy(false);
+                      setSyncStatus(null);
+                      alert(`✓ Successfully uploaded ${successCount} out of ${files.length} images!`);
+                    }}
+                    style={{
+                      padding: '12px',
+                      width: '100%',
+                      marginBottom: '24px',
+                      border: darkMode ? '2px dashed #555' : '2px dashed #ccc',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      backgroundColor: darkMode ? '#333' : '#fff',
+                      color: darkMode ? '#fff' : '#000'
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                      onClick={() => setWizardStep(2)}
+                      style={{
+                        padding: '12px 24px',
+                        backgroundColor: darkMode ? '#444' : '#ddd',
+                        color: darkMode ? '#fff' : '#000',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '14px'
+                      }}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowQuickStartWizard(false);
+                        setSelectedCustomer(wizardData.customer);
+                        alert(`🎉 All done! Your diagrams are ready.\n\nYou can now:\n• Click on diagrams to view them\n• Add parts data and hotspots\n• Edit diagram details`);
+                      }}
+                      style={{
+                        padding: '12px 32px',
+                        backgroundColor: '#4caf50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '16px',
+                        flex: 1
+                      }}
+                    >
+                      ✓ Finish
+                    </button>
+                  </div>
+
+                  <div style={{
+                    marginTop: '24px',
+                    padding: '16px',
+                    backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: darkMode ? '#aaa' : '#666'
+                  }}>
+                    <strong>Next Steps (Optional):</strong>
+                    <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                      <li>Click on a diagram to add parts data from CSV</li>
+                      <li>Enable "Edit Mode" to create clickable hotspots</li>
+                      <li>Use "Save to Firebase" to backup to cloud</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Manager Modal */}
+      {showCustomerManager && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: darkMode ? '#2a2a2a' : '#fff',
+            color: darkMode ? '#fff' : '#333',
+            borderRadius: '12px',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            padding: '30px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>👥 Customer Manager</h2>
+              <button
+                onClick={() => setShowCustomerManager(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <button
+                onClick={handleAddCustomer}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  width: '100%'
+                }}
+              >
+                ➕ Add New Customer
+              </button>
+            </div>
+
+            <div style={{ lineHeight: '1.6' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Existing Customers</h3>
+
+              {getCustomers().length === 0 ? (
+                <div style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: darkMode ? '#888' : '#999',
+                  backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                  borderRadius: '8px'
+                }}>
+                  No customers yet. Create a diagram to add customers.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {getCustomers().map(customer => {
+                    const diagramCount = Object.values(savedDiagrams).filter(
+                      d => d.customer === customer
+                    ).length;
+
+                    return (
+                      <div key={customer} style={{
+                        backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        border: darkMode ? '1px solid #333' : '1px solid #ddd'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <div>
+                            <strong style={{ fontSize: '16px' }}>{customer}</strong>
+                            <div style={{
+                              fontSize: '12px',
+                              color: darkMode ? '#aaa' : '#666',
+                              marginTop: '4px'
+                            }}>
+                              {diagramCount} diagram{diagramCount !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleRenameCustomer(customer)}
+                              disabled={customer === 'General'}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: customer === 'General' ? '#666' : '#2196f3',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: customer === 'General' ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                opacity: customer === 'General' ? 0.5 : 1
+                              }}
+                              title={customer === 'General' ? 'Cannot rename General' : 'Rename customer'}
+                            >
+                              ✏️ Rename
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(customer)}
+                              disabled={customer === 'General'}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: customer === 'General' ? '#666' : '#f44336',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: customer === 'General' ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                opacity: customer === 'General' ? 0.5 : 1
+                              }}
+                              title={customer === 'General' ? 'Cannot delete General' : 'Delete customer'}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{
+              marginTop: '20px',
+              padding: '16px',
+              backgroundColor: darkMode ? '#1a1a2a' : '#e3f2fd',
+              borderRadius: '8px',
+              fontSize: '13px',
+              border: '2px solid #2196f3'
+            }}>
+              <strong>💡 Tips:</strong>
+              <ul style={{ marginTop: '8px', marginBottom: 0, paddingLeft: '20px' }}>
+                <li>Customers help organize diagrams by client</li>
+                <li>Rename customers to update all diagrams at once</li>
+                <li>Deleting a customer moves diagrams to "General"</li>
+                <li>The "General" customer cannot be renamed or deleted</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,14 +1,21 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { getStorage, ref, getDownloadURL } = require("firebase-admin/storage");
+const { initializeApp } = require("firebase-admin/app");
+const { getStorage } = require("firebase-admin/storage");
 
-exports.proxyStorage = onRequest(async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
+initializeApp();
+
+exports.proxyStorage = onRequest({ cors: true }, async (req, res) => {
+    const filePath = req.query.filePath;
+    if (!filePath) {
+        return res.status(400).json({ error: 'filePath required' });
+    }
     try {
-        const filePath = req.query.filePath;
-        const storageRef = ref(getStorage(), filePath);
-        const url = await getDownloadURL(storageRef);
-        res.redirect(url);
+        const bucket = getStorage().bucket();
+        const file = bucket.file(filePath);
+        const [content] = await file.download();
+        res.set('Content-Type', 'application/json');
+        res.send(content);
     } catch (error) {
-        res.status(404).send('File not found');
+        res.status(404).json({ error: 'File not found' });
     }
 });

@@ -24,3 +24,10 @@
 # megabytes behind it are not.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The self-unregistering worker (public/sw.js). It has to be re-fetched to do
+# its job — a cached copy of the OLD worker is exactly the state it exists to
+# escape — so it is never stored.
+/sw.js
+  Cache-Control: no-store
+  Content-Type: application/javascript

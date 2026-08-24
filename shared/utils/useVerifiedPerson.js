@@ -17,7 +17,13 @@
 // worse failure. A fixed window short enough to be safe would interrupt someone
 // mid-shift for no reason. Resetting on activity is safe when the tablet is put
 // down and silent while it is in someone's hands.
+//
+// One person is never asked: a JTI super admin, who is not on the plant's crew
+// list and has no PIN to type. They are the standing identity on this device
+// until somebody keys a PIN over the top, and dropping that PIN returns to
+// them rather than to nobody. See superUser.js.
 import { useCallback, useEffect, useState } from 'react';
+import { useSuperUser } from './superUser.js';
 
 const EVENT = 'ccw-verified-person-changed';
 // Long enough to cross a line and keep working; short enough that a tablet put
@@ -51,28 +57,39 @@ const read = (customerId) => {
 };
 
 export function useVerifiedPerson(customerId) {
-  const [person, setPerson] = useState(() => read(customerId));
+  // Whoever proved themselves with a PIN on THIS device, if anyone. Kept
+  // separate from the returned identity below, because everything about the
+  // idle clock — the listeners, the expiry tick, the storage — is about a PIN
+  // session, and a JTI account has none of that.
+  const [stored, setStored] = useState(() => read(customerId));
+  const superUser = useSuperUser();
+  // A keyed-in PIN wins over the JTI account, so a JTI engineer can still hand
+  // the tablet to a fitter and have the work land under the fitter's name.
+  const person = stored || superUser;
 
-  useEffect(() => { setPerson(read(customerId)); }, [customerId]);
+  useEffect(() => { setStored(read(customerId)); }, [customerId]);
 
   useEffect(() => {
     const onChange = (e) => {
-      if (e.detail?.customerId === customerId) setPerson(read(customerId));
+      if (e.detail?.customerId === customerId) setStored(read(customerId));
     };
     window.addEventListener(EVENT, onChange);
     return () => window.removeEventListener(EVENT, onChange);
   }, [customerId]);
 
   const remember = useCallback((p) => {
+    // The JTI identity comes from the signed-in account and outlives any idle
+    // window, so writing it to storage would only leave a copy to go stale.
+    if (p?.isSuper) return;
     const v = { id: p.id, name: p.name, at: Date.now() };
     try { localStorage.setItem(key(customerId), JSON.stringify(v)); } catch { /* ignore */ }
-    setPerson(v);
+    setStored(v);
     window.dispatchEvent(new CustomEvent(EVENT, { detail: { customerId } }));
   }, [customerId]);
 
   const forget = useCallback(() => {
     try { localStorage.removeItem(key(customerId)); } catch { /* ignore */ }
-    setPerson(null);
+    setStored(null);
     window.dispatchEvent(new CustomEvent(EVENT, { detail: { customerId } }));
   }, [customerId]);
 
@@ -103,7 +120,7 @@ export function useVerifiedPerson(customerId) {
   // Only while somebody is signed in — no listeners on a device nobody has
   // identified themselves on.
   useEffect(() => {
-    if (!person) return undefined;
+    if (!stored) return undefined;
     let last = 0;
     const onActivity = () => {
       const now = Date.now();
@@ -114,20 +131,20 @@ export function useVerifiedPerson(customerId) {
     const events = ['pointerdown', 'keydown', 'touchstart'];
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
     return () => events.forEach((e) => window.removeEventListener(e, onActivity));
-  }, [person, touch]);
+  }, [stored, touch]);
 
   // Notice the lapse rather than waiting for the next render to happen by
   // chance, so the header stops naming somebody who has gone.
   useEffect(() => {
-    if (!person) return undefined;
+    if (!stored) return undefined;
     const id = setInterval(() => {
       if (!read(customerId)) {
-        setPerson(null);
+        setStored(null);
         window.dispatchEvent(new CustomEvent(EVENT, { detail: { customerId } }));
       }
     }, EXPIRY_TICK_MS);
     return () => clearInterval(id);
-  }, [person, customerId]);
+  }, [stored, customerId]);
 
   return { person, remember, forget, touch };
 }

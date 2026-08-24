@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Headcount — User Guide</title>
 <style>
   :root {
@@ -246,6 +252,8 @@
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
+</head>
+<body>
 <header class="top">
   <div class="wrap">
     <p class="eyebrow">Headcount · User Guide</p>
@@ -268,22 +276,24 @@
       <li><a href="#screen"><span class="n">3</span> The screen at a glance</a></li>
       <li><a href="#colors"><span class="n">4</span> What the head colors mean</a></li>
       <li><a href="#newlog"><span class="n">5</span> Start a daily log</a></li>
-      <li><a href="#markdown"><span class="n">6</span> Mark a head down &amp; explain it</a></li>
-      <li><a href="#photos"><span class="n">7</span> Add photos</a></li>
-      <li><a href="#fixed"><span class="n">8</span> Mark an issue fixed</a></li>
-      <li><a href="#lines"><span class="n">9</span> Lines &amp; head counts</a></li>
-      <li><a href="#review"><span class="n">10</span> Dashboard &amp; history</a></li>
-      <li><a href="#export"><span class="n">11</span> Export &amp; share</a></li>
-      <li><a href="#jti"><span class="n">12</span> "JTI Visit" entries</a></li>
-      <li><a href="#locked"><span class="n">13</span> Actions that need a supervisor</a></li>
-      <li><a href="#recover"><span class="n">14</span> Undo &amp; recover</a></li>
-      <li><a href="#offline"><span class="n">15</span> Working offline</a></li>
-      <li><a href="#crew"><span class="n">16</span> Crew, roles &amp; PINs</a></li>
-      <li><a href="#span"><span class="n">17</span> Span adjustments</a></li>
-      <li><a href="#parts"><span class="n">18</span> Parts &amp; boards</a></li>
-      <li><a href="#pm"><span class="n">19</span> PM checks</a></li>
-      <li><a href="#logins"><span class="n">20</span> Logins for your plant</a></li>
-      <li><a href="#activity"><span class="n">21</span> Line activity &amp; alerts</a></li>
+      <li><a href="#prestart"><span class="n">6</span> The pre-start walk</a></li>
+      <li><a href="#markdown"><span class="n">7</span> Mark a head down &amp; explain it</a></li>
+      <li><a href="#photos"><span class="n">8</span> Add photos</a></li>
+      <li><a href="#fixed"><span class="n">9</span> Mark an issue fixed</a></li>
+      <li><a href="#lines"><span class="n">10</span> Lines &amp; head counts</a></li>
+      <li><a href="#endshift"><span class="n">11</span> Ending a shift &mdash; sanitation</a></li>
+      <li><a href="#review"><span class="n">12</span> Dashboard &amp; history</a></li>
+      <li><a href="#export"><span class="n">13</span> Export &amp; share</a></li>
+      <li><a href="#jti"><span class="n">14</span> "JTI Visit" entries</a></li>
+      <li><a href="#locked"><span class="n">15</span> Actions that need a supervisor</a></li>
+      <li><a href="#recover"><span class="n">16</span> Undo &amp; recover</a></li>
+      <li><a href="#offline"><span class="n">17</span> Working offline</a></li>
+      <li><a href="#crew"><span class="n">18</span> Crew, roles &amp; PINs</a></li>
+      <li><a href="#span"><span class="n">19</span> Span adjustments</a></li>
+      <li><a href="#parts"><span class="n">20</span> Parts &amp; boards</a></li>
+      <li><a href="#pm"><span class="n">21</span> PM checks</a></li>
+      <li><a href="#logins"><span class="n">22</span> Logins for your plant</a></li>
+      <li><a href="#activity"><span class="n">23</span> Line activity &amp; alerts</a></li>
       <li><a href="#admin" class="admin"><span class="n">＋</span> For JTI admins</a></li>
     </ol>
   </nav>
@@ -309,6 +319,7 @@
       <ul class="ticks">
         <li><b>Heads offline</b> — how many, on which lines, and <em>which heads</em>: “Line 2 · heads 4, 7 and 11”.</li>
         <li><b>Heads running with known issues</b> — working, but with something logged against them.</li>
+        <li><b>Pre-start walk outstanding</b> — lines not yet walked for this shift.</li>
         <li><b>PM due or overdue</b> — by line.</li>
         <li><b>Lines with no span record</b> — never adjusted, or never logged.</li>
       </ul>
@@ -320,7 +331,7 @@
       <h3>Finding your way around</h3>
       <p>The tabs are grouped by what they are about:</p>
       <dl class="defs">
-        <div><dt>This log</dt><dd>Overview and Current Log — today's work.</dd></div>
+        <div><dt>This log</dt><dd>Overview, Current Log and Pre-Start — today's work.</dd></div>
         <div><dt>This customer</dt><dd>Span Adjust, Parts/Boards, PM Log, Crew, Logins, Activity — records that outlive any single log.</dd></div>
         <div><dt>Reference</dt><dd>Issue History and Factory Layout.</dd></div>
       </dl>
@@ -342,7 +353,12 @@
         <span class="savechip saving">Saving…</span>
         <span class="savechip off">⚠ Offline — will retry</span>
       </div>
-      <p>Below the toolbar are three tabs: <span class="ui">Current Log</span> (where you work), <span class="ui">Issue History</span> (past problems per head), and <span class="ui">Factory Layout</span> (a map of your lines).</p>
+      <p>Beside the save chip, a badge names <strong>who this tablet is logging as</strong> —
+        <span class="k">Logging as J. Alvarez</span>, or <span class="k">Nobody signed in</span> — with
+        <span class="ui">Sign off</span> next to it. Check it before you start work.</p>
+      <p>Below the toolbar, the section tabs are grouped into <span class="k">This log</span>,
+        <span class="k">This customer</span> and <span class="k">Reference</span> — see
+        <a href="#overview">Finding your way around</a>. On a phone the row scrolls sideways.</p>
     </section>
 
     <section id="colors">
@@ -369,8 +385,33 @@
       <p>To reopen an old log, tap <span class="ui">Daily Log</span> and pick it from the list. Each row shows its shift badge, date, and — if JTI attached a service report — an <span class="badge sr">SR 2026014</span> tag.</p>
     </section>
 
+    <section id="prestart">
+      <div class="sec-head"><span class="sec-num">06</span><h2>The pre-start walk</h2></div>
+      <p>The <span class="ui">Pre-Start</span> tab opens on a <strong>board — one row per line</strong> —
+        answering the question an operator arriving for a shift is actually asking: <em>has this line
+        been walked today?</em> Lines still outstanding are listed on <a href="#overview">Overview</a> too.</p>
+      <ol class="steps">
+        <li><p>Tap a line that has not been walked yet.</p></li>
+        <li><p>Work down the items, marking each <span class="ui">OK</span>, <span class="ui">Issue</span>
+          or <span class="ui">N/A</span>. Some items carry a reference photo from JTI showing exactly
+          what to look at.</p></li>
+        <li><p>Add a photo where it helps, then submit. That line's row shows as done for the day.</p></li>
+      </ol>
+      <div class="call tip">
+        <p class="call-h">It is not the PM checklist</p>
+        <p>Similar kind of items, but its own screen and its own log. Nothing here writes to the
+          <a href="#pm">PM log</a>, and a pre-start check never makes a PM look done.</p>
+      </div>
+      <div class="call warn">
+        <p class="call-h">Sanitation resets it</p>
+        <p>Once the machines have been handed over, every line needs walking again — a check signed
+          before the wash-down was made against a machine that no longer exists in that state. See
+          <a href="#endshift">Ending a shift</a>.</p>
+      </div>
+    </section>
+
     <section id="markdown">
-      <div class="sec-head"><span class="sec-num">06</span><h2>Mark a head down &amp; explain it</h2></div>
+      <div class="sec-head"><span class="sec-num">07</span><h2>Mark a head down &amp; explain it</h2></div>
       <p>This is the core task. On the <span class="ui">Current Log</span> tab, find the line and its grid of numbered heads.</p>
       <ol class="steps">
         <li><p><strong>Tap the head's number.</strong> It flips to <span class="chip offline" style="width:1.3rem;height:1.3rem;border-radius:5px;font-size:.75rem;display:inline-grid;vertical-align:middle;">7</span> red (offline) and a panel opens: <span class="ui">Head 7 — Line 1</span>.</p></li>
@@ -383,7 +424,7 @@
     </section>
 
     <section id="photos">
-      <div class="sec-head"><span class="sec-num">07</span><h2>Add photos</h2></div>
+      <div class="sec-head"><span class="sec-num">08</span><h2>Add photos</h2></div>
       <p>A photo often explains a problem better than words. Tap the <span class="ui">Photo</span> button on an issue (or on the head itself) to take a picture or pick one — you can add several at once.</p>
       <ul class="plain">
         <li><strong>Save the log first.</strong> Photos upload to the cloud, so a brand-new log needs to be saved before the Photo button turns on.</li>
@@ -393,7 +434,7 @@
     </section>
 
     <section id="fixed">
-      <div class="sec-head"><span class="sec-num">08</span><h2>Mark an issue fixed</h2></div>
+      <div class="sec-head"><span class="sec-num">09</span><h2>Mark an issue fixed</h2></div>
       <p>When a problem is resolved, reopen the head and tap the issue's status toggle. It cycles through three states:</p>
       <div class="statusrow">
         <span class="stbtn nf">Not Fixed</span><span class="arrow">→</span>
@@ -408,17 +449,54 @@
     </section>
 
     <section id="lines">
-      <div class="sec-head"><span class="sec-num">09</span><h2>Lines &amp; head counts</h2></div>
-      <p>Switch lines with the <span class="ui">Select Line</span> dropdown or the <span class="ui">Lines</span> button. To add one, tap <span class="ui">Add Line</span>, give it a <span class="ui">Line Name</span> (e.g. "Packing Line A") and a <span class="ui">Number of Heads</span>.</p>
-      <p>To change how many heads a line has, open <span class="ui">Show Details</span> and edit <span class="ui">Head Count</span>. Adding heads is instant; <em>reducing</em> the count removes heads from the end and asks you to confirm.</p>
+      <div class="sec-head"><span class="sec-num">10</span><h2>Lines &amp; head counts</h2></div>
+      <p>Switch lines with the <strong>chip strip</strong> above the heads — one chip per line, each with
+        a coloured dot showing that line's state, so you can see where the trouble is while you walk the
+        plant. It scrolls sideways on a phone. On a small screen the <span class="ui">Lines</span> button
+        in the bar at the bottom opens the same list as a full-screen picker.</p>
+      <p>To add a line, tap <span class="ui">Add Line</span>, give it a <span class="ui">Line Name</span>
+        (e.g. "Packing Line A") and a <span class="ui">Number of Heads</span>. To change how many heads a
+        line has, open <span class="ui">Show Details</span> and edit <span class="ui">Head Count</span>;
+        reducing it removes heads from the end and asks you to confirm. Renaming a line, changing its head
+        count either way, and clearing its weights all ask for a
+        <a href="#locked">supervisor PIN</a>.</p>
+      <div class="call tip">
+        <p class="call-h">A log with no lines yet</p>
+        <p>On day one the log offers <span class="ui">Build your lines</span> — or, if JTI has serviced
+          this plant before, <span class="ui">Copy from a JTI visit</span>, which brings the equipment
+          layout JTI already has on record. Building or reordering the plant's lines is a
+          <strong>Site Lead</strong> action; the <span class="ui">Set up lines</span> link above the
+          chips is where it lives afterwards.</p>
+      </div>
       <div class="call tip">
         <p class="call-h">Tip · Carrying work forward</p>
         <p>You rarely re-enter your line setup. Starting a new log with <span class="ui">Continue from last shift</span> brings your lines, head counts, statuses, and open issues along automatically.</p>
       </div>
     </section>
 
+    <section id="endshift">
+      <div class="sec-head"><span class="sec-num">11</span><h2>Ending a shift &mdash; handing to sanitation</h2></div>
+      <p>When the machines go to sanitation, tap <span class="ui">End shift → sanitation</span> on the
+        <span class="ui">Current Log</span> tab. This is the real boundary in a plant's day, and
+        recording it is what makes the next shift's <a href="#prestart">pre-start walk</a> compulsory
+        again — there is no separate switch to forget to set.</p>
+      <ul class="ticks">
+        <li>Heads still logged as down are counted for you <em>before</em> you confirm. Leave them —
+          carry them over when the next shift starts and they stay on the record.</li>
+        <li>Who ended the shift, and when, is recorded on the log.</li>
+        <li>Every line needs its pre-start walk again before it runs.</li>
+      </ul>
+      <div class="call lock">
+        <p class="call-h">Ended it too early?</p>
+        <p>A banner offers <span class="ui">Shift is continuing — undo</span>, for a shift that ended
+          early or sanitation that is held up while the line keeps running. It removes a check that is
+          currently required, so it takes a <strong>supervisor or Site Lead PIN</strong> and the
+          reopening stays on the record — even though the boundary it cancels does not.</p>
+      </div>
+    </section>
+
     <section id="review">
-      <div class="sec-head"><span class="sec-num">10</span><h2>Dashboard &amp; history</h2></div>
+      <div class="sec-head"><span class="sec-num">12</span><h2>Dashboard &amp; history</h2></div>
       <p>Two views help you see the whole picture:</p>
       <ul class="plain">
         <li><strong>Dashboard</strong> (button on Current Log) — every offline and active-with-issues head, grouped by line, with photos. A live banner up top reads <strong style="color:var(--offline);">🔴 {n} heads down</strong> or <strong style="color:var(--active);">✓ All heads running</strong>.</li>
@@ -427,7 +505,7 @@
     </section>
 
     <section id="export">
-      <div class="sec-head"><span class="sec-num">11</span><h2>Export &amp; share</h2></div>
+      <div class="sec-head"><span class="sec-num">13</span><h2>Export &amp; share</h2></div>
       <p>Tap <span class="ui">Export</span> in the toolbar to save the current log:</p>
       <ul class="plain">
         <li><span class="ui">Dashboard PDF</span> — a clean report of every down/issue head.</li>
@@ -437,7 +515,7 @@
     </section>
 
     <section id="jti">
-      <div class="sec-head"><span class="sec-num">12</span><h2>"JTI Visit" entries</h2></div>
+      <div class="sec-head"><span class="sec-num">14</span><h2>"JTI Visit" entries</h2></div>
       <p>Some logs are created by <strong>JTI technicians</strong> during a service visit. In the log list they carry a <span class="badge jti">JTI Visit</span> badge, and when you open one you'll see:</p>
       <div class="mock-banner"><span class="dot">👁</span> JTI service visit — view only. This log was done by JTI. Contact JTI to make changes.</div>
       <div class="call view">
@@ -447,22 +525,33 @@
     </section>
 
     <section id="locked">
-      <div class="sec-head"><span class="sec-num">13</span><h2>Actions that need a supervisor</h2></div>
+      <div class="sec-head"><span class="sec-num">15</span><h2>Actions that need a supervisor</h2></div>
       <p>Day-to-day logging is open to everyone. A few bigger, harder-to-undo actions ask a
         <strong>supervisor or Site Lead</strong> to confirm with their <strong>PIN</strong> first:</p>
       <ul class="ticks">
         <li>Adding or removing a line</li>
-        <li>Reducing a line's head count</li>
+        <li>Changing a line's head count either way, renaming a line, or clearing its weights</li>
         <li>Deleting a log, or deleting one permanently</li>
         <li>Discarding a recovery backup</li>
+        <li>Continuing a shift that was already handed to sanitation</li>
+      </ul>
+      <p>Two more take the plant's own top role, <strong>Site Lead</strong>, because they describe the
+        plant itself rather than one shift's work:</p>
+      <ul class="ticks">
+        <li>Building or reordering the plant's lines</li>
+        <li>Adding or suspending a login</li>
       </ul>
       <p>You'll see <span class="k">Supervisor or Site Lead</span> — pick your name, enter your PIN, confirm.
         The entry records who authorised it.</p>
       <div class="call lock">
-        <p class="call-h">It asks every time</p>
-        <p>Even if you entered your PIN a minute ago for something else. Confirming who you are is
-          not the same as approving <em>this</em>, and on a tablet the whole shift shares, permission
-          should not build up in the background.</p>
+        <p class="call-h">It asks each time — with one exception</p>
+        <p>A supervisor stepping in to approve somebody else's action is asked every time: confirming
+          who you are is not the same as approving <em>this</em>, and on a tablet the whole shift
+          shares, permission should not build up in the background.</p>
+        <p>A <strong>Site Lead</strong> who is already the active person is not asked again, because
+          they were being made to key a PIN for every single line they added while setting the plant
+          up. Their PIN session is the proof — it lasts five minutes of inactivity, and the header
+          names them the whole time.</p>
       </div>
       <div class="call warn">
         <p class="call-h">Nobody set up yet?</p>
@@ -472,7 +561,7 @@
     </section>
 
     <section id="recover">
-      <div class="sec-head"><span class="sec-num">14</span><h2>Undo &amp; recover</h2></div>
+      <div class="sec-head"><span class="sec-num">16</span><h2>Undo &amp; recover</h2></div>
       <ul class="ticks">
         <li><b>Reset or removed a line by accident?</b> A yellow <span class="k">Recover</span> button
           appears in the toolbar. Open it and tap <span class="k">Restore</span> — the line comes back
@@ -489,7 +578,7 @@
     </section>
 
     <section id="offline">
-      <div class="sec-head"><span class="sec-num">15</span><h2>Working offline</h2></div>
+      <div class="sec-head"><span class="sec-num">17</span><h2>Working offline</h2></div>
       <p>Signal drops out on the plant floor — that's fine. If you go offline you'll see a banner: <em>"Offline — Your changes are saved and sync when you're back online."</em> Keep logging; the save chip shows <span class="savechip off" style="font-size:.72rem;">⚠ Offline — will retry</span> and everything uploads automatically once you're back on Wi-Fi or data.</p>
       <div class="call tip">
         <p class="call-h">The one rule worth remembering</p>
@@ -500,7 +589,7 @@
     <hr class="div" />
 
     <section id="crew">
-      <div class="sec-head"><span class="sec-num">16</span><h2>Crew, roles &amp; PINs</h2></div>
+      <div class="sec-head"><span class="sec-num">18</span><h2>Crew, roles &amp; PINs</h2></div>
       <p>The log used to say which <em>account</em> made an entry, which on a shared tablet meant every
         entry looked the same. The Crew tab fixes that: people are named, and prove who they are with a
         short PIN.</p>
@@ -513,6 +602,30 @@
         <div><dt>Site Lead</dt><dd>A tick-box, not a role. Runs the crew list itself — who exists, their roles, their PINs, who is a supervisor — and can add logins for the plant. Usually your supervisor.</dd></div>
       </dl>
       <p>Someone can hold more than one role. The night tech is often the supervisor too.</p>
+
+      <h3>What each role can open</h3>
+      <p>The roles are cumulative — each one opens everything below it. <strong>Nothing is hidden.</strong>
+        A tab above your level asks for a PIN instead of opening, so an operator who needs Parts/Boards
+        hands the tablet to maintenance, who key their own PIN and carry on. Hiding those tabs would
+        teach people the app is missing features and send them looking for another way round.</p>
+      <dl class="defs">
+        <div><dt>Operator</dt><dd>Overview, Current Log, Pre-Start and Span Adjust — the shift's own work.</dd></div>
+        <div><dt>Maintenance &amp; Supervisor</dt><dd>those, plus Parts/Boards, PM Log, Activity, Issue History and Crew — the maintenance record.</dd></div>
+        <div><dt>Site Lead</dt><dd>everything, plus Logins and Factory Layout — who can sign in, and the plant's own map of itself.</dd></div>
+      </dl>
+      <div class="call warn">
+        <p class="call-h">Unlocking a screen takes the tablet over</p>
+        <p>Whoever keys a PIN to open a screen <strong>becomes</strong> the name this tablet logs under
+          from then on — they are taking it over, not approving one thing and walking away. Everything
+          logged next is theirs.</p>
+      </div>
+      <div class="call tip">
+        <p class="call-h">It starts open</p>
+        <p>Until your plant has set PINs up — or if nobody on the crew holds the role a screen needs —
+          nothing is gated at all. A lock nobody can open is not security, it is a plant shut out of its
+          own maintenance record. Restriction begins once you have said who is who. JTI logins are not
+          subject to any of it.</p>
+      </div>
 
       <h3>Assigning lines</h3>
       <p>Each operator has a <span class="k">May edit</span> row of lines. Tick the ones they work.
@@ -530,18 +643,21 @@
 
       <h3>Who the app thinks you are</h3>
       <p>After you enter your PIN the app remembers you on that device, so you are not asked again for
-        every head you touch. Each screen shows
+        every head you touch. The header names you the whole time — <span class="k">Logging as J. Alvarez</span> —
+        with <span class="ui">Sign off</span> beside it, and each screen also shows
         <span class="k">Head changes recorded as …</span> with a <span class="k">Not you?</span> link.</p>
       <div class="call warn">
         <p class="call-h">Check the name before you start</p>
-        <p>It clears itself after <strong>15 minutes</strong> with nothing happening, so a tablet put
-          down stops being anybody. But if you pick one up while a name is still showing and it is not
-          yours, tap <span class="k">Not you?</span> first — otherwise your work is filed under them.</p>
+        <p>It clears itself after <strong>five minutes with nothing happening</strong>, so a tablet put
+          down on a bench stops being anybody. The clock is reset by <em>use</em>, not by when the PIN
+          was keyed, so it never interrupts you mid-job. But if you pick a tablet up while a name is
+          still showing and it is not yours, tap <span class="ui">Sign off</span> first — otherwise
+          your work is filed under them.</p>
       </div>
     </section>
 
     <section id="span">
-      <div class="sec-head"><span class="sec-num">17</span><h2>Span adjustments</h2></div>
+      <div class="sec-head"><span class="sec-num">19</span><h2>Span adjustments</h2></div>
       <p>Each line runs on its own roughly 30-day clock. The <span class="ui">Span Adjust</span> tab lists every line with <strong>overdue at the top</strong>.</p>
       <ol class="steps">
         <li><p>Pick a line. Target (span) weights carry over from last time; <strong>current weights always start blank</strong>, so an old reading can never be logged again by mistake.</p></li>
@@ -552,7 +668,7 @@
     </section>
 
     <section id="parts">
-      <div class="sec-head"><span class="sec-num">18</span><h2>Parts &amp; boards</h2></div>
+      <div class="sec-head"><span class="sec-num">20</span><h2>Parts &amp; boards</h2></div>
       <p>The <span class="ui">Parts/Boards</span> tab records what was replaced. A new entry starts from the last one — same line, head and part — but <strong>never the serials</strong>.</p>
       <ul class="plain">
         <li>Type a part number <em>or</em> a part name and pick from the suggestions.</li>
@@ -578,7 +694,7 @@
     </section>
 
     <section id="pm">
-      <div class="sec-head"><span class="sec-num">19</span><h2>PM checks</h2></div>
+      <div class="sec-head"><span class="sec-num">21</span><h2>PM checks</h2></div>
       <p>The <span class="ui">PM Log</span> tab is the preventative-maintenance checklist JTI sets up for your plant. Some items carry a <strong>reference photo</strong> showing exactly what to look at.</p>
       <p>Fill it in, submit it, and a supervisor can then <span class="ui">sign off</span> the check with their own PIN. That signature is recorded on the entry with their name and the date.</p>
       <div class="call tip">
@@ -588,7 +704,7 @@
     </section>
 
     <section id="logins">
-      <div class="sec-head"><span class="sec-num">20</span><h2>Logins for your plant</h2></div>
+      <div class="sec-head"><span class="sec-num">22</span><h2>Logins for your plant</h2></div>
       <p>The <span class="k">Logins</span> tab lists the accounts that can open this app for your
         plant — separate from the crew list. Crew are the names on your entries; logins are the
         accounts that get you in.</p>
@@ -608,9 +724,12 @@
     </section>
 
     <section id="activity">
-      <div class="sec-head"><span class="sec-num">21</span><h2>Line activity &amp; alerts</h2></div>
+      <div class="sec-head"><span class="sec-num">23</span><h2>Line activity &amp; alerts</h2></div>
       <p>The <span class="ui">Activity</span> tab is one list of everything that has happened on a line — heads taken off and put back, issues fixed, parts replaced, span adjustments, PM checks and crew changes — newest first, each with who did it. The chips along the top filter by kind.</p>
-      <p>Taking a head offline, putting it back, or marking an issue fixed asks who you are. It asks once per device and remembers you for 10 hours, and the name then shows on the offline-heads list and on the dashboard — so the next shift knows who to ask.</p>
+      <p>Taking a head offline, putting it back, or marking an issue fixed asks who you are. It asks
+        once per device and then remembers you — for five minutes of inactivity, as everywhere else
+        (see <a href="#crew">Who the app thinks you are</a>) — and the name shows on the offline-heads
+        list and on the dashboard, so the next shift knows who to ask.</p>
       <div class="call warn">
         <p class="call-h">What "Alert me" can and cannot do</p>
         <p><span class="ui">Alert me</span> notifies this device when a head goes offline on any line. It works while the app is <strong>open</strong>, including in a background tab. It <strong>cannot</strong> reach a closed app or a locked phone — do not rely on it as your only warning.</p>
@@ -648,3 +767,5 @@
     <span>Questions or account changes? Contact JTI.</span>
   </div>
 </footer>
+</body>
+</html>

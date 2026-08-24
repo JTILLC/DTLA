@@ -150,6 +150,14 @@
   border: 1px solid var(--pui-border); border-width: 0 0 1px 0;
 }
 .pui-list-group-item:last-child { border-bottom-width: 0; }
+/* Never squashed to fit.
+ *
+ * The suggestion list is a column flex container with a max height and its own
+ * scrollbar. Flex items shrink by default, so six 53px rows in a 240px box were
+ * each compressed to their 44px minimum — and a button does not clip, so every
+ * row's description spilled under the row below it. The list is supposed to
+ * SCROLL, which it can only do once its rows keep their own height. */
+.pui-list-group-item { flex-shrink: 0; }
 button.pui-list-group-item { cursor: pointer; }
 button.pui-list-group-item:hover { background: var(--pui-hover); }
 

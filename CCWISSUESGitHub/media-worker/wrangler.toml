@@ -47,6 +47,16 @@ TIMESHEET_PROJECT_ID = "timesheetapp-c4e54"
 # short on the backup costs data.
 BACKUP_RETAIN_DAYS = "30"
 
+# Documents per page for the STREAMED collections (parts-viewer-diagrams).
+# Requests are the scarce resource, not memory: each page costs one read and
+# one upload, so at fifty the 98MB catalogue took twelve pages and twenty-four
+# of the fifty subrequests an invocation gets — leaving the heavy group at
+# 45/50, which would start truncating again as the catalogue grows.
+# These documents average about 0.17MB, so seventy-five is roughly a 13MB page
+# against a 128MB Worker. Do not raise this much further: a Worker killed for
+# memory returns Cloudflare's error page and CANNOT be caught in JS.
+BACKUP_STREAM_PAGE = "75"
+
 # Secrets — set with wrangler, never commit:
 #   npx wrangler secret put GCP_SA_EMAIL
 #   npx wrangler secret put GCP_SA_PRIVATE_KEY   # the private_key field from the service account JSON
@@ -60,7 +70,17 @@ BACKUP_RETAIN_DAYS = "30"
 # Deploy:
 #   cd media-worker && npx wrangler deploy
 
-# Nightly backup. 09:00 UTC is 02:00 in Arizona — after the day's work and
+# Nightly jobs. 09:00 UTC is 02:00 in Arizona — after the day's work and
 # before anyone starts, so a run never competes with a plant using the app.
+#
+#   30 8  publish the customer / job-number directories (src/publish.js)
+#    0 9  back up the heavy project (jobs + the 59MB streamed parts catalogue)
+#   20 9  back up the light projects, then merge the night and prune
+#
+# THREE crons, because the subrequest allowance (fifty) is PER INVOCATION and
+# all four projects in one exceeded it — the run died partway every night, and
+# since the manifest is written last, it died before recording that it had.
+# Splitting the night is what fixed it; do not merge these back together.
+# The free plan allows three cron triggers, so this uses the lot.
 [triggers]
-crons = ["0 9 * * *"]
+crons = ["30 8 * * *", "0 9 * * *", "20 9 * * *"]

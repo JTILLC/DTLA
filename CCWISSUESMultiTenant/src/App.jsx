@@ -61,6 +61,9 @@ import UpdateBanner from '@shared/components/UpdateBanner.jsx';
 import { screenGate, tierOf, TIER, TIER_LABEL } from '@shared/utils/screenAccess.js';
 import { mergeLinesArrays } from '@shared/utils/mergeLines.js';
 import { drawPhotoGrid } from '@shared/utils/photoGrid.js';
+import { replacementsForVisit, replacementRows, visitWindow as windowForVisit } from '@shared/utils/visitReplacements.js';
+import { NOT_A_BOARD } from '@shared/components/BoardReplacementPage.jsx';
+import { listLog, LOG_BOARD } from '@shared/services/logs.js';
 import { shouldAdoptMerge } from '@shared/utils/mergeApply.js';
 import PrestartPage from '@shared/components/PrestartPage.jsx';
 import ImportLinesDialog from '@shared/components/ImportLinesDialog.jsx';
@@ -278,7 +281,7 @@ async function deleteVisitAssets(uid, custId, visitId) {
   }
 }
 
-const exportDashboardToPDF = async (lines, globalData, includePhotos = false) => {
+const exportDashboardToPDF = async (lines, globalData, includePhotos = false, replacements = [], visitWindow = null) => {
   if (lines.length === 0) return alert('No data to export');
   await ensurePdfLibs();
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
@@ -427,6 +430,43 @@ const exportDashboardToPDF = async (lines, globalData, includePhotos = false) =>
       doc.setFontSize(10);
       doc.text('No issues were found', 14, y);
       y += 10;
+    }
+
+    // What was replaced on this line, during this visit — see
+    // visitReplacements.js for why the window runs to the NEXT visit rather
+    // than matching the visit's own day.
+    const lineParts = replacementsForVisit(replacements, {
+      lineTitle: line.title,
+      window: visitWindow,
+    });
+
+    if (lineParts.length) {
+      if (y + 20 > pageHeight - 15) { doc.addPage(); drawPageHeader(); y = 35; }
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Parts replaced:', 14, y);
+      doc.setFont(undefined, 'normal');
+      y += 2;
+
+      const rows = lineParts.flatMap((r) => replacementRows(r, NOT_A_BOARD));
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Where', 'Board type', 'Part', 'Qty', 'Reason']],
+        body: rows,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [0, 102, 204], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 22 },
+          1: { halign: 'left', cellWidth: 32 },
+          2: { halign: 'left', cellWidth: 70 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'left' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 8;
     }
 
     // Add spacing between lines
@@ -1010,6 +1050,21 @@ const AppContent = () => {
   // Who is crewed on each line, for the line list — the dashboard answers
   // "who is running this" as well as "what is broken".
   const appLineCrew = useLineCrew(WORKSPACE_UID, currentCustomer?.id);
+
+  // The replacement log for this plant, plus the day the open log covers, for
+  // the PDF. Read on demand — the export is occasional and a log that cannot be
+  // read must not stop the report being produced.
+  const replacementsForPdf = async () => {
+    const custId = currentCustomer?.id;
+    const window = windowForVisit(visits, currentVisitId);
+    if (!WORKSPACE_UID || !custId) return { parts: [], window };
+    try {
+      return { parts: await listLog(WORKSPACE_UID, custId, LOG_BOARD, 300), window };
+    } catch (err) {
+      console.warn('Replacement log unavailable for the PDF:', err);
+      return { parts: [], window };
+    }
+  };
   const [visits, setVisits] = useState([]);
   // Visits across ALL customers — used only by Issue History (which lets you pick
   // any customer). Kept separate from `visits` (the current customer's live list)
@@ -1268,7 +1323,12 @@ const AppContent = () => {
   // Current Log opens on it rather than on whichever was already selected.
   // Selected before the gate is considered — being asked for a PIN should not
   // lose which line you tapped.
+  // Has the person moved themselves? Once they have, nothing that runs later
+  // gets to move them back.
+  const userPickedTabRef = useRef(false);
+
   const requestTab = useCallback((tab, lineId) => {
+    userPickedTabRef.current = true;
     if (lineId != null) showLine(lineId, setShowDashboardView, setActiveLineId);
     if (isAdmin) { setActiveTab(tab); return; }
     const gate = screenGate(tab, activeCrewPerson, crewPeople, hasPin);
@@ -1565,6 +1625,16 @@ const AppContent = () => {
         .collection(DAILY_LOGS)
         .doc(visitId)
         .get();
+      // The customer may have changed while this read was in flight.
+      //
+      // Switching plants fires a fresh load, and the outgoing customer's read
+      // can land after it — putting the previous plant's visit on screen under
+      // the new plant's name. Seen in the console as three loads in one second
+      // on a single switch, one of them for the customer just left.
+      if (currentCustomerRef.current?.id && currentCustomerRef.current.id !== effectiveCustomerId) {
+        console.log('[loadVisit] discarded — customer changed while loading', path);
+        return;
+      }
       if (doc.exists) {
         const data = doc.data();
         const loadedLines = (data.lines || []).map(line => ({
@@ -2577,18 +2647,42 @@ const AppContent = () => {
   }, [currentCustomer?.id, visitsLoadedFor, visits, isAdmin]);
 
   const autoOpenedForRef = useRef(null);
+  // Until the auto-open has had its turn, the remembered log id is INPUT to
+  // `logDecision` above, not something this session may overwrite.
+  const resumeSettledRef = useRef(false);
   useEffect(() => {
     const cid = currentCustomer?.id;
     if (!cid || !logDecision) return;
     if (autoOpenedForRef.current === cid) return;
     if (viewingJtiId) return;                                      // looking at a JTI visit
-    if (currentVisitId) { autoOpenedForRef.current = cid; return; } // something already open
+    // Open for THIS plant, not merely an id left over from the last one:
+    // switching customer keeps the old id for a render or two, and testing the
+    // bare id made the auto-open skip itself and then mark itself done.
+    if (currentVisitId && visits.some((v) => v.id === currentVisitId)) {
+      autoOpenedForRef.current = cid; resumeSettledRef.current = true; return;
+    }
     // A ?visitId= link owns the choice; don't race it.
     const urlHasDeepLink = typeof window !== 'undefined' &&
       /[?&](visitId|id)=/.test(window.location.search);
     if (urlHasDeepLink && !deepLinkProcessed) return;
     autoOpenedForRef.current = cid;
-    if (logDecision.action === 'open') loadVisit(logDecision.log.id);
+    resumeSettledRef.current = true;
+    if (logDecision.action === 'open') { loadVisit(logDecision.log.id); return; }
+
+    // Nothing opened, because the newest log is not today's and opening an
+    // older one would file today's readings under an earlier date (see
+    // todaysLog.js — that rule stays).
+    //
+    // But the offer to continue it lives on Current Log, and a reload lands on
+    // Overview, so the answer was a tab away and invisible: the app looked like
+    // it had simply not loaded anything. Land where the decision is, so
+    // "continue last week's" or "start today's" is the first thing on screen.
+    //
+    // Only if the person has not already gone somewhere themselves. The log
+    // list can arrive seconds after the page does, and this yanked somebody off
+    // a half-filled replacement form to show them a card they had already
+    // walked past.
+    if (!userPickedTabRef.current) setActiveTab('current');
   }, [logDecision, currentVisitId, currentCustomer?.id, deepLinkProcessed, viewingJtiId]);
 
   // Persist last customer + visit so we can auto-resume next session
@@ -2600,9 +2694,14 @@ const AppContent = () => {
   useEffect(() => {
     if (currentVisitId) {
       localStorage.setItem('ccwissues-last-visit-id', currentVisitId);
-    } else {
-      localStorage.removeItem('ccwissues-last-visit-id');
+      return;
     }
+    // No log open. On a fresh load that is the state the app STARTS in, and
+    // erasing here threw away the id `logDecision` was about to read — so the
+    // remembered log could never win, while the remembered CUSTOMER always did
+    // (its effect has no else branch). Only a close that happens after the
+    // auto-open has had its turn is a real "nothing open".
+    if (resumeSettledRef.current) localStorage.removeItem('ccwissues-last-visit-id');
   }, [currentVisitId]);
 
   // Real-time visits subscription — keeps the sidebar in sync across devices.
@@ -3627,7 +3726,10 @@ const AppContent = () => {
             </button>
             <ul className="dropdown-menu">
               <li>
-                <button className="dropdown-item d-flex align-items-center gap-2" onClick={() => exportDashboardToPDF(lines, globalData)}>
+                <button className="dropdown-item d-flex align-items-center gap-2" onClick={async () => {
+                  const { parts, window } = await replacementsForPdf();
+                  await exportDashboardToPDF(lines, globalData, false, parts, window);
+                }}>
                   <FileText className="w-4 h-4" /> Dashboard PDF
                 </button>
               </li>
@@ -3636,7 +3738,8 @@ const AppContent = () => {
                   className="dropdown-item d-flex align-items-center gap-2"
                   onClick={async () => {
                     toast.success('Loading photos into PDF…');
-                    await exportDashboardToPDF(lines, globalData, true);
+                    const { parts, window } = await replacementsForPdf();
+                    await exportDashboardToPDF(lines, globalData, true, parts, window);
                   }}
                 >
                   <FileText className="w-4 h-4" /> Dashboard PDF (with Photos)
@@ -4240,6 +4343,7 @@ const AppContent = () => {
               customerId={currentCustomer?.id}
               lines={lines}
               visits={visits}
+              hasOpenRecord={!!currentVisitId || !!viewingJtiId}
               onGo={requestTab}
               onAdoptLines={adoptHistoryLines}
             />

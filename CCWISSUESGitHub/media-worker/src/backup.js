@@ -487,7 +487,33 @@ export function rotate(list, day = new Date()) {
 }
 
 /** Run the whole thing. Returns a manifest describing what happened. */
-export async function runBackup(env, mintToken, { date = new Date(), only = '' } = {}) {
+/**
+ * The nightly run, split across invocations.
+ *
+ * A Worker invocation gets fifty subrequests, and all four projects in one
+ * needs more than that: the run died partway with "Too many subrequests"
+ * every night, and because the manifest is written LAST, it died before
+ * recording that it had died. Four nights of nothing, reported as nothing.
+ *
+ * So the night is split the same way the Backups page already splits its
+ * button — one invocation per group, each with its own fresh allowance —
+ * and a final pass merges them. The heavy project goes alone: its streamed
+ * parts collection is 59MB and spends about thirty requests by itself.
+ *
+ * Keyed by group, not by project, so adding a project means adding it to a
+ * list rather than adding a cron.
+ */
+export const NIGHTLY_GROUPS = {
+  // Names, not project ids: these match backupTargets' `name` and survive a
+  // project being re-pointed at a different id.
+  heavy: ['Jobs and packets'],
+  light: ['CCW Issues', 'Timesheets', 'Shearers downtime'],
+};
+
+/** Where a group's partial results wait for the finalize pass. */
+const partPath = (day, group) => `backups/${day}/part-${group}.json`;
+
+export async function runBackup(env, mintToken, { date = new Date(), only = '', trigger = null, group = '' } = {}) {
   const day = date.toISOString().slice(0, 10);
   const bucket = env.BACKUP_BUCKET || env.STORAGE_BUCKET;
   // Shared across every project: Cloudflare counts subrequests per invocation,
@@ -519,11 +545,13 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
     return writer;
   };
 
-  // `only` narrows the run to one project. The nightly cron takes them all —
-  // it has no client waiting on it — but a browser asking for four projects at
-  // once is asking for more subrequests than one invocation is allowed.
-  const chosen = rotate(backupTargets(env), date)
-    .filter((t) => !only || t.projectId === only || t.name === only);
+  // `only` narrows the run: one project id or name, or several as a list or a
+  // comma-separated string. Nothing does every project in one invocation any
+  // more — that is what exceeded the allowance.
+  const onlyList = (Array.isArray(only) ? only : String(only || '').split(','))
+    .map((s) => String(s).trim()).filter(Boolean);
+  const wanted = (t) => !onlyList.length || onlyList.includes(t.projectId) || onlyList.includes(t.name);
+  const chosen = rotate(backupTargets(env), date).filter(wanted);
 
   let first = true;
   for (const t of chosen) {
@@ -569,7 +597,8 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
   }
 
   // Shearers last, because it is the odd one out and its failure mode differs.
-  const wantShearers = !only || only === 'shearers-4c4b4' || only === 'Shearers downtime';
+  const wantShearers = !onlyList.length
+    || onlyList.includes('shearers-4c4b4') || onlyList.includes('Shearers downtime');
   if (wantShearers && env.SHEARERS_DB_URL) {
     try {
       const token = env.SHEARERS_SA_EMAIL && env.SHEARERS_SA_PRIVATE_KEY
@@ -605,12 +634,24 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
     // the Backups page as well as by the cron, so without this a page showing
     // "the last backup" could be showing one project somebody ran by hand and
     // call it a night's work.
-    manifest.trigger = only ? 'manual' : 'nightly';
-    manifest.only = only || '';
-    // Only the unnarrowed run prunes — that is the cron. The page asks for one
-    // project at a time, and pruning four times over would spend the allowance
-    // four times for one night's worth of expiry.
-    manifest.retention = only
+    manifest.trigger = trigger || (onlyList.length ? 'manual' : 'nightly');
+    manifest.only = onlyList.join(',');
+    manifest.group = group;
+
+    // A nightly GROUP parks its results for the finalize pass and stops. It
+    // must not prune (that is one night's worth of expiry, not one group's)
+    // and must not write latest-nightly.json, which would claim the whole
+    // night on the strength of a quarter of it.
+    if (manifest.trigger === 'nightly' && group) {
+      manifest.retention = { skipped: 'pruning runs in the finalize pass' };
+      await putObject(bucket, partPath(day, group), wToken, JSON.stringify(manifest, null, 2));
+      return manifest;
+    }
+
+    // Only an unnarrowed run prunes. The page asks for one project at a time,
+    // and pruning four times over would spend the allowance four times for one
+    // night's worth of expiry.
+    manifest.retention = onlyList.length
       ? { skipped: 'pruning runs on the nightly job' }
       : await prune(bucket, wToken, Number(env.BACKUP_RETAIN_DAYS), Date.now(), state);
     const body = JSON.stringify(manifest, null, 2);
@@ -618,7 +659,7 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
     await putObject(bucket, 'backups/latest.json', wToken, body);
     // A separate copy the manual runs never touch, so "did last night happen"
     // has an answer that no amount of clicking can overwrite.
-    if (!only) await putObject(bucket, 'backups/latest-nightly.json', wToken, body);
+    if (!onlyList.length) await putObject(bucket, 'backups/latest-nightly.json', wToken, body);
   } catch (err) {
     manifest.manifestError = String(err.message || err);
   }
@@ -626,4 +667,59 @@ export async function runBackup(env, mintToken, { date = new Date(), only = '' }
   return manifest;
 }
 
-export default { runBackup, rotate, backupTargets, exportProject, exportRealtimeDb, docPathSegments, placeDoc, decodeFields, decodeValue, prune, putObject, getManifest, idOf, isExpiredBackup };
+/**
+ * Merge the night's groups into one manifest, prune, and record that it ran.
+ *
+ * Runs in the LAST group's invocation, so it has that invocation's remaining
+ * allowance — which is why the heavy project goes in a group of its own and
+ * this rides with the light ones.
+ *
+ * A group that left no file is reported as a failure, not omitted. The whole
+ * point of this manifest is that silence never reads as success: a night
+ * where the jobs backup never ran must look worse than one where it failed
+ * loudly, not identical to a clean one.
+ */
+export async function finalizeNightly(env, mintToken, { date = new Date(), state = null } = {}) {
+  const day = date.toISOString().slice(0, 10);
+  const bucket = env.BACKUP_BUCKET || env.STORAGE_BUCKET;
+  const st = state || { requests: 0, budget: Number(env.BACKUP_MAX_REQUESTS) || 48 };
+  const token = await mintToken(env.GCP_SA_EMAIL, env.GCP_SA_PRIVATE_KEY,
+    'https://www.googleapis.com/auth/devstorage.read_write');
+
+  const merged = {
+    startedAt: new Date().toISOString(), day, bucket,
+    trigger: 'nightly', results: [], groups: {},
+  };
+
+  for (const group of Object.keys(NIGHTLY_GROUPS)) {
+    let part = null;
+    try {
+      st.requests += 1;
+      part = await getManifest(bucket, token, partPath(day, group));
+    } catch { /* treated as absent below */ }
+    if (part && Array.isArray(part.results)) {
+      merged.groups[group] = { ok: true, finishedAt: part.finishedAt || null, requests: part.requests ?? null };
+      merged.results.push(...part.results);
+    } else {
+      merged.groups[group] = { ok: false, reason: 'this group left no result — its invocation did not finish' };
+      // Named per project so the page lists the ones actually missing rather
+      // than one opaque "a group failed".
+      NIGHTLY_GROUPS[group].forEach((name) => merged.results.push({
+        name, ok: false,
+        error: 'the scheduled run for this project did not finish — no result was written',
+      }));
+    }
+  }
+
+  merged.finishedAt = new Date().toISOString();
+  merged.retention = await prune(bucket, token, Number(env.BACKUP_RETAIN_DAYS), Date.now(), st);
+  merged.requests = st.requests;
+
+  const body = JSON.stringify(merged, null, 2);
+  await putObject(bucket, `backups/${day}/manifest.json`, token, body);
+  await putObject(bucket, 'backups/latest.json', token, body);
+  await putObject(bucket, 'backups/latest-nightly.json', token, body);
+  return merged;
+}
+
+export default { runBackup, finalizeNightly, NIGHTLY_GROUPS, rotate, backupTargets, exportProject, exportRealtimeDb, docPathSegments, placeDoc, decodeFields, decodeValue, prune, putObject, getManifest, idOf, isExpiredBackup };

@@ -4,6 +4,7 @@ import { auth } from './firebase';
 import { saveValidation } from './cloud';
 import HistoryModal from './HistoryModal';
 import PdfPreview from './PdfPreview';
+import JobBar from './JobBar';
 
 // Generic shell shared by every validation form. `def` (from defs.js) supplies the
 // form-specific model, fields component, PDF builder, storage key and cloud collection.
@@ -43,7 +44,9 @@ export default function FormShell({ user, def, onHome }) {
     const blank = def.initialData();
     if (keepCustomer) {
       const carried = {};
-      def.customerFields.forEach((k) => { carried[k] = data[k]; });
+      // customerId travels with the customer info; the SR number does not —
+      // a new form is a new job until somebody says which.
+      [...def.customerFields, 'customerId'].forEach((k) => { carried[k] = data[k]; });
       setData({ ...blank, ...carried });
     } else {
       setData(blank);
@@ -86,7 +89,10 @@ export default function FormShell({ user, def, onHome }) {
       </header>
 
       <div className={`layout view-${view}`}>
-        <div className="formpane"><Fields data={data} setData={setData} /></div>
+        <div className="formpane">
+          <JobBar user={user} def={def} data={data} setData={setData} />
+          <Fields data={data} setData={setData} />
+        </div>
         <div className="previewpane">
           {pdfBytes ? <PdfPreview bytes={pdfBytes} /> : <div className="loading">Generating preview…</div>}
         </div>

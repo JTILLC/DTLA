@@ -3,8 +3,8 @@
 //
 // A decode bug here does not fail — it writes a backup that looks fine and is
 // wrong, discovered during a recovery, which is the worst possible moment.
-import { describe, it, expect } from 'vitest';
-import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets, docPathSegments, placeDoc, rotate, getManifest } from './backup.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { decodeValue, decodeFields, idOf, isExpiredBackup, backupTargets, docPathSegments, placeDoc, rotate, getManifest, finalizeNightly, NIGHTLY_GROUPS } from './backup.js';
 
 describe('decodeValue', () => {
   it('reads every scalar Firestore actually stores', () => {
@@ -226,5 +226,89 @@ describe('getManifest', () => {
   it('throws on anything else, so a broken read is not read as no backup', async () => {
     global.fetch = async () => ({ ok: false, status: 403, text: async () => 'Forbidden' });
     await expect(getManifest(bucket, 'tok', 'backups/latest.json')).rejects.toThrow(/403/);
+  });
+});
+
+// --- The nightly split ----------------------------------------------------
+//
+// All four projects in one invocation exceeded Cloudflare's fifty-subrequest
+// ceiling, and because the manifest is written LAST, the run died before
+// recording that it had died: four nights of nothing, displayed as nothing.
+// These cover the split that fixed it.
+describe('finalizeNightly', () => {
+  const env = {
+    FIREBASE_PROJECT_ID: 'ccw-p', BACKUP_BUCKET: 'bucket',
+    GCP_SA_EMAIL: 'sa@ccw', GCP_SA_PRIVATE_KEY: 'k',
+    BACKUP_RETAIN_DAYS: '',   // pruning off, so these cover the merge only
+  };
+  const mint = async () => 'tok';
+  const day = '2026-08-20';
+
+  const withParts = (parts) => {
+    const puts = {};
+    vi.stubGlobal('fetch', vi.fn(async (url, init = {}) => {
+      const u = String(url);
+      const found = Object.entries(parts).find(([g]) => u.includes(`part-${g}.json`));
+      if (u.includes('?alt=media')) {
+        if (found && found[1]) return { ok: true, status: 200, json: async () => found[1] };
+        return { ok: false, status: 404, text: async () => 'not found' };
+      }
+      if (u.includes('/o?')) {                      // an upload
+        const name = new URL(u).searchParams.get('name');
+        puts[name] = JSON.parse(init.body);
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (u.includes('/o?prefix') || u.includes('&prefix')) return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      return { ok: true, status: 200, json: async () => ({ items: [] }) };
+    }));
+    return puts;
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('merges every group into one manifest and records that the night ran', async () => {
+    const puts = withParts({
+      heavy: { finishedAt: 'T1', requests: 31, results: [{ name: 'Jobs and packets', ok: true, documents: 714 }] },
+      light: { finishedAt: 'T2', requests: 22, results: [
+        { name: 'CCW Issues', ok: true, documents: 144 },
+        { name: 'Timesheets', ok: true, documents: 168 },
+        { name: 'Shearers downtime', ok: true, documents: 9 },
+      ] },
+    });
+    const merged = await finalizeNightly(env, mint, { date: new Date(`${day}T09:20:00Z`) });
+
+    expect(merged.trigger).toBe('nightly');
+    expect(merged.results.map((r) => r.name)).toEqual([
+      'Jobs and packets', 'CCW Issues', 'Timesheets', 'Shearers downtime',
+    ]);
+    expect(merged.results.every((r) => r.ok)).toBe(true);
+    // The file the status card reads, which is the whole point.
+    expect(puts['backups/latest-nightly.json']).toBeTruthy();
+    expect(puts[`backups/${day}/manifest.json`]).toBeTruthy();
+    expect(puts['backups/latest.json']).toBeTruthy();
+  });
+
+  it('reports a group that never ran as a failure, never as absent', async () => {
+    withParts({ light: { results: [{ name: 'CCW Issues', ok: true }] } });   // heavy missing
+    const merged = await finalizeNightly(env, mint, { date: new Date(`${day}T09:20:00Z`) });
+
+    expect(merged.groups.heavy.ok).toBe(false);
+    // Named per project, so the page says WHICH backup is missing.
+    const jobs = merged.results.find((r) => r.name === 'Jobs and packets');
+    expect(jobs.ok).toBe(false);
+    expect(jobs.error).toMatch(/did not finish/);
+  });
+});
+
+describe('NIGHTLY_GROUPS', () => {
+  it('covers every backup target exactly once', () => {
+    const grouped = [...NIGHTLY_GROUPS.heavy, ...NIGHTLY_GROUPS.light].sort();
+    const targets = backupTargets({
+      FIREBASE_PROJECT_ID: 'a', PARTS_PROJECT_ID: 'b', TIMESHEET_PROJECT_ID: 'c',
+    }).map((t) => t.name).concat('Shearers downtime').sort();
+    expect(grouped).toEqual(targets);
+  });
+
+  it('keeps the heavy project on its own — it is why the night overflowed', () => {
+    expect(NIGHTLY_GROUPS.heavy).toEqual(['Jobs and packets']);
   });
 });

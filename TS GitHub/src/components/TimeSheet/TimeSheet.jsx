@@ -3,6 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTimeSheet } from '../../context/TimeSheetContext';
 import { useNavigate } from 'react-router-dom';
 import TimeEntryForm from './TimeEntryForm';
+import { DEFAULTS } from '../../config/constants';
+
+// Parse a string like "45.50+32+18.75" into a sum
+const parseOtherTravel = (val) => {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'string') return 0;
+  return val.split('+').reduce((sum, part) => sum + (parseFloat(part.trim()) || 0), 0);
+};
 import SavedEntriesTable from './SavedEntriesTable';
 import ServiceChargesTable from './ServiceChargesTable';
 import { jsPDF } from 'jspdf';
@@ -204,8 +212,8 @@ function TimeSheet() {
       setTravelForm(prev => ({ ...prev, airTravel: { ...prev.airTravel, [field]: newValue } }));
       setTravelData(prev => ({ ...prev, airTravel: { ...prev.airTravel, [field]: newValue } }));
     } else {
-      const numeric = ['perDiemDays', 'mileage', 'otherTravel'].includes(name);
-      const newValue = numeric ? (parseFloat(value) || 0) : value;
+      const numeric = ['perDiemDays', 'mileage', 'mileageRate'].includes(name);
+      const newValue = numeric ? (parseFloat(value) || 0) : name === 'otherTravel' ? value : value;
       setTravelForm(prev => ({ ...prev, [name]: newValue }));
       setTravelData(prev => ({ ...prev, [name]: newValue }));
     }
@@ -269,11 +277,11 @@ function TimeSheet() {
   const perDiemDays = Number(travelForm.perDiemDays) || 0;
   const perDiemAmt = perDiemDays * perDiemRate;
 
-  const mileageRate = 0.67;
+  const mileageRate = Number(travelForm.mileageRate) || DEFAULTS.MILEAGE_RATE;
   const mileageMiles = Number(travelForm.mileage) || 0;
   const mileageAmt = mileageMiles * mileageRate;
 
-  const otherTravelAmt = Number(travelForm.otherTravel) || 0;
+  const otherTravelAmt = parseOtherTravel(travelForm.otherTravel);
   const airfareAmt = Number(travelForm.airTravel?.cost) || 0;
 
   // Split as requested
@@ -468,7 +476,7 @@ function TimeSheet() {
 
             <div>
               <h3 className="text-lg font-semibold mb-3">Mileage & Other Travel</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Mileage (miles)</label>
                   <input
@@ -480,14 +488,31 @@ function TimeSheet() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Other Travel (Auto/Taxi $)</label>
+                  <label className="block text-sm font-medium text-gray-700">Rate ($/mile)</label>
                   <input
                     type="number"
-                    name="otherTravel"
-                    value={travelForm.otherTravel || 0}
+                    step="0.01"
+                    name="mileageRate"
+                    value={travelForm.mileageRate || DEFAULTS.MILEAGE_RATE}
                     onChange={handleTravelInputChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Other Travel (Auto/Taxi $)</label>
+                  <input
+                    type="text"
+                    name="otherTravel"
+                    value={travelForm.otherTravel || ''}
+                    onChange={handleTravelInputChange}
+                    placeholder="e.g. 45.50+32+18.75"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {typeof travelForm.otherTravel === 'string' && travelForm.otherTravel.includes('+') && (
+                    <p className="mt-1 text-sm text-green-600 font-medium">
+                      Total: ${parseOtherTravel(travelForm.otherTravel).toFixed(2)}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -516,7 +541,7 @@ function TimeSheet() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Return Date</label>
+                  <label className="block text-sm font-medium text-gray-700">Return</label>
                   <input
                     type="text"
                     name="airTravel.return"

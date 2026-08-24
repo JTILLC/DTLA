@@ -18,6 +18,16 @@
 /index.html
   Cache-Control: no-store
 
+# The user guide has the same problem for the same reason: one fixed name, and
+# the copy people are sent to. It is corrected in place when the app changes, so
+# a cached edge copy hands a plant instructions for a version they are not
+# running. Both spellings, because Pages 308s /USER_GUIDE.html to /USER_GUIDE
+# and the redirect target is cached separately.
+/USER_GUIDE
+  Cache-Control: no-store
+/USER_GUIDE.html
+  Cache-Control: no-store
+
 # Everything under /assets is content-hashed by Vite — a changed file gets a new
 # name — so these can be kept forever and never revalidated. This is what pays
 # for the uncached HTML above: one small document is fetched each load, and the

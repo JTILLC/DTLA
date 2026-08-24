@@ -71,6 +71,49 @@ describe('jobFlowSteps', () => {
     expect(keys(s)).toEqual(['created', 'serviceReport', 'po', 'invoice', 'receipts', 'packet', 'sent', 'paid']);
   });
 
+  // Not every customer issues a purchase order, so the step could never be
+  // ticked on those jobs and they read as unfinished forever. Saying "no PO
+  // here" settles it — without claiming a purchase order exists.
+  it('counts a PO marked not applicable as settled, and says it is not one', () => {
+    const s = steps({ packet: { files: [], poNotApplicable: true } });
+    const po = s.find((x) => x.key === 'po');
+    expect(po.done).toBe(true);
+    expect(po.na).toBe(true);
+  });
+
+  it('counts receipts marked not applicable as settled too', () => {
+    const s = steps({ packet: { files: [], receiptsNotApplicable: true } });
+    const r = s.find((x) => x.key === 'receipts');
+    expect(r.done).toBe(true);
+    expect(r.na).toBe(true);
+  });
+
+  it('an actual PO is done but never flagged not-applicable', () => {
+    const s = steps({ packet: { files: [{ kind: 'po' }], poNotApplicable: true } });
+    const po = s.find((x) => x.key === 'po');
+    expect(po.done).toBe(true);
+    expect(po.na).toBe(false);
+  });
+
+  // A report filed in CCW under another number, or an invoice raised in the
+  // accounting package: the work is done, only the evidence is out of reach.
+  it('lets the service report and invoice be ticked by hand, and says so', () => {
+    const s = steps({ packet: { files: [], manualSteps: { serviceReport: true, invoice: true } } });
+    const sr = s.find((x) => x.key === 'serviceReport');
+    const inv = s.find((x) => x.key === 'invoice');
+    expect([sr.done, sr.byHand]).toEqual([true, true]);
+    expect([inv.done, inv.byHand]).toEqual([true, true]);
+  });
+
+  it('a real file is never reported as taken on somebody\'s word', () => {
+    const s = steps({
+      sources: { serviceReportUrl: 'x' },
+      packet: { files: [{ kind: 'invoice' }], manualSteps: { serviceReport: true, invoice: true } },
+    });
+    expect(s.find((x) => x.key === 'serviceReport').byHand).toBe(false);
+    expect(s.find((x) => x.key === 'invoice').byHand).toBe(false);
+  });
+
   it('accepts uploaded files as satisfying a step, not just system ones', () => {
     const s = steps({ packet: { files: [{ kind: 'serviceReport' }, { kind: 'invoice' }] } });
     expect(keys(s)).toEqual(expect.arrayContaining(['serviceReport', 'invoice']));

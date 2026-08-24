@@ -1,0 +1,46 @@
+{
+  "entries": [
+    {
+      "date": "2026-08-05",
+      "travel": {
+        "to": { "active": true, "start": "07:00", "end": "08:00" },
+        "home": { "active": true, "start": "16:00", "end": "17:00" }
+      },
+      "onsite": { "active": true, "start": "08:00", "end": "16:00" },
+      "lunch": false,
+      "lunchDuration": 0.5,
+      "holiday": false,
+      "travelOnly": false,
+      "customer": "Tru Infusion"
+    }
+  ],
+  "customerInfo": {
+    "company": "Tru Infusion",
+    "contact": "Chase Garrett",
+    "address": "3030 N 30th Ave",
+    "city": "Phoenix",
+    "email": "chase@truinfusion.com",
+    "state": "AZ",
+    "purpose": "Modifications to JDD rotary packager."
+  },
+  "travelData": {
+    "perDiemDays": 1,
+    "mileage": 90,
+    "mileageRate": 0.72,
+    "perDiemType": "local"
+  },
+  "serviceReportData": {
+    "2026-08-05": "Customer is wanting to run smaller size Mylar 1/8 oz and needs to modify their pickup station to allow the Mylar to not get hit by the railing for the bag guides. Removed the rails to extend the slot for railing to allow smaller bags. Used a Dremel to extend and kept the tolerances close. Removed the dual suctions to open the bags and replaced them with single ones. Removed the threading to help center the suction cups to open the bag. The blue suction cups are not able to open the bag fully. Replaced with smaller orange ones which made a huge difference. Had to adjust the suctions arm assembly to go low enough on the bag to not suck at the hole punch area as that was causing it not to create suction. Once set, tested on several bags with great results. Provided video and pictures showing the changes to allow them to run smaller bags. "
+  },
+  "invoiceInfo": {
+    "invoiceNumber": "2026026",
+    "invoiceDate": "2026-08-05",
+    "dueDate": "2026-08-06",
+    "poRefer": "N/A",
+    "serviceDates": "08/05/2026",
+    "paymentTerms": "Due Upon Receipt"
+  },
+  "machineInfo": [
+    { "model": "JDD Packaging Machine", "serial": "", "jobNumber": "" }
+  ]
+}

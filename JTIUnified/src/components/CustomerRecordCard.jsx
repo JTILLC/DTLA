@@ -22,6 +22,23 @@ const inputStyle = (colors) => ui.input(colors, { width: '100%' });
 
 const labelStyle = (colors) => ui.label(colors, { marginBottom: '4px' });
 
+// Module scope, NOT inside the component.
+//
+// It was declared in the render body, which makes a new function — and so, to
+// React, a NEW COMPONENT TYPE — on every keystroke. React cannot know that two
+// different functions render the same thing, so it threw the old subtree away
+// and mounted a fresh one each time: the address input was destroyed and
+// recreated after every character, taking the caret with it. Typing an address
+// meant clicking back into the box for each letter.
+//
+// Anything that renders children and holds an input has to be defined once,
+// where its identity is stable.
+const Row = ({ children }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+    {children}
+  </div>
+);
+
 export default function CustomerRecordCard({
   customerName,
   record,          // { id, name, profile } or null when nothing is linked
@@ -157,12 +174,6 @@ export default function CustomerRecordCard({
     }
     setSaving(false);
   };
-
-  const Row = ({ children }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-      {children}
-    </div>
-  );
 
   return (
     <div style={{

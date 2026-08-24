@@ -27,6 +27,13 @@ CCWISSUESMultiTenant/dist/
 JTIUnified/dist/
 ServiceQuoteWA/dist/
 ShearersClaude/dist/
+JTIWebsite/dist/
+
+# Deploy caches and dated snapshots, same reasoning as _archive/ above: these
+# are produced by a tool or are a copy of a past state, and neither belongs in
+# history. JobsMASTER/backups holds one dated snapshot of the Jobs app.
+JobsMASTER/.firebase/
+JobsMASTER/backups/
 
 # Service-account keys. These grant full access to a Firebase project and are
 # the one kind of file that must never reach a remote — a key committed once is
@@ -35,3 +42,9 @@ ShearersClaude/dist/
 *-firebase-adminsdk-*.json
 *serviceAccount*.json
 *service-account*.json
+
+# jti-timesheet is its OWN git repository (github.com/JTILLC/jti-timesheet)
+# living inside this one. Adding it here records a gitlink, not the files: a
+# clone of DTLA would get an empty directory and no way to fill it. Ignored so
+# `git add -A` cannot do that by accident. Commit its changes from inside it.
+jti-timesheet/

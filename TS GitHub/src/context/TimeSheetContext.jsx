@@ -23,6 +23,8 @@ export function TimeSheetProvider({ children }) {
   const [currentCustomer, setCurrentCustomer] = useState('');
   const [customers, setCustomers] = useState([]);
   const [tableKey, setTableKey] = useState(0);
+  const [loadedDocId, setLoadedDocId] = useState(null); // Track which cloud document is currently loaded
+  const [loadedDocName, setLoadedDocName] = useState(''); // Track the name of the loaded document
 
   // LOAD CUSTOMERS FROM CLOUD + LOCAL
   useEffect(() => {
@@ -177,9 +179,33 @@ export function TimeSheetProvider({ children }) {
       return;
     }
 
-    const defaultName = `Visit ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    const visitName = prompt('Name this visit (e.g., "June 2025 Visit")', defaultName);
-    if (!visitName) return;
+    // If we have a loaded document, ask if user wants to overwrite or create new
+    let shouldOverwrite = false;
+    let visitName = '';
+
+    if (loadedDocId) {
+      const choice = confirm(
+        `You loaded "${loadedDocName}" from cloud.\n\n` +
+        `Click OK to OVERWRITE this file.\n` +
+        `Click Cancel to create a NEW file.`
+      );
+
+      if (choice) {
+        // Overwrite existing
+        shouldOverwrite = true;
+        visitName = loadedDocName;
+      } else {
+        // Create new - ask for name
+        const defaultName = `Visit ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        visitName = prompt('Name this NEW visit (e.g., "June 2025 Visit")', defaultName);
+        if (!visitName) return;
+      }
+    } else {
+      // No loaded document - create new
+      const defaultName = `Visit ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      visitName = prompt('Name this visit (e.g., "June 2025 Visit")', defaultName);
+      if (!visitName) return;
+    }
 
     const data = {
       customer: currentCustomer,
@@ -194,8 +220,19 @@ export function TimeSheetProvider({ children }) {
     };
 
     try {
-      await addDoc(collection(db, 'timesheets'), data);
-      alert(`Saved: "${visitName}"`);
+      if (shouldOverwrite && loadedDocId) {
+        // Update existing document
+        const docRef = doc(db, 'timesheets', loadedDocId);
+        await updateDoc(docRef, data);
+        alert(`Updated: "${visitName}"`);
+      } else {
+        // Create new document
+        const newDocRef = await addDoc(collection(db, 'timesheets'), data);
+        // Set the new document as loaded
+        setLoadedDocId(newDocRef.id);
+        setLoadedDocName(visitName.trim());
+        alert(`Saved: "${visitName}"`);
+      }
     } catch (error) {
       console.error('Cloud save failed:', error);
       alert('Failed to save');
@@ -219,8 +256,8 @@ export function TimeSheetProvider({ children }) {
         alert('No cloud data found');
         return;
       }
-      const doc = snapshot.docs[0];
-      const data = doc.data();
+      const loadedDoc = snapshot.docs[0];
+      const data = loadedDoc.data();
       setEntries(data.entries || []);
       setCustomerInfo(data.customerInfo || {});
       setTravelData(data.travelData || {});
@@ -238,6 +275,10 @@ export function TimeSheetProvider({ children }) {
       })) : []);
       setServiceReportForm(data.serviceReportData || {});
 
+      // Track which document was loaded
+      setLoadedDocId(loadedDoc.id);
+      setLoadedDocName(data.visitName || 'Latest');
+
       setTableKey(prev => prev + 1);
       alert(`Loaded: ${data.visitName || 'Latest'}`);
     } catch (error) {
@@ -246,12 +287,7 @@ export function TimeSheetProvider({ children }) {
     }
   };
 
-  const loadFromHistory = async (docId) => {
-    if (!currentCustomer) {
-      alert('Select a customer first');
-      return;
-    }
-
+  const loadFromHistory = async (docId, visitName = '') => {
     try {
       const docRef = doc(db, 'timesheets', docId);
       const docSnap = await getDoc(docRef);
@@ -277,6 +313,15 @@ export function TimeSheetProvider({ children }) {
         jobNumber: m.jobNumber || ''
       })) : []);
       setServiceReportForm(data.serviceReportData || {});
+
+      // Track which document was loaded so we can overwrite it later
+      setLoadedDocId(docId);
+      setLoadedDocName(visitName || data.visitName || 'Visit');
+
+      // Update current customer if different
+      if (data.customer && data.customer !== currentCustomer) {
+        setCurrentCustomer(data.customer);
+      }
 
       setTableKey(prev => prev + 1);
       alert(`Loaded: ${data.visitName || 'Visit'}`);
@@ -357,7 +402,8 @@ export function TimeSheetProvider({ children }) {
         where('customer', '==', name)
       );
       const snapshot = await getDocs(q);
-      snapshot.docs.forEach(doc => doc.ref.delete());
+      // v9 modular SDK: doc.ref.delete() does not exist; use deleteDoc and await all
+      await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
 
       if (currentCustomer === name) setCurrentCustomer('');
       alert(`Deleted "${name}"`);
@@ -396,6 +442,15 @@ export function TimeSheetProvider({ children }) {
     setInvoiceForm({});
     setMachineForms([]);
     setServiceReportForm({});
+    // Clear loaded document tracking when resetting
+    setLoadedDocId(null);
+    setLoadedDocName('');
+  };
+
+  // Function to clear loaded document (for creating new)
+  const clearLoadedDoc = () => {
+    setLoadedDocId(null);
+    setLoadedDocName('');
   };
 
   const importData = (data) => {
@@ -460,7 +515,7 @@ export function TimeSheetProvider({ children }) {
         oldDocData.timestamp = new Date().toISOString();
 
         await addDoc(collection(db, 'timesheets'), oldDocData);
-        await oldDoc.ref.delete();
+        await deleteDoc(oldDoc.ref);
       }
 
       alert(`Renamed: "${oldName}" to "${newName}"`);
@@ -515,7 +570,10 @@ export function TimeSheetProvider({ children }) {
         serviceReportForm,
         setServiceReportForm,
         tableKey,
-        renameCustomer
+        renameCustomer,
+        loadedDocId,
+        loadedDocName,
+        clearLoadedDoc
       }}
     >
       {children}
