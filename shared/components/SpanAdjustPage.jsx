@@ -26,6 +26,7 @@ import CrewLine from './CrewLine.jsx';
 import CrewChip from './CrewChip.jsx';
 import EditedNote from './EditedNote.jsx';
 import { withEditStamp } from '../utils/editTrail.js';
+import { round1, spanDiff, headRecord, hasAfterReadings, testWeightOf } from '../utils/spanWeights.js';
 import PinPrompt from './PinPrompt.jsx';
 import LineLockPrompt from './LineLockPrompt.jsx';
 import { useLineGuard } from '../utils/useLineGuard.jsx';
@@ -36,7 +37,6 @@ import { useLineCrew, crewStamp } from '../utils/useLineCrew.js';
 import ActingAs from './ActingAs.jsx';
 import './data-table.css';
 
-const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 const LAST_LINE_KEY = 'ccw-span-last-line';
 
 export default function SpanAdjustPage({
@@ -88,7 +88,12 @@ export default function SpanAdjustPage({
 
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);   // line title
-  const [rows, setRows] = useState([]);             // [{head, currentWeight, spanWeight}]
+  const [rows, setRows] = useState([]);             // [{head, currentWeight, afterWeight}]
+  // One number for the whole line: the test weight every head is spanned to.
+  // It is still stored per head, because that is the shape the log has always
+  // had, but it was never actually per head — a column of identical 200s was
+  // four taps of nothing.
+  const [testWeight, setTestWeight] = useState('');
   const [notes, setNotes] = useState('');
   const [intervalDays, setIntervalDays] = useState('30');
   const [saving, setSaving] = useState(false);
@@ -99,6 +104,9 @@ export default function SpanAdjustPage({
   // in the table so an operator knows which numbers to sanity-check, and cleared
   // the moment one is typed over.
   const [scanned, setScanned] = useState(() => new Set());
+  // The same, for the after-span photo. Two sets rather than one: a head can be
+  // scanned before and typed after, and the marks have to say which is which.
+  const [scannedAfter, setScannedAfter] = useState(() => new Set());
   // Bumped after each successful log. Together with the line title it keys the
   // scanner, so the retained photo is dropped once it has served its purpose
   // rather than following you to the next line.
@@ -155,16 +163,19 @@ export default function SpanAdjustPage({
       const prev = last?.heads?.find((h) => Number(h.head) === i + 1);
       return {
         head: i + 1,
-        // Current weight is what you measure TODAY — always start blank so a
-        // stale reading can't be logged unchanged by accident.
+        // Both readings are what you measure TODAY — always start blank so a
+        // stale one can't be logged unchanged by accident.
         currentWeight: '',
-        // Span (target) weight carries forward; it rarely changes between cycles.
-        spanWeight: prev?.spanWeight ?? '',
+        afterWeight: '',
       };
     });
     setRows(next);
+    // The test weight carries forward; it rarely changes between cycles, and it
+    // is the one thing on this screen that is the same every time.
+    setTestWeight(testWeightOf(last?.heads || []) ?? '');
     setNotes('');
     setScanned(new Set());
+    setScannedAfter(new Set());
     try { localStorage.setItem(LAST_LINE_KEY, selected); } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, lines.length, entries.length]);
@@ -172,23 +183,31 @@ export default function SpanAdjustPage({
   const setRow = (idx, field, value) =>
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
 
-  const setAllSpan = (value) =>
-    setRows((prev) => prev.map((r) => ({ ...r, spanWeight: value })));
-
-  const clearCurrent = () => {
-    setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '' })));
+  const clearWeights = () => {
+    setRows((prev) => prev.map((r) => ({ ...r, currentWeight: '', afterWeight: '' })));
     setScanned(new Set());
+    setScannedAfter(new Set());
   };
 
   // A scan fills the fields; it does not log anything. Heads the reader couldn't
   // make out keep whatever is already in them, so a partial scan tops up a
   // partly-typed column instead of wiping it.
-  const applyScan = (byHead) => {
+  const applyScanTo = (field, mark) => (byHead) => {
     setRows((prev) => prev.map((r) => (
-      byHead.has(r.head) ? { ...r, currentWeight: String(byHead.get(r.head)) } : r
+      byHead.has(r.head) ? { ...r, [field]: String(byHead.get(r.head)) } : r
     )));
-    setScanned(new Set(byHead.keys()));
+    mark(new Set(byHead.keys()));
   };
+  const applyScan = applyScanTo('currentWeight', setScanned);
+  const applyScanAfter = applyScanTo('afterWeight', setScannedAfter);
+
+  // Typed over: it's the operator's number now, not the camera's.
+  const unmark = (mark) => (head) => mark((prev) => {
+    if (!prev.has(head)) return prev;
+    const next = new Set(prev);
+    next.delete(head);
+    return next;
+  });
 
   const save = () => withActor((filedBy) => lineGuard.check(selected, async (override) => {
     if (!selected) return toast.error('Pick a line first');
@@ -198,11 +217,7 @@ export default function SpanAdjustPage({
     }
     setSaving(true);
     try {
-      const heads = rows.map((r) => {
-        const cw = Number(r.currentWeight) || 0;
-        const sw = Number(r.spanWeight) || 0;
-        return { head: r.head, currentWeight: cw, spanWeight: sw, difference: round1(sw - cw) };
-      });
+      const heads = rows.map((r) => headRecord({ ...r, spanWeight: testWeight }));
       const line = lines.find((l) => l.title === selected);
       await addLogEntry(workspaceId, customerId, LOG_SPAN, {
         lineTitle: selected,
@@ -223,7 +238,7 @@ export default function SpanAdjustPage({
         nextDueAt: intervalDays === '' ? null : addDays(null, Number(intervalDays)),
       });
       setNotes('');
-      clearCurrent();
+      clearWeights();
       setLogSeq((n) => n + 1);
       toast.success(`Span adjustment logged for ${selected}`);
     } catch (err) {
@@ -240,21 +255,18 @@ export default function SpanAdjustPage({
     id: entry.id,
     entry,
     notes: entry.notes || '',
+    testWeight: testWeightOf(entry.heads || []) ?? '',
     heads: (entry.heads || []).map((h) => ({
       head: h.head,
       currentWeight: h.currentWeight ?? '',
-      spanWeight: h.spanWeight ?? '',
+      afterWeight: h.afterWeight ?? '',
     })),
   });
 
   const saveEdit = () => withFreshActor((filedBy) => lineGuard.check(editing?.entry?.lineTitle, async (override) => {
     if (!editing) return;
     try {
-      const heads = editing.heads.map((r) => {
-        const cw = Number(r.currentWeight) || 0;
-        const sw = Number(r.spanWeight) || 0;
-        return { head: r.head, currentWeight: cw, spanWeight: sw, difference: round1(sw - cw) };
-      });
+      const heads = editing.heads.map((r) => headRecord({ ...r, spanWeight: editing.testWeight }));
       await updateLogEntry(workspaceId, customerId, LOG_SPAN, editing.id,
         withEditStamp({
           heads, notes: editing.notes.trim(), ...overrideStamp(override, editing.entry?.lineTitle),
@@ -388,28 +400,53 @@ export default function SpanAdjustPage({
         <div className="card-body">
           <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
             <div className="input-group input-group-sm" style={{ width: 'auto' }}>
+              <span className="input-group-text">Test weight</span>
               <input
                 type="number"
                 step="any"
                 inputMode="decimal"
                 className="form-control"
-                style={{ maxWidth: '100px' }}
-                placeholder="Span wt"
-                onChange={(e) => setAllSpan(e.target.value)}
+                style={{ maxWidth: '90px' }}
+                placeholder="200"
+                value={testWeight}
+                onChange={(e) => setTestWeight(e.target.value)}
               />
               <span className="input-group-text">g</span>
-              <span className="input-group-text">set all</span>
             </div>
             <button
               type="button"
               className="btn btn-sm btn-outline-warning"
-              onClick={clearCurrent}
+              onClick={clearWeights}
             >
-              Clear current
+              Clear weights
             </button>
           </div>
 
-          <WeightScanner key={`${selected}-${logSeq}`} expectedHeads={rows.length} onApply={applyScan} />
+          {/* Two photos, in the order the job is done: what the heads read
+              before the adjustment, then what they read after it. The second
+              one is why the difference is measured rather than assumed. */}
+          <div className="row g-2 mb-2">
+            <div className="col-12 col-md-6">
+              <WeightScanner
+                key={`before-${selected}-${logSeq}`}
+                expectedHeads={rows.length}
+                onApply={applyScan}
+                label="Scan before"
+                fills="before weights"
+                hint="Photograph the screen BEFORE the adjustment. You still check and log the numbers."
+              />
+            </div>
+            <div className="col-12 col-md-6">
+              <WeightScanner
+                key={`after-${selected}-${logSeq}`}
+                expectedHeads={rows.length}
+                onApply={applyScanAfter}
+                label="Scan after"
+                fills="after weights"
+                hint="Photograph the screen once the span is done, to record where it landed."
+              />
+            </div>
+          </div>
 
           <div className="table-responsive">
             {/* data-table: see data-table.css — without it Bootstrap keeps its
@@ -419,19 +456,18 @@ export default function SpanAdjustPage({
               <thead>
                 <tr>
                   <th>Head</th>
-                  <th>Current</th>
-                  <th>Span</th>
+                  <th>Before</th>
+                  <th>After</th>
                   <th>Diff</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => {
-                  const diff = round1((Number(r.spanWeight) || 0) - (Number(r.currentWeight) || 0));
-                  const measured = String(r.currentWeight).trim() !== '';
+                  const diff = spanDiff(r.currentWeight, r.afterWeight);
                   return (
                     <tr key={r.head}>
                       <td data-label="Head"><strong>{r.head}</strong></td>
-                      <td data-label="Current">
+                      <td data-label="Before">
                         <input
                           type="number"
                           step="any"
@@ -439,32 +475,31 @@ export default function SpanAdjustPage({
                           className={'form-control form-control-sm' + (scanned.has(r.head) ? ' border-primary' : '')}
                           value={r.currentWeight}
                           placeholder="—"
-                          title={scanned.has(r.head) ? 'Read from the scanned photo — check it' : undefined}
+                          title={scanned.has(r.head) ? 'Read from the before photo — check it' : undefined}
                           onChange={(e) => {
                             setRow(i, 'currentWeight', e.target.value);
-                            // Typed over: it's the operator's number now.
-                            if (scanned.has(r.head)) {
-                              setScanned((prev) => {
-                                const next = new Set(prev);
-                                next.delete(r.head);
-                                return next;
-                              });
-                            }
+                            unmark(setScanned)(r.head);
                           }}
                         />
                       </td>
-                      <td data-label="Span">
+                      <td data-label="After">
                         <input
                           type="number"
                           step="any"
                           inputMode="decimal"
-                          className="form-control form-control-sm"
-                          value={r.spanWeight}
+                          className={'form-control form-control-sm' + (scannedAfter.has(r.head) ? ' border-primary' : '')}
+                          value={r.afterWeight}
                           placeholder="—"
-                          onChange={(e) => setRow(i, 'spanWeight', e.target.value)}
+                          title={scannedAfter.has(r.head) ? 'Read from the after photo — check it' : undefined}
+                          onChange={(e) => {
+                            setRow(i, 'afterWeight', e.target.value);
+                            unmark(setScannedAfter)(r.head);
+                          }}
                         />
                       </td>
-                      <td data-label="Diff">{measured ? diff.toFixed(1) : '—'}</td>
+                      {/* Null, not 0.0, until both readings exist: a head that
+                          has not been read twice has no difference yet. */}
+                      <td data-label="Diff">{diff === null ? '—' : diff.toFixed(1)}</td>
                     </tr>
                   );
                 })}
@@ -568,39 +603,55 @@ export default function SpanAdjustPage({
                           Correcting this entry. The time it was logged and who
                           logged it are kept; the change is recorded separately.
                         </div>
+                        <div className="input-group input-group-sm mb-2" style={{ width: 'auto' }}>
+                          <span className="input-group-text">Test weight</span>
+                          <input
+                            type="number" step="any" inputMode="decimal"
+                            className="form-control"
+                            style={{ maxWidth: '90px' }}
+                            value={editing.testWeight}
+                            onChange={(ev) => setEditing((d) => ({ ...d, testWeight: ev.target.value }))}
+                          />
+                          <span className="input-group-text">g</span>
+                        </div>
                         <div className="table-responsive">
                           <table className="table table-sm data-table mb-2">
                             <thead>
-                              <tr><th>Head</th><th>Current</th><th>Span</th></tr>
+                              <tr><th>Head</th><th>Before</th><th>After</th><th>Diff</th></tr>
                             </thead>
                             <tbody>
-                              {editing.heads.map((r, i) => (
-                                <tr key={r.head}>
-                                  <td><strong>{r.head}</strong></td>
-                                  <td>
-                                    <input
-                                      type="number" step="any" inputMode="decimal"
-                                      className="form-control form-control-sm"
-                                      value={r.currentWeight}
-                                      onChange={(ev) => setEditing((d) => ({
-                                        ...d,
-                                        heads: d.heads.map((x, j) => (j === i ? { ...x, currentWeight: ev.target.value } : x)),
-                                      }))}
-                                    />
-                                  </td>
-                                  <td>
-                                    <input
-                                      type="number" step="any" inputMode="decimal"
-                                      className="form-control form-control-sm"
-                                      value={r.spanWeight}
-                                      onChange={(ev) => setEditing((d) => ({
-                                        ...d,
-                                        heads: d.heads.map((x, j) => (j === i ? { ...x, spanWeight: ev.target.value } : x)),
-                                      }))}
-                                    />
-                                  </td>
-                                </tr>
-                              ))}
+                              {editing.heads.map((r, i) => {
+                                const d0 = spanDiff(r.currentWeight, r.afterWeight);
+                                return (
+                                  <tr key={r.head}>
+                                    <td><strong>{r.head}</strong></td>
+                                    <td>
+                                      <input
+                                        type="number" step="any" inputMode="decimal"
+                                        className="form-control form-control-sm"
+                                        value={r.currentWeight}
+                                        onChange={(ev) => setEditing((d) => ({
+                                          ...d,
+                                          heads: d.heads.map((x, j) => (j === i ? { ...x, currentWeight: ev.target.value } : x)),
+                                        }))}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number" step="any" inputMode="decimal"
+                                        className="form-control form-control-sm"
+                                        value={r.afterWeight}
+                                        placeholder="—"
+                                        onChange={(ev) => setEditing((d) => ({
+                                          ...d,
+                                          heads: d.heads.map((x, j) => (j === i ? { ...x, afterWeight: ev.target.value } : x)),
+                                        }))}
+                                      />
+                                    </td>
+                                    <td>{d0 === null ? '—' : d0.toFixed(1)}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -633,23 +684,56 @@ export default function SpanAdjustPage({
                         <summary className="small text-muted" style={{ cursor: 'pointer' }}>
                           Weights ({e.heads.length} heads)
                         </summary>
-                        <div className="table-responsive mt-1">
-                          <table className="table table-sm data-table mb-0">
-                            <thead>
-                              <tr><th>Head</th><th>Current</th><th>Span</th><th>Diff</th></tr>
-                            </thead>
-                            <tbody>
-                              {e.heads.map((h) => (
-                                <tr key={h.head}>
-                                  <td>{h.head}</td>
-                                  <td>{h.currentWeight}</td>
-                                  <td>{h.spanWeight}</td>
-                                  <td>{round1(h.difference).toFixed(1)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        {/* Entries logged before the after-photo existed have
+                            only a reading and a target, and are shown the way
+                            they were recorded. Reprinting their target under an
+                            "After" heading would present an assumed number as a
+                            measured one. */}
+                        {hasAfterReadings(e.heads) ? (
+                          <div className="table-responsive mt-1">
+                            {testWeightOf(e.heads) !== null && (
+                              <div className="small text-muted mb-1">
+                                Test weight {testWeightOf(e.heads)}g
+                              </div>
+                            )}
+                            <table className="table table-sm data-table mb-0">
+                              <thead>
+                                <tr><th>Head</th><th>Before</th><th>After</th><th>Diff</th></tr>
+                              </thead>
+                              <tbody>
+                                {e.heads.map((h) => {
+                                  const d0 = spanDiff(h.currentWeight, h.afterWeight);
+                                  return (
+                                    <tr key={h.head}>
+                                      <td>{h.head}</td>
+                                      <td>{h.currentWeight}</td>
+                                      <td>{h.afterWeight ?? '—'}</td>
+                                      <td>{d0 === null ? '—' : d0.toFixed(1)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="table-responsive mt-1">
+                            <table className="table table-sm data-table mb-0">
+                              <thead>
+                                <tr><th>Head</th><th>Current</th><th>Span</th><th>Diff</th></tr>
+                              </thead>
+                              <tbody>
+                                {e.heads.map((h) => (
+                                  <tr key={h.head}>
+                                    <td>{h.head}</td>
+                                    <td>{h.currentWeight}</td>
+                                    <td>{h.spanWeight}</td>
+                                    <td>{round1(h.difference).toFixed(1)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </details>
                     )}
                   </div>

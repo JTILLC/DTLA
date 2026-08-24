@@ -87,7 +87,17 @@ const fileToJpeg = async (file) => {
   return jpeg;
 };
 
-export default function WeightScanner({ expectedHeads = 0, onApply }) {
+export default function WeightScanner({
+  expectedHeads = 0,
+  onApply,
+  // Which column this scanner fills. There are two of them on the span screen —
+  // one for the readings before the adjustment and one for after — and an
+  // operator holding a phone over a weigher needs to know which button is which
+  // without reading a paragraph.
+  label = 'Scan screen',
+  fills = 'current weights',
+  hint = 'Photograph the weigher screen to fill the current weights. You still check and log them.',
+}) {
   const toast = useToast();
   const inputRef = useRef(null);
   const videoRef = useRef(null);
@@ -234,7 +244,7 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
     );
     if (!usable.length) return toast.error('Nothing here can be applied — enter the weights manually.');
     onApply(new Map(usable.map((h) => [h.head, h.weight])));
-    toast.success(`Filled ${usable.length} current weight${usable.length === 1 ? '' : 's'} — check them before logging.`);
+    toast.success(`Filled ${usable.length} of the ${fills} — check them before logging.`);
     // Deliberately NOT reset(): the photo stays available so the filled values
     // can be checked against the screen they came from.
     setApplied(true);
@@ -244,7 +254,7 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
     <div className="mb-2">
       <div className="d-flex flex-wrap gap-2 align-items-center">
         <button type="button" className="btn btn-sm btn-outline-primary" onClick={openCamera} disabled={busy}>
-          <Camera size={16} /> {busy ? 'Reading screen…' : 'Scan screen'}
+          <Camera size={16} /> {busy ? 'Reading screen…' : label}
         </button>
         <label className="btn btn-sm btn-outline-secondary mb-0">
           <ImageIcon size={16} /> Choose photo
@@ -259,9 +269,7 @@ export default function WeightScanner({ expectedHeads = 0, onApply }) {
         </label>
       </div>
       {!result && !busy && (
-        <div className="form-text mt-1">
-          Photograph the weigher screen to fill the current weights. You still check and log them.
-        </div>
+        <div className="form-text mt-1">{hint}</div>
       )}
 
       {/* Reading takes several seconds. Without this the operator is staring at
