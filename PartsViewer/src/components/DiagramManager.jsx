@@ -17,7 +17,7 @@ import {
   loadSingleDiagramFromIndexedDB,
   deleteDiagramFromIndexedDB
 } from '../utils/indexedDBStorage';
-import { expandManifestEntry } from '../utils/manifestDiagrams';
+import { collapseManifestEntry } from '../utils/manifestDiagrams';
 
 const DiagramManager = ({ onLogout }) => {
   const [savedDiagrams, setSavedDiagrams] = useState({});
@@ -124,8 +124,8 @@ const DiagramManager = ({ onLogout }) => {
         //   partsData: { '<partNo>'           : { partNo, partCode, partName, qty, pmst } }
         // The hotspot's `partNumber` field holds the index number visible on
         // the diagram ("1", "2", …) — that's the key used to look up parts.
-        const expanded = expandManifestEntry(d, {
-          idBase: id,
+        const diagram = collapseManifestEntry(d, {
+          id,
           partsData,
           partsListImages,
           partsListRawText: (d.partsLists || []).map((p) => p.extractedText || '').join('\n\n---\n\n'),
@@ -134,32 +134,19 @@ const DiagramManager = ({ onLogout }) => {
           createdAt: new Date().toISOString(),
         });
 
-        // First pass: a balloon the parts list didn't mention still gets a row,
-        // so the hotspot has something to open. Collected across ALL views
-        // before any diagram is built, so every view of the drawing ends up
-        // with the same complete list.
-        expanded.forEach((diagram) => {
-          Object.values(diagram.hotspots).forEach((hs) => {
-            if (!partsData[hs.partNumber]) {
-              partsData[hs.partNumber] = {
-                partNo: hs.partNumber, partCode: '', partName: '', qty: '', pmst: '',
-              };
-            }
-            hotspotCount += 1;
-          });
+        // A balloon the parts list didn't mention still gets a row, so the
+        // hotspot has something to open.
+        Object.values(diagram.hotspots).forEach((hs) => {
+          if (!partsData[hs.partNumber]) {
+            partsData[hs.partNumber] = {
+              partNo: hs.partNumber, partCode: '', partName: '', qty: '', pmst: '',
+            };
+          }
+          hotspotCount += 1;
         });
 
-        // Second pass: each view gets its OWN copy. Sharing one object across
-        // views means editing a part on view 2 silently rewrites it on views 1
-        // and 3, which are separate saved diagrams.
-        expanded.forEach((diagram) => {
-          incoming[diagram.id] = {
-            ...diagram,
-            partsData: { ...partsData },
-            manifestVersion: manifest.version || 1,
-          };
-          createdCount += 1;
-        });
+        incoming[id] = { ...diagram, manifestVersion: manifest.version || 1 };
+        createdCount += 1;
       });
 
       setSavedDiagrams((prev) => ({ ...prev, ...incoming }));
