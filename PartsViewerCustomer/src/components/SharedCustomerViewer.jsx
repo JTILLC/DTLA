@@ -5,6 +5,7 @@ import InteractiveDiagramViewer from './InteractiveDiagramViewer';
 import { getShareByToken } from '../firebase/shareService';
 import { loadDiagramsByCustomer } from '../firebase/diagramService';
 import { saveImage, getImage } from '../utils/imageStorage';
+import { appendOrderDiagramPages } from '../utils/orderDiagramPages';
 import { storage } from '../firebase/config';
 import { ref, getDownloadURL } from 'firebase/storage';
 
@@ -44,6 +45,10 @@ const SharedCustomerViewer = ({ token }) => {
   const [orderStreet, setOrderStreet] = useState(() => readLS('orderStreet', ''));
   const [orderCityStateZip, setOrderCityStateZip] = useState(() => readLS('orderCityStateZip', ''));
   const [showOrderInfo, setShowOrderInfo] = useState(false);
+  // Put the drawings in the order PDF with the ordered balloons ringed in red.
+  const [includeDiagramImages, setIncludeDiagramImages] = useState(
+    () => readLS('orderIncludeDiagrams', 'true') === 'true'
+  );
   const [downloadProgress, setDownloadProgress] = useState(null);
 
   const diagramViewerRef = React.useRef(null);
@@ -337,7 +342,7 @@ const SharedCustomerViewer = ({ token }) => {
     e.target.value = '';
   };
 
-  const handlePreviewPDF = () => {
+  const handlePreviewPDF = async () => {
     const orderItems = Object.entries(globalOrderList).filter(([_, item]) => item.orderQty > 0);
 
     if (orderItems.length === 0) {
@@ -434,6 +439,12 @@ const SharedCustomerViewer = ({ token }) => {
     doc.setFont('helvetica', 'normal');
     doc.text(`Total line items: ${totalItems}`, margin + 10, afterTableY + 30);
     doc.text(`Total parts ordered: ${totalQuantity}`, margin + 180, afterTableY + 30);
+
+    // The drawings, one page each, with the ordered balloons ringed in red. A
+    // shared link carries its images inline, so no id lookup is needed here.
+    if (includeDiagramImages) {
+      await appendOrderDiagramPages(doc, { orderEntries: orderItems, diagrams });
+    }
 
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
@@ -981,6 +992,25 @@ const SharedCustomerViewer = ({ token }) => {
                 />
               </div>
             </div>
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginTop: '16px',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={includeDiagramImages}
+                onChange={(e) => {
+                  setIncludeDiagramImages(e.target.checked);
+                  localStorage.setItem('orderIncludeDiagrams', String(e.target.checked));
+                }}
+              />
+              Include the diagrams in the PDF, with ordered parts circled in red
+            </label>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
               <button

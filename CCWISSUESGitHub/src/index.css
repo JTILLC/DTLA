@@ -449,11 +449,15 @@ h1, h3 {
 
   /* Audit checklist on mobile: item name as a card title, and keep the
      Good/Bad/N/A checkboxes a normal tappable size (not stretched). */
+  /* The item name is the card's title, so it must be the page's strongest
+     text — not a fixed near-black. It was #111 against a dark card, which on a
+     phone in dark mode made "RCU Condition" and its neighbours all but
+     invisible. The rule below it was a fixed light grey for the same reason. */
   .audit-table td.audit-item {
     display: block;
     font-weight: 700;
-    color: #111;
-    border-bottom: 2px solid #bbb;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
     padding: 8px 0 6px;
   }
   .audit-table td.audit-item::before { content: none; }

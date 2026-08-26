@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveImage, getImage, saveImagesBatch, clearAllImages, saveDiagrams, loadDiagrams } from '../utils/imageStorage';
 import { getCustomerNames, loadDiagramsByCustomer, loadDiagramImagesForExport } from '../firebase/diagramService';
+import { appendOrderDiagramPages } from '../utils/orderDiagramPages';
 import { db } from '../firebase/config';
 
 const readLS = (key, fallback) => {
@@ -53,6 +54,10 @@ const CustomerViewer = ({ onLogout }) => {
   const [orderJob, setOrderJob] = useState(() => readLS('orderJob', ''));
   const [showOrderInfo, setShowOrderInfo] = useState(false); // Show order info input form
   const [showShareModal, setShowShareModal] = useState(false); // Show share modal
+  // Put the drawings in the order PDF with the ordered balloons ringed in red.
+  const [includeDiagramImages, setIncludeDiagramImages] = useState(
+    () => readLS('orderIncludeDiagrams', 'true') === 'true'
+  );
 
   // Ref for scrolling to diagram
   const diagramViewerRef = React.useRef(null);
@@ -153,6 +158,10 @@ const CustomerViewer = ({ onLogout }) => {
   useEffect(() => {
     localStorage.setItem('orderJob', orderJob);
   }, [orderJob]);
+
+  useEffect(() => {
+    localStorage.setItem('orderIncludeDiagrams', includeDiagramImages.toString());
+  }, [includeDiagramImages]);
 
   // Track window resize for mobile responsiveness
   useEffect(() => {
@@ -663,7 +672,7 @@ const storeOrder = async (order) => {
     e.target.value = '';
   };
 
-  const handlePreviewPDF = () => {
+  const handlePreviewPDF = async () => {
     const orderItems = Object.entries(globalOrderList).filter(([_, item]) => item.orderQty > 0);
 
     if (orderItems.length === 0) {
@@ -765,6 +774,17 @@ const storeOrder = async (order) => {
     doc.setFont('helvetica', 'normal');
     doc.text(`Total line items: ${totalItems}`, margin + 10, afterTableY + 30);
     doc.text(`Total parts ordered: ${totalQuantity}`, margin + 180, afterTableY + 30);
+
+    // The drawings, one page each, with the ordered balloons ringed in red.
+    // Images live in IndexedDB here, so they are resolved by id rather than read
+    // off the diagram record.
+    if (includeDiagramImages) {
+      await appendOrderDiagramPages(doc, {
+        orderEntries: orderItems,
+        diagrams,
+        resolveImage: async (d) => (d ? (d.pdfData || (d.hasImage ? await getImage(d.id) : null)) : null)
+      });
+    }
 
     // Open the generated PDF in a new tab
     const blob = doc.output('blob');
@@ -2237,6 +2257,22 @@ const storeOrder = async (order) => {
                 />
               </div>
             ))}
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '20px',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={includeDiagramImages}
+                onChange={(e) => setIncludeDiagramImages(e.target.checked)}
+              />
+              Include the diagrams in the PDF, with ordered parts circled in red
+            </label>
 
             <div style={{
               display: 'flex',

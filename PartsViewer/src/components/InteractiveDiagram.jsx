@@ -29,6 +29,14 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
   const [flashingMode, setFlashingMode] = useState(false);
   const [flashVisible, setFlashVisible] = useState(true);
   const [rotation, setRotation] = useState(diagram.rotation || 0); // Image rotation in degrees (0, 90, 180, 270)
+  // Put the drawing in the order PDF with the ordered balloons ringed in red.
+  // A part code means nothing standing at a machine; seeing it circled on the
+  // assembly does. Remembered across sessions because whoever wants pictures on
+  // an order wants them every time.
+  const [includeDiagramImages, setIncludeDiagramImages] = useState(() => {
+    const saved = localStorage.getItem('partsOrderIncludeDiagrams');
+    return saved === null ? true : saved === 'true';
+  });
   const pdfContainerRef = useRef(null);
   const flashIntervalRef = useRef(null);
 
@@ -908,9 +916,98 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
     }));
   };
 
+  // The ordered parts, grouped by the diagram they were picked from.
+  //
+  // Grouped rather than one picture per line item: an order of eight parts off
+  // one assembly is one drawing with eight rings, not eight copies of the same
+  // drawing. Hotspot coordinates are PERCENTAGES of the image, so a ring placed
+  // at those percentages lands on the balloon at any print size.
+  //
+  // The stored rotation is deliberately ignored here. Hotspot percentages are
+  // recorded against the unrotated image (the viewer rotates the image but not
+  // the marker layer), so rotating the print would slide every ring off its
+  // balloon — exactly the thing this is meant to prevent.
+  const orderDiagramSections = () => {
+    const byDiagram = new Map();
+
+    Object.keys(orderList).forEach((orderKey) => {
+      const item = orderList[orderKey];
+      const id = item.diagramId || diagram.id;
+      if (!byDiagram.has(id)) byDiagram.set(id, []);
+      byDiagram.get(id).push(item);
+    });
+
+    return [...byDiagram.entries()].map(([id, items]) => {
+      const source = id === diagram.id ? diagram : ((allDiagrams && allDiagrams[id]) || null);
+      const image = typeof source?.pdfData === 'string' &&
+        (source.pdfData.startsWith('data:image/') || source.pdfData.startsWith('https://'))
+        ? source.pdfData
+        : '';
+
+      const wanted = new Set(items.map((i) => String(i.partNumber)));
+      // Every hotspot for every ordered part: a part can be balloned more than
+      // once on one drawing, and ringing an arbitrary first leaves the rest
+      // looking un-ordered.
+      const spots = Object.values(source?.hotspots || {})
+        .filter((h) => wanted.has(String(h.partNumber)));
+      const ringed = new Set(spots.map((h) => String(h.partNumber)));
+
+      return {
+        id,
+        name: items[0]?.diagramName || source?.name || 'Diagram',
+        number: items[0]?.diagramNumber || source?.number || '',
+        image,
+        spots,
+        ringed: [...ringed].sort((a, b) => Number(a) - Number(b)),
+        // Ordered but not balloned — say so rather than let a missing ring read
+        // as "that part isn't on this drawing".
+        unringed: [...wanted].filter((n) => !ringed.has(n)).sort((a, b) => Number(a) - Number(b))
+      };
+    });
+  };
+
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+
+  const renderOrderDiagramsHTML = () => {
+    const sections = orderDiagramSections();
+    if (sections.length === 0) return '';
+
+    return `
+          <div class="diagrams">
+            <h2>Diagrams — Ordered Parts Circled</h2>
+            ${sections.map((section) => `
+              <div class="diagram-block">
+                <h3>${escapeHtml(section.number ? `${section.number} — ${section.name}` : section.name)}</h3>
+                ${section.image ? `
+                  <div class="diagram-wrap">
+                    <img src="${escapeHtml(section.image)}" alt="${escapeHtml(section.name)}">
+                    ${section.spots.map((h) => `
+                      <span class="ring" style="left:${h.x}%; top:${h.y}%"></span>
+                    `).join('')}
+                  </div>
+                ` : `
+                  <div class="no-image">No image on file for this diagram.</div>
+                `}
+                <div class="ring-note">
+                  ${section.ringed.length
+                    ? `Circled in red: ${section.ringed.map((n) => escapeHtml(n)).join(', ')}`
+                    : 'None of the ordered parts are balloned on this drawing.'}
+                  ${section.unringed.length
+                    ? `<br><em>Not balloned on this drawing: ${section.unringed.map((n) => escapeHtml(n)).join(', ')}</em>`
+                    : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+    `;
+  };
+
   const exportOrderToPDF = () => {
     const printWindow = window.open('', '_blank');
     const orderItems = Object.keys(orderList);
+    const diagramsHTML = includeDiagramImages ? renderOrderDiagramsHTML() : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -1016,6 +1113,60 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
             color: #666;
             font-size: 12px;
           }
+          .diagrams {
+            margin-top: 36px;
+          }
+          .diagrams h2 {
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #2196f3;
+            padding-bottom: 8px;
+          }
+          .diagram-block {
+            margin-top: 24px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .diagram-block h3 {
+            font-size: 15px;
+            color: #333;
+            margin: 0 0 8px 0;
+          }
+          /* Shrink-wraps the rendered image, so the percentage-positioned rings
+             move with it at any paper or screen size. */
+          .diagram-wrap {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 760px;
+            line-height: 0;
+          }
+          .diagram-wrap img {
+            width: 100%;
+            height: auto;
+            display: block;
+          }
+          .ring {
+            position: absolute;
+            width: 6%;
+            aspect-ratio: 1 / 1;
+            transform: translate(-50%, -50%);
+            border: 3px solid #ff3b30;
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.85);
+            pointer-events: none;
+          }
+          .ring-note {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #555;
+          }
+          .no-image {
+            padding: 16px;
+            border: 1px dashed #ccc;
+            color: #888;
+            font-size: 13px;
+          }
           @media print {
             @page { margin: 0.5in; }
             .header-bar {
@@ -1023,6 +1174,9 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
             }
             body {
               background-color: white;
+              /* Without this the rings print as grey outlines, or not at all. */
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .content {
               padding: 0;
@@ -1098,6 +1252,8 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
             Total line items: ${orderItems.length}<br>
             Total parts ordered: ${orderItems.reduce((sum, orderKey) => sum + orderList[orderKey].orderQty, 0)}
           </div>
+
+          ${diagramsHTML}
 
           <div class="footer">
             Generated by Interactive Parts Diagram Viewer<br>
@@ -2138,6 +2294,26 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
                   }}>
                     <div>Total Items: {Object.keys(orderList).length}</div>
                   </div>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginTop: '12px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    color: darkMode ? '#ddd' : '#333'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={includeDiagramImages}
+                      onChange={(e) => {
+                        setIncludeDiagramImages(e.target.checked);
+                        localStorage.setItem('partsOrderIncludeDiagrams', String(e.target.checked));
+                      }}
+                    />
+                    Include diagrams in the PDF, ordered parts circled in red
+                  </label>
 
                   <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
                     <button

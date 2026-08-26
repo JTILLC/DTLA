@@ -26,7 +26,10 @@ export default function Audit({ audit = {}, onChange, notes = '', onNotesChange 
             {section.items.map((label) => {
               const row = audit[label] || {};
               return (
-                <tr key={label} style={{ borderBottom: '1px solid #ddd' }}>
+                // On mobile each row becomes a card whose border comes from the
+                // theme; a fixed #ddd here overrode it on one edge only, since
+                // an inline style beats the stylesheet.
+                <tr key={label} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td className="audit-item" style={{ padding: '3px 6px' }}>{label}</td>
                   {[['good', 'Good'], ['bad', 'Bad'], ['na', 'N/A']].map(([st, lbl]) => (
                     <td key={st} data-label={lbl} style={{ textAlign: 'center' }}>
