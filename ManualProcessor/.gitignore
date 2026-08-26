@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tesseract downloads its language model beside the app at runtime (5MB,
+# regenerated on demand). Not source.
+*.traineddata
