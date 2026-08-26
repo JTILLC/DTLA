@@ -17,6 +17,7 @@ import {
   loadSingleDiagramFromIndexedDB,
   deleteDiagramFromIndexedDB
 } from '../utils/indexedDBStorage';
+import { expandManifestEntry } from '../utils/manifestDiagrams';
 
 const DiagramManager = ({ onLogout }) => {
   const [savedDiagrams, setSavedDiagrams] = useState({});
@@ -85,10 +86,11 @@ const DiagramManager = ({ onLogout }) => {
       const incoming = {};
       manifest.diagrams.forEach((d, idx) => {
         const id = `mfst-${Date.now()}-${idx}`;
-        const exploded = (d.explodedViews && d.explodedViews[0]) || null;
-        const partsListImages = (d.explodedViews || []).slice(1)
+        // Every exploded page becomes its own diagram (see manifestDiagrams.js),
+        // so the parts-list images are just that now — the other exploded pages
+        // used to be dumped in here as flat references with no hotspots.
+        const partsListImages = (d.partsLists || [])
           .map((p) => p.imageData)
-          .concat((d.partsLists || []).map((p) => p.imageData))
           .filter(Boolean);
         // Parse the parts-list text *during* import using the same parser
         // PartsViewer uses for CSV uploads. That way names + quantities are
@@ -122,44 +124,42 @@ const DiagramManager = ({ onLogout }) => {
         //   partsData: { '<partNo>'           : { partNo, partCode, partName, qty, pmst } }
         // The hotspot's `partNumber` field holds the index number visible on
         // the diagram ("1", "2", …) — that's the key used to look up parts.
-        const hotspots = {};
-        (d.hotspots || []).forEach((hs, hi) => {
-          const partNo = String(hs.partNumber || '').trim();
-          if (!partNo) return;
-          const hotspotId = `${partNo}-mfst-${hi}`;
-          hotspots[hotspotId] = {
-            x: Math.round(hs.x * 10000) / 100, // 0..1 fraction → 0..100 percent, 2 dp
-            y: Math.round(hs.y * 10000) / 100,
-            partNumber: partNo,
-          };
-          // Only add a placeholder if the parts-list parse missed this index.
-          if (!partsData[partNo]) {
-            partsData[partNo] = {
-              partNo,
-              partCode: '',
-              partName: '',
-              qty: '',
-              pmst: '',
-            };
-          }
-          hotspotCount += 1;
-        });
-        incoming[id] = {
-          id,
-          name: d.name || d.drawNo || `Diagram ${idx + 1}`,
-          number: d.drawNo || '',
-          pdfData: exploded ? exploded.imageData : null,
+        const expanded = expandManifestEntry(d, {
+          idBase: id,
           partsData,
           partsListImages,
-          hotspots,
           partsListRawText: (d.partsLists || []).map((p) => p.extractedText || '').join('\n\n---\n\n'),
           folder,
           customer,
           createdAt: new Date().toISOString(),
-          source: 'manual-processor-manifest',
-          manifestVersion: manifest.version || 1,
-        };
-        createdCount += 1;
+        });
+
+        // First pass: a balloon the parts list didn't mention still gets a row,
+        // so the hotspot has something to open. Collected across ALL views
+        // before any diagram is built, so every view of the drawing ends up
+        // with the same complete list.
+        expanded.forEach((diagram) => {
+          Object.values(diagram.hotspots).forEach((hs) => {
+            if (!partsData[hs.partNumber]) {
+              partsData[hs.partNumber] = {
+                partNo: hs.partNumber, partCode: '', partName: '', qty: '', pmst: '',
+              };
+            }
+            hotspotCount += 1;
+          });
+        });
+
+        // Second pass: each view gets its OWN copy. Sharing one object across
+        // views means editing a part on view 2 silently rewrites it on views 1
+        // and 3, which are separate saved diagrams.
+        expanded.forEach((diagram) => {
+          incoming[diagram.id] = {
+            ...diagram,
+            partsData: { ...partsData },
+            manifestVersion: manifest.version || 1,
+          };
+          createdCount += 1;
+        });
       });
 
       setSavedDiagrams((prev) => ({ ...prev, ...incoming }));

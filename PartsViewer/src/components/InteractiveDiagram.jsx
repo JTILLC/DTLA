@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import { detectTextInImage } from '../utils/visionOcr';
 
 // Set up the worker
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -329,16 +330,10 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
     setOcrProgress(50);
 
     try {
-      console.log('[Google Vision] Starting OCR...');
+      console.log('[Vision OCR] Starting OCR...');
 
-      // Google Cloud Vision API key from environment variable
-      const API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY;
-
-      if (!API_KEY) {
-        throw new Error('Google Vision API key not configured. Please add VITE_GOOGLE_VISION_API_KEY to your .env file.');
-      }
-
-      // Prepare image data for Google Vision API
+      // The key is a Worker secret now, not a VITE_* variable — see
+      // utils/visionOcr.js for why. Nothing about it reaches the browser.
       let imageBase64 = diagram.pdfData;
 
       // If it's a URL, we need to fetch and convert to base64
@@ -356,52 +351,19 @@ const InteractiveDiagram = ({ diagram, onHotspotsUpdate, onPartsDataUpdate, onRo
       // Remove data URL prefix if present
       const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-      console.log('[Google Vision] Sending request to Google Vision API...');
+      console.log('[Vision OCR] Sending the drawing to the media worker...');
       setOcrProgress(70);
 
-      // Call Google Vision API
-      const visionResponse = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            requests: [
-              {
-                image: {
-                  content: base64Data
-                },
-                features: [
-                  {
-                    type: 'TEXT_DETECTION',
-                    maxResults: 100
-                  }
-                ]
-              }
-            ]
-          })
-        }
-      );
-
-      if (!visionResponse.ok) {
-        const errorData = await visionResponse.json();
-        console.error('[Google Vision] API Error:', errorData);
-        throw new Error(`Google Vision API error: ${errorData.error?.message || visionResponse.statusText}`);
-      }
-
-      const visionData = await visionResponse.json();
-      console.log('[Google Vision] Response received:', visionData);
+      const visionData = await detectTextInImage(base64Data, { maxResults: 100 });
 
       setOcrProgress(90);
 
-      if (!visionData.responses || !visionData.responses[0].textAnnotations) {
-        console.error('[Google Vision] No text detected');
+      if (!visionData || !visionData.textAnnotations) {
+        console.error('[Vision OCR] No text detected');
         throw new Error('No text detected in image. Try a clearer, higher resolution image.');
       }
 
-      const textAnnotations = visionData.responses[0].textAnnotations;
+      const textAnnotations = visionData.textAnnotations;
       console.log(`[Google Vision] Found ${textAnnotations.length} text annotations`);
 
       // Skip first annotation (it's the full text)

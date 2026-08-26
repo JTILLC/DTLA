@@ -42,6 +42,7 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+import { visionOcr, mayUseVision } from './vision.js';
 import { runBackup, getManifest, finalizeNightly, NIGHTLY_GROUPS } from './backup.js';
 import { publishDirectory } from './publish.js';
 import { shearersRead } from './shearers.js';
@@ -519,6 +520,59 @@ export default {
     // no Firebase session, and its request is authenticated by a signature over
     // the raw body instead. Reading the body must therefore happen before
     // anything else touches it.
+    // --- POST /vision-ocr: read the balloon numbers off a parts drawing ------
+    //
+    // PartsViewer used to call Vision straight from the browser with a VITE_*
+    // key, which Vite inlines into the bundle — the key was readable in the
+    // deployed JavaScript without signing in. Same gate as /scan-weights: this
+    // one spends money per call too.
+    if (url.pathname === '/vision-ocr') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      if (!originAllowed(origin, (allowed || '').split(',').map((s) => s.trim()).filter(Boolean))) {
+        return deny(403, 'Origin not permitted.', origin, allowed);
+      }
+      if (!env.GOOGLE_VISION_API_KEY) {
+        return deny(503, 'Drawing OCR is not configured yet.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      const visionProjects = (env.SCAN_PROJECT_IDS || env.FIREBASE_PROJECT_ID)
+        .split(',').map((s) => s.trim()).filter(Boolean);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, visionProjects);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (!mayUseVision(claims, env.FIREBASE_PROJECT_ID)) {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return deny(400, 'Expected a JSON body.', origin, allowed);
+      }
+
+      try {
+        const result = await visionOcr(env, claims, body);
+        return new Response(JSON.stringify(result), {
+          headers: { ...JSON_CT, ...corsHeaders(origin, allowed) },
+        });
+      } catch (err) {
+        const status = err?.status || 502;
+        if (status >= 500) console.error('vision-ocr error', err?.message, err?.cause || err);
+        return deny(status, err?.message || 'Drawing OCR failed.', origin, allowed);
+      }
+    }
+
     if (url.pathname === '/billing/webhook') {
       if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
       const raw = await request.text();
@@ -891,6 +945,7 @@ export default {
           ok: true,
           media: !!env.GCP_SA_EMAIL && !!env.GCP_SA_PRIVATE_KEY,
           scanWeights: !!env.ANTHROPIC_API_KEY,
+          visionOcr: !!env.GOOGLE_VISION_API_KEY,
           parts: partsConfigured(env),
           billing: billingConfigured(env),
         }),

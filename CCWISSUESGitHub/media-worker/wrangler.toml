@@ -11,14 +11,15 @@ STORAGE_BUCKET      = "downtimelogger-a96fb.firebasestorage.app"
 # Comma-separated. Needed for the canvas reads the PDF export performs.
 # Wildcards cover Cloudflare Pages preview deploys, which each get their own
 # hostname (<branch>.<project>.pages.dev and <hash>.<project>.pages.dev).
-ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,https://jti-issues-mt.pages.dev,https://jti-shearers.pages.dev,https://jti-shearers-viewer.pages.dev,https://jti-dashboard.pages.dev,*.jti-ccw-viewer.pages.dev,*.jti-issues.pages.dev,*.jti-issues-mt.pages.dev,*.jti-shearers.pages.dev,*.jti-shearers-viewer.pages.dev,*.jti-dashboard.pages.dev,http://localhost:5173,http://localhost:5174"
+ALLOWED_ORIGIN = "https://jti-ccw-viewer.pages.dev,https://jti-issues.pages.dev,https://jti-issues-mt.pages.dev,https://jti-shearers.pages.dev,https://jti-shearers-viewer.pages.dev,https://jti-dashboard.pages.dev,*.jti-ccw-viewer.pages.dev,*.jti-issues.pages.dev,*.jti-issues-mt.pages.dev,*.jti-shearers.pages.dev,*.jti-shearers-viewer.pages.dev,*.jti-dashboard.pages.dev,https://jti-parts-admin.pages.dev,*.jti-parts-admin.pages.dev,http://localhost:5173,http://localhost:5174,http://localhost:5175"
 
 # Firebase projects whose ID tokens /scan-weights will accept. Shearers is a
 # SEPARATE Firebase project, so without listing it here its tokens fail the
 # audience check. Media routes are unaffected — they still use
 # FIREBASE_PROJECT_ID alone, because share links and storage paths are
 # CCW-specific.
-SCAN_PROJECT_IDS = "downtimelogger-a96fb,shearers-4c4b4"
+# jobs-data-17ee4 is PartsViewer's project — it reaches /vision-ocr.
+SCAN_PROJECT_IDS = "downtimelogger-a96fb,shearers-4c4b4,jobs-data-17ee4"
 
 # The Parts Viewer catalog lives in its own Firebase project. A folder there is
 # one machine, which is what a CCW line gets bound to.
