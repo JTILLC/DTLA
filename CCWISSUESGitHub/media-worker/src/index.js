@@ -28,6 +28,8 @@
 //   3. Stream the object from GCS using the Worker's own service-account
 //      credential, which never reaches the browser.
 //
+// Also hosts POST /scan-rcu-screen (see rcu.js) — a photo of an RCU settings
+// screen becomes the label/value pairs a centerline document is built from.
 // Also hosts POST /scan-weights (see weights.js) — a photo of a weigher screen
 // in, head/weight pairs out. It lives here rather than in its own Worker because
 // it needs exactly the same gate: a valid Firebase ID token checked against the
@@ -42,6 +44,9 @@
 // Vars (wrangler.toml): FIREBASE_PROJECT_ID, STORAGE_BUCKET, ALLOWED_ORIGIN
 
 import { scanWeights, mayScan } from './weights.js';
+// Same gate (mayScan) and the same money-per-call reasoning; a settings
+// screen is a different read from a ring of hoppers, so a different module.
+import { scanRcuScreen } from './rcu.js';
 import { visionOcr, mayUseVision } from './vision.js';
 import { runBackup, getManifest, finalizeNightly, NIGHTLY_GROUPS } from './backup.js';
 import { publishDirectory } from './publish.js';
@@ -499,6 +504,59 @@ export default {
       }
     }
 
+
+    // --- POST /scan-rcu-screen: read an RCU settings screen -------------------
+    // Feeds the centerline builder, which turns a photographed screen into the
+    // document telling a customer what their settings should be.
+    if (url.pathname === '/scan-rcu-screen') {
+      if (request.method !== 'POST') return deny(405, 'Method not allowed', origin, allowed);
+      // Spends money per call, exactly like /scan-weights, so the same order:
+      // origin, then configuration, then identity.
+      if (!originAllowed(origin, (allowed || '').split(',').map((s) => s.trim()).filter(Boolean))) {
+        return deny(403, 'Origin not permitted.', origin, allowed);
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return deny(503, 'Screen reading is not configured yet.', origin, allowed);
+      }
+
+      const auth = request.headers.get('Authorization') || '';
+      const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!jwt) return deny(401, 'Sign-in required.', origin, allowed);
+
+      const scanProjects = (env.SCAN_PROJECT_IDS || env.FIREBASE_PROJECT_ID)
+        .split(',').map((s) => s.trim()).filter(Boolean);
+
+      let claims;
+      try {
+        claims = await verifyIdToken(jwt, scanProjects);
+      } catch (err) {
+        console.error('id token verify error', err);
+        return deny(502, 'Upstream auth error', origin, allowed);
+      }
+      if (!claims) return deny(401, 'Session expired — sign in again.', origin, allowed);
+      if (!mayScan(claims, env.FIREBASE_PROJECT_ID)) {
+        return deny(403, 'Not permitted for this account.', origin, allowed);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return deny(400, 'Expected a JSON body.', origin, allowed);
+      }
+
+      try {
+        const result = await scanRcuScreen(env, claims, body);
+        return new Response(JSON.stringify(result), {
+          headers: { ...JSON_CT, ...corsHeaders(origin, allowed) },
+        });
+      } catch (err) {
+        const status = err?.status || 502;
+        if (status >= 500) console.error('scan-rcu-screen error', err?.message, err?.cause || err);
+        return deny(status, err?.message || 'Screen reading failed.', origin, allowed);
+      }
+    }
+
     // --- GET /parts/*: the machine's parts manual ----------------------------
     // --- Admin: create a customer login ---------------------------------
     //
@@ -945,6 +1003,7 @@ export default {
           ok: true,
           media: !!env.GCP_SA_EMAIL && !!env.GCP_SA_PRIVATE_KEY,
           scanWeights: !!env.ANTHROPIC_API_KEY,
+          scanRcuScreen: !!env.ANTHROPIC_API_KEY,
           visionOcr: !!env.GOOGLE_VISION_API_KEY,
           parts: partsConfigured(env),
           billing: billingConfigured(env),
