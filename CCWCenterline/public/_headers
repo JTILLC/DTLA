@@ -1,0 +1,17 @@
+# Cloudflare Pages caches aggressively at the edge, including the HTML entry
+# point. When it does, a browser loading the canonical URL runs an old bundle
+# while `curl "...?v=123"` looks fine — a new query string is a new cache key —
+# so a deployed fix appears not to have deployed. That cost hours on another app
+# in this fleet.
+#
+# The entry point is never stored; the hashed assets it points at are immutable
+# by construction, so they can be cached forever.
+
+/
+  Cache-Control: no-store
+
+/index.html
+  Cache-Control: no-store
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
