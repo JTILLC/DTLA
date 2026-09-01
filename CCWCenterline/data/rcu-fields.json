@@ -1,0 +1,84 @@
+{
+  "_comment": [
+    "Where every settable value sits on the 800x600 RCU screens, so a customer's",
+    "centerline value can be printed in the same box the machine prints it in.",
+    "",
+    "Boxes are pixel coordinates on the original 800x600 screenshot. `norm` is the",
+    "same box as fractions of width/height, so the map survives the images being",
+    "resized or recompressed.",
+    "",
+    "`sample` is the value baked into the screenshot (a 14-head machine running",
+    "POTATO CHIPS at 90.0g). It is what gets painted over, and it is useful for",
+    "checking an overlay lands in the right place.",
+    "",
+    "Every field here was read off the actual screen, and the labels are the RCU's",
+    "own wording. Sections cite the CCW R Operation Manual."
+  ],
+  "screenSize": [800, 600],
+  "screens": {
+    "preset-product": {
+      "title": "Preset - Product",
+      "manual": "6.10 Preset Menu",
+      "tab": "Product",
+      "fields": [
+        { "key": "productName", "label": "Product Name", "type": "text", "box": [76, 112, 300, 138], "sample": "POTATO CHIPS" },
+        { "key": "productCode", "label": "Product Code", "type": "text", "box": [76, 195, 300, 221], "sample": "01" },
+        { "key": "productCategory", "label": "Product Category", "type": "text", "box": [76, 278, 300, 304], "sample": "01" }
+      ]
+    },
+    "preset-machine": {
+      "title": "Preset - Machine",
+      "manual": "6.10 Preset Menu",
+      "tab": "Machine",
+      "fields": [
+        { "key": "speed", "label": "Speed", "unit": "wpm", "type": "number", "box": [76, 112, 300, 138], "sample": "80wpm" },
+        { "key": "dumpCount", "label": "Dump Count", "type": "number", "box": [76, 195, 300, 221], "sample": "1" },
+        { "key": "averageControl", "label": "Average Control", "type": "onoff", "box": [76, 278, 300, 304], "sample": "Off" },
+        { "key": "interlockParameterNumber", "label": "Interlock Parameter Number", "type": "text", "box": [329, 122, 553, 148], "sample": "2:Slave" },
+        { "key": "sectionParameterNumber", "label": "Section Parameter Number", "type": "text", "box": [329, 195, 553, 221], "sample": "1:1Mix" }
+      ]
+    },
+    "preset-item": {
+      "title": "Preset - Item",
+      "manual": "6.10 Preset Menu",
+      "tab": "Item",
+      "fields": [
+        { "key": "autoFeedTarget", "label": "Auto Feed Target", "type": "number", "box": [76, 112, 300, 138], "sample": "3.8" },
+        { "key": "dischPriorityCount", "label": "Disch. Priority Count", "type": "number", "box": [76, 195, 300, 221], "sample": "30" },
+        { "key": "goodEfficiencyJudgementValue", "label": "Good Efficiency Judgement Value", "unit": "%", "type": "number", "box": [76, 278, 300, 304], "sample": "99.0%" },
+        { "key": "feedMultiplier", "label": "Feed Multiplier", "type": "number", "box": [329, 112, 553, 138], "sample": "1" },
+        { "key": "hopperActionParameterNumber", "label": "Hopper Action Parameter Number", "type": "number", "box": [329, 200, 553, 226], "sample": "1" },
+        { "key": "photoSw", "label": "Photo SW", "type": "onoff", "box": [329, 295, 553, 321], "sample": "Off" },
+        { "key": "shutterDrive", "label": "Shutter Drive", "type": "onoff", "box": [329, 360, 553, 386], "sample": "Off" }
+      ]
+    },
+    "preset-other": {
+      "title": "Preset - Others",
+      "manual": "6.10 Preset Menu",
+      "tab": "Others",
+      "fields": [
+        { "key": "stableTime", "label": "Stable Time", "unit": "msec", "type": "number", "box": [76, 112, 300, 138], "sample": "400msec" }
+      ]
+    },
+    "preset-weight": {
+      "title": "Preset - Weight Setting",
+      "manual": "6.10 Preset Menu",
+      "fields": [
+        { "key": "extendedUpperLimit", "label": "Extended Upper Limit", "unit": "g", "type": "number", "box": [76, 112, 300, 138], "sample": "1.0g" },
+        { "key": "extendedUpperLimitDumpCycle", "label": "Extended Upper Limit Dump Cycle", "type": "number", "box": [329, 112, 553, 138], "sample": "100" },
+        { "key": "upperWeightLimit", "label": "Upper Weight Limit", "unit": "g", "type": "number", "box": [76, 195, 300, 221], "sample": "3.0g" },
+        { "key": "targetWeight", "label": "Target Weight", "unit": "g", "type": "number", "box": [76, 278, 300, 304], "sample": "90.0g" },
+        { "key": "lowerWeightLimit", "label": "Lower Weight Limit", "unit": "g", "type": "number", "box": [76, 361, 300, 387], "sample": "", "disabledOnScreen": true }
+      ]
+    }
+  },
+  "_todo": [
+    "preset-feeder: per-head RF/DF amplitude and time. Drawn as bar graphs, not",
+    "text, so these need a different treatment - most likely a table beside the",
+    "screen rather than an in-place overlay.",
+    "preset-timing: WH-DS, IS-WH, WH-PH, PH-RF, STAGGER, WH ON, PH ON. The value",
+    "column is EMPTY in the captured screen, which is ideal - values can be",
+    "written straight into it with nothing to paint over first.",
+    "Machine-level screens (weigh-*, pack-*, various-*) are not mapped yet."
+  ]
+}

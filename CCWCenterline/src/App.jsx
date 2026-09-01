@@ -1,0 +1,292 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import spec from './data/rcuFields.json';
+import MappedScreen, { mappedRows } from './components/MappedScreen';
+import PhotoScreen from './components/PhotoScreen';
+import ImportExports from './components/ImportExports';
+import {
+  emptyCenterline, mappedSection, photoSection, settingsTable, gaps, copyFrom,
+} from './utils/centerline';
+import { loadImage, renderScreen } from './utils/overlay';
+import { buildCenterlinePdf, centerlineFileName } from './utils/pdf';
+import {
+  listCenterlines, saveCenterline, deleteCenterline, readDraft, writeDraft,
+} from './utils/storage';
+import { readerAvailable } from './utils/scan';
+
+const HEADER_FIELDS = [
+  ['customer', 'Customer'], ['plant', 'Plant'], ['machine', 'Machine'],
+  ['line', 'Line'], ['product', 'Product'], ['presetNo', 'Preset no.'],
+  ['engineer', 'Set by'], ['date', 'Date'],
+];
+
+export default function App() {
+  // The draft is seeded before anything renders, so a reload never lands on an
+  // empty sheet with work sitting in storage.
+  const [centerline, setCenterline] = useState(() => readDraft() || emptyCenterline());
+  const [library, setLibrary] = useState(() => listCenterlines());
+  const [readerReady, setReaderReady] = useState(false);
+  const [storageWarning, setStorageWarning] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [showLibrary, setShowLibrary] = useState(false);
+
+  useEffect(() => {
+    if (!writeDraft(centerline)) setStorageWarning(true);
+  }, [centerline]);
+
+  useEffect(() => { readerAvailable().then(setReaderReady); }, []);
+
+  const patch = (changes) => setCenterline((c) => ({ ...c, ...changes }));
+
+  const setSection = (index, section) =>
+    setCenterline((c) => ({
+      ...c, sections: c.sections.map((s, i) => (i === index ? section : s)),
+    }));
+
+  const removeSection = (index) =>
+    setCenterline((c) => ({ ...c, sections: c.sections.filter((_, i) => i !== index) }));
+
+  const addMapped = (slug) =>
+    setCenterline((c) => (c.sections.some((s) => s.slug === slug)
+      ? c
+      : { ...c, sections: [...c.sections, mappedSection(slug)] }));
+
+  const addPhoto = () =>
+    setCenterline((c) => ({ ...c, sections: [...c.sections, photoSection('', '', [])] }));
+
+  /** Place one imported value, adding its screen to the document if needed. */
+  const placeImported = useCallback((slug, key, value) => {
+    setCenterline((c) => {
+      const sections = [...c.sections];
+      let index = sections.findIndex((s) => s.kind === 'mapped' && s.slug === slug);
+      if (index === -1) {
+        sections.push(mappedSection(slug, {}, 'imported'));
+        index = sections.length - 1;
+      }
+      const section = sections[index];
+      sections[index] = {
+        ...section,
+        values: { ...section.values, [key]: value },
+        source: 'imported',
+      };
+      return { ...c, sections };
+    });
+  }, []);
+
+  const rows = useMemo(() => settingsTable(centerline, spec), [centerline]);
+  const gapList = useMemo(() => gaps(centerline, spec), [centerline]);
+
+  const unusedScreens = Object.entries(spec.screens)
+    .filter(([slug]) => !centerline.sections.some((s) => s.slug === slug));
+
+  const exportPdf = async () => {
+    setBusy('Building the document…');
+    try {
+      const pages = [];
+      for (const section of centerline.sections) {
+        if (section.kind === 'mapped') {
+          const screen = spec.screens[section.slug];
+          if (!screen) continue;
+          const img = await loadImage(
+            `${import.meta.env.BASE_URL}screens/${section.slug}.jpg`,
+          );
+          const { canvas } = renderScreen(img, screen.fields, section.values);
+          pages.push({
+            title: screen.title,
+            manual: screen.manual,
+            image: canvas.toDataURL('image/jpeg', 0.92),
+            imageWidth: canvas.width,
+            imageHeight: canvas.height,
+            rows: mappedRows(screen, section.values),
+          });
+        } else if (section.image) {
+          pages.push({
+            title: section.title || 'Photographed screen',
+            manual: '',
+            image: section.image,
+            imageWidth: 1024,
+            imageHeight: 768,
+            rows: (section.fields || [])
+              .filter((f) => f.label && f.value)
+              .map((f) => ({ label: f.label, value: f.value })),
+          });
+        }
+      }
+      const doc = buildCenterlinePdf(centerline, pages, rows, gapList);
+      doc.save(centerlineFileName(centerline));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('centerline pdf failed', err);
+      setBusy('');
+      alert('Could not build the document. Nothing was lost — try again.');
+      return;
+    }
+    setBusy('');
+  };
+
+  const save = () => {
+    if (saveCenterline(centerline)) setLibrary(listCenterlines());
+    else setStorageWarning(true);
+  };
+
+  return (
+    <div className="min-h-full">
+      {/* Never conditional. A page of RCU screens showing values is
+          indistinguishable from a capture of a running machine, so what this
+          document is has to be stated everywhere it appears. */}
+      <div className="spec-mark px-4 py-1.5 text-[11px] font-semibold uppercase">
+        Centerline — target settings · not a record of current running values
+      </div>
+
+      <header
+        className="px-4 py-3 flex flex-wrap items-center gap-2 justify-between"
+        style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-raised)' }}
+      >
+        <h1 className="font-semibold">CCW Centerline</h1>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn" onClick={() => setShowLibrary((v) => !v)}>
+            Saved ({library.length})
+          </button>
+          <button type="button" className="btn" onClick={save}>Save</button>
+          <button
+            type="button" className="btn"
+            onClick={() => setCenterline(emptyCenterline())}
+          >
+            New
+          </button>
+          <button
+            type="button" className="btn btn-primary" onClick={exportPdf}
+            disabled={!!busy || !centerline.sections.length}
+          >
+            {busy || 'Export PDF'}
+          </button>
+        </div>
+      </header>
+
+      <main className="p-4 max-w-6xl mx-auto">
+        {storageWarning && (
+          <p
+            className="card p-3 mb-4 text-sm"
+            style={{ borderColor: 'var(--warn)', background: 'var(--warn-bg)', color: 'var(--warn)' }}
+          >
+            This device is out of storage, so the centerline is not being saved
+            automatically. Export the PDF before you close the tab.
+          </p>
+        )}
+
+        {showLibrary && (
+          <section className="card p-4 mb-4">
+            <h3 className="font-semibold mb-2">Saved centerlines</h3>
+            {!library.length && (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nothing saved yet.</p>
+            )}
+            {library.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 py-1 text-sm">
+                <span className="grow">
+                  {[item.customer, item.product, item.date].filter(Boolean).join(' · ') || 'Untitled'}
+                </span>
+                <button type="button" className="btn" onClick={() => setCenterline(item)}>Open</button>
+                <button
+                  type="button" className="btn"
+                  onClick={() => setCenterline(copyFrom(item))}
+                  title="Start a new centerline from this one"
+                >
+                  Copy
+                </button>
+                <button
+                  type="button" className="btn"
+                  onClick={() => { deleteCenterline(item.id); setLibrary(listCenterlines()); }}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <section className="card p-4 mb-4">
+          <h3 className="font-semibold mb-3">This centerline</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {HEADER_FIELDS.map(([key, label]) => (
+              <div key={key}>
+                <label className="field-label" htmlFor={`h-${key}`}>{label}</label>
+                <input
+                  id={`h-${key}`} className="field"
+                  type={key === 'date' ? 'date' : 'text'}
+                  value={centerline[key] || ''}
+                  onChange={(e) => patch({ [key]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <label className="field-label" htmlFor="h-notes">Notes</label>
+            <textarea
+              id="h-notes" className="field" rows={2} value={centerline.notes || ''}
+              onChange={(e) => patch({ notes: e.target.value })}
+            />
+          </div>
+        </section>
+
+        <ImportExports spec={spec} onPlace={placeImported} />
+
+        {centerline.sections.map((section, index) => (
+          section.kind === 'mapped' ? (
+            <MappedScreen
+              key={`${section.slug}-${index}`}
+              slug={section.slug}
+              screen={spec.screens[section.slug]}
+              values={section.values}
+              onChange={(values) => setSection(index, { ...section, values })}
+              onRemove={() => removeSection(index)}
+            />
+          ) : (
+            <PhotoScreen
+              key={`photo-${index}`}
+              section={section}
+              onChange={(next) => setSection(index, next)}
+              onRemove={() => removeSection(index)}
+              readerReady={readerReady}
+              getIdToken={null}
+            />
+          )
+        ))}
+
+        <section className="card p-4">
+          <h3 className="font-semibold mb-2">Add a screen</h3>
+          <div className="flex flex-wrap gap-2">
+            {unusedScreens.map(([slug, screen]) => (
+              <button key={slug} type="button" className="btn" onClick={() => addMapped(slug)}>
+                {screen.title}
+              </button>
+            ))}
+            <button type="button" className="btn btn-primary" onClick={addPhoto}>
+              Photograph a screen
+            </button>
+          </div>
+          <p className="text-xs mt-3" style={{ color: 'var(--text-subtle)' }}>
+            The named screens use stored artwork from a 14-head unit. For any other
+            RCU — including every newer one — photograph the screen instead, and the
+            document uses the customer’s own machine.
+          </p>
+        </section>
+
+        {gapList.length > 0 && (
+          <section className="card p-4 mt-4" style={{ borderColor: 'var(--warn)' }}>
+            <h3 className="font-semibold mb-1" style={{ color: 'var(--warn)' }}>
+              Not recorded yet
+            </h3>
+            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+              These print on the front page of the document, so a blank is never read
+              as “set it to nothing”.
+            </p>
+            {gapList.map((gap) => (
+              <p key={gap.screen} className="text-sm">
+                <strong>{gap.screen}:</strong> {gap.missing.join(', ')}
+              </p>
+            ))}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
