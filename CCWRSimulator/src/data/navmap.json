@@ -3766,7 +3766,9 @@
       "cy": 355
      }
     ],
-    "troughHit": 15
+    "baseImage": "screens/run-feeder--base.jpg",
+    "labelMap": "masks/run-feeder-labels.png",
+    "wedgeNote": "Head 1's wedge is baked blue in the capture, so a neutral base is generated with it greyed; the app tints up from that."
    }
   },
   "lampOn": "keys/lamp-on.png"

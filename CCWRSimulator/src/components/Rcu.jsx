@@ -111,7 +111,7 @@ export default function Rcu({
         <img
           className="rcu-screen"
           src={`/${imageFor()}`}
-          style={zaHere ? { visibility: 'hidden' } : undefined}
+          style={(zaHere || faScreen?.labelMap) ? { visibility: 'hidden' } : undefined}
           alt={slug}
           draggable={false}
         />
@@ -417,22 +417,16 @@ export default function Rcu({
               );
             })}
 
-            {/* Tapping a head number on the trough selects that head. */}
-            {faScreen.troughHeads.map((hd) => {
-              const on = feeder.heads.includes(hd.no);
-              const hit = faScreen.troughHit;
-              return (
-                <button
-                  key={`th-${hd.no}`}
-                  type="button"
-                  className={'fa-trough' + (on ? ' fa-trough--on' : '')}
-                  style={rectStyle({ x: hd.cx - hit, y: hd.cy - hit, w: hit * 2, h: hit * 2 })}
-                  aria-label={`Head ${hd.no} — ${on ? 'selected' : 'not selected'}`}
-                  title={`Head ${hd.no}: tap to select for feeder adjustment`}
-                  onClick={() => onTap({ type: 'pan', no: hd.no })}
-                />
-              );
-            })}
+            {/* The trough wedges. Tapping one selects that head and the WHOLE
+                wedge turns blue, as it does on the machine — drawn on a canvas
+                from a label map, the same way the Zero Adjustment pans are. */}
+            <ZeroAdjustPans
+              image={faScreen.baseImage}
+              labelMap={faScreen.labelMap}
+              lit={feeder.heads}
+              showHotspots={showHotspots}
+              onTapPan={(no) => onTap({ type: 'pan', no })}
+            />
 
             {(faScreen.unknownKeys || []).map((k, i) => (
               <div

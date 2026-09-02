@@ -29,7 +29,8 @@ const TEXT_ON_BLUE = [235, 238, 255];
 const isInk = (r, g, b) => r < 140 && g < 140 && b > r + 30;
 
 export default function ZeroAdjustPans({
-  image, labelMap, tableLabel, selection, onTapPan, onTapTable, showHotspots,
+  image, labelMap, tableLabel, selection, lit: litProp,
+  onTapPan, onTapTable, showHotspots,
 }) {
   const canvasRef = useRef(null);
   const dataRef = useRef(null);           // { base: ImageData, labels: Uint8Array, w, h }
@@ -76,7 +77,7 @@ export default function ZeroAdjustPans({
   useEffect(() => {
     if (!ready || !dataRef.current || !canvasRef.current) return;
     const { base, labels, w, h } = dataRef.current;
-    const lit = new Set(litLabels(selection, tableLabel));
+    const lit = new Set(litProp || litLabels(selection, tableLabel));
 
     const out = new ImageData(new Uint8ClampedArray(base.data), w, h);
     const d = out.data;
@@ -96,7 +97,7 @@ export default function ZeroAdjustPans({
     const canvas = canvasRef.current;
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').putImageData(out, 0, 0);
-  }, [ready, selection, tableLabel]);
+  }, [ready, selection, tableLabel, litProp]);
 
   /* A tap or hover resolves to a pan through the same map. */
   const labelAt = (event) => {
@@ -112,8 +113,8 @@ export default function ZeroAdjustPans({
   const click = (event) => {
     const label = labelAt(event);
     if (!label) return;                    // wallpaper or chrome: not ours
-    if (label === tableLabel) onTapTable();
-    else onTapPan(label);
+    if (tableLabel && label === tableLabel) onTapTable?.();
+    else onTapPan?.(label);
   };
 
   if (failed) {
@@ -124,8 +125,8 @@ export default function ZeroAdjustPans({
     );
   }
 
-  const hoverName = hover === tableLabel ? 'dispersion table'
-    : hover ? `weigh hopper ${hover}` : '';
+  const hoverName = (tableLabel && hover === tableLabel) ? 'dispersion table'
+    : hover ? `head ${hover}` : '';
 
   return (
     <canvas
