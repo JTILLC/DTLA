@@ -11,7 +11,7 @@
 //
 // How a part is scoped to a machine
 // ---------------------------------
-// The catalog organises as customer -> folder -> diagram, and A FOLDER IS ONE
+// The catalog organizes as customer -> folder -> diagram, and A FOLDER IS ONE
 // MACHINE. It carries no model or serial number, so those cannot be the join.
 // Instead each CCW line is BOUND to (partsCustomer, folder) once by JTI, and
 // lookups only ever ask for that folder. A binding fails loudly — a line with

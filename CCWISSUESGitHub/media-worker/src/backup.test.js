@@ -134,7 +134,7 @@ describe('docPathSegments / placeDoc', () => {
     expect(docPathSegments(NAME)).toEqual(['user_files', 'U1', 'customers', 'C1', 'visits', 'V1']);
   });
 
-  it('returns nothing for a name it does not recognise', () => {
+  it('returns nothing for a name it does not recognize', () => {
     expect(docPathSegments('nonsense')).toEqual([]);
     expect(docPathSegments()).toEqual([]);
   });

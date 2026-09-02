@@ -60,7 +60,7 @@ describe('repaintBox', () => {
   });
 
   it('leaves a row it cannot sample alone rather than painting it black', () => {
-    // An all-ink row has no field colour to take a median from. Painting it
+    // An all-ink row has no field color to take a median from. Painting it
     // with a default would put a black bar across the screen.
     const f = makeFrame(3, 3);
     for (let x = 0; x < 3; x += 1) setPx(f, x, 1, [0, 0, 204]);

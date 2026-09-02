@@ -81,7 +81,7 @@ export function signInMessage(error) {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Email or password not recognised.';
+      return 'Email or password not recognized.';
     case 'auth/too-many-requests':
       return 'Too many attempts — wait a minute and try again.';
     case 'auth/network-request-failed':

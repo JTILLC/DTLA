@@ -13,7 +13,7 @@
 // ----------------------------------
 // OCR returns a bag of strings with boxes and no idea which string is a label,
 // which is its value, which radio button is the filled one, or which fields are
-// greyed out. All four of those are the difference between a correct centerline
+// grayed out. All four of those are the difference between a correct centerline
 // and a wrong one.
 //
 // The two things that will silently corrupt a read
@@ -28,7 +28,7 @@
 // 2. Which of the two lines in a box is the value. It is NOT a fixed position:
 //    the RCU has two field styles and they are INVERTED.
 //
-//        grey button        green dropdown panel
+//        gray button        green dropdown panel
 //        ------------       --------------------
 //        1:1Mix     <- value    Filter No.  <- label
 //        Section Parameter       0          <- value
@@ -36,7 +36,7 @@
 //
 //    A rule of "the value is on top" reads every dropdown backwards, reporting
 //    the setting's name as its value. What actually holds across BOTH styles is
-//    colour: the value is printed in BLUE, the label in BLACK. That is what the
+//    color: the value is printed in BLUE, the label in BLACK. That is what the
 //    prompt keys on, with position given only as a secondary hint.
 //
 // Why the expected fields are never sent
@@ -84,22 +84,22 @@ Never pair by reading order, and never pair a value with the label nearest above
 
 RULE 2 — inside a field, THE VALUE IS THE BLUE TEXT AND THE LABEL IS THE BLACK TEXT.
 Do not use position to tell them apart. The RCU has two field styles and they are the other way up from each other:
-- A grey button prints the value on top and its name underneath:
+- A gray button prints the value on top and its name underneath:
       1:1Mix                     <- value, blue
       Section Parameter Number   <- label, black
 - A pale green panel with a ribbed bar and a small down-triangle beneath it is a DROPDOWN, and prints its name on top and the value underneath:
       Filter No.                 <- label, black
       0                          <- value, blue
       [ribbed bar with a down-triangle]
-Assuming the value is always the upper line reads every dropdown backwards and reports the setting's name as its value. Go by colour.
+Assuming the value is always the upper line reads every dropdown backwards and reports the setting's name as its value. Go by color.
 
-RULE 3 — SELECTION INVERTS THE COLOURS. A field or a table row that is currently selected is drawn with a solid blue background and pale text, instead of dark text on grey or green. On a selected row the value is the PALE text, not the blue. Blue as a background means "this one is selected"; blue as text means "this is a value". Do not report the highlight itself as a value, and do not skip a selected row because its text is not blue.
+RULE 3 — SELECTION INVERTS THE COLORS. A field or a table row that is currently selected is drawn with a solid blue background and pale text, instead of dark text on gray or green. On a selected row the value is the PALE text, not the blue. Blue as a background means "this one is selected"; blue as text means "this is a value". Do not report the highlight itself as a value, and do not skip a selected row because its text is not blue.
 
 Reading each kind of field:
 - Plain value fields: report the value exactly as displayed, including any unit shown in the same string (90.0g, 80wpm, 400msec, 99.0%, 1:1Mix, 2:Slave).
 - Dropdowns (the green panel with the ribbed bar and down-triangle): report the option currently shown, which is the selected one. The ribbed bar itself is a control, not a value.
 - Radio buttons / option pairs: a field may offer choices such as "400g / 800g" or "Off / On", one of which is filled in or highlighted to show it is selected. Report ONLY the selected option as the value. If you cannot tell which is selected, omit the field and say so in notes.
-- Greyed-out or dimmed fields: these are disabled and their contents are not in force. Report them with enabled=false, and put the greyed text in value if you can read it.
+- Grayed-out or dimmed fields: these are disabled and their contents are not in force. Report them with enabled=false, and put the grayed text in value if you can read it.
 - Rows in a list or table (for example a list of filters, each with its own setting): report each row as its own field, using the row's own name as the label.
 - Pop-up panels: pressing a field can open a small panel over the screen offering further options, one of them filled to show it is selected. If a pop-up is open, report the selected option as a field, using the pop-up's own heading as the label, and say in notes that a pop-up was covering part of the screen. Never report a setting whose field the pop-up is sitting on top of — you cannot see it, and a value read through a covering panel is a guess.
 
@@ -137,7 +137,7 @@ const SCHEMA = {
         properties: {
           label: { type: 'string', description: 'The setting name exactly as printed.' },
           value: { type: 'string', description: 'The value exactly as displayed, unit included.' },
-          enabled: { type: 'boolean', description: 'False when the field is greyed out / disabled.' },
+          enabled: { type: 'boolean', description: 'False when the field is grayed out / disabled.' },
           confident: { type: 'boolean', description: 'False if the reading is uncertain.' },
         },
         required: ['label', 'value', 'enabled', 'confident'],
@@ -234,7 +234,7 @@ const createRead = (client, b64, mediaType = 'image/jpeg') =>
             type: 'text',
             text: 'Read the settings off this RCU screen. Pair each value with the label '
                 + 'inside the SAME bordered field, and remember the value is the BLUE '
-                + 'text — on a grey button it sits above its label, on a green dropdown '
+                + 'text — on a gray button it sits above its label, on a green dropdown '
                 + 'below it.',
           },
         ],

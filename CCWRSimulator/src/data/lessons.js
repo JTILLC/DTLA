@@ -80,7 +80,7 @@ export const lessons = [
           'All 14 hoppers turn blue — selected. (On the running original ' +
           'this menu actually opens with every hopper already selected; ' +
           'this picture was captured after a finished cycle, when the ' +
-          'selection clears itself, which is why the hoppers show grey and ' +
+          'selection clears itself, which is why the hoppers show gray and ' +
           'Start shows dimmed.) Start lights only when power is on AND at ' +
           'least one hopper is selected.',
       },
@@ -94,7 +94,7 @@ export const lessons = [
           'Watched on the running original: “Please wait a moment.” pops ' +
           'up with an hourglass and a progress bar for ten-odd seconds, ' +
           'the whole bottom bar locks out, and when it clears every ' +
-          'selected hopper has been zeroed — the hoppers turn grey ' +
+          'selected hopper has been zeroed — the hoppers turn gray ' +
           '(deselected) and Start dims again until something is ' +
           'reselected. Confirm each weigh hopper reads 0.0±0.1 g; if one ' +
           'doesn’t, run zero adjustment again (4.4.6).',

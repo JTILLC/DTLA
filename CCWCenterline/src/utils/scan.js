@@ -49,7 +49,7 @@ export async function scanRcuScreen(blob, getIdToken) {
   return res.json();
 }
 
-/** Is the reader configured and reachable? Used to explain why it is greyed out. */
+/** Is the reader configured and reachable? Used to explain why it is grayed out. */
 export async function readerAvailable() {
   try {
     const res = await fetch(`${MEDIA_BROKER_BASE}/health?cb=${Date.now()}`);

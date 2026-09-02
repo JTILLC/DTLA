@@ -27,7 +27,7 @@
 
 const RULE = /^-{3,}$/;
 const SUBHEAD = /^\s*[-=]{2}\s*(.+?)\s*[-=]{2}\s*$/;
-const LABELLED = /^([^:]+?)\s*:\s*(.*)$/;
+const LABELED = /^([^:]+?)\s*:\s*(.*)$/;
 
 /**
  * One export file -> { title, values, groups }.
@@ -77,7 +77,7 @@ export function parseExport(text) {
       continue;
     }
 
-    const m = line.match(LABELLED);
+    const m = line.match(LABELED);
     if (m) {
       const label = m[1].trim();
       let value = m[2].trim();

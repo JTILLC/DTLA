@@ -8,9 +8,9 @@
 // and compares field by field.
 //
 // Erasing is the fiddly half. A flat fill is wrong — the field faces carry a
-// vertical gradient, so one sampled colour leaves an obvious patch and the page
+// vertical gradient, so one sampled color leaves an obvious patch and the page
 // looks doctored. Each row is repainted with the median of its OWN non-text
-// pixels, which follows the gradient and works equally on the grey buttons and
+// pixels, which follows the gradient and works equally on the gray buttons and
 // the green list panels.
 //
 // Port of tools/overlay.py, same approach and same output.

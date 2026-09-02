@@ -32,7 +32,7 @@ describe('perspectiveCoeffs / project', () => {
     const quad = [[40, 10], [160, 10], [200, 150], [0, 150]];
     const c = perspectiveCoeffs(rect, quad);
     const [mx, my] = project(c, 50, 37.5);
-    // The centre of the output must land inside the quad, and NOT at the
+    // The center of the output must land inside the quad, and NOT at the
     // average of the corners — that is what makes it projective.
     expect(mx).toBeGreaterThan(0);
     expect(mx).toBeLessThan(200);

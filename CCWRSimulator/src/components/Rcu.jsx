@@ -25,6 +25,7 @@ export default function Rcu({
   wrongFlash,     // increments to trigger the wrong-tap flash
   powerOn,        // control power: red/OFF or green/ON chip on the Power key
   powerBusy,      // true while the "Please wait a moment." power-up runs
+  gatingOff,      // Free mode: nothing is withheld, so nothing is drawn as dead
   notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -93,11 +94,11 @@ export default function Rcu({
             className={
               'hotspot' +
               (isNavTarget(h) ? ' hotspot--target' : '') +
-              (h.requiresPower && !powerOn ? ' hotspot--gated' : '')
+              (h.requiresPower && !powerOn && !gatingOff ? ' hotspot--gated' : '')
             }
             style={rectStyle(h)}
             aria-label={
-              h.requiresPower && !powerOn
+              h.requiresPower && !powerOn && !gatingOff
                 ? `${h.label || 'Key'} (dead — machine not powered on)`
                 : `Go to ${h.to}`
             }
@@ -114,7 +115,7 @@ export default function Rcu({
             capture by tools/extract_keys.py — are laid over the art.
 
             The lit Start is drawn ONLY where a power-gated hotspot exists,
-            so the picture and the behaviour come from the same fact and
+            so the picture and the behavior come from the same fact and
             cannot drift: a key shown green is a key that works. Screens where
             we never checked what the bottom bar does show nothing, which is
             the honest answer. */}

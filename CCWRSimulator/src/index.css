@@ -637,3 +637,87 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* --------------------------------------------------------------------
+   Free mode's screen index. Every screen, one tap away — a trainer's
+   shortcut, not a claim about how the machine behaves.
+   -------------------------------------------------------------------- */
+.screen-index { padding: 0.75rem 0.9rem 2rem; }
+
+.screen-index__head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.screen-index__head p {
+  margin: 0 0 0.6rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.screen-index__filter {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.screen-index__filter:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.screen-index__count {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--text-subtle);
+}
+
+.screen-index__group { margin-top: 1rem; }
+.screen-index__group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-subtle);
+}
+.screen-index__list { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.screen-index__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.83rem;
+  cursor: pointer;
+}
+.screen-index__item:hover { background: var(--surface-raised); }
+.screen-index__item.is-current {
+  border-color: var(--primary);
+  background: var(--surface-raised);
+  font-weight: 600;
+}
+
+.screen-index__tag {
+  flex: none;
+  font-size: 0.62rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-subtle);
+}
+
+.screen-index__empty {
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}

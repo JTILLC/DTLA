@@ -38,7 +38,7 @@ describe('matchField', () => {
 });
 
 describe('applyReadings', () => {
-  it('places what it recognises and hands back what it does not', () => {
+  it('places what it recognizes and hands back what it does not', () => {
     const { values, unmatched } = applyReadings([
       { label: 'Target Weight', value: '227.0g' },
       { label: 'Something Else', value: '5' },
@@ -94,7 +94,7 @@ describe('gaps', () => {
     expect(g.missing).toContain('Extended Upper Limit');
   });
 
-  it('does not ask for a field the screen itself greys out', () => {
+  it('does not ask for a field the screen itself grays out', () => {
     // Lower Weight Limit is disabled on this screen; demanding it would send
     // the engineer looking for a setting that isn't there.
     const cl = { ...emptyCenterline(),

@@ -99,7 +99,7 @@ export const screenInfo = {
       'again (4.4.6). Observed on the running program: the menu opens with ' +
       'every hopper already selected; pressing Start shows “Please wait a ' +
       'moment.” with a progress bar (~12 s, whole bottom bar locked out), ' +
-      'then the hoppers deselect (turn grey) and Start dims until ' +
+      'then the hoppers deselect (turn gray) and Start dims until ' +
       'something is reselected. This capture shows that finished state — ' +
       'nothing selected, so Start is dimmed. Note the bottom-bar Start is ' +
       'dimmed on this screen even with power on; production is not started ' +
@@ -114,12 +114,12 @@ export const screenInfo = {
       'The Production menu appears when Start is pressed. The Combination ' +
       'tab shows each discharge: the combination weight on the big display ' +
       'and, per head, which hoppers took part.\n\n' +
-      'Lamp colours on the weight display: green = proper weight, yellow = ' +
+      'Lamp colors on the weight display: green = proper weight, yellow = ' +
       'overweight, red = underweight. To stop production (4.4.8): turn ' +
       'Infeed Control off, press Stop, then Exit to return to the Main Menu.',
     keys: [
       { name: 'Combination weight display', desc: 'The weight of each discharge with a green / yellow / red lamp for proper / over / under weight.' },
-      { name: 'Hopper display', desc: 'Head symbols show weighed-and-stable, participated-in-combination (circle colour = stability), empty, unstable, auto-zero, error and non-participating heads.' },
+      { name: 'Hopper display', desc: 'Head symbols show weighed-and-stable, participated-in-combination (circle color = stability), empty, unstable, auto-zero, error and non-participating heads.' },
       { name: 'Select Preset area', desc: 'Shows the running preset. The squares beside items change a value temporarily during production — the preset itself is not updated (6.10.5).' },
       { name: 'Infeed Control', desc: 'Lamp on = product infeed to the weigher is controlled automatically; lamp off = infeed stopped.' },
       { name: 'Tabs', desc: 'Combination, Feeder Adjust, Timing Adjust, Total Data and Weight Display switch the production view.' },
@@ -233,7 +233,7 @@ export const screenInfo = {
       'HOME is locked out. The bottom-bar Start stays dimmed on this ' +
       'screen even with power on. This capture shows every one of those ' +
       'keys dimmed — including Exit, which on the running program stayed ' +
-      'live with power off; trust the behaviour described here over the ' +
+      'live with power off; trust the behavior described here over the ' +
       'baked pixels.',
   },
 
@@ -363,7 +363,7 @@ export const screenInfo = {
     ref: '6.10.1.2 Machine Tab Menu',
     source: 'manual',
     summary:
-      'Machine behaviour for this product: Speed is the number of packs ' +
+      'Machine behavior for this product: Speed is the number of packs ' +
       'discharged per minute — set it to suit the product, target weight ' +
       'and packer capacity. Dump Count splits a discharge into several ' +
       'drops so bulky product does not clog the packer.',
@@ -572,7 +572,7 @@ export const screenInfo = {
       'with the eraser alone does not clear the memo data — use Erase All ' +
       'to clear it and stop the blinking.',
     keys: [
-      { name: 'Line thickness / colour', desc: 'Thick, medium or thin; red, blue or black.' },
+      { name: 'Line thickness / color', desc: 'Thick, medium or thin; red, blue or black.' },
       { name: 'Eraser / Erase All', desc: 'Erase traced parts, or the whole board (with confirmation).' },
       { name: 'Transmit', desc: 'Sends the board as an image by e-mail (destination set under Destination ID, Maintenance level).' },
       { name: 'Exit', desc: 'Returns to the previous menu.' },
@@ -654,7 +654,7 @@ export const screenInfo = {
     summary:
       'Runs device checks and reports into the Diagnosis Result box. On ' +
       'this capture DMU Backup Memory Check is selectable, with ' +
-      'Communication Check and LCD Dot Failure Check greyed out; Exec. ' +
+      'Communication Check and LCD Dot Failure Check grayed out; Exec. ' +
       'starts the selected check.',
     keys: [],
     note: OBSERVED_NOTE,
@@ -681,7 +681,7 @@ export const screenInfo = {
       'Draws the weigher’s internal network: the 14 head DUCs, feeder ' +
       'drivers (FDRV) and FDC on one bus into HUB 1, then WCU / ICU / DMU ' +
       'with the RCU, ADC and EXC units. The WCU / ICU / DMU keys switch ' +
-      'which controller’s tree is analysed, and Reconfigure Count shows ' +
+      'which controller’s tree is analyzed, and Reconfigure Count shows ' +
       'how often the network re-formed.',
     keys: [],
     note: OBSERVED_NOTE,
@@ -758,7 +758,7 @@ export const screenInfo = {
     summary:
       'Moves machine-setting data between the weigher’s memory and the ' +
       'memory card — how a machine backup is taken or restored. The keys ' +
-      'here initialise all parameters on the memory card (RCU, DMU), write ' +
+      'here initialize all parameters on the memory card (RCU, DMU), write ' +
       'all parameter numbers to the card, and read them back from it ' +
       '(Service 4.4.2.2). The list shows what travels: Weigh Spec, ' +
       'Combination, Section, Infeed Control, Packer Interlock, H DRV Spec, ' +
@@ -793,7 +793,7 @@ export const screenInfo = {
       { name: 'EEPROM Initialize — Initialize', desc: 'Listed in the menu tree only (Service 1.3); not described in the manual.' },
     ],
     note:
-      'Destructive — everything initialised here is erased. Feeder ' +
+      'Destructive — everything initialized here is erased. Feeder ' +
       'frequency data can be lost with the RAM data (memory ' +
       'initialisation with DMU DIP SW 2-6 ON): save the frequencies to the ' +
       'memory card first (Service 5.4.2.3). ' + SERVICE_NOTE,
@@ -955,7 +955,7 @@ export const screenInfo = {
       'Configures the weigher’s internal network — the head DUCs, FDRV / ' +
       'FDC feeder units, WCU / ICU / DMU controllers, ADC, EXC 0–4 and ' +
       'MHIC 1–4 shown in the tree (the same layout Self-diagnosis Network ' +
-      'Analyze draws read-only). The standard network is initialised at ' +
+      'Analyze draws read-only). The standard network is initialized at ' +
       'the factory and the required setting is already in place; this ' +
       'screen is used when an option unit is added after delivery ' +
       '(Service 4.4.4.2).',
@@ -1097,7 +1097,7 @@ export const screenInfo = {
       'Automatic measurement of each radial-feeder trough’s natural ' +
       'frequency (Service 5.4.4.1). Select Freq. Adjust, press the trough ' +
       'keys so their figures turn blue (all of them for a full pass), then ' +
-      'Start: the troughs grey out, the table shows Adjusting, and each ' +
+      'Start: the troughs gray out, the table shows Adjusting, and each ' +
       'frequency fills in as it completes. All feeders take about 30 ' +
       'minutes on an R-216B-D; a single feeder about 15. The result is ' +
       'memorised in both the FDRV board and the DMU, and the two are ' +
@@ -1105,7 +1105,7 @@ export const screenInfo = {
       'while they disagree (5.4.2.1, 5.5.1.1).',
     keys: [
       { name: 'Freq. Adjust / Freq. Set', desc: 'Mode switch; the manual’s automatic procedure runs in Freq. Adjust (5.4.4.1). Freq. Set is not stepped through in the manual.' },
-      { name: 'Trough No. keys (RF01…)', desc: 'Select which troughs to measure; selected troughs show blue, grey while adjusting (5.4.4.1).' },
+      { name: 'Trough No. keys (RF01…)', desc: 'Select which troughs to measure; selected troughs show blue, gray while adjusting (5.4.4.1).' },
       { name: 'Start / Stop', desc: 'Start the automatic adjustment, or cancel it mid-run (5.4.4.1).' },
       { name: 'Output', desc: 'Prints the natural frequencies for storage — photocopy the thermal printout onto plain paper; thermal paper does not keep (5.4.4.1).' },
     ],
@@ -1189,7 +1189,7 @@ export const screenInfo = {
       'A control chart of the average weight: each point is the average ' +
       'per 250 rotations, added since the total started (Table 6-35). The ' +
       'red lines are the upper and lower limits at ±3Σ (Σ = standard ' +
-      'deviation) around the centre line, and the current standard ' +
+      'deviation) around the center line, and the current standard ' +
       'deviation is read out above the chart. Points pushing toward a ' +
       '±3Σ line mean the process is drifting — worth investigating ' +
       'before packs go out of spec.',
@@ -1255,7 +1255,7 @@ export const screenInfo = {
       { name: 'Operation Log Output + contents', desc: 'On: outputs the operation log; the checkboxes pick error stop / warning / machine operation / key operation contents.' },
       { name: 'Action for Statistical Mem. Full', desc: 'Stop: stops production when the statistical data is full. Continu: deletes the old data and continues.' },
       { name: 'BATCH TOTAL INTERVAL', desc: 'Time interval for outputting the batch total, in hours.' },
-      { name: 'Data Sampling Interval', desc: 'The sampling interval. The manual’s table says hours; this capture is labelled Minute.' },
+      { name: 'Data Sampling Interval', desc: 'The sampling interval. The manual’s table says hours; this capture is labeled Minute.' },
       { name: 'All Total', desc: 'Clears the accumulated statistical data (Table 6-38) — everything the other five views show. Not a key to press casually.' },
       { name: 'Output', desc: 'Prints or data-outputs the settings (the manual’s Print key).' },
       { name: 'Exit', desc: 'Returns to the Main Menu.' },

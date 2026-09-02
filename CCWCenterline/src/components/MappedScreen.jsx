@@ -53,7 +53,7 @@ export default function MappedScreen({ screen, slug, values, onChange, onRemove 
               <label className="field-label" htmlFor={`${slug}-${field.key}`}>
                 {field.label}
                 {field.disabledOnScreen && (
-                  <span className="chip ml-1">greyed out on this screen</span>
+                  <span className="chip ml-1">grayed out on this screen</span>
                 )}
               </label>
               <div className="flex items-center gap-1">

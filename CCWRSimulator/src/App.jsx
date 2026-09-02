@@ -5,6 +5,7 @@ import screenInfo from './data/screenInfo';
 import Rcu from './components/Rcu';
 import InfoPanel from './components/InfoPanel';
 import LessonPanel from './components/LessonPanel';
+import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens } from './utils/navGraph';
 
 const STORAGE_KEY = 'ccwr-sim-v1';
@@ -25,7 +26,14 @@ export default function App() {
   const [screen, setScreen] = useState(
     navmap.screens[saved.screen] ? saved.screen : 'main-menu'
   );
-  const [mode, setMode] = useState(saved.mode === 'lessons' ? 'lessons' : 'explore');
+  const MODES = ['explore', 'lessons', 'free'];
+  const [mode, setMode] = useState(MODES.includes(saved.mode) ? saved.mode : 'explore');
+  /* Free mode: nothing steers and nothing is withheld. Every screen is one tap
+     away from the index, and the power gate is off — for a trainer who wants to
+     put a particular screen in front of somebody without walking the menu tree
+     to reach it. It does not pretend the machine behaves this way; the mode is
+     labeled, and Explore remains the faithful one. */
+  const freeMode = mode === 'free';
   const [showHotspots, setShowHotspots] = useState(saved.showHotspots ?? true);
   const [activeLessonId, setActiveLessonId] = useState(saved.activeLessonId ?? null);
   const [stepIndex, setStepIndex] = useState(saved.stepIndex ?? 0);
@@ -58,7 +66,11 @@ export default function App() {
 
   const lesson = lessons.find((l) => l.id === activeLessonId) || null;
   const step = lesson && stepIndex < lesson.steps.length ? lesson.steps[stepIndex] : null;
-  const lessonActive = Boolean(step);
+  /* A part-finished lesson used to keep intercepting taps after you switched
+     back to Explore: every key that was not its next step flashed red and did
+     nothing, which looks exactly like a broken screen. A lesson only steers
+     while you are actually in Lessons. */
+  const lessonActive = mode === 'lessons' && Boolean(step);
 
   /* Persist everything that matters — a reload or a closed iPad never
      loses the trainee's place. */
@@ -160,7 +172,7 @@ export default function App() {
 
     /* The one gating rule: a key the original dims with power off must not
        navigate, and says why (data-driven via requiresPower in navmap). */
-    if (evt.type === 'nav' && evt.requiresPower && !powerOn) {
+    if (evt.type === 'nav' && evt.requiresPower && !powerOn && !freeMode) {
       setWrongFlash((n) => n + 1);
       if (lessonActive) setHint(POWER_MSG);
       else showNotice(POWER_MSG);
@@ -260,6 +272,14 @@ export default function App() {
             >
               Lessons
             </button>
+            <button
+              role="tab"
+              className={mode === 'free' ? 'is-active' : ''}
+              onClick={() => setMode('free')}
+              title="Jump straight to any screen, with nothing gated"
+            >
+              Free
+            </button>
           </div>
         </div>
       </header>
@@ -277,10 +297,13 @@ export default function App() {
           wrongFlash={wrongFlash}
           powerOn={powerOn}
           powerBusy={powerBusy}
+          gatingOff={freeMode}
           notice={notice}
         />
         <aside className="side-panel">
-          {mode === 'lessons' ? (
+          {freeMode ? (
+            <ScreenIndex current={screen} onPick={navigate} />
+          ) : mode === 'lessons' ? (
             <LessonPanel
               activeLessonId={activeLessonId}
               stepIndex={stepIndex}

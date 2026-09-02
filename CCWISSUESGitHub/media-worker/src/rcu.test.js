@@ -65,7 +65,7 @@ describe('readResult', () => {
     expect(out.fields[0].confident).toBe(false);
   });
 
-  it('carries a greyed-out field through as disabled', () => {
+  it('carries a grayed-out field through as disabled', () => {
     // Lower Weight Limit is dimmed on the preset screen. Reported as enabled it
     // would print on the centerline as a setting that is in force.
     const out = readResult(reply({ ...good, fields: [

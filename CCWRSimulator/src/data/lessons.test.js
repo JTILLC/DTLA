@@ -72,12 +72,12 @@ describe('lessons are walkable on the real navigation map', () => {
       it('tap-spot rects do not cover a navigation hotspot (the tap must not need to navigate)', () => {
         for (const step of lesson.steps) {
           if (step.kind !== 'tap-spot') continue;
-          const centre = {
+          const center = {
             x: step.rect.x + step.rect.w / 2,
             y: step.rect.y + step.rect.h / 2,
           };
           const clash = navmap.screens[step.screen].hotspots.find((h) =>
-            pointInRect(centre, h)
+            pointInRect(center, h)
           );
           expect(clash, `${step.label} overlaps hotspot to ${clash?.to}`).toBeUndefined();
         }

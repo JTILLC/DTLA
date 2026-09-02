@@ -180,7 +180,7 @@ export async function checkout(env, token, projectId, workspaceId, customerId, l
     // allowance has nothing to pay for yet.
     'line_items[0][quantity]': String(Math.max(1, seats.quantity)),
     success_url: `${origin}/?billing=done`,
-    cancel_url: `${origin}/?billing=cancelled`,
+    cancel_url: `${origin}/?billing=canceled`,
     client_reference_id: customerId,
     ...(billing.stripeCustomerId ? { customer: billing.stripeCustomerId } : {}),
   });

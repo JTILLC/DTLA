@@ -39,7 +39,7 @@ export const normalizeLabel = (label) =>
   String(label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // Where a shortened export label cannot be reached from the screen label by
-// normalising alone. Keyed by the normalised EXPORT spelling.
+// normalizing alone. Keyed by the normalized EXPORT spelling.
 const ALIASES = {
   autozerotol: 'autozerotolerance',
   autozerointvl: 'autozerointerval',
@@ -58,7 +58,7 @@ const canonical = (label) => {
 /**
  * Match a printed label to a field in a screen's map.
  *
- * Exact-after-normalising only. A fuzzy match here would quietly attach a
+ * Exact-after-normalizing only. A fuzzy match here would quietly attach a
  * value to the wrong setting, which is the one failure this whole document
  * cannot survive — an unmatched value is offered to the engineer to place by
  * hand instead.

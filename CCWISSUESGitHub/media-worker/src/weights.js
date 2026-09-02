@@ -15,7 +15,7 @@
 // Head 1 is not always at 12 o'clock — the same line can show it at 3 o'clock
 // on the next screen. So the model is told to anchor on the circled numeral and
 // read the weight inside THAT hopper's region, and is explicitly forbidden from
-// inferring a head number from ring position or reading order. The centre of
+// inferring a head number from ring position or reading order. The center of
 // the screen is a dispersion table that shows a circled number next to a value
 // like "0g"; that decoy is called out by name in the prompt.
 //
@@ -57,7 +57,7 @@ The screen draws one hopper region per weigh head, arranged in a ring. Inside ea
 How to read it:
 - Find each circled head number, then read the weight that sits INSIDE THAT SAME hopper region. The number and the weight are paired by region.
 - Ring position carries no meaning. Head 1 may be at 12 o'clock, at 3 o'clock, or anywhere else, and the arrangement changes between screens. Never infer a head number from where it sits, from clockwise reading order, or from the order in which you happen to process the regions. Every head number you return must come from a circled numeral you actually read.
-- Ignore the centre of the screen. The centre panel is a dispersion/summary table and commonly shows a circled number beside a value such as "0g" that is NOT a head weight.
+- Ignore the center of the screen. The center panel is a dispersion/summary table and commonly shows a circled number beside a value such as "0g" that is NOT a head weight.
 - Ignore totals, target/span weights, counters, timers, and any status text outside the hopper ring.
 
 Reporting rules:
