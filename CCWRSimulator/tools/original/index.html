@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>IshidaVR — original</title>
+<style>
+  body { margin:0; background:#111; color:#ddd; font:13px system-ui; }
+  #bar { padding:6px 10px; }
+  #stage { width:800px; height:600px; }
+</style>
+<div id="bar">status: <span id="s">booting…</span> · stage <span id="r">?</span></div>
+<div id="stage"></div>
+<script src="node_modules/@ruffle-rs/ruffle/ruffle.js"></script>
+<script>
+  const s = document.getElementById('s');
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = {
+    autoplay: 'on', unmuteOverlay: 'hidden', contextMenu: 'off',
+    warnOnUnsupportedContent: false, logLevel: 'warn',
+  };
+  window.addEventListener('load', () => {
+    try {
+      const ruffle = window.RufflePlayer.newest();
+      const player = ruffle.createPlayer();
+      player.style.width = '800px';
+      player.style.height = '600px';
+      document.getElementById('stage').appendChild(player);
+      window.__player = player;
+      player.load('IshidaVR.swf').then(() => {
+        s.textContent = 'loaded';
+        // A driver needs the canvas's real position and scale: Ruffle fits the
+        // 800x600 stage to the element, so a click in movie coordinates has to
+        // be mapped through this or every hit lands somewhere else.
+        const report = () => {
+          const c = player.shadowRoot?.querySelector('canvas') || player;
+          const b = c.getBoundingClientRect();
+          window.__stage = { x: b.x, y: b.y, w: b.width, h: b.height,
+                             scale: b.width / 800 };
+          document.getElementById('r').textContent =
+            `${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.width)}x${Math.round(b.height)}`;
+        };
+        report();
+        window.addEventListener('resize', report);
+        // Movie coordinates in, a page click out.
+        window.__at = (x, y) => ({
+          x: Math.round(window.__stage.x + x * window.__stage.scale),
+          y: Math.round(window.__stage.y + y * window.__stage.scale),
+        });
+      }).catch((e) => { s.textContent = 'load failed: ' + e; });
+    } catch (e) { s.textContent = 'ruffle failed: ' + e; }
+  });
+</script>

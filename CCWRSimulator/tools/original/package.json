@@ -1,0 +1,6 @@
+{
+  "name": "ishida-vr-harness",
+  "private": true,
+  "description": "Runs the original IshidaVR movie under Ruffle, to check our navigation against.",
+  "dependencies": { "@ruffle-rs/ruffle": "^0.5.0" }
+}
