@@ -105,6 +105,17 @@ describe('navigation map integrity', () => {
     );
   });
 
+  it('the Machine Set tab is on the main menu', () => {
+    // It was, then a correction that added the engineering and Control Panel
+    // screens REPLACED the list instead of extending it, and the one screen the
+    // tab was known to be on lost it. The drawer then appeared on Control Panel
+    // and vanished on returning home. Service Manual 4.4's figure (page 4-18)
+    // shows the drawer open on the Main Menu.
+    const ms = navmap.machineSet;
+    const carriers = new Set([...ms.screens, ...ms.drawTabOn]);
+    expect(carriers.has('main-menu')).toBe(true);
+  });
+
   it('a drawer item we cannot open says why', () => {
     // Weigher Information is real and Maintenance-level only, and we hold no
     // artwork for it. Listing it silently would teach a menu that is missing an

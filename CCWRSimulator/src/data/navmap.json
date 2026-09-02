@@ -52,6 +52,7 @@
    "display-machine-edit",
    "display-preset",
    "display-screen",
+   "main-menu",
    "manual-combination",
    "manual-scale-adjust",
    "manual-vibration",
@@ -116,7 +117,8 @@
     "to": "pack-bagmaker"
    }
   ],
-  "verified": "Order and contents checked against the Service Manual 4.4 figure (page 4-18) and against the running program."
+  "verified": "Order and contents checked against the Service Manual 4.4 figure (page 4-18) and against the running program.",
+  "drawTabOnNote": "main-menu, the 31 engineering screens and the 4 Control Panel screens. The Service Manual figure on page 4-18 shows the drawer open on the Main Menu, which is the proof it belongs there."
  },
  "selectTotal": {
   "tab": {
