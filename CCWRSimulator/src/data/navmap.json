@@ -44,12 +44,50 @@
    "weigh-participation"
   ],
   "drawTabOn": [
-   "main-menu"
+   "autoadj-afv",
+   "autoadj-drive",
+   "autoadj-neutral",
+   "display-all-edit",
+   "display-hopper",
+   "display-machine-edit",
+   "display-preset",
+   "display-screen",
+   "manual-combination",
+   "manual-scale-adjust",
+   "manual-vibration",
+   "manual-weight-waveform",
+   "pack-bagmaker",
+   "pack-distribution",
+   "pack-ring",
+   "pack-supply",
+   "pack-timing",
+   "panel-comms",
+   "panel-data-output",
+   "panel-password",
+   "panel-screen-control",
+   "selfdiag-device",
+   "selfdiag-io",
+   "selfdiag-network",
+   "selfdiag-program",
+   "selfdiag-test",
+   "various-combination",
+   "various-fd",
+   "various-hdrv",
+   "various-scale-detail",
+   "various-section",
+   "weigh-adf",
+   "weigh-auto-timing",
+   "weigh-network",
+   "weigh-participation"
   ],
   "items": [
    {
     "label": "Manual Adjustment",
     "to": "manual-scale-adjust"
+   },
+   {
+    "label": "Auto Adjustment",
+    "to": "autoadj-afv"
    },
    {
     "label": "Self-diagnosis",
@@ -70,10 +108,6 @@
    {
     "label": "Peripheral Equipment Setting",
     "to": "pack-bagmaker"
-   },
-   {
-    "label": "Auto Adjustment",
-    "to": "autoadj-afv"
    }
   ]
  },
@@ -163,14 +197,6 @@
    "image": "screens/preset-select-a.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 696,
      "y": 450,
      "w": 90,
@@ -194,14 +220,6 @@
    "image": "screens/preset-select-b.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 696,
      "y": 450,
      "w": 90,
@@ -224,14 +242,6 @@
    "labelJa": "予約設定_商品",
    "image": "screens/preset-product.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 700,
      "y": 452,
@@ -295,14 +305,6 @@
    "labelJa": "予約設定_機物",
    "image": "screens/preset-machine.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 700,
      "y": 452,
@@ -375,14 +377,6 @@
    "image": "screens/preset-item.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 700,
      "y": 452,
      "w": 90,
@@ -453,14 +447,6 @@
    "labelJa": "予約設定_その他",
    "image": "screens/preset-other.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 700,
      "y": 452,
@@ -533,14 +519,6 @@
    "image": "screens/preset-feeder.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 700,
      "y": 452,
      "w": 90,
@@ -579,14 +557,6 @@
    "labelJa": "予約設定_タイミング",
    "image": "screens/preset-timing.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 700,
      "y": 452,
@@ -627,14 +597,6 @@
    "image": "screens/preset-weight.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 700,
      "y": 452,
      "w": 90,
@@ -674,14 +636,6 @@
    "image": "screens/zero-adjust.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 703,
      "y": 452,
      "w": 90,
@@ -704,14 +658,6 @@
    "labelJa": "全排出_重量表示",
    "image": "screens/discharge-weight.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 703,
      "y": 452,
@@ -752,14 +698,6 @@
    "image": "screens/discharge-feeder.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 703,
      "y": 452,
      "w": 90,
@@ -798,14 +736,6 @@
    "labelJa": "全排出_タイミング",
    "image": "screens/discharge-timing.jpg",
    "hotspots": [
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
     {
      "x": 703,
      "y": 452,
@@ -846,14 +776,6 @@
    "image": "screens/hopper-discharge.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 703,
      "y": 453,
      "w": 90,
@@ -885,14 +807,6 @@
    "image": "screens/hopper-feeder.jpg",
    "hotspots": [
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 703,
      "y": 453,
      "w": 90,
@@ -923,14 +837,6 @@
    "labelJa": "運転_組合せ",
    "image": "screens/run-combination.jpg",
    "hotspots": [
-    {
-     "x": 704,
-     "y": 454,
-     "w": 88,
-     "h": 62,
-     "to": "main-menu",
-     "button": 97
-    },
     {
      "x": 144,
      "y": 425,
@@ -979,14 +885,6 @@
    "image": "screens/run-feeder.jpg",
    "hotspots": [
     {
-     "x": 704,
-     "y": 454,
-     "w": 88,
-     "h": 62,
-     "to": "main-menu",
-     "button": 97
-    },
-    {
      "x": 12,
      "y": 425,
      "w": 126,
@@ -1033,14 +931,6 @@
    "labelJa": "運転_タイミング",
    "image": "screens/run-timing.jpg",
    "hotspots": [
-    {
-     "x": 704,
-     "y": 454,
-     "w": 88,
-     "h": 62,
-     "to": "main-menu",
-     "button": 97
-    },
     {
      "x": 12,
      "y": 425,
@@ -1089,14 +979,6 @@
    "image": "screens/run-totals.jpg",
    "hotspots": [
     {
-     "x": 704,
-     "y": 454,
-     "w": 88,
-     "h": 62,
-     "to": "main-menu",
-     "button": 97
-    },
-    {
      "x": 12,
      "y": 425,
      "w": 126,
@@ -1143,14 +1025,6 @@
    "labelJa": "運転_重量",
    "image": "screens/run-weight.jpg",
    "hotspots": [
-    {
-     "x": 704,
-     "y": 454,
-     "w": 88,
-     "h": 62,
-     "to": "main-menu",
-     "button": 97
-    },
     {
      "x": 12,
      "y": 425,
@@ -1237,14 +1111,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     }
    ]
   },
@@ -1292,14 +1158,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     }
    ]
   },
@@ -1347,14 +1205,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     }
    ]
   },
@@ -1402,14 +1252,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     }
    ]
   },
@@ -1433,14 +1275,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 143,
@@ -1498,14 +1332,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -1559,14 +1385,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -1624,14 +1442,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -1685,14 +1495,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -1750,14 +1552,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 143,
      "y": 426,
      "w": 125,
@@ -1811,14 +1605,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -1876,14 +1662,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -1937,14 +1715,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2002,14 +1772,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2063,14 +1825,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 143,
@@ -2128,14 +1882,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2189,14 +1935,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2254,14 +1992,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2315,14 +2045,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2380,14 +2102,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 405,
      "y": 426,
      "w": 125,
@@ -2433,14 +2147,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2490,14 +2196,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2545,14 +2243,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2598,14 +2288,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 143,
@@ -2661,14 +2343,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2734,14 +2408,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2803,14 +2469,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 12,
@@ -2876,14 +2534,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 12,
      "y": 426,
      "w": 125,
@@ -2913,14 +2563,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 154,
@@ -2970,14 +2612,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 23,
      "y": 434,
      "w": 125,
@@ -3023,14 +2657,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 23,
@@ -3080,14 +2706,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 23,
      "y": 434,
      "w": 125,
@@ -3133,14 +2751,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     }
    ]
   },
@@ -3164,14 +2774,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 702,
@@ -3203,14 +2805,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 143,
@@ -3252,14 +2846,6 @@
      "button": 1038
     },
     {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
-    },
-    {
      "x": 13,
      "y": 426,
      "w": 125,
@@ -3297,14 +2883,6 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
-    },
-    {
-     "x": 702,
-     "y": 528,
-     "w": 88,
-     "h": 62,
-     "to": "run-combination",
-     "button": 98
     },
     {
      "x": 13,

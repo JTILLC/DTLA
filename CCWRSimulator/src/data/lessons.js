@@ -136,6 +136,19 @@ export const lessons = [
       {
         screen: 'preset-select-b',
         kind: 'tap-nav',
+        to: 'main-menu',
+        via: { x: 741, y: 482 },
+        instruction:
+          'Press Exit to return to the Main Menu.',
+        explain:
+          'Production is started from the Main Menu, not from here. The ' +
+          'Start key is dimmed and dead on the preset screens — checked ' +
+          'against the real unit — so a trainee taught to press it here ' +
+          'would be stuck in front of a machine that does nothing.',
+      },
+      {
+        screen: 'main-menu',
+        kind: 'tap-nav',
         to: 'run-combination',
         via: { x: 746, y: 559 },
         instruction:
@@ -144,7 +157,8 @@ export const lessons = [
         explain:
           'WARNING (6.6): the feeders and hoppers start moving the moment ' +
           'Start is pressed — always confirm the surroundings are safe ' +
-          'first. The Production menu appears on the Combination tab.',
+          'first. On the real unit Start only lights once the machine is ' +
+          'powered on. The Production menu appears on the Combination tab.',
       },
       {
         screen: 'run-combination',
@@ -187,11 +201,16 @@ export const lessons = [
         screen: 'run-combination',
         kind: 'tap-nav',
         to: 'main-menu',
-        via: { x: 748, y: 485 },
-        instruction: 'Press the Exit key.',
+        via: { x: 52, y: 560 },
+        instruction:
+          'Press HOME to go back to the Main Menu.',
         explain:
-          'Back at the Main Menu. After a run, drain the product left in ' +
-          'the weigher — that’s the Drain lesson.',
+          'HOME leaves the screen; it does NOT stop the weigher — production ' +
+          'keeps running and Stop is still available from the Main Menu. ' +
+          'Exit is dimmed and dead on the Production screens, checked ' +
+          'against the real unit, so HOME and Stop are the only ways out. ' +
+          'After a run, drain the product left in the weigher — that’s the ' +
+          'Drain lesson.',
       },
     ],
   },
