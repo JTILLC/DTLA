@@ -950,6 +950,14 @@
      "h": 62,
      "to": "main-menu",
      "button": 97
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
     }
    ]
   },
@@ -997,6 +1005,14 @@
      "h": 62,
      "to": "main-menu",
      "button": 97
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
     }
    ]
   },
@@ -1044,6 +1060,14 @@
      "h": 62,
      "to": "main-menu",
      "button": 97
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
     }
    ]
   },
@@ -1091,6 +1115,14 @@
      "h": 62,
      "to": "main-menu",
      "button": 97
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
     }
    ]
   },
@@ -1138,6 +1170,14 @@
      "h": 62,
      "to": "main-menu",
      "button": 97
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
     }
    ]
   },

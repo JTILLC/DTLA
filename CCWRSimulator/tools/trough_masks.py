@@ -29,7 +29,26 @@ NUMERALS = [(219, 355), (275, 335), (304, 286), (316, 241), (297, 203),
 PANEL = (20, 85, 392, 406)      # the trough picture's own frame
 INNER, OUTER = 46, 168          # the cone, and past the wedge tips
 BG_LEVELS = (204, 212)          # flat panel greys
-BG_TOL = 3
+BG_TOL = 10                     # JPEG moves the panel around by a few levels
+BG_SPREAD = 8                   # how far from neutral a panel pixel may stray
+
+
+def _despeckle(mask, rounds=2):
+    """Drop pixels that are not backed up by their neighbours.
+
+    Whatever slips through the background test arrives as scattered single
+    pixels, while a wedge is solid. Keeping only pixels with a majority of
+    wedge neighbours clears the speckle and leaves the wedges' own edges,
+    which have plenty of support on the inside.
+    """
+    out = mask
+    for _ in range(rounds):
+        votes = np.zeros(mask.shape, dtype=int)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                votes += np.roll(np.roll(out, dy, 0), dx, 1)
+        out = out & (votes >= 5)
+    return out
 
 
 def main(src, outdir):
@@ -48,13 +67,19 @@ def main(src, outdir):
     inside[y0:y1, x0:x1] = True
     ring = inside & (dist > INNER) & (dist < OUTER)
 
-    # Flat panel grey, to be left alone.
-    flat = (r == g) & (g == b)
-    background = np.zeros((h, w), dtype=bool)
-    for level in BG_LEVELS:
-        background |= flat & (abs(r - level) <= BG_TOL)
+    # Flat panel grey, to be left alone. This used to demand r == g == b
+    # EXACTLY, which JPEG noise breaks all over the panel — the survivors were
+    # scattered background pixels that the angular sectors then handed to a
+    # head, and they showed up as a speckled halo of blue around the wedge tips
+    # the moment a head was selected. Near-neutral and near-level is enough.
+    spread = rgb.max(axis=2) - rgb.min(axis=2)
+    background = (spread <= BG_SPREAD)
+    level = np.zeros((h, w), dtype=bool)
+    for lv in BG_LEVELS:
+        level |= abs(rgb.mean(axis=2) - lv) <= BG_TOL
+    background &= level
 
-    wedges = ring & ~background
+    wedges = _despeckle(ring & ~background)
 
     # Every wedge pixel goes to the head whose numeral shares its angle.
     ang = np.degrees(np.arctan2(yy - cy, xx - cx))

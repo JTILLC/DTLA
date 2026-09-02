@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { paintSelected, liftToHopperRange } from '../utils/selectionBlue';
 
 /**
  * The Production feeder screen, drawn live.
@@ -21,10 +22,6 @@ import React, { useEffect, useRef, useState } from 'react';
  * trace magenta, while RF Time's lamp is off and its squares are grey.
  */
 
-const BLUE_BASE = [38, 39, 148];
-const BLUE_GAIN = [0.30, 0.30, 0.35];
-const TEXT_ON_BLUE = [235, 238, 255];
-const isInk = (r, g, b) => r < 140 && g < 140 && b > r + 30;
 const TRACES = {
   amp: { colour: '#ff00ff', marker: 'triangle' },   // measured off the trace
   time: { colour: '#210482', marker: 'square' },    // the legend's navy diamond
@@ -87,17 +84,11 @@ export default function FeederChart({
     const out = new ImageData(new Uint8ClampedArray(base.data), w, h);
     const d = out.data;
     for (let i = 0; i < wedges.length; i += 1) {
-      if (!lit.has(wedges[i]) && !lit.has(ring[i])) continue;
-      const o = i * 4;
-      const r = d[o]; const g = d[o + 1]; const b = d[o + 2];
-      if (isInk(r, g, b)) {
-        d[o] = TEXT_ON_BLUE[0]; d[o + 1] = TEXT_ON_BLUE[1]; d[o + 2] = TEXT_ON_BLUE[2];
-      } else {
-        const lum = (r + g + b) / 3;
-        d[o] = BLUE_BASE[0] + lum * BLUE_GAIN[0];
-        d[o + 1] = BLUE_BASE[1] + lum * BLUE_GAIN[1];
-        d[o + 2] = BLUE_BASE[2] + lum * BLUE_GAIN[2];
-      }
+      // The trough is far darker than the Zero Adjustment hoppers, so its
+      // luminance is lifted into their range first and a selected wedge comes
+      // out the same clear blue a selected hopper does.
+      if (lit.has(wedges[i])) paintSelected(d, i * 4, liftToHopperRange);
+      else if (lit.has(ring[i])) paintSelected(d, i * 4);
     }
 
     const canvas = canvasRef.current;

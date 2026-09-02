@@ -222,6 +222,10 @@
     padding: 0;
     cursor: pointer;
     border-radius: 4px;
+    /* Above the drawn screen, which is the background and comes last in the
+       markup. Without this the canvas took the press: on the five Production
+       tabs that was every navigation key on the screen, Exit included. */
+    z-index: 1;
   }
 
   .hotspot:focus-visible {

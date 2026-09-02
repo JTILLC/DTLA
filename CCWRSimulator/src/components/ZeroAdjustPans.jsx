@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { litLabels } from '../utils/panSelect';
+import { paintSelected } from '../utils/selectionBlue';
 
 /**
  * The Zero Adjustment ring, with each pan selectable.
@@ -16,17 +17,10 @@ import { litLabels } from '../utils/panSelect';
  * selected. Because both read the same map, what looks selected and what
  * responds to a tap can never disagree.
  *
- * The blue is measured off a capture of the running original: selecting does not
- * tint the grey, it REPLACES it with a blue that keeps a little of the original
- * shading, so the recolour is built from luminance rather than multiplied.
+ * The blue itself lives in utils/selectionBlue.js, shared with the Feeder
+ * Adjust trough — the two screens have to look like the same machine doing the
+ * same thing.
  */
-
-const BLUE_BASE = [38, 39, 148];
-const BLUE_GAIN = [0.30, 0.30, 0.35];
-// The head numbers and weights are printed in the RCU's blue and would vanish
-// into the new fill, so they are lifted to near-white as the real unit does.
-const TEXT_ON_BLUE = [235, 238, 255];
-const isInk = (r, g, b) => r < 140 && g < 140 && b > r + 30;
 
 export default function ZeroAdjustPans({
   image, labelMap, tableLabel, selection, lit: litProp,
@@ -82,17 +76,7 @@ export default function ZeroAdjustPans({
     const out = new ImageData(new Uint8ClampedArray(base.data), w, h);
     const d = out.data;
     for (let i = 0; i < labels.length; i += 1) {
-      if (!lit.has(labels[i])) continue;
-      const o = i * 4;
-      const r = d[o]; const g = d[o + 1]; const b = d[o + 2];
-      if (isInk(r, g, b)) {
-        d[o] = TEXT_ON_BLUE[0]; d[o + 1] = TEXT_ON_BLUE[1]; d[o + 2] = TEXT_ON_BLUE[2];
-      } else {
-        const lum = (r + g + b) / 3;
-        d[o] = BLUE_BASE[0] + lum * BLUE_GAIN[0];
-        d[o + 1] = BLUE_BASE[1] + lum * BLUE_GAIN[1];
-        d[o + 2] = BLUE_BASE[2] + lum * BLUE_GAIN[2];
-      }
+      if (lit.has(labels[i])) paintSelected(d, i * 4);
     }
     const canvas = canvasRef.current;
     canvas.width = w; canvas.height = h;

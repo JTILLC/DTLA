@@ -262,3 +262,22 @@ describe('training content coverage', () => {
     }
   });
 });
+
+describe('Exit', () => {
+  // Every screen that shows an Exit key needs it wired. On the five Production
+  // tabs it was not, so pressing Exit did nothing at all — and Production is
+  // where a trainee spends most of their time. The key sits at the same place
+  // on every screen that has one.
+  const EXIT = { x: 723, y: 472 };
+  const PRODUCTION = ['run-combination', 'run-feeder', 'run-timing',
+    'run-totals', 'run-weight'];
+
+  it.each(PRODUCTION)('%s has a working Exit', (slug) => {
+    const hit = navmap.screens[slug].hotspots.find(
+      (h) => EXIT.x >= h.x && EXIT.x <= h.x + h.w
+          && EXIT.y >= h.y && EXIT.y <= h.y + h.h
+    );
+    expect(hit).toBeDefined();
+    expect(hit.to).toBe('main-menu');
+  });
+});
