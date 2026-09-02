@@ -394,6 +394,10 @@ export default function Rcu({
               </span>
             ))}
 
+            {/* The CIRCULAR keys are Increase and Decrease: arrows out of the
+                red ring raise, arrows into it lower. The -> and <- arrows are
+                something else and are left unwired until the original says
+                what. */}
             {[['up', +1], ['down', -1]].map(([which, dir]) => {
               const live = (feeder.params.time || feeder.params.amp)
                 && (feeder.feeder === 'df' || feeder.heads.length > 0);
@@ -401,17 +405,43 @@ export default function Rcu({
                 <button
                   key={which}
                   type="button"
-                  className={'fa-key fa-arrow' + (live ? ' fa-arrow--live' : '')}
+                  className={'fa-key fa-round' + (live ? ' fa-round--live' : '')}
                   style={rectStyle(faScreen.keys[which])}
                   aria-label={`${faScreen.keys[which].label} — ${live ? 'ready' : 'dead'}`}
                   title={live
                     ? `${faScreen.keys[which].label} the lit values of the selected pans`
                     : 'Dead — light Time or AMP first'
-                      + (feeder.feeder === 'rf' ? ', and select a pan' : '')}
+                      + (feeder.feeder === 'rf' ? ', and select a head' : '')}
                   onClick={() => onTap({ type: 'feeder-adjust', direction: dir })}
                 />
               );
             })}
+
+            {/* Tapping a head number on the trough selects that head. */}
+            {faScreen.troughHeads.map((hd) => {
+              const on = feeder.heads.includes(hd.no);
+              const hit = faScreen.troughHit;
+              return (
+                <button
+                  key={`th-${hd.no}`}
+                  type="button"
+                  className={'fa-trough' + (on ? ' fa-trough--on' : '')}
+                  style={rectStyle({ x: hd.cx - hit, y: hd.cy - hit, w: hit * 2, h: hit * 2 })}
+                  aria-label={`Head ${hd.no} — ${on ? 'selected' : 'not selected'}`}
+                  title={`Head ${hd.no}: tap to select for feeder adjustment`}
+                  onClick={() => onTap({ type: 'pan', no: hd.no })}
+                />
+              );
+            })}
+
+            {(faScreen.unknownKeys || []).map((k, i) => (
+              <div
+                key={`unk-${i}`}
+                className="fa-unknown"
+                style={rectStyle(k)}
+                title={`${k.label}: ${k.note}`}
+              />
+            ))}
           </>
         )}
 

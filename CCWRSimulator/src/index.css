@@ -886,3 +886,26 @@
   color: #0000cc;
   pointer-events: none;
 }
+
+/* The circular Increase/Decrease keys, and the trough head numbers. */
+.fa-round { border-radius: 50%; }
+.fa-round--live { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.35); }
+
+.fa-trough {
+  position: absolute;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.fa-trough:hover { border-color: rgba(34, 211, 238, 0.9); }
+.fa-trough--on {
+  border-color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.5);
+}
+
+/* A control whose purpose is not yet confirmed on the original: shown, but it
+   does nothing, rather than being wired to a guess. */
+.fa-unknown { position: absolute; pointer-events: auto; cursor: help; }

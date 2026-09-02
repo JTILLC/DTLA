@@ -3626,17 +3626,17 @@
       "label": "RF AMP"
      },
      "up": {
-      "x": 333,
-      "y": 143,
-      "w": 55,
-      "h": 46,
+      "x": 738,
+      "y": 104,
+      "w": 54,
+      "h": 54,
       "label": "Increase"
      },
      "down": {
-      "x": 393,
-      "y": 143,
-      "w": 57,
-      "h": 46,
+      "x": 738,
+      "y": 162,
+      "w": 54,
+      "h": 54,
       "label": "Decrease"
      },
      "rf": {
@@ -3675,7 +3675,98 @@
       "h": 25
      }
     },
-    "style": "run"
+    "style": "run",
+    "unknownKeys": [
+     {
+      "x": 333,
+      "y": 143,
+      "w": 55,
+      "h": 46,
+      "label": "right arrow",
+      "note": "not Increase — purpose not yet confirmed on the original"
+     },
+     {
+      "x": 393,
+      "y": 143,
+      "w": 57,
+      "h": 46,
+      "label": "left arrow",
+      "note": "not Decrease — purpose not yet confirmed on the original"
+     }
+    ],
+    "troughHeads": [
+     {
+      "no": 1,
+      "cx": 219,
+      "cy": 355
+     },
+     {
+      "no": 2,
+      "cx": 275,
+      "cy": 335
+     },
+     {
+      "no": 3,
+      "cx": 304,
+      "cy": 286
+     },
+     {
+      "no": 4,
+      "cx": 316,
+      "cy": 241
+     },
+     {
+      "no": 5,
+      "cx": 297,
+      "cy": 203
+     },
+     {
+      "no": 6,
+      "cx": 264,
+      "cy": 172
+     },
+     {
+      "no": 7,
+      "cx": 211,
+      "cy": 160
+     },
+     {
+      "no": 8,
+      "cx": 157,
+      "cy": 160
+     },
+     {
+      "no": 9,
+      "cx": 105,
+      "cy": 172
+     },
+     {
+      "no": 10,
+      "cx": 71,
+      "cy": 203
+     },
+     {
+      "no": 11,
+      "cx": 55,
+      "cy": 241
+     },
+     {
+      "no": 12,
+      "cx": 66,
+      "cy": 286
+     },
+     {
+      "no": 13,
+      "cx": 96,
+      "cy": 335
+     },
+     {
+      "no": 14,
+      "cx": 151,
+      "cy": 355
+     }
+    ],
+    "troughHit": 15
    }
   },
   "lampOn": "keys/lamp-on.png"
