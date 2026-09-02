@@ -31,7 +31,7 @@ are. Two different fills are needed:
   spoke, the ring lines and the background all come back because a twin has the
   same thing at the same place.
 
-    python3 tools/radar_chart.py public/screens/run-feeder.jpg public/masks
+    python3 tools/radar_chart.py public/masks/run-feeder--stage1.png public/masks
 """
 import json
 import os
@@ -229,7 +229,11 @@ def main(src, outdir):
                                          cx, cy, dist, ang)
     spokes = _redraw_spokes(clean, rgb, squares, erase, cx, cy, dist, ang)
 
-    base_path = os.path.join(os.path.dirname(src), 'run-feeder--base.jpg')
+    # Generated, not extracted — it lives in public/derived, which is served
+    # revalidating rather than immutable (see public/_headers).
+    base_path = os.path.join(os.path.dirname(os.path.dirname(src)),
+                             'derived', 'run-feeder--base.jpg')
+    os.makedirs(os.path.dirname(base_path), exist_ok=True)
     Image.fromarray(clean.astype('uint8')).save(base_path, quality=93)
 
     os.makedirs(outdir, exist_ok=True)

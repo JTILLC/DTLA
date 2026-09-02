@@ -8,6 +8,19 @@
 # by construction, and the RCU screenshots never change once extracted, so both
 # can be cached hard — which matters here, because the screens are 16MB and a
 # trainee tapping through them should pay for each one once.
+#
+# /derived is the exception, and is a separate directory for exactly this
+# reason. Those files are NOT extracted artwork: they are generated from it
+# (tools/radar_chart.py, tools/trough_masks.py), with whatever the app has
+# learned to draw itself rubbed out, and they are regenerated whenever it
+# learns to draw more. Their names do not change, so cached hard they would
+# leave anyone who visited before looking at artwork with last month's values
+# still painted on it. They revalidate instead — a 304 on every load, which
+# costs a round trip and nothing else.
+#
+# They cannot simply be a second rule under /screens/*: Cloudflare CONCATENATES
+# the values of every rule that matches, so that produced the self-contradicting
+# "immutable, no-cache" rather than overriding it.
 
 /
   Cache-Control: no-store
@@ -20,3 +33,9 @@
 
 /screens/*
   Cache-Control: public, max-age=31536000, immutable
+
+/derived/*
+  Cache-Control: no-cache
+
+/masks/*
+  Cache-Control: no-cache

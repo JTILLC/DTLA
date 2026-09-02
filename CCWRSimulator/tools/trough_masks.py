@@ -85,6 +85,25 @@ def main(src, outdir):
             neutral[..., ch][blue_ink] = grey
         print('de-tinted %d baked-blue px  (grey = lum * %.3f + %.1f)'
               % (blue_ink.sum(), k, c))
+
+        # The machine draws a selected wedge as DITHERED blue, so de-tinting it
+        # leaves grey noise where every other unselected wedge is smooth — the
+        # one wedge still looked different, just differently. A median over the
+        # dither's own scale removes the checkerboard and keeps the shading and
+        # the wedge's edges, which a blur would not.
+        # The median is taken ONLY from pixels that were blue themselves. The
+        # head number is printed white on the wedge and is not blue, so a plain
+        # 3x3 median bled it into the grey around it and left the numeral looking
+        # eaten; masking the neighbours it may draw on leaves it untouched.
+        src = np.where(blue_ink[..., None], neutral, np.nan)
+        shifts = np.stack([np.roll(np.roll(src, dy, 0), dx, 1)
+                           for dy in (-1, 0, 1) for dx in (-1, 0, 1)])
+        with np.errstate(invalid='ignore'):
+            sm = np.nanmedian(shifts, axis=0)
+        ok = blue_ink & ~np.isnan(sm[..., 0])
+        for ch in range(3):
+            neutral[..., ch][ok] = sm[..., ch][ok]
+        print('smoothed the dither over %d px' % ok.sum())
     else:
         neutral = rgb.astype(float)
 
