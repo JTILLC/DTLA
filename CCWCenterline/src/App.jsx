@@ -4,6 +4,7 @@ import MappedScreen, { mappedRows } from './components/MappedScreen';
 import PhotoScreen from './components/PhotoScreen';
 import ImportExports from './components/ImportExports';
 import SignIn, { readerHint } from './components/SignIn';
+import Compare from './components/Compare';
 import {
   emptyCenterline, mappedSection, photoSection, settingsTable, gaps, copyFrom,
 } from './utils/centerline';
@@ -53,6 +54,7 @@ export default function App() {
   const [busy, setBusy] = useState('');
   const [showLibrary, setShowLibrary] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -215,6 +217,9 @@ export default function App() {
           <button type="button" className="btn" onClick={() => setShowLibrary((v) => !v)}>
             Saved ({library.length})
           </button>
+          <button type="button" className="btn" onClick={() => setShowCompare((v) => !v)}>
+            Compare
+          </button>
           <button type="button" className="btn" onClick={save}>Save</button>
           <button
             type="button" className="btn"
@@ -273,6 +278,14 @@ export default function App() {
             This device is out of storage, so the centerline is not being saved
             automatically. Export the PDF before you close the tab.
           </p>
+        )}
+
+        {showCompare && (
+          <Compare
+            library={library}
+            current={centerline}
+            onClose={() => setShowCompare(false)}
+          />
         )}
 
         {showLibrary && (
