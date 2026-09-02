@@ -89,8 +89,10 @@ def main(src, outdir):
         neutral = rgb.astype(float)
 
     os.makedirs(outdir, exist_ok=True)
-    base_path = os.path.join(os.path.dirname(src), 'run-feeder--base.jpg')
-    Image.fromarray(neutral.astype('uint8')).save(base_path, quality=93)
+    # PNG, not JPEG: radar_chart.py reads this next and keys on exact colours,
+    # which JPEG shifts just enough to miss the thin magenta trace.
+    base_path = os.path.join(outdir, 'run-feeder--stage1.png')
+    Image.fromarray(neutral.astype('uint8')).save(base_path)
     print('wrote', base_path)
 
     path = os.path.join(outdir, 'run-feeder-labels.png')

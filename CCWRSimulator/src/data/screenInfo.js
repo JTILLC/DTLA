@@ -145,14 +145,21 @@ export const screenInfo = {
       'Feeder adjustment sets the amplitude and operating time of the ' +
       'radial and dispersion feeders — how much product moves out to the ' +
       'pool hoppers. Select a head on the illustration or the radar chart, ' +
-      'turn on the RF Time or RF AMP lamp key, and use the Increase / ' +
-      'Decrease arrows.\n\nFeeder values changed here during production ARE ' +
+      'turn on the RF Time or RF AMP lamp key, and press the round Increase ' +
+      'or Decrease key. Any number of heads can be selected at once, and one ' +
+      'press moves every one of them by 1.0.\n\nThe chart is the values ' +
+      'themselves: each head\u2019s magenta triangle sits further out the ' +
+      'higher its amplitude, and its navy square the higher its time. A ' +
+      'parameter whose lamp is off is drawn grey and its number is blank \u2014 ' +
+      'the value is not lost, and comes straight back when the lamp is lit.' +
+      '\n\nWith several heads selected the readout shows their mean.' +
+      '\n\nFeeder values changed here during production ARE ' +
       'written back to the preset (6.6.2).',
     keys: [
-      { name: 'Head select keys', desc: 'Pick the head to adjust — the illustration and the chart work together.' },
+      { name: 'Head select keys', desc: 'Pick the heads to adjust — tap a number on the trough or its segment on the chart ring; both light together.' },
       { name: 'RF Time / RF AMP lamps', desc: 'Choose whether the arrows change feeder time or feeder amplitude.' },
       { name: 'Head mean / Section mean lamps', desc: 'Overlay the mean infeed per weigh hopper (pink) or per section (red) on the chart.' },
-      { name: 'Increase / Decrease', desc: 'Adjust the selected head’s value.' },
+      { name: 'Increase / Decrease', desc: 'The two ROUND keys. One press moves every lit parameter on every selected head by 1.0. The blue → ← arrows beside the trough are not these: pressed on the original in every state, they do nothing at all.' },
       { name: 'Write feeder OptimumVal', desc: 'Visible at the bottom of the production tabs on this machine.' },
     ],
   },

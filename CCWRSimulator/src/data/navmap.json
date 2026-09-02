@@ -98,7 +98,7 @@
     "label": "Weigher Information",
     "to": null,
     "maintenanceOnly": true,
-    "note": "Maintenance level only. PH/WH drive counters and their reset (Service 4.4.1). Not captured — no screen artwork for it."
+    "note": "Maintenance level only. PH/WH drive counters and their reset (Service 4.4.1). Not captured \u2014 no screen artwork for it."
    },
    {
     "label": "Display & Data Manager",
@@ -169,7 +169,7 @@
  "screens": {
   "main-menu": {
    "frame": 3,
-   "labelJa": "メインメニュー",
+   "labelJa": "\u30e1\u30a4\u30f3\u30e1\u30cb\u30e5\u30fc",
    "image": "screens/main-menu.jpg",
    "hotspots": [
     {
@@ -257,7 +257,7 @@
   },
   "preset-select-a": {
    "frame": 11,
-   "labelJa": "予約選択A",
+   "labelJa": "\u4e88\u7d04\u9078\u629eA",
    "image": "screens/preset-select-a.jpg",
    "hotspots": [
     {
@@ -290,7 +290,7 @@
   },
   "preset-select-b": {
    "frame": 21,
-   "labelJa": "予約選択B",
+   "labelJa": "\u4e88\u7d04\u9078\u629eB",
    "image": "screens/preset-select-b.jpg",
    "hotspots": [
     {
@@ -313,7 +313,7 @@
   },
   "preset-product": {
    "frame": 31,
-   "labelJa": "予約設定_商品",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u5546\u54c1",
    "image": "screens/preset-product.jpg",
    "hotspots": [
     {
@@ -376,7 +376,7 @@
   },
   "preset-machine": {
    "frame": 41,
-   "labelJa": "予約設定_機物",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u6a5f\u7269",
    "image": "screens/preset-machine.jpg",
    "hotspots": [
     {
@@ -447,7 +447,7 @@
   },
   "preset-item": {
    "frame": 51,
-   "labelJa": "予約設定_アイテム",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30a2\u30a4\u30c6\u30e0",
    "image": "screens/preset-item.jpg",
    "hotspots": [
     {
@@ -518,7 +518,7 @@
   },
   "preset-other": {
    "frame": 61,
-   "labelJa": "予約設定_その他",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u305d\u306e\u4ed6",
    "image": "screens/preset-other.jpg",
    "hotspots": [
     {
@@ -589,7 +589,7 @@
   },
   "preset-feeder": {
    "frame": 71,
-   "labelJa": "予約設定_フィーダ",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30d5\u30a3\u30fc\u30c0",
    "image": "screens/preset-feeder.jpg",
    "hotspots": [
     {
@@ -628,7 +628,7 @@
   },
   "preset-timing": {
    "frame": 81,
-   "labelJa": "予約設定_タイミング",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30bf\u30a4\u30df\u30f3\u30b0",
    "image": "screens/preset-timing.jpg",
    "hotspots": [
     {
@@ -667,7 +667,7 @@
   },
   "preset-weight": {
    "frame": 91,
-   "labelJa": "予約設定_重量",
+   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u91cd\u91cf",
    "image": "screens/preset-weight.jpg",
    "hotspots": [
     {
@@ -706,7 +706,7 @@
   },
   "zero-adjust": {
    "frame": 101,
-   "labelJa": "零点調整",
+   "labelJa": "\u96f6\u70b9\u8abf\u6574",
    "image": "screens/zero-adjust.jpg",
    "hotspots": [
     {
@@ -729,7 +729,7 @@
   },
   "discharge-weight": {
    "frame": 111,
-   "labelJa": "全排出_重量表示",
+   "labelJa": "\u5168\u6392\u51fa_\u91cd\u91cf\u8868\u793a",
    "image": "screens/discharge-weight.jpg",
    "hotspots": [
     {
@@ -768,7 +768,7 @@
   },
   "discharge-feeder": {
    "frame": 121,
-   "labelJa": "全排出_フィーダ",
+   "labelJa": "\u5168\u6392\u51fa_\u30d5\u30a3\u30fc\u30c0",
    "image": "screens/discharge-feeder.jpg",
    "hotspots": [
     {
@@ -807,7 +807,7 @@
   },
   "discharge-timing": {
    "frame": 131,
-   "labelJa": "全排出_タイミング",
+   "labelJa": "\u5168\u6392\u51fa_\u30bf\u30a4\u30df\u30f3\u30b0",
    "image": "screens/discharge-timing.jpg",
    "hotspots": [
     {
@@ -846,7 +846,7 @@
   },
   "hopper-discharge": {
    "frame": 141,
-   "labelJa": "ポッパ_排出",
+   "labelJa": "\u30dd\u30c3\u30d1_\u6392\u51fa",
    "image": "screens/hopper-discharge.jpg",
    "hotspots": [
     {
@@ -877,7 +877,7 @@
   },
   "hopper-feeder": {
    "frame": 151,
-   "labelJa": "ポッパ_フィーダ",
+   "labelJa": "\u30dd\u30c3\u30d1_\u30d5\u30a3\u30fc\u30c0",
    "image": "screens/hopper-feeder.jpg",
    "hotspots": [
     {
@@ -908,7 +908,7 @@
   },
   "run-combination": {
    "frame": 161,
-   "labelJa": "運転_組合せ",
+   "labelJa": "\u904b\u8ee2_\u7d44\u5408\u305b",
    "image": "screens/run-combination.jpg",
    "hotspots": [
     {
@@ -955,7 +955,7 @@
   },
   "run-feeder": {
    "frame": 171,
-   "labelJa": "運転_フィーダ",
+   "labelJa": "\u904b\u8ee2_\u30d5\u30a3\u30fc\u30c0",
    "image": "screens/run-feeder.jpg",
    "hotspots": [
     {
@@ -1002,7 +1002,7 @@
   },
   "run-timing": {
    "frame": 181,
-   "labelJa": "運転_タイミング",
+   "labelJa": "\u904b\u8ee2_\u30bf\u30a4\u30df\u30f3\u30b0",
    "image": "screens/run-timing.jpg",
    "hotspots": [
     {
@@ -1049,7 +1049,7 @@
   },
   "run-totals": {
    "frame": 191,
-   "labelJa": "運転_集計",
+   "labelJa": "\u904b\u8ee2_\u96c6\u8a08",
    "image": "screens/run-totals.jpg",
    "hotspots": [
     {
@@ -1096,7 +1096,7 @@
   },
   "run-weight": {
    "frame": 201,
-   "labelJa": "運転_重量",
+   "labelJa": "\u904b\u8ee2_\u91cd\u91cf",
    "image": "screens/run-weight.jpg",
    "hotspots": [
     {
@@ -1143,7 +1143,7 @@
   },
   "manual-scale-adjust": {
    "frame": 211,
-   "labelJa": "手動_秤調整",
+   "labelJa": "\u624b\u52d5_\u79e4\u8abf\u6574",
    "image": "screens/manual-scale-adjust.jpg",
    "hotspots": [
     {
@@ -1190,7 +1190,7 @@
   },
   "manual-combination": {
    "frame": 221,
-   "labelJa": "手動_組合せ",
+   "labelJa": "\u624b\u52d5_\u7d44\u5408\u305b",
    "image": "screens/manual-combination.jpg",
    "hotspots": [
     {
@@ -1237,7 +1237,7 @@
   },
   "manual-vibration": {
    "frame": 231,
-   "labelJa": "手動_振動",
+   "labelJa": "\u624b\u52d5_\u632f\u52d5",
    "image": "screens/manual-vibration.jpg",
    "hotspots": [
     {
@@ -1284,7 +1284,7 @@
   },
   "manual-weight-waveform": {
    "frame": 241,
-   "labelJa": "手動_重量波形",
+   "labelJa": "\u624b\u52d5_\u91cd\u91cf\u6ce2\u5f62",
    "image": "screens/manual-weight-waveform.jpg",
    "hotspots": [
     {
@@ -1331,7 +1331,7 @@
   },
   "selfdiag-device": {
    "frame": 251,
-   "labelJa": "自己_デバイス",
+   "labelJa": "\u81ea\u5df1_\u30c7\u30d0\u30a4\u30b9",
    "image": "screens/selfdiag-device.jpg",
    "hotspots": [
     {
@@ -1386,7 +1386,7 @@
   },
   "selfdiag-io": {
    "frame": 261,
-   "labelJa": "自己_入出力",
+   "labelJa": "\u81ea\u5df1_\u5165\u51fa\u529b",
    "image": "screens/selfdiag-io.jpg",
    "hotspots": [
     {
@@ -1441,7 +1441,7 @@
   },
   "selfdiag-network": {
    "frame": 271,
-   "labelJa": "自己_ネット",
+   "labelJa": "\u81ea\u5df1_\u30cd\u30c3\u30c8",
    "image": "screens/selfdiag-network.jpg",
    "hotspots": [
     {
@@ -1496,7 +1496,7 @@
   },
   "selfdiag-program": {
    "frame": 281,
-   "labelJa": "自己_プログラム",
+   "labelJa": "\u81ea\u5df1_\u30d7\u30ed\u30b0\u30e9\u30e0",
    "image": "screens/selfdiag-program.jpg",
    "hotspots": [
     {
@@ -1551,7 +1551,7 @@
   },
   "selfdiag-test": {
    "frame": 291,
-   "labelJa": "自己_テスト",
+   "labelJa": "\u81ea\u5df1_\u30c6\u30b9\u30c8",
    "image": "screens/selfdiag-test.jpg",
    "hotspots": [
     {
@@ -1606,7 +1606,7 @@
   },
   "display-screen": {
    "frame": 301,
-   "labelJa": "表示_画面",
+   "labelJa": "\u8868\u793a_\u753b\u9762",
    "image": "screens/display-screen.jpg",
    "hotspots": [
     {
@@ -1661,7 +1661,7 @@
   },
   "display-preset": {
    "frame": 311,
-   "labelJa": "表示_予約",
+   "labelJa": "\u8868\u793a_\u4e88\u7d04",
    "image": "screens/display-preset.jpg",
    "hotspots": [
     {
@@ -1716,7 +1716,7 @@
   },
   "display-machine-edit": {
    "frame": 321,
-   "labelJa": "表示_機物設定編集",
+   "labelJa": "\u8868\u793a_\u6a5f\u7269\u8a2d\u5b9a\u7de8\u96c6",
    "image": "screens/display-machine-edit.jpg",
    "hotspots": [
     {
@@ -1771,7 +1771,7 @@
   },
   "display-all-edit": {
    "frame": 331,
-   "labelJa": "表示_全設定編集",
+   "labelJa": "\u8868\u793a_\u5168\u8a2d\u5b9a\u7de8\u96c6",
    "image": "screens/display-all-edit.jpg",
    "hotspots": [
     {
@@ -1826,7 +1826,7 @@
   },
   "display-hopper": {
    "frame": 341,
-   "labelJa": "表示_ホッパ",
+   "labelJa": "\u8868\u793a_\u30db\u30c3\u30d1",
    "image": "screens/display-hopper.jpg",
    "hotspots": [
     {
@@ -1881,7 +1881,7 @@
   },
   "various-scale-detail": {
    "frame": 351,
-   "labelJa": "各種_秤詳細",
+   "labelJa": "\u5404\u7a2e_\u79e4\u8a73\u7d30",
    "image": "screens/various-scale-detail.jpg",
    "hotspots": [
     {
@@ -1936,7 +1936,7 @@
   },
   "various-combination": {
    "frame": 361,
-   "labelJa": "各種_組合せ",
+   "labelJa": "\u5404\u7a2e_\u7d44\u5408\u305b",
    "image": "screens/various-combination.jpg",
    "hotspots": [
     {
@@ -1991,7 +1991,7 @@
   },
   "various-section": {
    "frame": 371,
-   "labelJa": "各種_セクション",
+   "labelJa": "\u5404\u7a2e_\u30bb\u30af\u30b7\u30e7\u30f3",
    "image": "screens/various-section.jpg",
    "hotspots": [
     {
@@ -2046,7 +2046,7 @@
   },
   "various-fd": {
    "frame": 381,
-   "labelJa": "各種_FD",
+   "labelJa": "\u5404\u7a2e_FD",
    "image": "screens/various-fd.jpg",
    "hotspots": [
     {
@@ -2101,7 +2101,7 @@
   },
   "various-hdrv": {
    "frame": 391,
-   "labelJa": "各種_HDRV",
+   "labelJa": "\u5404\u7a2e_HDRV",
    "image": "screens/various-hdrv.jpg",
    "hotspots": [
     {
@@ -2156,7 +2156,7 @@
   },
   "weigh-participation": {
    "frame": 401,
-   "labelJa": "計量_参加",
+   "labelJa": "\u8a08\u91cf_\u53c2\u52a0",
    "image": "screens/weigh-participation.jpg",
    "hotspots": [
     {
@@ -2203,7 +2203,7 @@
   },
   "weigh-auto-timing": {
    "frame": 411,
-   "labelJa": "計量_自動タイミング",
+   "labelJa": "\u8a08\u91cf_\u81ea\u52d5\u30bf\u30a4\u30df\u30f3\u30b0",
    "image": "screens/weigh-auto-timing.jpg",
    "hotspots": [
     {
@@ -2250,7 +2250,7 @@
   },
   "weigh-network": {
    "frame": 421,
-   "labelJa": "計量_ネットワーク",
+   "labelJa": "\u8a08\u91cf_\u30cd\u30c3\u30c8\u30ef\u30fc\u30af",
    "image": "screens/weigh-network.jpg",
    "hotspots": [
     {
@@ -2297,7 +2297,7 @@
   },
   "weigh-adf": {
    "frame": 431,
-   "labelJa": "計量_ADF",
+   "labelJa": "\u8a08\u91cf_ADF",
    "image": "screens/weigh-adf.jpg",
    "hotspots": [
     {
@@ -2344,7 +2344,7 @@
   },
   "pack-bagmaker": {
    "frame": 441,
-   "labelJa": "包装_包装機",
+   "labelJa": "\u5305\u88c5_\u5305\u88c5\u6a5f",
    "image": "screens/pack-bagmaker.jpg",
    "hotspots": [
     {
@@ -2399,7 +2399,7 @@
   },
   "pack-ring": {
    "frame": 451,
-   "labelJa": "包装_リング",
+   "labelJa": "\u5305\u88c5_\u30ea\u30f3\u30b0",
    "image": "screens/pack-ring.jpg",
    "hotspots": [
     {
@@ -2462,7 +2462,7 @@
   },
   "pack-distribution": {
    "frame": 461,
-   "labelJa": "包装_振分け",
+   "labelJa": "\u5305\u88c5_\u632f\u5206\u3051",
    "image": "screens/pack-distribution.jpg",
    "hotspots": [
     {
@@ -2525,7 +2525,7 @@
   },
   "pack-timing": {
    "frame": 471,
-   "labelJa": "包装_タイミング",
+   "labelJa": "\u5305\u88c5_\u30bf\u30a4\u30df\u30f3\u30b0",
    "image": "screens/pack-timing.jpg",
    "hotspots": [
     {
@@ -2588,7 +2588,7 @@
   },
   "pack-supply": {
    "frame": 481,
-   "labelJa": "包装_供給機",
+   "labelJa": "\u5305\u88c5_\u4f9b\u7d66\u6a5f",
    "image": "screens/pack-supply.jpg",
    "hotspots": [
     {
@@ -2619,7 +2619,7 @@
   },
   "panel-screen-control": {
    "frame": 491,
-   "labelJa": "コンパネ_画面制御",
+   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u753b\u9762\u5236\u5fa1",
    "image": "screens/panel-screen-control.jpg",
    "hotspots": [
     {
@@ -2666,7 +2666,7 @@
   },
   "panel-password": {
    "frame": 501,
-   "labelJa": "コンパネ_パスワード",
+   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u30d1\u30b9\u30ef\u30fc\u30c9",
    "image": "screens/panel-password.jpg",
    "hotspots": [
     {
@@ -2713,7 +2713,7 @@
   },
   "panel-data-output": {
    "frame": 511,
-   "labelJa": "コンパネ_データ出力先",
+   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u30c7\u30fc\u30bf\u51fa\u529b\u5148",
    "image": "screens/panel-data-output.jpg",
    "hotspots": [
     {
@@ -2760,7 +2760,7 @@
   },
   "panel-comms": {
    "frame": 521,
-   "labelJa": "コンパネ_通信設定",
+   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u901a\u4fe1\u8a2d\u5b9a",
    "image": "screens/panel-comms.jpg",
    "hotspots": [
     {
@@ -2807,7 +2807,7 @@
   },
   "assistant": {
    "frame": 531,
-   "labelJa": "アシスタント",
+   "labelJa": "\u30a2\u30b7\u30b9\u30bf\u30f3\u30c8",
    "image": "screens/assistant.jpg",
    "hotspots": [
     {
@@ -2830,7 +2830,7 @@
   },
   "memo": {
    "frame": 541,
-   "labelJa": "メモ",
+   "labelJa": "\u30e1\u30e2",
    "image": "screens/memo.jpg",
    "hotspots": [
     {
@@ -2861,7 +2861,7 @@
   },
   "autoadj-afv": {
    "frame": 551,
-   "labelJa": "自動調整_AFV",
+   "labelJa": "\u81ea\u52d5\u8abf\u6574_AFV",
    "image": "screens/autoadj-afv.jpg",
    "hotspots": [
     {
@@ -2900,7 +2900,7 @@
   },
   "autoadj-neutral": {
    "frame": 561,
-   "labelJa": "自動調整_Ntrl",
+   "labelJa": "\u81ea\u52d5\u8abf\u6574_Ntrl",
    "image": "screens/autoadj-neutral.jpg",
    "hotspots": [
     {
@@ -2939,7 +2939,7 @@
   },
   "autoadj-drive": {
    "frame": 570,
-   "labelJa": "自動調整_Drive",
+   "labelJa": "\u81ea\u52d5\u8abf\u6574_Drive",
    "image": "screens/autoadj-drive.jpg",
    "hotspots": [
     {
@@ -3452,15 +3452,15 @@
    "amp": 50.0
   },
   "step": {
-   "time": 0.5,
+   "time": 1.0,
    "amp": 1.0
   },
-  "note": "Operation Manual 6.12. Light the Time and/or AMP lamp key — the lamp goes green — then press Increase or Decrease to move the values of the selected pans. RF is per head; DF is the single dispersion feeder. The pans selected on Zero Adjustment are the same pans, so the selection carries.",
+  "note": "Operation Manual 6.12. Light the Time and/or AMP lamp key \u2014 the lamp goes green \u2014 then press Increase or Decrease to move the values of the selected pans. RF is per head; DF is the single dispersion feeder. The pans selected on Zero Adjustment are the same pans, so the selection carries.",
   "arrowLit": {
    "up": "keys/fa-up-on.png",
    "down": "keys/fa-down-on.png"
   },
-  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and — on RF — at least one head selected.",
+  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and \u2014 on RF \u2014 at least one head selected.",
   "screens": {
    "preset-feeder": {
     "keys": {
@@ -3663,16 +3663,16 @@
     },
     "values": {
      "time": {
-      "x": 460,
-      "y": 62,
-      "w": 32,
-      "h": 25
+      "x": 461,
+      "y": 72,
+      "w": 30,
+      "h": 17
      },
      "amp": {
-      "x": 557,
-      "y": 62,
-      "w": 32,
-      "h": 25
+      "x": 558,
+      "y": 72,
+      "w": 30,
+      "h": 17
      }
     },
     "style": "run",
@@ -3683,7 +3683,7 @@
       "w": 55,
       "h": 46,
       "label": "right arrow",
-      "note": "not Increase — purpose not yet confirmed on the original"
+      "note": "Does nothing. Pressed on the original with the power off and on, the machine running, and with no, one, two and all fourteen heads selected: no head changed, no value changed, the chart never moved. It also disappears in the bar-chart view, so it belongs to the radar artwork."
      },
      {
       "x": 393,
@@ -3691,7 +3691,7 @@
       "w": 57,
       "h": 46,
       "label": "left arrow",
-      "note": "not Decrease — purpose not yet confirmed on the original"
+      "note": "Does nothing. Pressed on the original with the power off and on, the machine running, and with no, one, two and all fourteen heads selected: no head changed, no value changed, the chart never moved. It also disappears in the bar-chart view, so it belongs to the radar artwork."
      }
     ],
     "troughHeads": [
@@ -3768,9 +3768,21 @@
     ],
     "baseImage": "screens/run-feeder--base.jpg",
     "labelMap": "masks/run-feeder-labels.png",
-    "wedgeNote": "Head 1's wedge is baked blue in the capture, so a neutral base is generated with it greyed; the app tints up from that."
+    "wedgeNote": "Head 1's wedge is baked blue in the capture, so a neutral base is generated with it greyed; the app tints up from that.",
+    "ringMap": "masks/run-feeder-ring.png",
+    "chart": {
+     "centre": [
+      578,
+      261
+     ],
+     "segments": 14,
+     "seg1Centre": 77.1,
+     "rFull": 120,
+     "note": "Amplitude is the magenta trace. Measured off the capture: every head at 50.0 put it at r=61, so 100 sits at r=120, the ring's inner edge. Segment 1's arc is centred at 77 degrees, not at the bottom."
+    }
    }
   },
-  "lampOn": "keys/lamp-on.png"
+  "lampOn": "keys/lamp-on.png",
+  "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head \u2014 counted on the original, where RF Time went 25.0 to 26.0 on a single press."
  }
 }

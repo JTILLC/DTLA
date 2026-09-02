@@ -437,7 +437,6 @@ export default function App() {
           powerOn={powerOn}
           powerBusy={powerBusy}
           gatingOff={freeMode}
-          showHotspots={showHotspots}
           loadedPreset={loadedPreset}
           selection={selection}
           feeder={feeder && { ...feeder, heads: selection.table ? [] : selection.heads }}

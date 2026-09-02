@@ -90,18 +90,28 @@ export function adjust(state, spec, direction) {
   return { state: { ...state, rf }, changed, reason: null };
 }
 
-/** The values the keys are currently acting on, for the readout. */
+/**
+ * The values the keys are currently acting on, for the readout.
+ *
+ * Two rules counted on the original:
+ *
+ * - With several heads selected the display shows their MEAN. Head 1 at 26.0
+ *   and head 2 at 25.0, both selected, reads 25.5. (An earlier version showed
+ *   "– –" for a mixed selection; the machine does not.)
+ * - A parameter whose lamp is off shows NOTHING. Its value is not lost — the
+ *   stored number comes straight back when the lamp is lit again.
+ */
 export function shownValues(state) {
-  if (state.feeder === 'df') return state.df;
-  const heads = state.heads.length ? state.heads : [1];
-  const first = state.rf[heads[0]];
-  // With several heads selected they can hold different values; say so rather
-  // than showing one head's number as if it spoke for all of them.
-  const mixed = (p) => heads.some((h) => state.rf[h][p] !== first[p]);
-  return {
-    time: mixed('time') ? null : first.time,
-    amp: mixed('amp') ? null : first.amp,
+  const blank = (v, p) => (state.params[p] ? v : null);
+  if (state.feeder === 'df') {
+    return { time: blank(state.df.time, 'time'), amp: blank(state.df.amp, 'amp') };
+  }
+  if (!state.heads.length) return { time: null, amp: null };
+  const mean = (p) => {
+    const total = state.heads.reduce((sum, h) => sum + state.rf[h][p], 0);
+    return round1(total / state.heads.length);
   };
+  return { time: blank(mean('time'), 'time'), amp: blank(mean('amp'), 'amp') };
 }
 
-export const formatValue = (v) => (v === null ? '– –' : v.toFixed(1));
+export const formatValue = (v) => (v === null ? '' : v.toFixed(1));

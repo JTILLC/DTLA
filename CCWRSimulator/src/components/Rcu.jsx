@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { pointInRect } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
+import FeederChart from './FeederChart';
 
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
@@ -417,15 +418,20 @@ export default function Rcu({
               );
             })}
 
-            {/* The trough wedges. Tapping one selects that head and the WHOLE
-                wedge turns blue, as it does on the machine — drawn on a canvas
-                from a label map, the same way the Zero Adjustment pans are. */}
-            <ZeroAdjustPans
-              image={faScreen.baseImage}
-              labelMap={faScreen.labelMap}
-              lit={feeder.heads}
+            {/* The trough wedges, the radar chart's outer ring and the
+                magenta amplitude trace, all drawn live on one canvas: tapping a
+                head turns its whole wedge AND its ring segment blue, and its
+                amplitude marker sits further out the higher the value. */}
+            <FeederChart
+              baseImage={faScreen.baseImage}
+              wedgeMap={faScreen.labelMap}
+              ringMap={faScreen.ringMap}
+              chart={faScreen.chart}
+              heads={feeder.heads}
+              values={feeder.rf}
+              params={feeder.params}
               showHotspots={showHotspots}
-              onTapPan={(no) => onTap({ type: 'pan', no })}
+              onTapHead={(no) => onTap({ type: 'pan', no })}
             />
 
             {(faScreen.unknownKeys || []).map((k, i) => (

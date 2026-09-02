@@ -48,19 +48,19 @@ describe('selection', () => {
 });
 
 describe('adjust', () => {
-  it('moves only the lit parameter', () => {
+  it('moves only the lit parameter, by the 1.0 counted on the original', () => {
     const s = start();                       // Time lit, AMP dark
     const { state, changed } = adjust(s, spec, +1);
     expect(changed).toEqual(['time']);
-    expect(state.rf[1].time).toBe(25.5);
+    expect(state.rf[1].time).toBe(26);
     expect(state.rf[1].amp).toBe(50);        // untouched
   });
 
   it('moves every selected head, and no others', () => {
     let s = toggleHead(start(), 7);          // heads 1 and 7
     const { state } = adjust(s, spec, +1);
-    expect(state.rf[1].time).toBe(25.5);
-    expect(state.rf[7].time).toBe(25.5);
+    expect(state.rf[1].time).toBe(26);
+    expect(state.rf[7].time).toBe(26);
     expect(state.rf[2].time).toBe(25);
   });
 
@@ -88,34 +88,72 @@ describe('adjust', () => {
     const s = selectFeeder(toggleHead(start(), 1), 'df');   // no heads selected
     const { state, reason } = adjust(s, spec, +1);
     expect(reason).toBeNull();
-    expect(state.df.time).toBe(25.5);
+    expect(state.df.time).toBe(26);
     expect(state.rf[1].time).toBe(25);       // RF untouched
   });
 
   it('keeps one decimal place, so the readout cannot drift', () => {
     let s = start();
     for (let i = 0; i < 3; i += 1) s = adjust(s, spec, +1).state;
-    expect(s.rf[1].time).toBe(26.5);
+    expect(s.rf[1].time).toBe(28);
   });
 });
 
 describe('shownValues', () => {
   it('reads the selected head', () => {
     const { state } = adjust(start(), spec, +1);
-    expect(shownValues(state).time).toBe(25.5);
+    expect(shownValues(state).time).toBe(26);
   });
 
-  it('refuses to show one head\'s number for a mixed selection', () => {
-    // Move head 1 only, then select head 2 as well: the two now disagree, and
-    // showing 25.5 would claim both are at it.
+  it('averages a mixed selection, as the original does', () => {
+    // Counted on the running original: head 1 at 26.0 and head 2 at 25.0, both
+    // selected, reads 25.5.
     let s = adjust(start(), spec, +1).state;
     s = toggleHead(s, 2);
-    expect(shownValues(s).time).toBeNull();
-    expect(formatValue(shownValues(s).time)).toBe('– –');
+    expect(shownValues(s).time).toBe(25.5);
+  });
+
+  it('shows nothing for a parameter whose lamp is off', () => {
+    const s = start();                       // AMP dark
+    expect(shownValues(s).amp).toBeNull();
+    expect(formatValue(shownValues(s).amp)).toBe('');
+  });
+
+  it('gives the value straight back when the lamp is lit again', () => {
+    let s = adjust(toggleParam(start(), 'amp'), spec, +1).state;   // both lit
+    expect(shownValues(s).amp).toBe(51);
+    s = toggleParam(s, 'amp');               // off: blank
+    expect(shownValues(s).amp).toBeNull();
+    s = toggleParam(s, 'amp');               // on again: 51.0, not lost
+    expect(shownValues(s).amp).toBe(51);
   });
 
   it('shows DF values when DF is the selected feeder', () => {
-    const s = selectFeeder(start(), 'df');
+    const s = toggleParam(selectFeeder(start(), 'df'), 'amp');
     expect(shownValues(s)).toEqual({ time: 25, amp: 50 });
+  });
+});
+
+describe('the radar chart', () => {
+  const chart = spec.screens['run-feeder'].chart;
+
+  it('is mapped, so the ring and the trace can be drawn', () => {
+    expect(chart.segments).toBe(14);
+    expect(chart.centre).toHaveLength(2);
+    expect(chart.rFull).toBeGreaterThan(0);
+  });
+
+  it('puts the default amplitude where the capture had its trace', () => {
+    // Every head reads 50.0 out of the box and the capture's magenta trace sat
+    // at r=61. If the scale ever drifts, the drawn trace stops matching the
+    // artwork it is drawn over.
+    const r = (spec.defaults.amp / 100) * chart.rFull;
+    expect(Math.round(r)).toBe(60);
+  });
+
+  it('lays segment 1 where the artwork prints its "1"', () => {
+    // Not at the bottom, as it looks: measured off the segment that was filled
+    // blue in the capture.
+    expect(chart.seg1Centre).toBeCloseTo(77.1, 1);
   });
 });
