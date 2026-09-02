@@ -54,8 +54,14 @@ export default function App() {
   /* Zero Adjustment selection. The real menu opens with every weigh hopper
      selected and the dispersion table not — blue means selected, and Start
      only runs on what is selected. */
+  /* ONE of 'wh' | 'df' | null. Operation Manual 4.4.6 zeroes the weigh hoppers
+     and then the dispersion table as separate operations, so selecting one
+     clears the other — they are never both blue. */
   const [selection, setSelection] = useState(
-    saved.selection ?? { wh: true, df: false });
+    typeof saved.selection === 'string' || saved.selection === null
+      ? saved.selection : 'wh');
+  const [zeroing, setZeroing] = useState(false);
+  const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   const [notice, setNotice] = useState(null);
   const noticeTimer = useRef(null);
@@ -70,6 +76,7 @@ export default function App() {
   useEffect(() => () => {
     clearTimeout(noticeTimer.current);
     clearTimeout(powerTimer.current);
+    clearTimeout(zeroTimer.current);
   }, []);
 
   const lesson = lessons.find((l) => l.id === activeLessonId) || null;
@@ -181,17 +188,43 @@ export default function App() {
     }
 
     if (evt.type === 'select') {
-      // Toggle from the PREVIOUS value rather than from what this render closed
-      // over: a stale closure here flips the wrong way and the artwork lags a
-      // press behind, which is exactly how it first behaved.
-      const next = { ...selection, [evt.which]: !selection[evt.which] };
-      setSelection((prev) => ({ ...prev, [evt.which]: !prev[evt.which] }));
+      if (zeroing) return;
       const label = navmap.zeroAdjust.keys[evt.which].label;
+      const turningOff = selection === evt.which;
+      setSelection(turningOff ? null : evt.which);
       showNotice(
-        next[evt.which]
-          ? `${label} — selected. Blue means selected; Start zeroes what is selected.`
-          : `${label} — cleared. With nothing selected, Start has nothing to zero.`,
+        turningOff
+          ? `${label} — cleared. With nothing selected, Start has nothing to zero.`
+          : `${label} — selected, shown in blue. Only one at a time: the weigh `
+            + 'hoppers and the dispersion table are zeroed as separate steps (4.4.6).',
       );
+      return;
+    }
+
+    if (evt.type === 'zero-start') {
+      if (zeroing) return;
+      if (!powerOn) {
+        setWrongFlash((n) => n + 1);
+        showNotice(POWER_MSG);
+        return;
+      }
+      if (!selection) {
+        setWrongFlash((n) => n + 1);
+        showNotice('Nothing is selected. Press Slct All WH or Slct All DF first — '
+          + 'Start only zeroes what is shown in blue.');
+        return;
+      }
+      // 4.4.6: the message appears and the adjustment runs; when it finishes the
+      // selection clears and Start goes dark again, as on the real unit.
+      setZeroing(true);
+      clearTimeout(zeroTimer.current);
+      zeroTimer.current = setTimeout(() => {
+        setZeroing(false);
+        setSelection(null);
+        showNotice(selection === 'wh'
+          ? 'Zero adjustment complete. Confirm every weigh hopper reads 0.0 ±0.1 g (4.4.6).'
+          : 'Zero adjustment complete. Confirm the dispersion table reads 0.0 g (4.4.6).');
+      }, 4000);
       return;
     }
 
@@ -236,7 +269,7 @@ export default function App() {
     }
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
-      advanceLesson, selection, loadedPreset, freeMode]);
+      advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -342,6 +375,7 @@ export default function App() {
           gatingOff={freeMode}
           loadedPreset={loadedPreset}
           selection={selection}
+          zeroing={zeroing}
           notice={notice}
         />
         <aside className="side-panel">

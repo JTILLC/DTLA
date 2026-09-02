@@ -27,7 +27,8 @@ export default function Rcu({
   powerBusy,      // true while the "Please wait a moment." power-up runs
   gatingOff,      // Free mode: nothing is withheld, so nothing is drawn as dead
   loadedPreset,   // which preset tile is currently loaded (Select Preset)
-  selection,      // Zero Adjustment: { df: bool, wh: bool }
+  selection,      // Zero Adjustment: 'wh' | 'df' | null — never both
+  zeroing,        // true while "Please wait a moment." runs
   notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -56,8 +57,7 @@ export default function Rcu({
   const zaHere = za && za.screen === slug;
   const imageFor = () => {
     if (!zaHere) return screen.image;
-    const key = [selection?.wh && 'wh', selection?.df && 'df'].filter(Boolean).join('-');
-    return za.variants[key || 'none'] || screen.image;
+    return za.variants[selection || 'none'] || screen.image;
   };
 
   const pct = (v, total) => `${(v / total) * 100}%`;
@@ -205,7 +205,7 @@ export default function Rcu({
 
         {zaHere && ['df', 'wh'].map((which) => {
           const key = za.keys[which];
-          const on = !!selection?.[which];
+          const on = selection === which;
           return (
             <button
               key={which}
@@ -215,11 +215,40 @@ export default function Rcu({
               aria-label={`${key.label} — ${on ? 'selected' : 'not selected'}`}
               title={on
                 ? `${key.label}: selected (blue). Press to clear.`
-                : `${key.label}: press to select`}
+                : `${key.label}: press to select — this clears the other one`}
               onClick={() => onTap({ type: 'select', which })}
             />
           );
         })}
+
+        {/* The in-screen Start. Dimmed in the artwork; it lights only when
+            something is selected AND the control power is on, so the lit key is
+            laid over it exactly then. */}
+        {zaHere && (
+          <button
+            type="button"
+            className={'za-key za-start' + (selection && powerOn ? ' za-start--live' : '')}
+            style={rectStyle(za.keys.start)}
+            aria-label={`Start — ${selection && powerOn ? 'ready' : 'dead'}`}
+            title={selection && powerOn
+              ? 'Start: begins zero adjustment on what is selected'
+              : (!powerOn ? 'Start: dead — the machine is not powered on'
+                          : 'Start: dead — nothing is selected')}
+            onClick={() => onTap({ type: 'zero-start' })}
+          >
+            {selection && powerOn && !zeroing && (
+              <img className="key-lit" src="/keys/za-start-on.png" alt="" />
+            )}
+          </button>
+        )}
+
+        {/* 4.4.6: "The message 'Please wait a moment.' will appear and zero
+            adjustment will start." It shows in the bar's own message panel. */}
+        {zaHere && zeroing && (
+          <div className="za-message" style={rectStyle(za.messageBar)} role="status">
+            {za.message}
+          </div>
+        )}
 
         {/* Power-up: the original shows this pop-up for ~10 s with the whole
             bottom bar (HOME included) locked out. */}
