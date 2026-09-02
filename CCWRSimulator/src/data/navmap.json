@@ -3126,5 +3126,138 @@
   "y": 528,
   "w": 89,
   "h": 63
+ },
+ "presetTiles": {
+  "screen": "preset-select-a",
+  "header": {
+   "x": 0,
+   "y": 41,
+   "w": 660,
+   "h": 26,
+   "bg": "#d0d0d0"
+  },
+  "tiles": [
+   {
+    "no": 1,
+    "x": 2,
+    "y": 68,
+    "w": 124,
+    "h": 224,
+    "name": "POTATO CHIPS",
+    "target": "90.0 g",
+    "upper": "3.0 g",
+    "speed": "80wpm",
+    "configured": true
+   },
+   {
+    "no": 2,
+    "x": 128,
+    "y": 68,
+    "w": 124,
+    "h": 224,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 3,
+    "x": 256,
+    "y": 68,
+    "w": 124,
+    "h": 224,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 4,
+    "x": 384,
+    "y": 68,
+    "w": 124,
+    "h": 224,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 5,
+    "x": 512,
+    "y": 68,
+    "w": 124,
+    "h": 224,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 6,
+    "x": 2,
+    "y": 292,
+    "w": 124,
+    "h": 226,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 7,
+    "x": 128,
+    "y": 292,
+    "w": 124,
+    "h": 226,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 8,
+    "x": 256,
+    "y": 292,
+    "w": 124,
+    "h": 226,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 9,
+    "x": 384,
+    "y": 292,
+    "w": 124,
+    "h": 226,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   },
+   {
+    "no": 10,
+    "x": 512,
+    "y": 292,
+    "w": 124,
+    "h": 226,
+    "name": "",
+    "target": "0.0 g",
+    "upper": "0.0 g",
+    "speed": "60wpm",
+    "configured": false
+   }
+  ],
+  "note": "Grid measured from the artwork's own rules. Values are read off each tile: only preset 1 is configured on the captured machine, the rest are empty at 0.0 g / 60wpm."
  }
 }

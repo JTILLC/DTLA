@@ -48,6 +48,9 @@ export default function App() {
      dimmed and dead until the Power key is pressed (observed on the running
      original — pressing Start cold does nothing at all). */
   const [powerOn, setPowerOn] = useState(saved.powerOn ?? false);
+  /* Which preset the Select Preset screen has loaded. The captured machine is
+     running preset 1, so that is where it starts. */
+  const [loadedPreset, setLoadedPreset] = useState(saved.loadedPreset ?? 1);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   const [notice, setNotice] = useState(null);
   const noticeTimer = useRef(null);
@@ -80,13 +83,14 @@ export default function App() {
         STORAGE_KEY,
         JSON.stringify({
           screen, mode, showHotspots,
-          activeLessonId, stepIndex, progress, completed, powerOn,
+          activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
-  }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed, powerOn]);
+  }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
+      powerOn, loadedPreset]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -167,6 +171,18 @@ export default function App() {
         return;
       }
       togglePower(); // the Power key stays a real, working control mid-lesson
+      return;
+    }
+
+    if (evt.type === 'preset') {
+      const tile = navmap.presetTiles.tiles.find((t) => t.no === evt.no);
+      setLoadedPreset(evt.no);
+      showNotice(
+        tile?.configured
+          ? `Preset ${tile.no} loaded — ${tile.name}, ${tile.target} at ${tile.speed}.`
+          : `Preset ${evt.no} loaded. It is empty on this machine (0.0 g), so `
+            + 'there is nothing to run — on a real unit you would set it up in the Preset menu first.',
+      );
       return;
     }
 
@@ -275,7 +291,11 @@ export default function App() {
             <button
               role="tab"
               className={mode === 'free' ? 'is-active' : ''}
-              onClick={() => setMode('free')}
+              onClick={() => {
+                setMode('free');
+                setPowerOn(false);   // a machine you have just walked up to is cold
+                setPowerBusy(false);
+              }}
               title="Jump straight to any screen, with nothing gated"
             >
               Free
@@ -298,6 +318,7 @@ export default function App() {
           powerOn={powerOn}
           powerBusy={powerBusy}
           gatingOff={freeMode}
+          loadedPreset={loadedPreset}
           notice={notice}
         />
         <aside className="side-panel">

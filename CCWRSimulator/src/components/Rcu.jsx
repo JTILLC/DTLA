@@ -26,6 +26,7 @@ export default function Rcu({
   powerOn,        // control power: red/OFF or green/ON chip on the Power key
   powerBusy,      // true while the "Please wait a moment." power-up runs
   gatingOff,      // Free mode: nothing is withheld, so nothing is drawn as dead
+  loadedPreset,   // which preset tile is currently loaded (Select Preset)
   notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -44,6 +45,9 @@ export default function Rcu({
   }, [wrongFlash]);
 
   if (!screen) return null;
+
+  const tiles = navmap.presetTiles?.tiles || [];
+  const loaded = tiles.find((t) => t.no === loadedPreset) || tiles[0] || { no: 1, name: '', target: '' };
 
   const pct = (v, total) => `${(v / total) * 100}%`;
   const rectStyle = (r) => ({
@@ -148,6 +152,45 @@ export default function Rcu({
               style={rectStyle(h)}
             />
           ))}
+
+        {/* Select Preset's tiles. Pressing one loads that preset on the real
+            unit and rewrites the line above the grid; the screens here are a
+            fixed capture, so the tile is marked and that one line is redrawn
+            from the tile's own values. Nothing else can change, and the notice
+            says so. */}
+        {navmap.presetTiles && navmap.presetTiles.screen === slug && (
+          <>
+            <div
+              className="preset-header"
+              style={{
+                ...rectStyle(navmap.presetTiles.header),
+                background: navmap.presetTiles.header.bg,
+              }}
+            >
+              <span className="preset-header__no">Preset No. {loaded.no}</span>
+              <span className="preset-header__name">
+                {loaded.name || `(empty — preset ${loaded.no})`}
+              </span>
+              <span className="preset-header__wt">{loaded.target}</span>
+            </div>
+            {navmap.presetTiles.tiles.map((t) => (
+              <button
+                key={t.no}
+                type="button"
+                className={'preset-tile' + (t.no === loaded.no ? ' preset-tile--loaded' : '')}
+                style={rectStyle(t)}
+                title={
+                  t.configured
+                    ? `Preset ${t.no}: ${t.name}, ${t.target} at ${t.speed}`
+                    : `Preset ${t.no} — empty on this machine`
+                }
+                onClick={() => onTap({ type: 'preset', no: t.no })}
+              >
+                {t.no === loaded.no && <span className="preset-tile__flag">LOADED</span>}
+              </button>
+            ))}
+          </>
+        )}
 
         {/* Power-up: the original shows this pop-up for ~10 s with the whole
             bottom bar (HOME included) locked out. */}
