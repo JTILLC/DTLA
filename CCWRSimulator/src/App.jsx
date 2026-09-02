@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import navmap from './data/navmap.json';
+import { initialFeeder, toggleHead, toggleParam, selectFeeder, adjust } from './utils/feeder';
 import lessons from './data/lessons';
 import screenInfo from './data/screenInfo';
 import Rcu from './components/Rcu';
@@ -61,6 +62,9 @@ export default function App() {
     typeof saved.selection === 'string' || saved.selection === null
       ? saved.selection : 'wh');
   const [zeroing, setZeroing] = useState(false);
+  /* Feeder adjustment values: per head for RF, single for DF (6.12). */
+  const [feeder, setFeeder] = useState(
+    () => saved.feeder ?? initialFeeder(navmap.feederAdjust));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   const [notice, setNotice] = useState(null);
@@ -96,14 +100,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection,
+          selection, feeder,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection]);
+      powerOn, loadedPreset, selection, feeder]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -184,6 +188,34 @@ export default function App() {
         return;
       }
       togglePower(); // the Power key stays a real, working control mid-lesson
+      return;
+    }
+
+    if (evt.type === 'feeder-select') {
+      setFeeder((f) => selectFeeder(f, evt.which));
+      showNotice(evt.which === 'rf'
+        ? 'Radial feeders — one behind each pool hopper, so the head strip applies.'
+        : 'Dispersion feeder — a single feeder, so there is no head to pick.');
+      return;
+    }
+    if (evt.type === 'feeder-head') {
+      setFeeder((f) => toggleHead(f, evt.no));
+      return;
+    }
+    if (evt.type === 'feeder-param') {
+      setFeeder((f) => toggleParam(f, evt.which));
+      return;
+    }
+    if (evt.type === 'feeder-adjust') {
+      const { reason } = adjust(feeder, navmap.feederAdjust, evt.direction);
+      if (reason === 'no-param') {
+        showNotice('Light the Time or AMP lamp key first — step 2 of 6.12. '
+          + 'The arrows only move a value that is lit.');
+      } else if (reason === 'no-head') {
+        showNotice('No head is selected. Press the head numbers to adjust; '
+          + 'they turn blue (6.12).');
+      }
+      setFeeder((f) => adjust(f, navmap.feederAdjust, evt.direction).state);
       return;
     }
 
@@ -269,7 +301,7 @@ export default function App() {
     }
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
-      advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash]);
+      advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -375,6 +407,7 @@ export default function App() {
           gatingOff={freeMode}
           loadedPreset={loadedPreset}
           selection={selection}
+          feeder={feeder}
           zeroing={zeroing}
           notice={notice}
         />

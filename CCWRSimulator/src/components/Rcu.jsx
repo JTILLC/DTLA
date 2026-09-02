@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { pointInRect } from '../utils/navGraph';
+import { shownValues, formatValue } from '../utils/feeder';
 
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
@@ -29,6 +30,7 @@ export default function Rcu({
   loadedPreset,   // which preset tile is currently loaded (Select Preset)
   selection,      // Zero Adjustment: 'wh' | 'df' | null — never both
   zeroing,        // true while "Please wait a moment." runs
+  feeder,         // Feeder Adjustment state (see utils/feeder.js)
   notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -59,6 +61,11 @@ export default function Rcu({
     if (!zaHere) return screen.image;
     return za.variants[selection || 'none'] || screen.image;
   };
+
+  const fa = navmap.feederAdjust;
+  const feederShown = feeder && fa && fa.screen === slug
+    ? { time: formatValue(shownValues(feeder).time), amp: formatValue(shownValues(feeder).amp) }
+    : { time: '', amp: '' };
 
   const pct = (v, total) => `${(v / total) * 100}%`;
   const rectStyle = (r) => ({
@@ -248,6 +255,77 @@ export default function Rcu({
           <div className="za-message" style={rectStyle(za.messageBar)} role="status">
             {za.message}
           </div>
+        )}
+
+        {/* Feeder Adjustment (6.12): pick the heads, light Time and/or AMP,
+            then Increase or Decrease. The screen's own graphs are empty in the
+            artwork, so the values are drawn into the lamp keys the way the
+            Production feeder screen prints them. */}
+        {fa && fa.screen === slug && feeder && (
+          <>
+            {['rf', 'df'].map((which) => (
+              <button
+                key={which}
+                type="button"
+                className={'fa-key' + (feeder.feeder === which ? ' fa-key--on' : '')}
+                style={rectStyle(fa.keys[which])}
+                aria-label={`${fa.keys[which].label} feeder — ${feeder.feeder === which ? 'selected' : 'not selected'}`}
+                title={which === 'rf'
+                  ? 'Radial feeders — one per head, so the head strip applies'
+                  : 'Dispersion feeder — a single feeder, no head selection'}
+                onClick={() => onTap({ type: 'feeder-select', which })}
+              />
+            ))}
+
+            {['time', 'amp'].map((which) => (
+              <button
+                key={which}
+                type="button"
+                className={'fa-key fa-lamp' + (feeder.params[which] ? ' fa-lamp--lit' : '')}
+                style={rectStyle(fa.keys[which])}
+                aria-label={`${fa.keys[which].label} lamp — ${feeder.params[which] ? 'lit' : 'off'}`}
+                title={`${fa.keys[which].label}: light it, then press Increase or Decrease`}
+                onClick={() => onTap({ type: 'feeder-param', which })}
+              >
+                <span className="fa-value">{feederShown[which]}</span>
+              </button>
+            ))}
+
+            {[['up', +1], ['down', -1]].map(([which, dir]) => {
+              /* Dimmed in the artwork, and dead on the real unit until there is
+                 something to move: a lamp lit, and on RF a head selected. */
+              const live = (feeder.params.time || feeder.params.amp)
+                && (feeder.feeder === 'df' || feeder.heads.length > 0);
+              return (
+                <button
+                  key={which}
+                  type="button"
+                  className={'fa-key fa-arrow' + (live ? ' fa-arrow--live' : '')}
+                  style={rectStyle(fa.keys[which])}
+                  aria-label={`${fa.keys[which].label} — ${live ? 'ready' : 'dead'}`}
+                  title={live
+                    ? `${fa.keys[which].label} the lit values of the selected head(s)`
+                    : `${fa.keys[which].label}: dead — light Time or AMP first`
+                      + (feeder.feeder === 'rf' ? ', and select a head' : '')}
+                  onClick={() => onTap({ type: 'feeder-adjust', direction: dir })}
+                >
+                  {live && <img className="key-lit" src={`/${fa.arrowLit[which]}`} alt="" />}
+                </button>
+              );
+            })}
+
+            {feeder.feeder === 'rf' && fa.heads.map((h) => (
+              <button
+                key={h.no}
+                type="button"
+                className={'fa-head' + (feeder.heads.includes(h.no) ? ' fa-head--on' : '')}
+                style={rectStyle(h)}
+                aria-label={`Head ${h.no} — ${feeder.heads.includes(h.no) ? 'selected' : 'not selected'}`}
+                title={`Head ${h.no}: RF time ${feeder.rf[h.no].time.toFixed(1)}, amp ${feeder.rf[h.no].amp.toFixed(1)}`}
+                onClick={() => onTap({ type: 'feeder-head', no: h.no })}
+              />
+            ))}
+          </>
         )}
 
         {/* Power-up: the original shows this pop-up for ~10 s with the whole
