@@ -16,15 +16,28 @@
 // greyed out. All four of those are the difference between a correct centerline
 // and a wrong one.
 //
-// The thing that will silently corrupt a read
-// -------------------------------------------
-// The RCU prints the VALUE ABOVE ITS LABEL inside the same bordered field. Read
-// top-to-bottom in reading order and every value pairs with the label of the
-// field above it — an off-by-one down the whole screen, where every value is
-// individually plausible and every one is attached to the wrong name. The
-// prompt is explicit that pairing is by enclosing box, never by reading order.
-// (The RCU's own text exports have the same trap; see tools/parse_export.py in
-// the centerline project.)
+// The two things that will silently corrupt a read
+// ------------------------------------------------
+// 1. Pairing. Read top-to-bottom in reading order and every value pairs with
+//    the label of the field above it — an off-by-one down the whole screen,
+//    where each value is individually plausible and every one is attached to
+//    the wrong name. Pairing is by ENCLOSING BOX, never by reading order. (The
+//    RCU's own text exports have the same trap; see tools/parse_export.py in
+//    the centerline project.)
+//
+// 2. Which of the two lines in a box is the value. It is NOT a fixed position:
+//    the RCU has two field styles and they are INVERTED.
+//
+//        grey button        green dropdown panel
+//        ------------       --------------------
+//        1:1Mix     <- value    Filter No.  <- label
+//        Section Parameter       0          <- value
+//        Number     <- label     [ribbed bar with a down triangle]
+//
+//    A rule of "the value is on top" reads every dropdown backwards, reporting
+//    the setting's name as its value. What actually holds across BOTH styles is
+//    colour: the value is printed in BLUE, the label in BLACK. That is what the
+//    prompt keys on, with position given only as a secondary hint.
 //
 // Why the expected fields are never sent
 // --------------------------------------
@@ -66,18 +79,29 @@ const SYSTEM = `You read settings off a photograph of an Ishida CCW multihead we
 
 The screen is a grid of rectangular fields. Each field holds ONE setting: its current value and, separately, the name of the setting.
 
-THE MOST IMPORTANT RULE — how a value pairs with its label:
-Inside a field, the RCU prints the VALUE ABOVE ITS LABEL. For example a field showing
-    90.0g
-    Target Weight
-means the setting called "Target Weight" has the value "90.0g".
-Pair a value with a label ONLY when they sit inside the SAME bordered field. Never pair by reading order, and never pair a value with the label nearest above it — that is the label of the field above, and following reading order shifts every setting on the screen onto the wrong name.
+RULE 1 — a value pairs with a label ONLY when the two sit inside the SAME bordered field.
+Never pair by reading order, and never pair a value with the label nearest above it — that is the label of the field above, and following reading order shifts every setting on the screen onto the wrong name.
+
+RULE 2 — inside a field, THE VALUE IS THE BLUE TEXT AND THE LABEL IS THE BLACK TEXT.
+Do not use position to tell them apart. The RCU has two field styles and they are the other way up from each other:
+- A grey button prints the value on top and its name underneath:
+      1:1Mix                     <- value, blue
+      Section Parameter Number   <- label, black
+- A pale green panel with a ribbed bar and a small down-triangle beneath it is a DROPDOWN, and prints its name on top and the value underneath:
+      Filter No.                 <- label, black
+      0                          <- value, blue
+      [ribbed bar with a down-triangle]
+Assuming the value is always the upper line reads every dropdown backwards and reports the setting's name as its value. Go by colour.
+
+RULE 3 — SELECTION INVERTS THE COLOURS. A field or a table row that is currently selected is drawn with a solid blue background and pale text, instead of dark text on grey or green. On a selected row the value is the PALE text, not the blue. Blue as a background means "this one is selected"; blue as text means "this is a value". Do not report the highlight itself as a value, and do not skip a selected row because its text is not blue.
 
 Reading each kind of field:
 - Plain value fields: report the value exactly as displayed, including any unit shown in the same string (90.0g, 80wpm, 400msec, 99.0%, 1:1Mix, 2:Slave).
+- Dropdowns (the green panel with the ribbed bar and down-triangle): report the option currently shown, which is the selected one. The ribbed bar itself is a control, not a value.
 - Radio buttons / option pairs: a field may offer choices such as "400g / 800g" or "Off / On", one of which is filled in or highlighted to show it is selected. Report ONLY the selected option as the value. If you cannot tell which is selected, omit the field and say so in notes.
 - Greyed-out or dimmed fields: these are disabled and their contents are not in force. Report them with enabled=false, and put the greyed text in value if you can read it.
 - Rows in a list or table (for example a list of filters, each with its own setting): report each row as its own field, using the row's own name as the label.
+- Pop-up panels: pressing a field can open a small panel over the screen offering further options, one of them filled to show it is selected. If a pop-up is open, report the selected option as a field, using the pop-up's own heading as the label, and say in notes that a pop-up was covering part of the screen. Never report a setting whose field the pop-up is sitting on top of — you cannot see it, and a value read through a covering panel is a guess.
 
 What is NOT a setting, and must not be reported:
 - The title bar at the top (screen name, preset identifier such as "C1" or "C1+C2", the language selector, status lamps, the date and time).
@@ -208,8 +232,10 @@ const createRead = (client, b64, mediaType = 'image/jpeg') =>
           },
           {
             type: 'text',
-            text: 'Read the settings off this RCU screen. Remember that each value sits '
-                + 'ABOVE its own label inside the same bordered field.',
+            text: 'Read the settings off this RCU screen. Pair each value with the label '
+                + 'inside the SAME bordered field, and remember the value is the BLUE '
+                + 'text — on a grey button it sits above its label, on a green dropdown '
+                + 'below it.',
           },
         ],
       },
