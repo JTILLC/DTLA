@@ -862,3 +862,27 @@
   display: block;
 }
 .za-pans--outlined { outline: 1px dashed rgba(34, 211, 238, 0.5); outline-offset: -1px; }
+
+/* Production's Feeder Adjust: the key's lamp goes green, and the live values
+   sit over the ones baked into the artwork. */
+.fa-lamp-on {
+  position: absolute;
+  object-fit: fill;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.fa-run-value {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2%;
+  /* Matches the key face, so replacing the baked number leaves no patch. */
+  background: linear-gradient(#d9d9d9, #c9c9c9);
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: clamp(8px, 1.6cqw, 15px);
+  color: #0000cc;
+  pointer-events: none;
+}

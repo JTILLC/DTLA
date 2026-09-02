@@ -66,8 +66,10 @@ export default function Rcu({
   const zaAnySelected = zaHere && selection
     && (selection.table || (selection.heads && selection.heads.length > 0));
 
-  const fa = navmap.feederAdjust;
-  const feederShown = feeder && fa && fa.screen === slug
+  const faAll = navmap.feederAdjust;
+  const faScreen = faAll?.screens?.[slug] || null;
+  const fa = faScreen ? { ...faAll, ...faScreen } : faAll;
+  const feederShown = feeder && faScreen
     ? { time: formatValue(shownValues(feeder).time), amp: formatValue(shownValues(feeder).amp) }
     : { time: '', amp: '' };
 
@@ -277,7 +279,7 @@ export default function Rcu({
             then Increase or Decrease. The screen's own graphs are empty in the
             artwork, so the values are drawn into the lamp keys the way the
             Production feeder screen prints them. */}
-        {fa && fa.screen === slug && feeder && (
+        {faScreen && faScreen.style === 'preset' && feeder && (
           <>
             {['rf', 'df'].map((which) => (
               <button
@@ -341,6 +343,75 @@ export default function Rcu({
                 onClick={() => onTap({ type: 'feeder-head', no: h.no })}
               />
             ))}
+          </>
+        )}
+
+        {/* Production's Feeder Adjust (6.12). Same procedure, different keys:
+            the lamp on each key goes GREEN when that parameter is selected, and
+            the arrows move the values of the selected pans. */}
+        {faScreen && faScreen.style === 'run' && feeder && (
+          <>
+            <button
+              type="button"
+              className={'fa-key' + (feeder.feeder === 'rf' ? ' fa-key--on' : '')}
+              style={rectStyle(faScreen.keys.rf)}
+              aria-label={`RF feeder — ${feeder.feeder === 'rf' ? 'selected' : 'not selected'}`}
+              title="Radial feeders — press to adjust these; press again for the dispersion feeder"
+              onClick={() => onTap({ type: 'feeder-select', which: feeder.feeder === 'rf' ? 'df' : 'rf' })}
+            />
+
+            {['time', 'amp'].map((which) => (
+              <button
+                key={which}
+                type="button"
+                className="fa-key fa-lamp"
+                style={rectStyle(faScreen.keys[which])}
+                aria-label={`${faScreen.keys[which].label} lamp — ${feeder.params[which] ? 'lit' : 'off'}`}
+                title={`${faScreen.keys[which].label}: light it, then press Increase or Decrease`}
+                onClick={() => onTap({ type: 'feeder-param', which })}
+              />
+            ))}
+
+            {/* The lamp itself, lifted off the artwork's own lit AMP key. */}
+            {['time', 'amp'].filter((w) => feeder.params[w]).map((which) => (
+              <img
+                key={`lamp-${which}`}
+                className="fa-lamp-on"
+                src={`/${faAll.lampOn}`}
+                alt=""
+                style={rectStyle(faScreen.lamps[which])}
+              />
+            ))}
+
+            {/* Live values over the ones baked into the key. */}
+            {['time', 'amp'].map((which) => (
+              <span
+                key={`val-${which}`}
+                className="fa-run-value"
+                style={rectStyle(faScreen.values[which])}
+              >
+                {feederShown[which]}
+              </span>
+            ))}
+
+            {[['up', +1], ['down', -1]].map(([which, dir]) => {
+              const live = (feeder.params.time || feeder.params.amp)
+                && (feeder.feeder === 'df' || feeder.heads.length > 0);
+              return (
+                <button
+                  key={which}
+                  type="button"
+                  className={'fa-key fa-arrow' + (live ? ' fa-arrow--live' : '')}
+                  style={rectStyle(faScreen.keys[which])}
+                  aria-label={`${faScreen.keys[which].label} — ${live ? 'ready' : 'dead'}`}
+                  title={live
+                    ? `${faScreen.keys[which].label} the lit values of the selected pans`
+                    : 'Dead — light Time or AMP first'
+                      + (feeder.feeder === 'rf' ? ', and select a pan' : '')}
+                  onClick={() => onTap({ type: 'feeder-adjust', direction: dir })}
+                />
+              );
+            })}
           </>
         )}
 

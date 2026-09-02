@@ -224,7 +224,9 @@ export default function App() {
       return;
     }
     if (evt.type === 'feeder-adjust') {
-      const { reason } = adjust(feeder, navmap.feederAdjust, evt.direction);
+      // The pans selected on Zero Adjustment are the pans adjusted here.
+      const live = { ...feeder, heads: selection.table ? [] : selection.heads };
+      const { reason } = adjust(live, navmap.feederAdjust, evt.direction);
       if (reason === 'no-param') {
         showNotice('Light the Time or AMP lamp key first — step 2 of 6.12. '
           + 'The arrows only move a value that is lit.');
@@ -232,7 +234,8 @@ export default function App() {
         showNotice('No head is selected. Press the head numbers to adjust; '
           + 'they turn blue (6.12).');
       }
-      setFeeder((f) => adjust(f, navmap.feederAdjust, evt.direction).state);
+      setFeeder((f) => adjust({ ...f, heads: live.heads }, navmap.feederAdjust,
+        evt.direction).state);
       return;
     }
 
@@ -437,7 +440,7 @@ export default function App() {
           showHotspots={showHotspots}
           loadedPreset={loadedPreset}
           selection={selection}
-          feeder={feeder}
+          feeder={feeder && { ...feeder, heads: selection.table ? [] : selection.heads }}
           zeroing={zeroing}
           notice={notice}
         />

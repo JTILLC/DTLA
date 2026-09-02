@@ -3455,11 +3455,229 @@
    "time": 0.5,
    "amp": 1.0
   },
-  "note": "Operation Manual 6.12: press the head numbers to adjust (more than one is allowed, and they turn blue), light the Time and/or AMP lamp keys, then press Increase or Decrease. RF is per head; DF is the single dispersion feeder.",
+  "note": "Operation Manual 6.12. Light the Time and/or AMP lamp key — the lamp goes green — then press Increase or Decrease to move the values of the selected pans. RF is per head; DF is the single dispersion feeder. The pans selected on Zero Adjustment are the same pans, so the selection carries.",
   "arrowLit": {
    "up": "keys/fa-up-on.png",
    "down": "keys/fa-down-on.png"
   },
-  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and — on RF — at least one head selected."
+  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and — on RF — at least one head selected.",
+  "screens": {
+   "preset-feeder": {
+    "keys": {
+     "rf": {
+      "x": 2,
+      "y": 230,
+      "w": 54,
+      "h": 50,
+      "label": "RF"
+     },
+     "df": {
+      "x": 285,
+      "y": 222,
+      "w": 55,
+      "h": 48,
+      "label": "DF"
+     },
+     "time": {
+      "x": 10,
+      "y": 100,
+      "w": 90,
+      "h": 50,
+      "label": "Time"
+     },
+     "amp": {
+      "x": 105,
+      "y": 100,
+      "w": 92,
+      "h": 50,
+      "label": "AMP"
+     },
+     "up": {
+      "x": 545,
+      "y": 232,
+      "w": 43,
+      "h": 39,
+      "label": "Increase"
+     },
+     "down": {
+      "x": 545,
+      "y": 276,
+      "w": 43,
+      "h": 40,
+      "label": "Decrease"
+     }
+    },
+    "heads": [
+     {
+      "no": 1,
+      "x": 3,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 2,
+      "x": 25,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 3,
+      "x": 47,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 4,
+      "x": 69,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 5,
+      "x": 91,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 6,
+      "x": 113,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 7,
+      "x": 135,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 8,
+      "x": 157,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 9,
+      "x": 179,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 10,
+      "x": 201,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 11,
+      "x": 223,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 12,
+      "x": 245,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 13,
+      "x": 267,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     },
+     {
+      "no": 14,
+      "x": 289,
+      "y": 391,
+      "w": 15,
+      "h": 24
+     }
+    ],
+    "style": "preset"
+   },
+   "run-feeder": {
+    "keys": {
+     "time": {
+      "x": 406,
+      "y": 40,
+      "w": 86,
+      "h": 55,
+      "label": "RF Time"
+     },
+     "amp": {
+      "x": 501,
+      "y": 40,
+      "w": 89,
+      "h": 55,
+      "label": "RF AMP"
+     },
+     "up": {
+      "x": 333,
+      "y": 143,
+      "w": 55,
+      "h": 46,
+      "label": "Increase"
+     },
+     "down": {
+      "x": 393,
+      "y": 143,
+      "w": 57,
+      "h": 46,
+      "label": "Decrease"
+     },
+     "rf": {
+      "x": 378,
+      "y": 238,
+      "w": 62,
+      "h": 54,
+      "label": "RF"
+     }
+    },
+    "lamps": {
+     "time": {
+      "x": 409,
+      "y": 56,
+      "w": 10,
+      "h": 21
+     },
+     "amp": {
+      "x": 504,
+      "y": 56,
+      "w": 10,
+      "h": 21
+     }
+    },
+    "values": {
+     "time": {
+      "x": 460,
+      "y": 62,
+      "w": 32,
+      "h": 25
+     },
+     "amp": {
+      "x": 557,
+      "y": 62,
+      "w": 32,
+      "h": 25
+     }
+    },
+    "style": "run"
+   }
+  },
+  "lampOn": "keys/lamp-on.png"
  }
 }
