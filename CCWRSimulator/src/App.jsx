@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import navmap from './data/navmap.json';
 import { initialFeeder, toggleHead, toggleParam, selectFeeder, adjust } from './utils/feeder';
+import { initialPans, togglePan, toggleTable, selectAllHeads, selectTable,
+  nothingSelected, describe as describeSel } from './utils/panSelect';
 import lessons from './data/lessons';
 import screenInfo from './data/screenInfo';
 import Rcu from './components/Rcu';
@@ -58,9 +60,11 @@ export default function App() {
   /* ONE of 'wh' | 'df' | null. Operation Manual 4.4.6 zeroes the weigh hoppers
      and then the dispersion table as separate operations, so selecting one
      clears the other — they are never both blue. */
+  /* Zero Adjustment: a set of weigh hoppers OR the dispersion pan, never both
+     (see utils/panSelect.js). Individual pans are tappable. */
   const [selection, setSelection] = useState(
-    typeof saved.selection === 'string' || saved.selection === null
-      ? saved.selection : 'wh');
+    () => (saved.selection && Array.isArray(saved.selection.heads)
+      ? saved.selection : initialPans()));
   const [zeroing, setZeroing] = useState(false);
   /* Feeder adjustment values: per head for RF, single for DF (6.12). */
   const [feeder, setFeeder] = useState(
@@ -76,6 +80,19 @@ export default function App() {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(null), 4000);
   }, []);
+
+  /* Taps arrive faster than React re-renders — three pans tapped in quick
+     succession all read the same closed-over selection and two of them are
+     lost. The ref always holds the latest, so each tap builds on the one
+     before it, and the notice can still name the result. */
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const applySelection = useCallback((fn, message) => {
+    const next = fn(selectionRef.current);
+    selectionRef.current = next;
+    setSelection(next);
+    if (message) showNotice(message(next));
+  }, [showNotice]);
 
   useEffect(() => () => {
     clearTimeout(noticeTimer.current);
@@ -219,16 +236,26 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'pan' || evt.type === 'pan-table') {
+      if (zeroing) return;
+      applySelection(
+        (cur) => (evt.type === 'pan-table' ? toggleTable(cur) : togglePan(cur, evt.no)),
+        (next) => (nothingSelected(next)
+          ? 'Nothing selected. Start has nothing to zero.'
+          : `Selected: ${describeSel(next)}. Blue means selected; Start zeroes `
+            + 'only what is blue.'),
+      );
+      return;
+    }
+
     if (evt.type === 'select') {
       if (zeroing) return;
-      const label = navmap.zeroAdjust.keys[evt.which].label;
-      const turningOff = selection === evt.which;
-      setSelection(turningOff ? null : evt.which);
-      showNotice(
-        turningOff
-          ? `${label} — cleared. With nothing selected, Start has nothing to zero.`
-          : `${label} — selected, shown in blue. Only one at a time: the weigh `
-            + 'hoppers and the dispersion table are zeroed as separate steps (4.4.6).',
+      applySelection(
+        (cur) => (evt.which === 'df' ? selectTable(cur) : selectAllHeads(cur)),
+        (next) => (nothingSelected(next)
+          ? 'Cleared. Start has nothing to zero.'
+          : `Selected: ${describeSel(next)}. The weigh hoppers and the dispersion `
+            + 'table are zeroed as two separate steps (4.4.6), so picking one clears the other.'),
       );
       return;
     }
@@ -240,10 +267,10 @@ export default function App() {
         showNotice(POWER_MSG);
         return;
       }
-      if (!selection) {
+      if (nothingSelected(selection)) {
         setWrongFlash((n) => n + 1);
-        showNotice('Nothing is selected. Press Slct All WH or Slct All DF first — '
-          + 'Start only zeroes what is shown in blue.');
+        showNotice('Nothing is selected. Tap the pans you want, or press Slct All '
+          + 'WH / Slct All DF — Start only zeroes what is shown in blue.');
         return;
       }
       // 4.4.6: the message appears and the adjustment runs; when it finishes the
@@ -252,10 +279,11 @@ export default function App() {
       clearTimeout(zeroTimer.current);
       zeroTimer.current = setTimeout(() => {
         setZeroing(false);
-        setSelection(null);
-        showNotice(selection === 'wh'
-          ? 'Zero adjustment complete. Confirm every weigh hopper reads 0.0 ±0.1 g (4.4.6).'
-          : 'Zero adjustment complete. Confirm the dispersion table reads 0.0 g (4.4.6).');
+        const was = describeSel(selection);
+        setSelection({ heads: [], table: false });   // a finished cycle deselects
+        showNotice(selection.table
+          ? `Zero adjustment complete on ${was}. Confirm it reads 0.0 g (4.4.6).`
+          : `Zero adjustment complete on ${was}. Confirm each reads 0.0 ±0.1 g (4.4.6).`);
       }, 4000);
       return;
     }
@@ -301,7 +329,8 @@ export default function App() {
     }
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
-      advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder]);
+      advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
+      applySelection]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -405,6 +434,7 @@ export default function App() {
           powerOn={powerOn}
           powerBusy={powerBusy}
           gatingOff={freeMode}
+          showHotspots={showHotspots}
           loadedPreset={loadedPreset}
           selection={selection}
           feeder={feeder}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { pointInRect } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
+import ZeroAdjustPans from './ZeroAdjustPans';
 
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
@@ -59,8 +60,11 @@ export default function Rcu({
   const zaHere = za && za.screen === slug;
   const imageFor = () => {
     if (!zaHere) return screen.image;
-    return za.variants[selection || 'none'] || screen.image;
+    return screen.image;
   };
+
+  const zaAnySelected = zaHere && selection
+    && (selection.table || (selection.heads && selection.heads.length > 0));
 
   const fa = navmap.feederAdjust;
   const feederShown = feeder && fa && fa.screen === slug
@@ -105,6 +109,7 @@ export default function Rcu({
         <img
           className="rcu-screen"
           src={`/${imageFor()}`}
+          style={zaHere ? { visibility: 'hidden' } : undefined}
           alt={slug}
           draggable={false}
         />
@@ -210,9 +215,22 @@ export default function Rcu({
           </>
         )}
 
+        {zaHere && (
+          <ZeroAdjustPans
+            image={screen.image}
+            labelMap={za.labelMap}
+            tableLabel={za.tableLabel}
+            selection={selection}
+            showHotspots={showHotspots}
+            onTapPan={(no) => onTap({ type: 'pan', no })}
+            onTapTable={() => onTap({ type: 'pan-table' })}
+          />
+        )}
+
         {zaHere && ['df', 'wh'].map((which) => {
           const key = za.keys[which];
-          const on = selection === which;
+          const on = which === 'df' ? selection.table
+            : (selection.heads.length === za.panCount && !selection.table);
           return (
             <button
               key={which}
@@ -220,9 +238,7 @@ export default function Rcu({
               className={'za-key' + (on ? ' za-key--on' : '')}
               style={rectStyle(key)}
               aria-label={`${key.label} — ${on ? 'selected' : 'not selected'}`}
-              title={on
-                ? `${key.label}: selected (blue). Press to clear.`
-                : `${key.label}: press to select — this clears the other one`}
+              title={`${key.label}: selects (or clears) the whole group`}
               onClick={() => onTap({ type: 'select', which })}
             />
           );
@@ -234,16 +250,16 @@ export default function Rcu({
         {zaHere && (
           <button
             type="button"
-            className={'za-key za-start' + (selection && powerOn ? ' za-start--live' : '')}
+            className={'za-key za-start' + (zaAnySelected && powerOn ? ' za-start--live' : '')}
             style={rectStyle(za.keys.start)}
-            aria-label={`Start — ${selection && powerOn ? 'ready' : 'dead'}`}
-            title={selection && powerOn
+            aria-label={`Start — ${zaAnySelected && powerOn ? 'ready' : 'dead'}`}
+            title={zaAnySelected && powerOn
               ? 'Start: begins zero adjustment on what is selected'
               : (!powerOn ? 'Start: dead — the machine is not powered on'
                           : 'Start: dead — nothing is selected')}
             onClick={() => onTap({ type: 'zero-start' })}
           >
-            {selection && powerOn && !zeroing && (
+            {zaAnySelected && powerOn && !zeroing && (
               <img className="key-lit" src="/keys/za-start-on.png" alt="" />
             )}
           </button>

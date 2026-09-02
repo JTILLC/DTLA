@@ -36,10 +36,36 @@ opens with every weigh hopper selected, and our extracted art is simply the
 deselected state. Check whether a difference is the machine doing something
 before blaming the emulator.
 
-**It stalls.** Both renderers freeze on this 35MB movie — `isPlaying` stays
-true while the clock stops. The 2D canvas renderer (needed for `__grab`) often
-freezes on load; WebGL survives longer but cannot be read back, so captures
-there have to come from a screenshot with `save_to_disk`. Verify the clock is
-moving before trusting anything you observe.
+**It does NOT stall — that was a misdiagnosis.** Two false liveness signals
+cost hours here, and both look convincing:
 
-The SWF is ~27MB and is deliberately not committed — regenerate it from the exe.
+- **The RCU clock is stamped once at startup, not ticked.** The movie reads
+  `Date`/`getHours` in a DoAction block when it loads and never updates it. A
+  clock reading the same value ten minutes later means nothing. (Proof: the
+  clock matches `performance.timeOrigin`, not the current time.)
+- **An unchanging canvas means an unchanging screen.** Comparing
+  `toDataURL().length` over a few seconds "detects" a freeze on any static
+  menu, which is most of them.
+
+Judge liveness by pressing something and seeing the screen change, or by
+watching the live weight on the Production screen — that really does update.
+
+**The real trap is coordinates.** The `computer` tool works in SCREENSHOT space,
+which is a fixed 1568px wide, while the page is whatever the window is. Convert
+with `1568 / window.innerWidth`, on top of the stage offset — `window.__at()`
+does both. Get it wrong and clicks land beside the button, nothing happens, and
+it looks exactly like a frozen movie.
+
+    const c = window.__player.shadowRoot.querySelector('canvas');
+    const b = c.getBoundingClientRect();
+    const f = 1568 / window.innerWidth;
+    window.__at = (x, y) => ({
+      x: Math.round((b.x + x * (b.width / 800)) * f),
+      y: Math.round((b.y + y * (b.height / 600)) * f),
+    });
+
+Re-measure after any window resize; the factor changes.
+
+Captures need the 2D canvas renderer for `__grab` to read the canvas back, but
+you do not need it — take a screenshot with `save_to_disk` and read the file.
+Leave `preferredRenderer` unset; Ruffle picks the best available.

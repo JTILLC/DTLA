@@ -3287,13 +3287,8 @@
     "label": "Start"
    }
   },
-  "variants": {
-   "none": "screens/zero-adjust.jpg",
-   "wh": "screens/zero-adjust--wh.jpg",
-   "df": "screens/zero-adjust--df.jpg"
-  },
   "opensSelected": "wh",
-  "note": "Operation Manual 4.4.6 does the weigh hoppers and the dispersion table as two separate operations — \"follow up with the zero adjustment for the dispersion table\" — so one selection at a time, never both. Start lights only with a selection AND control power, and pressing it shows \"Please wait a moment.\" while the adjustment runs.",
+  "note": "Blue means selected and Start only zeroes what is selected. The menu opens with every weigh hopper selected and the dispersion pan not. Tapping a pan selects it individually (6.5); the weigh hoppers and the dispersion pan are never both selected, because 4.4.6 zeroes them as two separate operations.",
   "startLit": "keys/za-start-on.png",
   "messageBar": {
    "x": 107,
@@ -3301,7 +3296,10 @@
    "w": 387,
    "h": 68
   },
-  "message": "Please wait a moment."
+  "message": "Please wait a moment.",
+  "labelMap": "masks/zero-adjust-labels.png",
+  "tableLabel": 15,
+  "panCount": 14
  },
  "feederAdjust": {
   "screen": "preset-feeder",

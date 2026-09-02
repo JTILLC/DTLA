@@ -850,3 +850,15 @@
 /* The Increase/Decrease keys are dimmed in the artwork; the lit versions are
    laid over them exactly when they will respond. */
 .fa-arrow--live { border-color: #1d4ed8; }
+
+/* The Zero Adjustment ring is drawn on a canvas rather than swapped between
+   images: individual pans are selectable, and pre-rendering every combination
+   is 2^14 pictures. */
+.za-pans {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.za-pans--outlined { outline: 1px dashed rgba(34, 211, 238, 0.5); outline-offset: -1px; }
