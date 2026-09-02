@@ -14,7 +14,7 @@ import { scanRcuScreen, canvasToJpeg } from '../utils/scan';
  * pulls a corner, and a corner out by a few percent skews every value on the
  * page. Nothing here decides on the engineer's behalf.
  */
-export default function PhotoScreen({ section, onChange, onRemove, getIdToken, readerReady }) {
+export default function PhotoScreen({ section, onChange, onRemove, getIdToken, readerReady, readerHint }) {
   const [photo, setPhoto] = useState(null);         // the original, as an Image
   const [corners, setCorners] = useState(null);
   const [dragging, setDragging] = useState(-1);
@@ -211,9 +211,9 @@ export default function PhotoScreen({ section, onChange, onRemove, getIdToken, r
                 Add a setting
               </button>
             </div>
-            {!readerReady && (
+            {!readerReady && readerHint && (
               <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                Reading needs a sign-in. You can still type the settings in below.
+                {readerHint} You can still type the settings in below.
               </p>
             )}
             {error && <p className="text-sm mt-2" style={{ color: 'var(--danger)' }}>{error}</p>}

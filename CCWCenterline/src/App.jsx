@@ -3,6 +3,7 @@ import spec from './data/rcuFields.json';
 import MappedScreen, { mappedRows } from './components/MappedScreen';
 import PhotoScreen from './components/PhotoScreen';
 import ImportExports from './components/ImportExports';
+import SignIn, { readerHint } from './components/SignIn';
 import {
   emptyCenterline, mappedSection, photoSection, settingsTable, gaps, copyFrom,
 } from './utils/centerline';
@@ -12,6 +13,7 @@ import {
   listCenterlines, saveCenterline, deleteCenterline, readDraft, writeDraft,
 } from './utils/storage';
 import { readerAvailable } from './utils/scan';
+import { watchAuth, getIdToken, readerPermission } from './config/firebase';
 
 const HEADER_FIELDS = [
   ['customer', 'Customer'], ['plant', 'Plant'], ['machine', 'Machine'],
@@ -24,7 +26,10 @@ export default function App() {
   // empty sheet with work sitting in storage.
   const [centerline, setCenterline] = useState(() => readDraft() || emptyCenterline());
   const [library, setLibrary] = useState(() => listCenterlines());
-  const [readerReady, setReaderReady] = useState(false);
+  const [healthy, setHealthy] = useState(false);
+  const [user, setUser] = useState(null);
+  const [permission, setPermission] = useState(null);
+  const [signInOpen, setSignInOpen] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
   const [busy, setBusy] = useState('');
   const [showLibrary, setShowLibrary] = useState(false);
@@ -33,7 +38,21 @@ export default function App() {
     if (!writeDraft(centerline)) setStorageWarning(true);
   }, [centerline]);
 
-  useEffect(() => { readerAvailable().then(setReaderReady); }, []);
+  useEffect(() => { readerAvailable().then(setHealthy); }, []);
+
+  // The claim check runs on the token, not on the email: an account can exist
+  // and still not be provisioned for the reader, and finding that out here is
+  // far better than finding it out as a 403 with a photo already taken.
+  useEffect(() => watchAuth((next) => {
+    setUser(next);
+    if (!next) { setPermission(null); return; }
+    readerPermission().then(setPermission);
+  }), []);
+
+  // The reader needs all three: the route configured, somebody signed in, and
+  // that somebody allowed to spend a call.
+  const readerReady = healthy && !!user && permission?.allowed === true;
+  const hint = readerHint({ healthy, user, permission });
 
   const patch = (changes) => setCenterline((c) => ({ ...c, ...changes }));
 
@@ -142,7 +161,8 @@ export default function App() {
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-raised)' }}
       >
         <h1 className="font-semibold">CCW Centerline</h1>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SignIn user={user} permission={permission} open={signInOpen} onOpen={setSignInOpen} />
           <button type="button" className="btn" onClick={() => setShowLibrary((v) => !v)}>
             Saved ({library.length})
           </button>
@@ -246,7 +266,8 @@ export default function App() {
               onChange={(next) => setSection(index, next)}
               onRemove={() => removeSection(index)}
               readerReady={readerReady}
-              getIdToken={null}
+              readerHint={hint}
+              getIdToken={getIdToken}
             />
           )
         ))}
