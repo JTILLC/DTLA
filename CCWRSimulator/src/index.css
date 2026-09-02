@@ -612,3 +612,28 @@
     to   { opacity: 1; transform: none; }
   }
 }
+
+/* --------------------------------------------------------------------
+   Lit keys.
+
+   The screen artwork is a photograph of a machine with its control power
+   off, so pressing Power cannot change the pixels. These are the two keys
+   that really do change, cut out of a powered capture and laid over the
+   art at the same rect the navmap uses — so what you see lit is exactly
+   what will respond.
+   -------------------------------------------------------------------- */
+.key-lit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;      /* the crop IS the key's rect, so it must not letterbox */
+  pointer-events: none;
+  display: block;
+}
+
+.key-lit--overlay {
+  position: absolute;    /* positioned by its own rect, not by a parent button */
+  pointer-events: none;
+  z-index: 2;
+}

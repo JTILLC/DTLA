@@ -107,11 +107,17 @@ export default function Rcu({
           />
         ))}
 
-        {/* The Power key. The artwork's own key is baked into each capture
-            (red on some captures, green on others — the originals were
-            grabbed in whatever state the machine happened to be in), so the
-            simulator's true state is shown by this drawn chip, not by the
-            pixels underneath. */}
+        {/* The Power key, and the lit keys that follow from it.
+            The artwork is a fixed JPEG of a machine with its control power
+            off, so pressing Power cannot recolour the pixels underneath.
+            Instead the two keys that actually change — cut out of a powered
+            capture by tools/extract_keys.py — are laid over the art.
+
+            The lit Start is drawn ONLY where a power-gated hotspot exists,
+            so the picture and the behaviour come from the same fact and
+            cannot drift: a key shown green is a key that works. Screens where
+            we never checked what the bottom bar does show nothing, which is
+            the honest answer. */}
         {navmap.powerKey && (
           <button
             type="button"
@@ -124,11 +130,23 @@ export default function Rcu({
             aria-label={`Power key — control power is ${powerBusy ? 'starting' : powerOn ? 'on' : 'off'}`}
             onClick={() => onTap({ type: 'power' })}
           >
-            <span className="power-chip">
-              {powerBusy ? '…' : powerOn ? 'ON' : 'OFF'}
-            </span>
+            {powerOn && !powerBusy && (
+              <img className="key-lit" src="/keys/power-on.png" alt="" />
+            )}
           </button>
         )}
+
+        {powerOn && !powerBusy && screen.hotspots
+          .filter((h) => h.requiresPower)
+          .map((h, i) => (
+            <img
+              key={`lit-${i}`}
+              className="key-lit key-lit--overlay"
+              src="/keys/start-on.png"
+              alt=""
+              style={rectStyle(h)}
+            />
+          ))}
 
         {/* Power-up: the original shows this pop-up for ~10 s with the whole
             bottom bar (HOME included) locked out. */}
