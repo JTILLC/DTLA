@@ -216,6 +216,90 @@ export const lessons = [
   },
 
   {
+    id: 'access-level',
+    title: 'Raise the access level',
+    ref: '6.3.4 Selecting an Operation Level / Service 4.2.1 Maintenance Service Level Display',
+    blurb:
+      'Find the key icon, choose a level, and enter the password — the ' +
+      'step nobody tells you about, without which Preset and Machine Set ' +
+      'do not exist.',
+    steps: [
+      {
+        screen: 'main-menu',
+        kind: 'read',
+        instruction:
+          'The CCW-R has four operation levels: Operator (1 dot), Site ' +
+          'Engineer (2), Installation (3) and Maintenance (4). Every time ' +
+          'the power is turned on, the panel starts at the Operator level ' +
+          '(6.3.4) — and at Operator level the Main Menu has NO Preset ' +
+          'key and NO Machine Set pull-up. They are absent, not dimmed. ' +
+          'If you stand in front of a machine that seems to be missing ' +
+          'half its menus, the level is why.',
+      },
+      {
+        screen: 'main-menu',
+        kind: 'tap-nav',
+        to: 'level-select',
+        via: { x: 580, y: 20 },
+        instruction:
+          'Press the operation level key — the key icon with four dots ' +
+          'in the upper bar.',
+        explain:
+          'The [Select operation level] pop-up appears. The dots on the ' +
+          'key show the current level: this capture was at Maintenance, ' +
+          'all four lit.',
+      },
+      {
+        screen: 'level-select',
+        kind: 'read',
+        instruction:
+          'Each row is a level, its icon showing how many dots it ' +
+          'lights. Selecting Operator switches at once — dropping down ' +
+          'never needs a password (6.3.4.1). Selecting any higher level ' +
+          'asks for that level’s password first (6.3.4.2).',
+      },
+      {
+        screen: 'level-select',
+        kind: 'tap-nav',
+        to: 'level-password',
+        via: { x: 587, y: 132 },
+        instruction:
+          'Press Site Engineer — the level that brings the Preset key ' +
+          'and the Machine Set pull-up back.',
+        explain:
+          'The password keyboard appears. The factory password for the ' +
+          'Maintenance Service level is 123 (Service 4.2.1); on the ' +
+          'machine this program was checked against, 123 opened Site ' +
+          'Engineer too.',
+      },
+      {
+        screen: 'level-password',
+        kind: 'read',
+        instruction:
+          'On the real unit you would type the password — it displays as ' +
+          '*** — and press the Return key. CANCEL abandons the entry and ' +
+          'leaves the level as it was. Passwords can be changed from the ' +
+          'factory numbers on the Control Panel’s Password Set menu ' +
+          '(4.3.2.2), so if 123 does not work, ask who set the machine up.',
+      },
+      {
+        screen: 'level-password',
+        kind: 'tap-nav',
+        to: 'main-menu',
+        via: { x: 675, y: 299 },
+        instruction: 'Press the Return key to confirm the password.',
+        explain:
+          'The Main Menu for the Site Engineer level appears, Preset key ' +
+          'and Machine Set pull-up included. (This simulator’s captures ' +
+          'were all taken at a high level, so nothing visibly changes ' +
+          'here.) Remember the other half of the rule: pressing Power ' +
+          'resets the level to Operator — after a power cycle you do ' +
+          'this again.',
+      },
+    ],
+  },
+
+  {
     id: 'target-weight',
     title: 'Change the target weight',
     ref: '6.10 Preset Menu / 6.10.4 Weight Setting',

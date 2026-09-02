@@ -308,6 +308,19 @@
     color: #fff;
   }
 
+  /* Select Total drawer: slides out to the right of the left-edge tab */
+  .mset-drawer--left {
+    flex-direction: column;
+    border-radius: 0 4px 4px 0;
+    border-left: none;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35);
+  }
+
+  .mset-drawer--left button {
+    border-top: none;
+    border-bottom: 1px solid #a8a8a1;
+  }
+
   .drawer-note {
     background: #b9b9b2;
     color: #3d3d38;

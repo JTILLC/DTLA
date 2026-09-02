@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import navmap from './navmap.json';
 import screenInfo from './screenInfo';
-import { allEdges, drawerScreens, reachable, canReach } from '../utils/navGraph';
+import { allEdges, drawers, drawerScreens, reachable, canReach } from '../utils/navGraph';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const slugs = Object.keys(navmap.screens);
@@ -59,9 +59,7 @@ describe('navigation map integrity', () => {
 
   it('every screen has at least one way out', () => {
     for (const [slug, s] of Object.entries(navmap.screens)) {
-      const drawer =
-        navmap.machineSet.screens.includes(slug) ||
-        navmap.machineSet.drawTabOn.includes(slug);
+      const drawer = drawers(navmap).some((d) => drawerScreens(d).includes(slug));
       expect(
         s.hotspots.length + (drawer ? 1 : 0),
         `${slug} has no exits`
@@ -82,15 +80,66 @@ describe('navigation map integrity', () => {
     expect(ms.items.length).toBe(8);
   });
 
+  it('select total drawer items and screens are all real', () => {
+    const st = navmap.selectTotal;
+    expect(st).toBeDefined();
+    for (const item of st.items) {
+      expect(navmap.screens[item.to], `drawer -> ${item.to}`).toBeDefined();
+    }
+    for (const s of drawerScreens(st)) {
+      expect(navmap.screens[s], `drawer on ${s}`).toBeDefined();
+    }
+    // Six total views, in the order of Operation Manual Table 6-32 (6.11).
+    expect(st.items.map((i) => i.to)).toEqual([
+      'total-current',
+      'total-xbar',
+      'total-transitional',
+      'total-participation',
+      'total-setting',
+      'total-operation-log',
+    ]);
+    // The tab is baked into the Main Menu capture and every Total capture —
+    // checked against the artwork — and nowhere else on the map.
+    expect(drawerScreens(st).sort()).toEqual(
+      ['main-menu', ...st.items.map((i) => i.to)].sort()
+    );
+  });
+
   it('a drawer item we cannot open says why', () => {
     // Weigher Information is real and Maintenance-level only, and we hold no
     // artwork for it. Listing it silently would teach a menu that is missing an
     // item; dropping it would do the same. It is listed, disabled, and explains
     // itself — and that explanation is not optional.
-    for (const item of navmap.machineSet.items) {
-      if (item.to !== null) continue;
-      expect(item.note, `${item.label} has no note`).toBeTruthy();
-      expect(item.note.length, `${item.label} note is too thin`).toBeGreaterThan(30);
+    for (const drawer of drawers(navmap)) {
+      for (const item of drawer.items) {
+        if (item.to !== null && item.to !== undefined) continue;
+        expect(item.note, `${item.label} has no note`).toBeTruthy();
+        expect(item.note.length, `${item.label} note is too thin`).toBeGreaterThan(30);
+      }
+    }
+  });
+
+  it('captured screens are marked as captures, extracted screens are not', () => {
+    // Eight screens are Ruffle captures of the running program, not bitmaps
+    // extracted from the movie (assets/captured/README.md). The flag keeps
+    // that provenance in the data itself.
+    const captured = slugs.filter((s) => navmap.screens[s].captured);
+    expect(captured.sort()).toEqual([
+      'level-password',
+      'level-select',
+      'total-current',
+      'total-operation-log',
+      'total-participation',
+      'total-setting',
+      'total-transitional',
+      'total-xbar',
+    ]);
+    // Every extracted screen carries the SWF frame it came from; a capture
+    // has no frame to point at and must not claim one.
+    for (const slug of slugs) {
+      const s = navmap.screens[slug];
+      if (s.captured) expect(s.frame, `${slug} claims a frame`).toBeUndefined();
+      else expect(s.frame, `${slug} missing frame`).toBeGreaterThan(0);
     }
   });
 
@@ -106,11 +155,14 @@ describe('navigation map integrity', () => {
       (n, s) => n + navmap.screens[s].hotspots.length,
       0
     );
-    // screens and drawTabOn overlap, so the drawer's screens are counted once;
-    // and only the items that actually open a screen contribute edges.
-    const carriers = drawerScreens(navmap).length;
-    const openable = navmap.machineSet.items.filter((i) => i.to !== null).length;
-    expect(allEdges(navmap).length).toBe(hotspotCount + carriers * openable);
+    // screens and drawTabOn overlap, so each drawer's screens are counted
+    // once; and only the items that actually open a screen contribute edges.
+    const drawerEdges = drawers(navmap).reduce(
+      (n, d) =>
+        n + drawerScreens(d).length * d.items.filter((i) => i.to).length,
+      0
+    );
+    expect(allEdges(navmap).length).toBe(hotspotCount + drawerEdges);
   });
 });
 

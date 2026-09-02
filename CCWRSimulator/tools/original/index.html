@@ -14,6 +14,9 @@
   window.RufflePlayer = window.RufflePlayer || {};
   window.RufflePlayer.config = {
     autoplay: 'on', unmuteOverlay: 'hidden', contextMenu: 'off',
+    // The WebGL canvas reads back blank (no preserveDrawingBuffer), and these
+    // screens have to be captured as artwork, so render on 2D canvas instead.
+    preferredRenderer: 'canvas',
     warnOnUnsupportedContent: false, logLevel: 'warn',
   };
   window.addEventListener('load', () => {
@@ -39,6 +42,19 @@
         };
         report();
         window.addEventListener('resize', report);
+        // Capture the stage and post it back to serve.py, which writes the
+        // file. The backing store is larger than 800x600, so it is downsampled
+        // there rather than here — supersampling gives a cleaner result than
+        // rendering at 1:1 would.
+        window.__grab = async (name) => {
+          const canvas = player.shadowRoot.querySelector('canvas');
+          const url = canvas.toDataURL('image/png');
+          const res = await fetch('/save?name=' + encodeURIComponent(name), {
+            method: 'POST', body: url,
+          });
+          return res.ok ? await res.text() : 'failed: ' + res.status;
+        };
+
         // Movie coordinates in, a page click out.
         window.__at = (x, y) => ({
           x: Math.round(window.__stage.x + x * window.__stage.scale),

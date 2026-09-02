@@ -118,6 +118,52 @@
   ],
   "verified": "Order and contents checked against the Service Manual 4.4 figure (page 4-18) and against the running program."
  },
+ "selectTotal": {
+  "tab": {
+   "x": 3,
+   "y": 40,
+   "w": 24,
+   "h": 370
+  },
+  "screens": [
+   "main-menu",
+   "total-current",
+   "total-xbar",
+   "total-transitional",
+   "total-participation",
+   "total-setting",
+   "total-operation-log"
+  ],
+  "drawTabOn": [],
+  "items": [
+   {
+    "label": "Current Total / Histogram",
+    "to": "total-current"
+   },
+   {
+    "label": "X-bar Chart",
+    "to": "total-xbar"
+   },
+   {
+    "label": "Transitional Data of Weigher",
+    "to": "total-transitional"
+   },
+   {
+    "label": "Cmb. Participation Data per Head",
+    "to": "total-participation"
+   },
+   {
+    "label": "Total Setting",
+    "to": "total-setting",
+    "note": "Displayed at the Site Engineer level or over (6.11 NOTE). These captures were taken at Maintenance level, so it opens here."
+   },
+   {
+    "label": "Operation Log",
+    "to": "total-operation-log"
+   }
+  ],
+  "verified": "Order and contents checked against Operation Manual Table 6-32 (6.11) and the running program. The vertical tab is baked into the Main Menu and Total captures; the expanded drawer itself was not captured, so its six buttons are drawn look-alikes."
+ },
  "screens": {
   "main-menu": {
    "frame": 3,
@@ -195,6 +241,13 @@
      "h": 37,
      "to": "memo",
      "button": 103
+    },
+    {
+     "x": 544,
+     "y": 2,
+     "w": 72,
+     "h": 36,
+     "to": "level-select"
     }
    ]
   },
@@ -2906,6 +2959,152 @@
      "h": 33,
      "to": "autoadj-neutral",
      "button": 1748
+    }
+   ]
+  },
+  "total-current": {
+   "captured": true,
+   "image": "screens/total-current.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "total-xbar": {
+   "captured": true,
+   "image": "screens/total-xbar.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "total-transitional": {
+   "captured": true,
+   "image": "screens/total-transitional.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "total-participation": {
+   "captured": true,
+   "image": "screens/total-participation.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "total-setting": {
+   "captured": true,
+   "image": "screens/total-setting.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "total-operation-log": {
+   "captured": true,
+   "image": "screens/total-operation-log.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "level-select": {
+   "captured": true,
+   "image": "screens/level-select.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu"
+    },
+    {
+     "x": 482,
+     "y": 63,
+     "w": 210,
+     "h": 44,
+     "to": "main-menu"
+    },
+    {
+     "x": 482,
+     "y": 110,
+     "w": 210,
+     "h": 44,
+     "to": "level-password"
+    },
+    {
+     "x": 482,
+     "y": 158,
+     "w": 210,
+     "h": 44,
+     "to": "level-password"
+    },
+    {
+     "x": 482,
+     "y": 206,
+     "w": 210,
+     "h": 44,
+     "to": "level-password"
+    },
+    {
+     "x": 482,
+     "y": 255,
+     "w": 210,
+     "h": 24,
+     "to": "main-menu"
+    }
+   ]
+  },
+  "level-password": {
+   "captured": true,
+   "image": "screens/level-password.jpg",
+   "hotspots": [
+    {
+     "x": 90,
+     "y": 54,
+     "w": 72,
+     "h": 38,
+     "to": "main-menu"
+    },
+    {
+     "x": 630,
+     "y": 255,
+     "w": 90,
+     "h": 88,
+     "to": "main-menu"
     }
    ]
   }

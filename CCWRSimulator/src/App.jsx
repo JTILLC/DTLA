@@ -5,6 +5,7 @@ import screenInfo from './data/screenInfo';
 import Rcu from './components/Rcu';
 import InfoPanel from './components/InfoPanel';
 import LessonPanel from './components/LessonPanel';
+import { drawers, drawerScreens } from './utils/navGraph';
 
 const STORAGE_KEY = 'ccwr-sim-v1';
 
@@ -30,7 +31,7 @@ export default function App() {
   const [stepIndex, setStepIndex] = useState(saved.stepIndex ?? 0);
   const [progress, setProgress] = useState(saved.progress ?? {});
   const [completed, setCompleted] = useState(saved.completed ?? []);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [openDrawer, setOpenDrawer] = useState(null); // null | 'machineSet' | 'selectTotal'
   const [history, setHistory] = useState([]);
   const [hint, setHint] = useState(null);
   const [wrongFlash, setWrongFlash] = useState(0);
@@ -58,7 +59,7 @@ export default function App() {
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
     if (step && step.screen !== screen) setScreen(step.screen);
-    setDrawerOpen(false);
+    setOpenDrawer(null);
     setHint(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLessonId, stepIndex]);
@@ -68,9 +69,12 @@ export default function App() {
     const targets = new Set(
       (navmap.screens[screen]?.hotspots || []).map((h) => h.to)
     );
-    const ms = navmap.machineSet;
-    if (ms && (ms.screens.includes(screen) || (ms.drawTabOn || []).includes(screen))) {
-      for (const item of ms.items) targets.add(item.to);
+    for (const drawer of drawers(navmap)) {
+      if (drawerScreens(drawer).includes(screen)) {
+        for (const item of drawer.items) {
+          if (item.to) targets.add(item.to);
+        }
+      }
     }
     for (const t of targets) {
       const img = new Image();
@@ -81,7 +85,7 @@ export default function App() {
   const navigate = useCallback((to) => {
     setHistory((h) => [...h.slice(-49), screen]);
     setScreen(to);
-    setDrawerOpen(false);
+    setOpenDrawer(null);
   }, [screen]);
 
   const advanceLesson = useCallback(() => {
@@ -134,7 +138,7 @@ export default function App() {
       setScreen(h[h.length - 1]);
       return h.slice(0, -1);
     });
-    setDrawerOpen(false);
+    setOpenDrawer(null);
   }, []);
 
   const highlight = useMemo(() => {
@@ -191,8 +195,8 @@ export default function App() {
           showHotspots={showHotspots}
           highlight={highlight}
           lessonActive={lessonActive}
-          drawerOpen={drawerOpen}
-          onToggleDrawer={() => setDrawerOpen((v) => !v)}
+          openDrawer={openDrawer}
+          onToggleDrawer={(name) => setOpenDrawer((v) => (v === name ? null : name))}
           onTap={handleTap}
           wrongFlash={wrongFlash}
         />

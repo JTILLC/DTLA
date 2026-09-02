@@ -53,7 +53,8 @@ export const screenInfo = {
       { name: 'Select Preset (photo key)', desc: 'The photo at top right — opens the Select Preset menu (6.9).' },
       { name: 'Preset', desc: 'Opens the Preset menu for editing the product settings (6.10). Needs Site Engineer level or above.' },
       { name: 'Preset item buttons', desc: 'The small squares beside Product Name, Target Weight, Speed etc. change that one value directly via ten-key or keyboard (6.10.5).' },
-      { name: 'Select Total pop-up', desc: 'The vertical tab on the left edge selects which total to display (6.11). Not wired in this simulator.' },
+      { name: 'Select Total pop-up', desc: 'The vertical tab on the left edge opens the Select Total drawer: six views of the accumulated production statistics and logs (6.11). Real operator content — the totals are how a run is judged.' },
+      { name: 'Select operation level (key icon)', desc: 'The key with four dots in the upper bar switches between the Operator, Site Engineer, Installation and Maintenance levels (6.3.4). Available at every level.' },
       { name: 'Machine Set pop-up', desc: 'The pull-up tab at the bottom selects the Machine Set and Check menus (engineering screens).' },
       { name: 'Power / Stop / Start', desc: 'Control power on-off, stop production, start production (4.4.7). Dimmed keys cannot be pressed.' },
       { name: 'Upper setting bar', desc: 'Message Board, information, Start-up Assistant, language, operation level, Control Panel, date & time and Help keys (6.3).' },
@@ -65,8 +66,10 @@ export const screenInfo = {
       'for the Maintenance Service level is 123 (Service 4.2.1). What the ' +
       'Main Menu shows depends on the level: the Operator-level menu tree ' +
       '(Service 1.3) has no Preset key and no Machine Set pull-up at all — ' +
-      'confirmed against the real program. These captures were taken at a ' +
-      'higher level, so the simulator always shows both.',
+      'they are absent, not merely dimmed — confirmed against the real ' +
+      'program. Pressing Power resets the level to Operator (6.3.4). These ' +
+      'captures were taken at Maintenance level (four lit dots on the key ' +
+      'icon), so the simulator always shows everything.',
   },
 
   'zero-adjust': {
@@ -1100,6 +1103,210 @@ export const screenInfo = {
       'frequency. A feeder driven at an improper frequency is damaged ' +
       '(5.5.1.1). Do not adjust amplitude with a leaf spring — change the ' +
       'drive frequency instead (5.4.4.3 NOTE). ' + SERVICE_NOTE,
+  },
+
+  /* ------------------------------------------------------------------
+   * Total Menu (Select Total pop-up on the Main Menu) and the operation
+   * level dialogs. These eight screens are composed at runtime, so their
+   * artwork is a Ruffle capture of the running program, not a bitmap
+   * extracted from the movie (assets/captured/README.md).
+   * ------------------------------------------------------------------ */
+
+  'total-current': {
+    title: 'Current Total',
+    ref: '6.11 Total Menu / 6.11.1 Current Total Menu',
+    source: 'manual',
+    summary:
+      'The total and histogram accumulated since the total was last ' +
+      'cleared (6.11.1). The left table is the total data of Table 6-34: ' +
+      'Start Time (first proper-weight drain after combination weighing ' +
+      'started) and Stop Time, weigher and production speed, the Proper ' +
+      'count, and total / mean / S.D. / MAX / MIN weight with the weight ' +
+      'range (MAX minus MIN) — proper-weight drains only, between the ' +
+      'start and stop times. The right side shows the efficiency since ' +
+      'the total started and the weight histogram.\n\nThis is the same ' +
+      'data as the Total Data tab on the Production menu (6.6.4); here it ' +
+      'is reached from the Main Menu through the Select Total pop-up.',
+    keys: [
+      { name: 'Total Log drop-down', desc: 'Selects which total record to display (6.11.1).' },
+      { name: 'Output', desc: 'Prints the total data or writes it to file (the manual’s Print key).' },
+      { name: 'Select Total pop-up', desc: 'The left-edge tab — switches to the other total views (6.11).' },
+      { name: 'HISTOGRAM', desc: 'Count of drains per weight class, from the target weight up.' },
+      { name: 'Effcncy', desc: 'Efficiency since the total started.' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+    note:
+      'The manual gives Production Speed in wpm (Table 6-34); this ' +
+      'capture shows it in bpm. The numbers here — 15 proper drains, ' +
+      '90.5 g mean — are baked into the capture and cannot change in the ' +
+      'simulator.',
+  },
+
+  'total-xbar': {
+    title: 'X-bar Chart',
+    ref: '6.11.2 X-bar Chart Menu',
+    source: 'manual',
+    summary:
+      'A control chart of the average weight: each point is the average ' +
+      'per 250 rotations, added since the total started (Table 6-35). The ' +
+      'red lines are the upper and lower limits at ±3Σ (Σ = standard ' +
+      'deviation) around the centre line, and the current standard ' +
+      'deviation is read out above the chart. Points pushing toward a ' +
+      '±3Σ line mean the process is drifting — worth investigating ' +
+      'before packs go out of spec.',
+    keys: [
+      { name: 'Total Log drop-down', desc: 'Selects the total log to be displayed (6.11.1).' },
+      { name: 'Output', desc: 'Prints or data-outputs the chart (the manual’s Print key).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+  },
+
+  'total-transitional': {
+    title: 'Transitional Data of Weigher',
+    ref: '6.11.3 Transitional Data of Weigher Menu',
+    source: 'manual',
+    summary:
+      'The weigher’s operation plotted against time: time on the ' +
+      'horizontal axis, the chosen quantities on the vertical, with up to ' +
+      'four graphs displayed at once (6.11.3). This capture shows one: ' +
+      '“Average Head’s Selected” — how many heads the combination picked ' +
+      'on average, here settling around 4 of the 14.',
+    keys: [
+      { name: 'SelectItem drop-down', desc: 'Picks up to four items to plot: Average Head’s Selected, Average Stable Heads, Average Empty Heads, Proper/Over Wt/Over Scale, Efficiency, Mean, Standard Deviation, Speed, Average Infeed Weight, Piece Weight Revision, Parent Dump Weight (Table 6-36).' },
+      { name: 'Output', desc: 'Prints or data-outputs the graph (the manual’s Print key).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+  },
+
+  'total-participation': {
+    title: 'Cmb. Participation Data per Head',
+    ref: '6.11.4 Participation Data per Head Menu',
+    source: 'manual',
+    summary:
+      'The weigher’s operation status per head, drawn as a radar chart — ' +
+      'one spoke per head, 1 to 14 on this machine — with up to four ' +
+      'items overlaid at once (6.11.4). This capture plots “Ratio of ' +
+      'selection”: how often each head’s hopper was picked into the ' +
+      'combination. A head whose ratio sits far below its neighbours is ' +
+      'the one to look at — poor infeed, an unstable load cell, or a ' +
+      'sticking hopper shows up here first.',
+    keys: [
+      { name: 'SelectItem drop-down', desc: 'Picks up to four items: Selected / Stable / Empty / Auto Zero / Error / Over Scale ratios, plus filter-selected, unstable, and infeed-amount statistics (Table 6-37).' },
+      { name: 'Output', desc: 'Prints or data-outputs the chart (the manual’s Print key).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+  },
+
+  'total-setting': {
+    title: 'Total Setting',
+    ref: '6.11.5 Total Setting Menu',
+    source: 'manual',
+    summary:
+      'How the totals are gathered and output (Table 6-38). Every ' +
+      'Combination Output prints each combination weight during ' +
+      'production; Operation Log Output prints the log, with the four ' +
+      'checkboxes choosing which contents (error stops, warnings, machine ' +
+      'operations, key operations). Action for Statistical Mem. Full sets ' +
+      'what happens when the statistical memory fills: Stop halts ' +
+      'production, Continu deletes the oldest data and keeps running. ' +
+      'Batch Total Interval sets how often the batch total is output, and ' +
+      'Data Sampling Interval sets the sampling period.',
+    keys: [
+      { name: 'Every Combination Output', desc: 'On: outputs the weight of every combination during production (Table 6-38).' },
+      { name: 'Operation Log Output + contents', desc: 'On: outputs the operation log; the checkboxes pick error stop / warning / machine operation / key operation contents.' },
+      { name: 'Action for Statistical Mem. Full', desc: 'Stop: stops production when the statistical data is full. Continu: deletes the old data and continues.' },
+      { name: 'BATCH TOTAL INTERVAL', desc: 'Time interval for outputting the batch total, in hours.' },
+      { name: 'Data Sampling Interval', desc: 'The sampling interval. The manual’s table says hours; this capture is labelled Minute.' },
+      { name: 'All Total', desc: 'Clears the accumulated statistical data (Table 6-38) — everything the other five views show. Not a key to press casually.' },
+      { name: 'Output', desc: 'Prints or data-outputs the settings (the manual’s Print key).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+    note:
+      'NOTE (6.11): the Total Setting key is displayed at the Site ' +
+      'Engineer level or over — an Operator does not see this view in the ' +
+      'Select Total drawer. The manual names the first two keys “Print”; ' +
+      'this machine labels them Output.',
+  },
+
+  'total-operation-log': {
+    title: 'Operation Log',
+    ref: '6.11.6 Operation Log Menu',
+    source: 'manual',
+    summary:
+      'The weigher’s own diary: numbered, dated rows of what happened — ' +
+      'preset selections, drain start/stop, and errors with their detail ' +
+      '(row 4 in this capture is a WH ERROR: “DUC STEPPING MOTOR DRIVE ' +
+      'ERROR WH12”). The Log Item checkboxes on the right filter which ' +
+      'logs are listed (Table 6-39). When a machine “was fine yesterday”, ' +
+      'this screen says what actually happened in between.',
+    keys: [
+      { name: 'Error Stop Log', desc: 'Errors that stopped the weigher.' },
+      { name: 'Warning Log', desc: 'Warnings the weigher released.' },
+      { name: 'Machine Operation Log', desc: 'Operations the weigher performed.' },
+      { name: 'Key Operation Log', desc: 'The key presses made on the operation panel.' },
+      { name: 'Output', desc: 'Prints or data-outputs the log (the manual’s Print key).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+    ],
+  },
+
+  'level-select': {
+    title: 'Select Operation Level',
+    ref: 'Service 4.2.1 Maintenance Service Level Display / 6.3.4 Selecting an Operation Level (Operation Manual)',
+    source: 'service',
+    summary:
+      'The pop-up behind the key icon in the upper bar. Four levels ' +
+      'stack, each shown with its key-and-dots icon: Operator (1 dot), ' +
+      'Site Engineer (2), Installation (3), Maintenance (4). The operable ' +
+      'items differ by level, and this is the trainee-critical part: at ' +
+      'the Operator level the Main Menu has NO Preset key and NO Machine ' +
+      'Set pull-up — absent, not dimmed. Site Engineer or above restores ' +
+      'them, and adds the Total Setting view to the Select Total drawer ' +
+      '(6.11 NOTE).\n\nSelecting Operator switches immediately, with no ' +
+      'password (6.3.4.1) — even from a higher level, and doing so from a ' +
+      'menu other than the Main Menu jumps to the Operator Main Menu. ' +
+      'Selecting Site Engineer, Installation or Maintenance opens the ' +
+      'password keyboard first (6.3.4.2, Service 4.2.1). The strip at the ' +
+      'foot of the pop-up collapses it.',
+    keys: [
+      { name: 'Operator', desc: 'Switches to the Operator level at once — no password (6.3.4.1).' },
+      { name: 'Site Engineer / Installation / Maintenance', desc: 'Opens the password keyboard for that level (6.3.4.2, Service 4.2.1).' },
+      { name: 'Collapse strip', desc: 'The striped bar at the bottom of the pop-up closes it.' },
+      { name: 'HOME', desc: 'Still live under the pop-up — returns to the Main Menu.' },
+    ],
+    note:
+      'The operation panel starts at the Operator level every time the ' +
+      'power is turned on (6.3.4) — pressing Power resets the level, so ' +
+      'raising it is part of every start-up that needs Preset or Machine ' +
+      'Set. The factory password for the Maintenance Service level is 123 ' +
+      '(Service 4.2.1 TIP). Work at the lowest level that does the job: ' +
+      'the levels exist so a production operator cannot change the ' +
+      'machine’s engineering settings by accident.',
+  },
+
+  'level-password': {
+    title: 'Password Input',
+    ref: 'Service 4.2.1 Maintenance Service Level Display / 6.3.4 Selecting an Operation Level (Operation Manual)',
+    source: 'service',
+    summary:
+      'The on-screen keyboard that guards the upper operation levels: a ' +
+      'digits row, a full QWERTY layout with CAPS and SHIFT, a space bar, ' +
+      'BS (backspace), CLR (clear), CANCEL and the large Return key. Type ' +
+      'the password for the level you chose — it displays as *** — and ' +
+      'press Return; the Main Menu for that level appears (Service ' +
+      '4.2.1). CANCEL abandons the entry and leaves the level as it was.',
+    keys: [
+      { name: 'Keyboard', desc: 'Types the password; each character displays as * (Service 4.2.1 TIP). The letter keys matter — passwords can be changed from the factory numbers (4.3.2.2 Password Setting).' },
+      { name: 'BS / CLR', desc: 'Backspace one character / clear the entry.' },
+      { name: 'CANCEL', desc: 'Abandons the password entry — the operation level does not change.' },
+      { name: 'Return', desc: 'Confirms the password and switches to the selected level.' },
+    ],
+    note:
+      'The password set at the factory for the Maintenance Service level ' +
+      'is 123 (Service 4.2.1 TIP) — and on the machine this program was ' +
+      'checked against, 123 also opened the Site Engineer level. In the ' +
+      'simulator both CANCEL and Return lead back to the Main Menu; on ' +
+      'the real unit Return only proceeds when the password is right. ' +
+      'Remember: pressing Power drops the level back to Operator (6.3.4).',
   },
 };
 

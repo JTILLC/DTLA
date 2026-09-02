@@ -2,8 +2,14 @@
  * Pure helpers over the navigation map. Used by the app and by the tests.
  */
 
+/** The pop-up drawers on the map: Machine Set (bottom) and Select Total (left). */
+export function drawers(navmap) {
+  return [navmap.machineSet, navmap.selectTotal].filter(Boolean);
+}
+
 /**
- * Every navigation edge as {from, to}, hotspots plus the Machine Set drawer.
+ * Every navigation edge as {from, to}, hotspots plus the pop-up drawers
+ * (Machine Set and Select Total).
  *
  * Two things this has to get right, both of which were once wrong here:
  * `screens` and `drawTabOn` overlap, so the screens they name are de-duplicated
@@ -15,21 +21,19 @@ export function allEdges(navmap) {
   for (const [from, s] of Object.entries(navmap.screens)) {
     for (const h of s.hotspots) edges.push({ from, to: h.to });
   }
-  const ms = navmap.machineSet;
-  if (ms) {
-    const openable = ms.items.filter((i) => i.to);
-    for (const from of drawerScreens(navmap)) {
+  for (const drawer of drawers(navmap)) {
+    const openable = drawer.items.filter((i) => i.to);
+    for (const from of drawerScreens(drawer)) {
       for (const item of openable) edges.push({ from, to: item.to });
     }
   }
   return edges;
 }
 
-/** The screens that carry the Machine Set tab, each once. */
-export function drawerScreens(navmap) {
-  const ms = navmap.machineSet;
-  if (!ms) return [];
-  return [...new Set([...(ms.screens || []), ...(ms.drawTabOn || [])])];
+/** The screens that carry the given drawer's tab, each once. */
+export function drawerScreens(drawer) {
+  if (!drawer) return [];
+  return [...new Set([...(drawer.screens || []), ...(drawer.drawTabOn || [])])];
 }
 
 /** Screens reachable from `start` by tapping. */

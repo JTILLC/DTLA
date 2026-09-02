@@ -4,9 +4,11 @@ import { pointInRect } from '../utils/navGraph';
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
  * laid over it in percentage coordinates, so it scales to any size without
- * distorting the art. Also draws the Machine Set drawer, whose order and
- * contents are checked against the Service Manual's own figure (4.4, page 4-18)
- * and against the running program. Weigher Information appears only at
+ * distorting the art. Also draws the two pop-up drawers: Machine Set, whose
+ * order and contents are checked against the Service Manual's own figure (4.4,
+ * page 4-18) and against the running program, and Select Total, checked
+ * against Operation Manual Table 6-32 (6.11) and the running program.
+ * Weigher Information appears only at
  * Maintenance level and we hold no artwork for it, so it is drawn disabled —
  * a drawer silently missing an item teaches the wrong menu just as surely as
  * one in the wrong order did.
@@ -17,14 +19,15 @@ export default function Rcu({
   showHotspots,
   highlight,      // null | {kind:'nav', to, via} | {kind:'spot', rect, label}
   lessonActive,
-  drawerOpen,
-  onToggleDrawer,
+  openDrawer,     // null | 'machineSet' | 'selectTotal'
+  onToggleDrawer, // (name) => void
   onTap,          // ({type:'nav', to, button}) or ({type:'spot'})
   wrongFlash,     // increments to trigger the wrong-tap flash
 }) {
   const { w: CW, h: CH } = navmap.canvas;
   const screen = navmap.screens[slug];
   const ms = navmap.machineSet;
+  const st = navmap.selectTotal;
   const [flashing, setFlashing] = useState(false);
   const flashTimer = useRef(null);
 
@@ -49,6 +52,11 @@ export default function Rcu({
   const hasBakedTab = ms && ms.screens.includes(slug);
   const drawsTab = ms && (ms.drawTabOn || []).includes(slug);
   const showsDrawer = hasBakedTab || drawsTab;
+
+  // The Select Total tab is baked into every capture that carries it (the
+  // Main Menu and the six Total views), so it only ever needs an invisible
+  // hotspot — never a drawn look-alike tab.
+  const showsTotalTab = st && st.screens.includes(slug);
 
   const isNavTarget = (h) => {
     if (!highlight || highlight.kind !== 'nav' || h.to !== highlight.to) return false;
@@ -106,7 +114,7 @@ export default function Rcu({
             type="button"
             className="mset-tab"
             style={{ ...rectStyle(ms.tab), fontSize: 'clamp(8px, 1.4cqw, 13px)' }}
-            onClick={onToggleDrawer}
+            onClick={() => onToggleDrawer('machineSet')}
           >
             Machine Set <span aria-hidden="true">≡</span>
           </button>
@@ -117,11 +125,11 @@ export default function Rcu({
             className="hotspot"
             style={rectStyle(ms.tab)}
             aria-label="Machine Set pop-up"
-            onClick={onToggleDrawer}
+            onClick={() => onToggleDrawer('machineSet')}
           />
         )}
 
-        {showsDrawer && drawerOpen && (
+        {showsDrawer && openDrawer === 'machineSet' && (
           <div
             className="mset-drawer"
             style={{
@@ -152,6 +160,49 @@ export default function Rcu({
                 {!item.to && (
                   <span style={{ fontSize: '0.75em', opacity: 0.8 }}> · not captured</span>
                 )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Select Total pop-up tab: baked into the Main Menu and Total
+            captures (6.11 — "the Select Total pop-up key on the left side of
+            the Main menu"). The expanded drawer was not captured, so the six
+            buttons are drawn look-alikes, in the order of Table 6-32. */}
+        {showsTotalTab && (
+          <button
+            type="button"
+            className="hotspot"
+            style={rectStyle(st.tab)}
+            aria-label="Select Total pop-up"
+            onClick={() => onToggleDrawer('selectTotal')}
+          />
+        )}
+
+        {showsTotalTab && openDrawer === 'selectTotal' && (
+          <div
+            className="mset-drawer mset-drawer--left"
+            style={{
+              left: pct(st.tab.x + st.tab.w, CW),
+              top: pct(st.tab.y, CH),
+              width: pct(230, CW),
+            }}
+          >
+            <div className="drawer-note" style={{ padding: '2% 4%', fontSize: 'clamp(7px, 1.2cqw, 11px)' }}>
+              order checked against Table 6-32 and the real unit
+            </div>
+            {st.items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                title={item.note || undefined}
+                style={{
+                  padding: '2.5% 5%',
+                  fontSize: 'clamp(9px, 1.6cqw, 14px)',
+                }}
+                onClick={() => onTap({ type: 'nav', to: item.to, drawer: true })}
+              >
+                {item.label}
               </button>
             ))}
           </div>
