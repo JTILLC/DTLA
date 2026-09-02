@@ -1,0 +1,365 @@
+{
+ "source": "IshidaVR.exe (Flash 7 projector), 800x600 RCU screens",
+ "screens": [
+  {
+   "frame": 2,
+   "slug": "total-select",
+   "labelJa": "集計選択0",
+   "background": null
+  },
+  {
+   "frame": 3,
+   "slug": "main-menu",
+   "labelJa": "メインメニュー",
+   "background": null
+  },
+  {
+   "frame": 11,
+   "slug": "preset-select-a",
+   "labelJa": "予約選択A",
+   "background": "assets/screens/preset-select-a.jpg"
+  },
+  {
+   "frame": 21,
+   "slug": "preset-select-b",
+   "labelJa": "予約選択B",
+   "background": "assets/screens/preset-select-b.jpg"
+  },
+  {
+   "frame": 31,
+   "slug": "preset-product",
+   "labelJa": "予約設定_商品",
+   "background": "assets/screens/preset-product.jpg"
+  },
+  {
+   "frame": 41,
+   "slug": "preset-machine",
+   "labelJa": "予約設定_機物",
+   "background": "assets/screens/preset-machine.jpg"
+  },
+  {
+   "frame": 51,
+   "slug": "preset-item",
+   "labelJa": "予約設定_アイテム",
+   "background": "assets/screens/preset-item.jpg"
+  },
+  {
+   "frame": 61,
+   "slug": "preset-other",
+   "labelJa": "予約設定_その他",
+   "background": "assets/screens/preset-other.jpg"
+  },
+  {
+   "frame": 71,
+   "slug": "preset-feeder",
+   "labelJa": "予約設定_フィーダ",
+   "background": "assets/screens/preset-feeder.jpg"
+  },
+  {
+   "frame": 81,
+   "slug": "preset-timing",
+   "labelJa": "予約設定_タイミング",
+   "background": "assets/screens/preset-timing.jpg"
+  },
+  {
+   "frame": 91,
+   "slug": "preset-weight",
+   "labelJa": "予約設定_重量",
+   "background": "assets/screens/preset-weight.jpg"
+  },
+  {
+   "frame": 101,
+   "slug": "zero-adjust",
+   "labelJa": "零点調整",
+   "background": "assets/screens/zero-adjust.jpg"
+  },
+  {
+   "frame": 111,
+   "slug": "discharge-weight",
+   "labelJa": "全排出_重量表示",
+   "background": "assets/screens/discharge-weight.jpg"
+  },
+  {
+   "frame": 121,
+   "slug": "discharge-feeder",
+   "labelJa": "全排出_フィーダ",
+   "background": "assets/screens/discharge-feeder.jpg"
+  },
+  {
+   "frame": 131,
+   "slug": "discharge-timing",
+   "labelJa": "全排出_タイミング",
+   "background": "assets/screens/discharge-timing.jpg"
+  },
+  {
+   "frame": 141,
+   "slug": "hopper-discharge",
+   "labelJa": "ポッパ_排出",
+   "background": "assets/screens/hopper-discharge.jpg"
+  },
+  {
+   "frame": 151,
+   "slug": "hopper-feeder",
+   "labelJa": "ポッパ_フィーダ",
+   "background": "assets/screens/hopper-feeder.jpg"
+  },
+  {
+   "frame": 161,
+   "slug": "run-combination",
+   "labelJa": "運転_組合せ",
+   "background": "assets/screens/run-combination.jpg"
+  },
+  {
+   "frame": 171,
+   "slug": "run-feeder",
+   "labelJa": "運転_フィーダ",
+   "background": "assets/screens/run-feeder.jpg"
+  },
+  {
+   "frame": 181,
+   "slug": "run-timing",
+   "labelJa": "運転_タイミング",
+   "background": "assets/screens/run-timing.jpg"
+  },
+  {
+   "frame": 191,
+   "slug": "run-totals",
+   "labelJa": "運転_集計",
+   "background": "assets/screens/run-totals.jpg"
+  },
+  {
+   "frame": 201,
+   "slug": "run-weight",
+   "labelJa": "運転_重量",
+   "background": "assets/screens/run-weight.jpg"
+  },
+  {
+   "frame": 211,
+   "slug": "manual-scale-adjust",
+   "labelJa": "手動_秤調整",
+   "background": "assets/screens/manual-scale-adjust.jpg"
+  },
+  {
+   "frame": 221,
+   "slug": "manual-combination",
+   "labelJa": "手動_組合せ",
+   "background": "assets/screens/manual-combination.jpg"
+  },
+  {
+   "frame": 231,
+   "slug": "manual-vibration",
+   "labelJa": "手動_振動",
+   "background": "assets/screens/manual-vibration.jpg"
+  },
+  {
+   "frame": 241,
+   "slug": "manual-weight-waveform",
+   "labelJa": "手動_重量波形",
+   "background": "assets/screens/manual-weight-waveform.jpg"
+  },
+  {
+   "frame": 251,
+   "slug": "selfdiag-device",
+   "labelJa": "自己_デバイス",
+   "background": "assets/screens/selfdiag-device.jpg"
+  },
+  {
+   "frame": 261,
+   "slug": "selfdiag-io",
+   "labelJa": "自己_入出力",
+   "background": "assets/screens/selfdiag-io.jpg"
+  },
+  {
+   "frame": 271,
+   "slug": "selfdiag-network",
+   "labelJa": "自己_ネット",
+   "background": "assets/screens/selfdiag-network.jpg"
+  },
+  {
+   "frame": 281,
+   "slug": "selfdiag-program",
+   "labelJa": "自己_プログラム",
+   "background": "assets/screens/selfdiag-program.jpg"
+  },
+  {
+   "frame": 291,
+   "slug": "selfdiag-test",
+   "labelJa": "自己_テスト",
+   "background": "assets/screens/selfdiag-test.jpg"
+  },
+  {
+   "frame": 301,
+   "slug": "display-screen",
+   "labelJa": "表示_画面",
+   "background": "assets/screens/display-screen.jpg"
+  },
+  {
+   "frame": 311,
+   "slug": "display-preset",
+   "labelJa": "表示_予約",
+   "background": "assets/screens/display-preset.jpg"
+  },
+  {
+   "frame": 321,
+   "slug": "display-machine-edit",
+   "labelJa": "表示_機物設定編集",
+   "background": "assets/screens/display-machine-edit.jpg"
+  },
+  {
+   "frame": 331,
+   "slug": "display-all-edit",
+   "labelJa": "表示_全設定編集",
+   "background": "assets/screens/display-all-edit.jpg"
+  },
+  {
+   "frame": 341,
+   "slug": "display-hopper",
+   "labelJa": "表示_ホッパ",
+   "background": "assets/screens/display-hopper.jpg"
+  },
+  {
+   "frame": 351,
+   "slug": "various-scale-detail",
+   "labelJa": "各種_秤詳細",
+   "background": "assets/screens/various-scale-detail.jpg"
+  },
+  {
+   "frame": 361,
+   "slug": "various-combination",
+   "labelJa": "各種_組合せ",
+   "background": "assets/screens/various-combination.jpg"
+  },
+  {
+   "frame": 371,
+   "slug": "various-section",
+   "labelJa": "各種_セクション",
+   "background": "assets/screens/various-section.jpg"
+  },
+  {
+   "frame": 381,
+   "slug": "various-fd",
+   "labelJa": "各種_FD",
+   "background": null
+  },
+  {
+   "frame": 391,
+   "slug": "various-hdrv",
+   "labelJa": "各種_HDRV",
+   "background": null
+  },
+  {
+   "frame": 401,
+   "slug": "weigh-participation",
+   "labelJa": "計量_参加",
+   "background": "assets/screens/weigh-participation.jpg"
+  },
+  {
+   "frame": 411,
+   "slug": "weigh-auto-timing",
+   "labelJa": "計量_自動タイミング",
+   "background": "assets/screens/weigh-auto-timing.jpg"
+  },
+  {
+   "frame": 421,
+   "slug": "weigh-network",
+   "labelJa": "計量_ネットワーク",
+   "background": "assets/screens/weigh-network.jpg"
+  },
+  {
+   "frame": 431,
+   "slug": "weigh-adf",
+   "labelJa": "計量_ADF",
+   "background": "assets/screens/weigh-adf.jpg"
+  },
+  {
+   "frame": 441,
+   "slug": "pack-bagmaker",
+   "labelJa": "包装_包装機",
+   "background": "assets/screens/pack-bagmaker.jpg"
+  },
+  {
+   "frame": 451,
+   "slug": "pack-ring",
+   "labelJa": "包装_リング",
+   "background": "assets/screens/pack-ring.jpg"
+  },
+  {
+   "frame": 461,
+   "slug": "pack-distribution",
+   "labelJa": "包装_振分け",
+   "background": "assets/screens/pack-distribution.jpg"
+  },
+  {
+   "frame": 471,
+   "slug": "pack-timing",
+   "labelJa": "包装_タイミング",
+   "background": "assets/screens/pack-timing.jpg"
+  },
+  {
+   "frame": 481,
+   "slug": "pack-supply",
+   "labelJa": "包装_供給機",
+   "background": "assets/screens/pack-supply.jpg"
+  },
+  {
+   "frame": 491,
+   "slug": "panel-screen-control",
+   "labelJa": "コンパネ_画面制御",
+   "background": "assets/screens/panel-screen-control.jpg"
+  },
+  {
+   "frame": 501,
+   "slug": "panel-password",
+   "labelJa": "コンパネ_パスワード",
+   "background": "assets/screens/panel-password.jpg"
+  },
+  {
+   "frame": 511,
+   "slug": "panel-data-output",
+   "labelJa": "コンパネ_データ出力先",
+   "background": "assets/screens/panel-data-output.jpg"
+  },
+  {
+   "frame": 521,
+   "slug": "panel-comms",
+   "labelJa": "コンパネ_通信設定",
+   "background": "assets/screens/panel-comms.jpg"
+  },
+  {
+   "frame": 531,
+   "slug": "assistant",
+   "labelJa": "アシスタント",
+   "background": "assets/screens/assistant.jpg"
+  },
+  {
+   "frame": 541,
+   "slug": "memo",
+   "labelJa": "メモ",
+   "background": "assets/screens/memo.jpg"
+  },
+  {
+   "frame": 551,
+   "slug": "autoadj-afv",
+   "labelJa": "自動調整_AFV",
+   "background": "assets/screens/autoadj-afv.jpg"
+  },
+  {
+   "frame": 561,
+   "slug": "autoadj-neutral",
+   "labelJa": "自動調整_Ntrl",
+   "background": "assets/screens/autoadj-neutral.jpg"
+  },
+  {
+   "frame": 570,
+   "slug": "autoadj-drive",
+   "labelJa": "自動調整_Drive",
+   "background": "assets/screens/autoadj-drive.jpg"
+  },
+  {
+   "frame": 1080,
+   "slug": "reset",
+   "labelJa": "Reset",
+   "background": null
+  }
+ ]
+}

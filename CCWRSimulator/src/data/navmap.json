@@ -1,0 +1,3328 @@
+{
+ "canvas": {
+  "w": 800,
+  "h": 600
+ },
+ "machineSet": {
+  "tab": {
+   "x": 168,
+   "y": 496,
+   "w": 163,
+   "h": 22
+  },
+  "screens": [
+   "autoadj-afv",
+   "autoadj-drive",
+   "autoadj-neutral",
+   "display-all-edit",
+   "display-hopper",
+   "display-machine-edit",
+   "display-preset",
+   "display-screen",
+   "manual-combination",
+   "manual-scale-adjust",
+   "manual-vibration",
+   "manual-weight-waveform",
+   "pack-bagmaker",
+   "pack-distribution",
+   "pack-ring",
+   "pack-supply",
+   "pack-timing",
+   "selfdiag-device",
+   "selfdiag-io",
+   "selfdiag-network",
+   "selfdiag-program",
+   "selfdiag-test",
+   "various-combination",
+   "various-fd",
+   "various-hdrv",
+   "various-scale-detail",
+   "various-section",
+   "weigh-adf",
+   "weigh-auto-timing",
+   "weigh-network",
+   "weigh-participation"
+  ],
+  "drawTabOn": [
+   "main-menu"
+  ],
+  "items": [
+   {
+    "label": "Manual Adjustment",
+    "to": "manual-scale-adjust"
+   },
+   {
+    "label": "Self-diagnosis",
+    "to": "selfdiag-device"
+   },
+   {
+    "label": "Display & Data Manager",
+    "to": "display-screen"
+   },
+   {
+    "label": "Various Parameter Setting",
+    "to": "various-scale-detail"
+   },
+   {
+    "label": "Weigher Setting",
+    "to": "weigh-participation"
+   },
+   {
+    "label": "Peripheral Equipment Setting",
+    "to": "pack-bagmaker"
+   },
+   {
+    "label": "Auto Adjustment",
+    "to": "autoadj-afv"
+   }
+  ]
+ },
+ "screens": {
+  "main-menu": {
+   "frame": 3,
+   "labelJa": "メインメニュー",
+   "image": "screens/main-menu.jpg",
+   "hotspots": [
+    {
+     "x": 706,
+     "y": 194,
+     "w": 88,
+     "h": 62,
+     "to": "preset-product",
+     "button": 53
+    },
+    {
+     "x": 700,
+     "y": 44,
+     "w": 100,
+     "h": 117,
+     "to": "preset-select-a",
+     "button": 81
+    },
+    {
+     "x": 334,
+     "y": 46,
+     "w": 88,
+     "h": 62,
+     "to": "zero-adjust",
+     "button": 88
+    },
+    {
+     "x": 334,
+     "y": 121,
+     "w": 88,
+     "h": 62,
+     "to": "discharge-weight",
+     "button": 89
+    },
+    {
+     "x": 334,
+     "y": 197,
+     "w": 88,
+     "h": 62,
+     "to": "hopper-discharge",
+     "button": 90
+    },
+    {
+     "x": 622,
+     "y": 1,
+     "w": 68,
+     "h": 37,
+     "to": "panel-screen-control",
+     "button": 91
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 369,
+     "y": 1,
+     "w": 59,
+     "h": 37,
+     "to": "assistant",
+     "button": 102
+    },
+    {
+     "x": 301,
+     "y": 1,
+     "w": 34,
+     "h": 37,
+     "to": "memo",
+     "button": 103
+    }
+   ]
+  },
+  "preset-select-a": {
+   "frame": 11,
+   "labelJa": "予約選択A",
+   "image": "screens/preset-select-a.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 696,
+     "y": 450,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 697,
+     "y": 140,
+     "w": 89,
+     "h": 64,
+     "to": "preset-select-b",
+     "button": 374
+    }
+   ]
+  },
+  "preset-select-b": {
+   "frame": 21,
+   "labelJa": "予約選択B",
+   "image": "screens/preset-select-b.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 696,
+     "y": 450,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 697,
+     "y": 140,
+     "w": 89,
+     "h": 64,
+     "to": "preset-select-a",
+     "button": 390
+    }
+   ]
+  },
+  "preset-product": {
+   "frame": 31,
+   "labelJa": "予約設定_商品",
+   "image": "screens/preset-product.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 143,
+     "y": 409,
+     "w": 128,
+     "h": 36,
+     "to": "preset-machine",
+     "button": 401
+    },
+    {
+     "x": 274,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-item",
+     "button": 402
+    },
+    {
+     "x": 405,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-other",
+     "button": 403
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-machine": {
+   "frame": 41,
+   "labelJa": "予約設定_機物",
+   "image": "screens/preset-machine.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 274,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-item",
+     "button": 402
+    },
+    {
+     "x": 405,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-other",
+     "button": 403
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-item": {
+   "frame": 51,
+   "labelJa": "予約設定_アイテム",
+   "image": "screens/preset-item.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 143,
+     "y": 409,
+     "w": 128,
+     "h": 36,
+     "to": "preset-machine",
+     "button": 401
+    },
+    {
+     "x": 405,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-other",
+     "button": 403
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-other": {
+   "frame": 61,
+   "labelJa": "予約設定_その他",
+   "image": "screens/preset-other.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 143,
+     "y": 409,
+     "w": 128,
+     "h": 36,
+     "to": "preset-machine",
+     "button": 401
+    },
+    {
+     "x": 274,
+     "y": 408,
+     "w": 128,
+     "h": 36,
+     "to": "preset-item",
+     "button": 402
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-feeder": {
+   "frame": 71,
+   "labelJa": "予約設定_フィーダ",
+   "image": "screens/preset-feeder.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-timing": {
+   "frame": 81,
+   "labelJa": "予約設定_タイミング",
+   "image": "screens/preset-timing.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 231,
+     "w": 193,
+     "h": 37,
+     "to": "preset-weight",
+     "button": 411
+    }
+   ]
+  },
+  "preset-weight": {
+   "frame": 91,
+   "labelJa": "予約設定_重量",
+   "image": "screens/preset-weight.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 700,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 604,
+     "y": 109,
+     "w": 193,
+     "h": 37,
+     "to": "preset-product",
+     "button": 400
+    },
+    {
+     "x": 604,
+     "y": 149,
+     "w": 193,
+     "h": 37,
+     "to": "preset-feeder",
+     "button": 409
+    },
+    {
+     "x": 604,
+     "y": 190,
+     "w": 193,
+     "h": 37,
+     "to": "preset-timing",
+     "button": 410
+    }
+   ]
+  },
+  "zero-adjust": {
+   "frame": 101,
+   "labelJa": "零点調整",
+   "image": "screens/zero-adjust.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    }
+   ]
+  },
+  "discharge-weight": {
+   "frame": 111,
+   "labelJa": "全排出_重量表示",
+   "image": "screens/discharge-weight.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 144,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-feeder",
+     "button": 746
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-timing",
+     "button": 747
+    }
+   ]
+  },
+  "discharge-feeder": {
+   "frame": 121,
+   "labelJa": "全排出_フィーダ",
+   "image": "screens/discharge-feeder.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 13,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-weight",
+     "button": 89
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-timing",
+     "button": 747
+    }
+   ]
+  },
+  "discharge-timing": {
+   "frame": 131,
+   "labelJa": "全排出_タイミング",
+   "image": "screens/discharge-timing.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 13,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-weight",
+     "button": 89
+    },
+    {
+     "x": 144,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "discharge-feeder",
+     "button": 746
+    }
+   ]
+  },
+  "hopper-discharge": {
+   "frame": 141,
+   "labelJa": "ポッパ_排出",
+   "image": "screens/hopper-discharge.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 453,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 144,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "hopper-feeder",
+     "button": 909
+    }
+   ]
+  },
+  "hopper-feeder": {
+   "frame": 151,
+   "labelJa": "ポッパ_フィーダ",
+   "image": "screens/hopper-feeder.jpg",
+   "hotspots": [
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 703,
+     "y": 453,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 669
+    },
+    {
+     "x": 13,
+     "y": 426,
+     "w": 125,
+     "h": 34,
+     "to": "hopper-discharge",
+     "button": 90
+    }
+   ]
+  },
+  "run-combination": {
+   "frame": 161,
+   "labelJa": "運転_組合せ",
+   "image": "screens/run-combination.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 454,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    }
+   ]
+  },
+  "run-feeder": {
+   "frame": 171,
+   "labelJa": "運転_フィーダ",
+   "image": "screens/run-feeder.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 454,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    }
+   ]
+  },
+  "run-timing": {
+   "frame": 181,
+   "labelJa": "運転_タイミング",
+   "image": "screens/run-timing.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 454,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    }
+   ]
+  },
+  "run-totals": {
+   "frame": 191,
+   "labelJa": "運転_集計",
+   "image": "screens/run-totals.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 454,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    }
+   ]
+  },
+  "run-weight": {
+   "frame": 201,
+   "labelJa": "運転_重量",
+   "image": "screens/run-weight.jpg",
+   "hotspots": [
+    {
+     "x": 704,
+     "y": 454,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    },
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97
+    }
+   ]
+  },
+  "manual-scale-adjust": {
+   "frame": 211,
+   "labelJa": "手動_秤調整",
+   "image": "screens/manual-scale-adjust.jpg",
+   "hotspots": [
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-combination",
+     "button": 1005
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-vibration",
+     "button": 1006
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-weight-waveform",
+     "button": 1007
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    }
+   ]
+  },
+  "manual-combination": {
+   "frame": 221,
+   "labelJa": "手動_組合せ",
+   "image": "screens/manual-combination.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-scale-adjust",
+     "button": 1004
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-vibration",
+     "button": 1006
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-weight-waveform",
+     "button": 1007
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    }
+   ]
+  },
+  "manual-vibration": {
+   "frame": 231,
+   "labelJa": "手動_振動",
+   "image": "screens/manual-vibration.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-scale-adjust",
+     "button": 1004
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-combination",
+     "button": 1005
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-weight-waveform",
+     "button": 1007
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    }
+   ]
+  },
+  "manual-weight-waveform": {
+   "frame": 241,
+   "labelJa": "手動_重量波形",
+   "image": "screens/manual-weight-waveform.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-scale-adjust",
+     "button": 1004
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-combination",
+     "button": 1005
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-vibration",
+     "button": 1006
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    }
+   ]
+  },
+  "selfdiag-device": {
+   "frame": 251,
+   "labelJa": "自己_デバイス",
+   "image": "screens/selfdiag-device.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-io",
+     "button": 1095
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-program",
+     "button": 1096
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-test",
+     "button": 1097
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-network",
+     "button": 1098
+    }
+   ]
+  },
+  "selfdiag-io": {
+   "frame": 261,
+   "labelJa": "自己_入出力",
+   "image": "screens/selfdiag-io.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-device",
+     "button": 1094
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-program",
+     "button": 1096
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-test",
+     "button": 1097
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-network",
+     "button": 1098
+    }
+   ]
+  },
+  "selfdiag-network": {
+   "frame": 271,
+   "labelJa": "自己_ネット",
+   "image": "screens/selfdiag-network.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-device",
+     "button": 1094
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-io",
+     "button": 1095
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-program",
+     "button": 1096
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-test",
+     "button": 1097
+    }
+   ]
+  },
+  "selfdiag-program": {
+   "frame": 281,
+   "labelJa": "自己_プログラム",
+   "image": "screens/selfdiag-program.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-device",
+     "button": 1094
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-io",
+     "button": 1095
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-test",
+     "button": 1097
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-network",
+     "button": 1098
+    }
+   ]
+  },
+  "selfdiag-test": {
+   "frame": 291,
+   "labelJa": "自己_テスト",
+   "image": "screens/selfdiag-test.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-device",
+     "button": 1094
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-io",
+     "button": 1095
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-program",
+     "button": 1096
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-network",
+     "button": 1098
+    }
+   ]
+  },
+  "display-screen": {
+   "frame": 301,
+   "labelJa": "表示_画面",
+   "image": "screens/display-screen.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-preset",
+     "button": 1205
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-machine-edit",
+     "button": 1206
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-all-edit",
+     "button": 1207
+    },
+    {
+     "x": 537,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-hopper",
+     "button": 1208
+    }
+   ]
+  },
+  "display-preset": {
+   "frame": 311,
+   "labelJa": "表示_予約",
+   "image": "screens/display-preset.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-screen",
+     "button": 1204
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-machine-edit",
+     "button": 1206
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-all-edit",
+     "button": 1207
+    },
+    {
+     "x": 537,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-hopper",
+     "button": 1208
+    }
+   ]
+  },
+  "display-machine-edit": {
+   "frame": 321,
+   "labelJa": "表示_機物設定編集",
+   "image": "screens/display-machine-edit.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-screen",
+     "button": 1204
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-preset",
+     "button": 1205
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-all-edit",
+     "button": 1207
+    },
+    {
+     "x": 537,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-hopper",
+     "button": 1208
+    }
+   ]
+  },
+  "display-all-edit": {
+   "frame": 331,
+   "labelJa": "表示_全設定編集",
+   "image": "screens/display-all-edit.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-screen",
+     "button": 1204
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-preset",
+     "button": 1205
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-machine-edit",
+     "button": 1206
+    },
+    {
+     "x": 537,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-hopper",
+     "button": 1208
+    }
+   ]
+  },
+  "display-hopper": {
+   "frame": 341,
+   "labelJa": "表示_ホッパ",
+   "image": "screens/display-hopper.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-screen",
+     "button": 1204
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-preset",
+     "button": 1205
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-machine-edit",
+     "button": 1206
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "display-all-edit",
+     "button": 1207
+    }
+   ]
+  },
+  "various-scale-detail": {
+   "frame": 351,
+   "labelJa": "各種_秤詳細",
+   "image": "screens/various-scale-detail.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-hdrv",
+     "button": 1350
+    }
+   ]
+  },
+  "various-combination": {
+   "frame": 361,
+   "labelJa": "各種_組合せ",
+   "image": "screens/various-combination.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-hdrv",
+     "button": 1350
+    }
+   ]
+  },
+  "various-section": {
+   "frame": 371,
+   "labelJa": "各種_セクション",
+   "image": "screens/various-section.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-hdrv",
+     "button": 1350
+    }
+   ]
+  },
+  "various-fd": {
+   "frame": 381,
+   "labelJa": "各種_FD",
+   "image": "screens/various-fd.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 536,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-hdrv",
+     "button": 1350
+    }
+   ]
+  },
+  "various-hdrv": {
+   "frame": 391,
+   "labelJa": "各種_HDRV",
+   "image": "screens/various-hdrv.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    }
+   ]
+  },
+  "weigh-participation": {
+   "frame": 401,
+   "labelJa": "計量_参加",
+   "image": "screens/weigh-participation.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-adf",
+     "button": 1501
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-network",
+     "button": 1502
+    },
+    {
+     "x": 145,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-auto-timing",
+     "button": 1503
+    }
+   ]
+  },
+  "weigh-auto-timing": {
+   "frame": 411,
+   "labelJa": "計量_自動タイミング",
+   "image": "screens/weigh-auto-timing.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-participation",
+     "button": 1500
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-adf",
+     "button": 1501
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-network",
+     "button": 1502
+    }
+   ]
+  },
+  "weigh-network": {
+   "frame": 421,
+   "labelJa": "計量_ネットワーク",
+   "image": "screens/weigh-network.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-participation",
+     "button": 1500
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-adf",
+     "button": 1501
+    },
+    {
+     "x": 145,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-auto-timing",
+     "button": 1503
+    }
+   ]
+  },
+  "weigh-adf": {
+   "frame": 431,
+   "labelJa": "計量_ADF",
+   "image": "screens/weigh-adf.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-participation",
+     "button": 1500
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-network",
+     "button": 1502
+    },
+    {
+     "x": 145,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "weigh-auto-timing",
+     "button": 1503
+    }
+   ]
+  },
+  "pack-bagmaker": {
+   "frame": 441,
+   "labelJa": "包装_包装機",
+   "image": "screens/pack-bagmaker.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-supply",
+     "button": 1554
+    },
+    {
+     "x": 605,
+     "y": 149,
+     "w": 193,
+     "h": 40,
+     "to": "pack-ring",
+     "button": 1559
+    },
+    {
+     "x": 605,
+     "y": 190,
+     "w": 193,
+     "h": 40,
+     "to": "pack-distribution",
+     "button": 1560
+    },
+    {
+     "x": 605,
+     "y": 231,
+     "w": 193,
+     "h": 40,
+     "to": "pack-timing",
+     "button": 1561
+    }
+   ]
+  },
+  "pack-ring": {
+   "frame": 451,
+   "labelJa": "包装_リング",
+   "image": "screens/pack-ring.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-bagmaker",
+     "button": 1553
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-supply",
+     "button": 1554
+    },
+    {
+     "x": 605,
+     "y": 108,
+     "w": 193,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "button": 1558
+    },
+    {
+     "x": 605,
+     "y": 190,
+     "w": 193,
+     "h": 40,
+     "to": "pack-distribution",
+     "button": 1560
+    },
+    {
+     "x": 605,
+     "y": 231,
+     "w": 193,
+     "h": 40,
+     "to": "pack-timing",
+     "button": 1561
+    }
+   ]
+  },
+  "pack-distribution": {
+   "frame": 461,
+   "labelJa": "包装_振分け",
+   "image": "screens/pack-distribution.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-bagmaker",
+     "button": 1553
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-supply",
+     "button": 1554
+    },
+    {
+     "x": 605,
+     "y": 108,
+     "w": 193,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "button": 1558
+    },
+    {
+     "x": 605,
+     "y": 149,
+     "w": 193,
+     "h": 40,
+     "to": "pack-ring",
+     "button": 1559
+    },
+    {
+     "x": 605,
+     "y": 231,
+     "w": 193,
+     "h": 40,
+     "to": "pack-timing",
+     "button": 1561
+    }
+   ]
+  },
+  "pack-timing": {
+   "frame": 471,
+   "labelJa": "包装_タイミング",
+   "image": "screens/pack-timing.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-bagmaker",
+     "button": 1553
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-supply",
+     "button": 1554
+    },
+    {
+     "x": 605,
+     "y": 108,
+     "w": 193,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "button": 1558
+    },
+    {
+     "x": 605,
+     "y": 149,
+     "w": 193,
+     "h": 40,
+     "to": "pack-ring",
+     "button": 1559
+    },
+    {
+     "x": 605,
+     "y": 190,
+     "w": 193,
+     "h": 40,
+     "to": "pack-distribution",
+     "button": 1560
+    }
+   ]
+  },
+  "pack-supply": {
+   "frame": 481,
+   "labelJa": "包装_供給機",
+   "image": "screens/pack-supply.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "pack-bagmaker",
+     "button": 1553
+    }
+   ]
+  },
+  "panel-screen-control": {
+   "frame": 491,
+   "labelJa": "コンパネ_画面制御",
+   "image": "screens/panel-screen-control.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 154,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-password",
+     "button": 1643
+    },
+    {
+     "x": 285,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-data-output",
+     "button": 1644
+    },
+    {
+     "x": 416,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-comms",
+     "button": 1645
+    }
+   ]
+  },
+  "panel-password": {
+   "frame": 501,
+   "labelJa": "コンパネ_パスワード",
+   "image": "screens/panel-password.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 23,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-screen-control",
+     "button": 91
+    },
+    {
+     "x": 285,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-data-output",
+     "button": 1644
+    },
+    {
+     "x": 416,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-comms",
+     "button": 1645
+    }
+   ]
+  },
+  "panel-data-output": {
+   "frame": 511,
+   "labelJa": "コンパネ_データ出力先",
+   "image": "screens/panel-data-output.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 23,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-screen-control",
+     "button": 91
+    },
+    {
+     "x": 154,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-password",
+     "button": 1643
+    },
+    {
+     "x": 416,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-comms",
+     "button": 1645
+    }
+   ]
+  },
+  "panel-comms": {
+   "frame": 521,
+   "labelJa": "コンパネ_通信設定",
+   "image": "screens/panel-comms.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 23,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-screen-control",
+     "button": 91
+    },
+    {
+     "x": 154,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-password",
+     "button": 1643
+    },
+    {
+     "x": 285,
+     "y": 434,
+     "w": 125,
+     "h": 33,
+     "to": "panel-data-output",
+     "button": 1644
+    }
+   ]
+  },
+  "assistant": {
+   "frame": 531,
+   "labelJa": "アシスタント",
+   "image": "screens/assistant.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    }
+   ]
+  },
+  "memo": {
+   "frame": 541,
+   "labelJa": "メモ",
+   "image": "screens/memo.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 702,
+     "y": 448,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1730
+    }
+   ]
+  },
+  "autoadj-afv": {
+   "frame": 551,
+   "labelJa": "自動調整_AFV",
+   "image": "screens/autoadj-afv.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-neutral",
+     "button": 1748
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-drive",
+     "button": 1749
+    }
+   ]
+  },
+  "autoadj-neutral": {
+   "frame": 561,
+   "labelJa": "自動調整_Ntrl",
+   "image": "screens/autoadj-neutral.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 13,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-afv",
+     "button": 1747
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-drive",
+     "button": 1749
+    }
+   ]
+  },
+  "autoadj-drive": {
+   "frame": 570,
+   "labelJa": "自動調整_Drive",
+   "image": "screens/autoadj-drive.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "button": 98
+    },
+    {
+     "x": 13,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-afv",
+     "button": 1747
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "autoadj-neutral",
+     "button": 1748
+    }
+   ]
+  }
+ }
+}
