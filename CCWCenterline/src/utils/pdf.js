@@ -252,6 +252,88 @@ export function buildCenterlinePdf(centerline, sections, tableRows, gapList) {
   return doc;
 }
 
+/**
+ * The same settings without the screens: a plain list on as few pages as it
+ * takes.
+ *
+ * The illustrated document is what you check a machine against; this is what
+ * you hand somebody who just wants the numbers. It carries the same band and
+ * the same header, because a page of settings detached from its centerline
+ * still has to say which machine it belongs to and that it is a target rather
+ * than a reading.
+ */
+export function buildSettingsListPdf(centerline, tableRows) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+
+  stamp(doc, centerline);
+  let y = 26;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Settings', 10, y);
+  y += 6;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  setText(doc, COLORS.muted);
+  const who = [centerline.customer, centerline.plant, centerline.machine, centerline.line]
+    .filter(Boolean).join('  ·  ');
+  const what = [centerline.product, centerline.presetNo && `Preset ${centerline.presetNo}`,
+    centerline.engineer, centerline.date].filter(Boolean).join('  ·  ');
+  if (who) { doc.text(who, 10, y); y += 4.5; }
+  if (what) { doc.text(what, 10, y); y += 4.5; }
+  setText(doc, COLORS.ink);
+  y += 4;
+
+  let current = null;
+  for (const row of tableRows) {
+    if (y > h - 20) {
+      doc.addPage();
+      stamp(doc, centerline);
+      y = 26;
+      current = null;
+    }
+    if (row.section !== current) {
+      current = row.section;
+      y += 2;
+      setText(doc, COLORS.muted);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(current.toUpperCase(), 10, y);
+      setDraw(doc, COLORS.rule);
+      doc.setLineWidth(0.2);
+      doc.line(10, y + 1.5, w - 10, y + 1.5);
+      y += 6;
+      setText(doc, COLORS.ink);
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    setText(doc, COLORS.muted);
+    doc.text(doc.splitTextToSize(row.label, w - 60)[0], 12, y);
+    setText(doc, COLORS.ink);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(row.value), w - 12, y, { align: 'right' });
+    y += 6;
+  }
+
+  if (!tableRows.length) {
+    setText(doc, COLORS.muted);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('No settings recorded yet.', 10, y);
+    setText(doc, COLORS.ink);
+  }
+
+  const total = doc.getNumberOfPages();
+  for (let page = 1; page <= total; page += 1) {
+    doc.setPage(page);
+    footer(doc, centerline, page, total);
+  }
+  return doc;
+}
+
 export const centerlineFileName = (centerline) => {
   const part = (s) => String(s || '').replace(/[^A-Za-z0-9]+/g, '');
   return [

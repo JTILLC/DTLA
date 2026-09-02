@@ -8,7 +8,8 @@ import {
   emptyCenterline, mappedSection, photoSection, settingsTable, gaps, copyFrom,
 } from './utils/centerline';
 import { loadImage, renderScreen } from './utils/overlay';
-import { buildCenterlinePdf, centerlineFileName } from './utils/pdf';
+import { buildCenterlinePdf, buildSettingsListPdf, centerlineFileName } from './utils/pdf';
+import { toCsv, toText, listFileName, downloadText } from './utils/settingsList';
 import {
   listCenterlines, saveCenterline, deleteCenterline, readDraft, writeDraft,
 } from './utils/storage';
@@ -20,6 +21,24 @@ const HEADER_FIELDS = [
   ['line', 'Line'], ['product', 'Product'], ['presetNo', 'Preset no.'],
   ['engineer', 'Set by'], ['date', 'Date'],
 ];
+
+/** One row of the export menu. Hoisted: a component declared inside a render
+ *  is a new type on every keystroke, which remounts it and loses focus. */
+function ExportChoice({ title, detail, onClick, disabled }) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      className="w-full text-left px-3 py-2 rounded"
+      style={{ opacity: disabled ? 0.45 : 1, cursor: disabled ? 'not-allowed' : 'pointer',
+        background: 'transparent', border: 'none', color: 'var(--text)' }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--surface-sunken)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      <span className="block text-sm font-medium">{title}</span>
+      <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>{detail}</span>
+    </button>
+  );
+}
 
 export default function App() {
   // The draft is seeded before anything renders, so a reload never lands on an
@@ -33,6 +52,8 @@ export default function App() {
   const [storageWarning, setStorageWarning] = useState(false);
   const [busy, setBusy] = useState('');
   const [showLibrary, setShowLibrary] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!writeDraft(centerline)) setStorageWarning(true);
@@ -142,6 +163,34 @@ export default function App() {
     setBusy('');
   };
 
+  // The plain list, in the three shapes it is actually wanted in: a page to
+  // hand over, a spreadsheet to compare against next month's, and text to paste
+  // into an email. All three come off the same rows as the full document, so
+  // they cannot drift from it.
+  const exportListPdf = () => {
+    setExportOpen(false);
+    const doc = buildSettingsListPdf(centerline, rows);
+    doc.save(listFileName(centerline, 'pdf'));
+  };
+
+  const exportCsv = () => {
+    setExportOpen(false);
+    downloadText(toCsv(centerline, rows), listFileName(centerline, 'csv'));
+  };
+
+  const copyList = async () => {
+    setExportOpen(false);
+    try {
+      await navigator.clipboard.writeText(toText(centerline, rows));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard access needs a secure context and can be refused outright;
+      // falling back to a file beats a button that silently does nothing.
+      downloadText(toText(centerline, rows), listFileName(centerline, 'txt'), 'text/plain');
+    }
+  };
+
   const save = () => {
     if (saveCenterline(centerline)) setLibrary(listCenterlines());
     else setStorageWarning(true);
@@ -173,12 +222,45 @@ export default function App() {
           >
             New
           </button>
-          <button
-            type="button" className="btn btn-primary" onClick={exportPdf}
-            disabled={!!busy || !centerline.sections.length}
-          >
-            {busy || 'Export PDF'}
-          </button>
+          <div className="relative">
+            <button
+              type="button" className="btn btn-primary"
+              onClick={() => setExportOpen((v) => !v)}
+              disabled={!!busy || !centerline.sections.length}
+            >
+              {busy || (copied ? 'Copied' : 'Export ▾')}
+            </button>
+            {exportOpen && (
+              <div
+                className="card absolute right-0 mt-1 z-10 p-1"
+                style={{ width: '19rem', boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}
+              >
+                <ExportChoice
+                  title="Full centerline (PDF)"
+                  detail="Every screen as the operator sees it, then all settings."
+                  onClick={() => { setExportOpen(false); exportPdf(); }}
+                />
+                <ExportChoice
+                  title="Settings list (PDF)"
+                  detail="Just the setting and its value, no screens."
+                  onClick={exportListPdf}
+                  disabled={!rows.length}
+                />
+                <ExportChoice
+                  title="Settings list (CSV)"
+                  detail="Opens in Excel. For comparing against a later one."
+                  onClick={exportCsv}
+                  disabled={!rows.length}
+                />
+                <ExportChoice
+                  title="Copy as text"
+                  detail="For pasting into an email."
+                  onClick={copyList}
+                  disabled={!rows.length}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
