@@ -51,6 +51,11 @@ export default function App() {
   /* Which preset the Select Preset screen has loaded. The captured machine is
      running preset 1, so that is where it starts. */
   const [loadedPreset, setLoadedPreset] = useState(saved.loadedPreset ?? 1);
+  /* Zero Adjustment selection. The real menu opens with every weigh hopper
+     selected and the dispersion table not — blue means selected, and Start
+     only runs on what is selected. */
+  const [selection, setSelection] = useState(
+    saved.selection ?? { wh: true, df: false });
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   const [notice, setNotice] = useState(null);
   const noticeTimer = useRef(null);
@@ -84,13 +89,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
+          selection,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset]);
+      powerOn, loadedPreset, selection]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -174,6 +180,21 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'select') {
+      // Toggle from the PREVIOUS value rather than from what this render closed
+      // over: a stale closure here flips the wrong way and the artwork lags a
+      // press behind, which is exactly how it first behaved.
+      const next = { ...selection, [evt.which]: !selection[evt.which] };
+      setSelection((prev) => ({ ...prev, [evt.which]: !prev[evt.which] }));
+      const label = navmap.zeroAdjust.keys[evt.which].label;
+      showNotice(
+        next[evt.which]
+          ? `${label} — selected. Blue means selected; Start zeroes what is selected.`
+          : `${label} — cleared. With nothing selected, Start has nothing to zero.`,
+      );
+      return;
+    }
+
     if (evt.type === 'preset') {
       const tile = navmap.presetTiles.tiles.find((t) => t.no === evt.no);
       setLoadedPreset(evt.no);
@@ -214,7 +235,8 @@ export default function App() {
       return;
     }
     if (evt.type === 'nav') navigate(evt.to);
-  }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate, advanceLesson]);
+  }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
+      advanceLesson, selection, loadedPreset, freeMode]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -319,6 +341,7 @@ export default function App() {
           powerBusy={powerBusy}
           gatingOff={freeMode}
           loadedPreset={loadedPreset}
+          selection={selection}
           notice={notice}
         />
         <aside className="side-panel">

@@ -27,6 +27,7 @@ export default function Rcu({
   powerBusy,      // true while the "Please wait a moment." power-up runs
   gatingOff,      // Free mode: nothing is withheld, so nothing is drawn as dead
   loadedPreset,   // which preset tile is currently loaded (Select Preset)
+  selection,      // Zero Adjustment: { df: bool, wh: bool }
   notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -48,6 +49,16 @@ export default function Rcu({
 
   const tiles = navmap.presetTiles?.tiles || [];
   const loaded = tiles.find((t) => t.no === loadedPreset) || tiles[0] || { no: 1, name: '', target: '' };
+
+  /* Zero Adjustment shows what is selected by colouring the shapes blue, so
+     the screen has one image per state rather than an overlay. */
+  const za = navmap.zeroAdjust;
+  const zaHere = za && za.screen === slug;
+  const imageFor = () => {
+    if (!zaHere) return screen.image;
+    const key = [selection?.wh && 'wh', selection?.df && 'df'].filter(Boolean).join('-');
+    return za.variants[key || 'none'] || screen.image;
+  };
 
   const pct = (v, total) => `${(v / total) * 100}%`;
   const rectStyle = (r) => ({
@@ -86,7 +97,7 @@ export default function Rcu({
       >
         <img
           className="rcu-screen"
-          src={`/${screen.image}`}
+          src={`/${imageFor()}`}
           alt={slug}
           draggable={false}
         />
@@ -191,6 +202,24 @@ export default function Rcu({
             ))}
           </>
         )}
+
+        {zaHere && ['df', 'wh'].map((which) => {
+          const key = za.keys[which];
+          const on = !!selection?.[which];
+          return (
+            <button
+              key={which}
+              type="button"
+              className={'za-key' + (on ? ' za-key--on' : '')}
+              style={rectStyle(key)}
+              aria-label={`${key.label} — ${on ? 'selected' : 'not selected'}`}
+              title={on
+                ? `${key.label}: selected (blue). Press to clear.`
+                : `${key.label}: press to select`}
+              onClick={() => onTap({ type: 'select', which })}
+            />
+          );
+        })}
 
         {/* Power-up: the original shows this pop-up for ~10 s with the whole
             bottom bar (HOME included) locked out. */}

@@ -3259,5 +3259,41 @@
    }
   ],
   "note": "Grid measured from the artwork's own rules. Values are read off each tile: only preset 1 is configured on the captured machine, the rest are empty at 0.0 g / 60wpm."
+ },
+ "zeroAdjust": {
+  "screen": "zero-adjust",
+  "keys": {
+   "df": {
+    "x": 400,
+    "y": 449,
+    "w": 91,
+    "h": 76,
+    "label": "Slct All DF"
+   },
+   "wh": {
+    "x": 501,
+    "y": 449,
+    "w": 91,
+    "h": 76,
+    "label": "Slct All WH"
+   },
+   "start": {
+    "x": 602,
+    "y": 449,
+    "w": 91,
+    "h": 76,
+    "label": "Start"
+   }
+  },
+  "variants": {
+   "none": "screens/zero-adjust.jpg",
+   "wh": "screens/zero-adjust--wh.jpg",
+   "df": "screens/zero-adjust--df.jpg",
+   "wh-df": "screens/zero-adjust--wh-df.jpg"
+  },
+  "opensSelected": [
+   "wh"
+  ],
+  "note": "Blue means selected and Start only runs on what is selected. The menu opens with every weigh hopper selected and the dispersion table not, which is how the running original behaves."
  }
 }

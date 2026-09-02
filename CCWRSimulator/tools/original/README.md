@@ -25,10 +25,21 @@ a popup does. This is the ground truth to check `src/data/navmap.json` against,
 and it is the only way to see the parts of the movie that static extraction
 cannot reach — the Machine Set drawer's real contents, for one.
 
-**Not good for appearance.** Ruffle is a reimplementation and does not render
-identically: the Zero Adjustment hoppers come out blue here and grey in the real
-thing. Our simulator's screens are the original JPEGs lifted straight out of the
-movie, so on looks they are MORE accurate than this harness. Never "correct" a
-screenshot to match Ruffle.
+**Not good for pixel-exactness.** Ruffle is a reimplementation and its
+rendering is close but not identical, so never "correct" one of our extracted
+screenshots to match it.
+
+**But do not mistake a state for a rendering difference.** The Zero Adjustment
+hoppers come out blue here and grey in our extracted screen, and that was
+written up as a Ruffle artefact. It is not: **blue means SELECTED**, the menu
+opens with every weigh hopper selected, and our extracted art is simply the
+deselected state. Check whether a difference is the machine doing something
+before blaming the emulator.
+
+**It stalls.** Both renderers freeze on this 35MB movie — `isPlaying` stays
+true while the clock stops. The 2D canvas renderer (needed for `__grab`) often
+freezes on load; WebGL survives longer but cannot be read back, so captures
+there have to come from a screenshot with `save_to_disk`. Verify the clock is
+moving before trusting anything you observe.
 
 The SWF is ~27MB and is deliberately not committed — regenerate it from the exe.
