@@ -150,6 +150,59 @@ describe('navigation map integrity', () => {
     }
   });
 
+  it('the Power key rect exists and sits on the bottom bar', () => {
+    const pk = navmap.powerKey;
+    expect(pk).toBeDefined();
+    // Measured off the artwork: frame x504-592, same row as HOME (y529)
+    // and Start (y528). If this drifts, the drawn Power key stops lining
+    // up with the baked-in art on every screen.
+    expect(pk.x).toBeGreaterThan(450);
+    expect(pk.x + pk.w).toBeLessThan(650);
+    expect(pk.y).toBeGreaterThan(500);
+    expect(pk.y + pk.h).toBeLessThanOrEqual(navmap.canvas.h);
+  });
+
+  it('power gating covers exactly the keys the original gates', () => {
+    // Observed on the running original (2026-09-02): the ONLY navigating
+    // keys that are dimmed and dead with control power off are the
+    // bottom-bar Start keys — on the Main Menu (the SWF hit rect at
+    // 702,528 IS the Start key) and on Select Preset, both verified by
+    // pressing them cold (nothing) and powered (Production starts).
+    // Everything else that navigates — Zero Adjst, Drain, Full Open,
+    // Select Preset, Exit, HOME, tabs, drawers — works with power off.
+    // Extend this list only from observation, never from inference.
+    const gated = [];
+    for (const [slug, s] of Object.entries(navmap.screens)) {
+      for (const h of s.hotspots) {
+        if (h.requiresPower) gated.push(`${slug} -> ${h.to}`);
+      }
+    }
+    expect(gated.sort()).toEqual([
+      'main-menu -> run-combination',
+      'preset-select-a -> run-combination',
+    ]);
+  });
+
+  it('with power off, only the Production screens become unreachable', () => {
+    // The real machine: Production exists only while running, and running
+    // needs power. Every other screen must stay reachable on a cold
+    // machine — if gating a hotspot ever strands anything else, that is a
+    // bug in the gating, not a fact about the machine.
+    const cold = JSON.parse(JSON.stringify(navmap));
+    for (const s of Object.values(cold.screens)) {
+      s.hotspots = s.hotspots.filter((h) => !h.requiresPower);
+    }
+    const seen = reachable(cold, 'main-menu');
+    const dark = slugs.filter((s) => !seen.has(s)).sort();
+    expect(dark).toEqual([
+      'run-combination',
+      'run-feeder',
+      'run-timing',
+      'run-totals',
+      'run-weight',
+    ]);
+  });
+
   it('edge list matches hotspot count plus drawer wiring', () => {
     const hotspotCount = slugs.reduce(
       (n, s) => n + navmap.screens[s].hotspots.length,

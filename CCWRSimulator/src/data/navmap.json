@@ -224,7 +224,9 @@
      "w": 88,
      "h": 62,
      "to": "run-combination",
-     "button": 98
+     "button": 98,
+     "requiresPower": true,
+     "label": "Start"
     },
     {
      "x": 369,
@@ -271,6 +273,16 @@
      "h": 64,
      "to": "preset-select-b",
      "button": 374
+    },
+    {
+     "x": 702,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "requiresPower": true,
+     "label": "Start",
+     "observed": "Pressed in the running original 2026-09-02: with power on, Start is live on Select Preset and jumps straight into Production running."
     }
    ]
   },
@@ -3108,5 +3120,11 @@
     }
    ]
   }
+ },
+ "powerKey": {
+  "x": 504,
+  "y": 528,
+  "w": 89,
+  "h": 63
  }
 }

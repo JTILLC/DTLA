@@ -21,8 +21,11 @@ export default function Rcu({
   lessonActive,
   openDrawer,     // null | 'machineSet' | 'selectTotal'
   onToggleDrawer, // (name) => void
-  onTap,          // ({type:'nav', to, button}) or ({type:'spot'})
+  onTap,          // ({type:'nav', to, button, requiresPower}) | ({type:'spot'}) | ({type:'power'})
   wrongFlash,     // increments to trigger the wrong-tap flash
+  powerOn,        // control power: red/OFF or green/ON chip on the Power key
+  powerBusy,      // true while the "Please wait a moment." power-up runs
+  notice,         // transient message (e.g. tapping a dead key with power off)
 }) {
   const { w: CW, h: CH } = navmap.canvas;
   const screen = navmap.screens[slug];
@@ -87,12 +90,66 @@ export default function Rcu({
           <button
             key={`${h.button}-${i}`}
             type="button"
-            className={'hotspot' + (isNavTarget(h) ? ' hotspot--target' : '')}
+            className={
+              'hotspot' +
+              (isNavTarget(h) ? ' hotspot--target' : '') +
+              (h.requiresPower && !powerOn ? ' hotspot--gated' : '')
+            }
             style={rectStyle(h)}
-            aria-label={`Go to ${h.to}`}
-            onClick={() => onTap({ type: 'nav', to: h.to, button: h.button })}
+            aria-label={
+              h.requiresPower && !powerOn
+                ? `${h.label || 'Key'} (dead — machine not powered on)`
+                : `Go to ${h.to}`
+            }
+            onClick={() =>
+              onTap({ type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower })
+            }
           />
         ))}
+
+        {/* The Power key. The artwork's own key is baked into each capture
+            (red on some captures, green on others — the originals were
+            grabbed in whatever state the machine happened to be in), so the
+            simulator's true state is shown by this drawn chip, not by the
+            pixels underneath. */}
+        {navmap.powerKey && (
+          <button
+            type="button"
+            className={
+              'power-key' +
+              (highlight?.kind === 'power' ? ' hotspot--target' : '') +
+              (powerOn ? ' power-key--on' : '')
+            }
+            style={rectStyle(navmap.powerKey)}
+            aria-label={`Power key — control power is ${powerBusy ? 'starting' : powerOn ? 'on' : 'off'}`}
+            onClick={() => onTap({ type: 'power' })}
+          >
+            <span className="power-chip">
+              {powerBusy ? '…' : powerOn ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        )}
+
+        {/* Power-up: the original shows this pop-up for ~10 s with the whole
+            bottom bar (HOME included) locked out. */}
+        {powerBusy && (
+          <div className="power-popup" role="status">
+            <div className="power-popup__title">Please wait a moment.</div>
+            <div className="power-popup__bar">
+              <div className="power-popup__fill" />
+            </div>
+            <div className="power-popup__note">
+              Powering up — on the real unit this takes about ten seconds,
+              and every key on the bottom bar is locked out until it finishes.
+            </div>
+          </div>
+        )}
+
+        {notice && (
+          <div className="rcu-notice" role="alert">
+            {notice}
+          </div>
+        )}
 
         {/* Lesson tap-spot: a real key that doesn't navigate */}
         {highlight?.kind === 'spot' && (

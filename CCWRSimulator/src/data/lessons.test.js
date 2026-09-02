@@ -21,6 +21,12 @@ describe('lessons are walkable on the real navigation map', () => {
         expect(last.to).toBe('main-menu');
       });
 
+      it('every step kind is one the engine implements', () => {
+        for (const step of lesson.steps) {
+          expect(['read', 'tap-nav', 'tap-spot', 'tap-power']).toContain(step.kind);
+        }
+      });
+
       it('every step happens on a real screen', () => {
         for (const step of lesson.steps) {
           expect(navmap.screens[step.screen], `${step.screen}`).toBeDefined();
@@ -80,6 +86,38 @@ describe('lessons are walkable on the real navigation map', () => {
       it('every step has an instruction', () => {
         for (const step of lesson.steps) {
           expect(step.instruction, `${lesson.id} step missing instruction`).toBeTruthy();
+        }
+      });
+
+      it('power comes before any power-gated key (the machine’s order, not a suggestion)', () => {
+        // A lesson that walks a hotspot marked requiresPower without first
+        // pressing Power teaches a procedure that does not work on the
+        // machine: with power off those keys are dimmed and dead
+        // (observed on the running original). The Power step must come
+        // earlier in the same lesson.
+        let powered = false;
+        for (const [i, step] of lesson.steps.entries()) {
+          if (step.kind === 'tap-power') powered = true;
+          if (step.kind !== 'tap-nav') continue;
+          const gated = navmap.screens[step.screen].hotspots.some(
+            (h) => h.to === step.to &&
+              h.requiresPower &&
+              (!step.via || pointInRect(step.via, h))
+          );
+          if (gated) {
+            expect(
+              powered,
+              `${lesson.id} step ${i + 1} presses a power-gated key before any Power step`
+            ).toBe(true);
+          }
+        }
+      });
+
+      it('tap-power steps explain what the key does', () => {
+        for (const step of lesson.steps) {
+          if (step.kind !== 'tap-power') continue;
+          expect(step.explain, `${lesson.id}: tap-power step without explain`).toBeTruthy();
+          expect(step.explain.length).toBeGreaterThan(40);
         }
       });
     });

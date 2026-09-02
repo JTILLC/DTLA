@@ -12,6 +12,12 @@
  *                rect is authored from the screenshot); the simulator cannot
  *                change the baked-in image, so `explain` says what the real
  *                unit would do.
+ *   'tap-power'— the trainee presses the simulator's live Power key (drawn
+ *                over the bottom bar on every screen). It really toggles the
+ *                simulator's power state; the step advances when pressed.
+ *                Power gating is real here: keys marked requiresPower in
+ *                navmap.json refuse to navigate until power is on, exactly
+ *                as they are dimmed and dead on the machine.
  *
  * Every procedure here is taken from the CCW R Operation Manual — the `ref`
  * on each lesson names the sections. Progress is saved and resumable.
@@ -33,6 +39,19 @@ export const lessons = [
           'Zero adjustment teaches the weigher what “empty” weighs. Do it ' +
           'after starting the weigher and before starting production, with ' +
           'no product in the hoppers or on the dispersion table (6.5).',
+      },
+      {
+        screen: 'main-menu',
+        kind: 'tap-power',
+        instruction:
+          'First, control power. Press the Power key on the bottom bar — ' +
+          'its icon is red while the machine is off and turns green once ' +
+          'power is on.',
+        explain:
+          '“Please wait a moment.” appears with an hourglass and a progress ' +
+          'bar — about ten seconds on the real unit — and the whole bottom ' +
+          'bar, HOME included, is locked out until it finishes. Without ' +
+          'this step the zero-adjust Start key stays dimmed and dead.',
       },
       {
         screen: 'main-menu',
@@ -58,20 +77,35 @@ export const lessons = [
         label: 'Slct All WH',
         instruction: 'Press the Slct All WH key to select every weigh hopper.',
         explain:
-          'On the real unit all 14 hoppers turn blue and the Start key ' +
-          'lights up. (The picture here can’t change — it was captured ' +
-          'with nothing selected, which is why Start looks dimmed.)',
+          'All 14 hoppers turn blue — selected. (On the running original ' +
+          'this menu actually opens with every hopper already selected; ' +
+          'this picture was captured after a finished cycle, when the ' +
+          'selection clears itself, which is why the hoppers show grey and ' +
+          'Start shows dimmed.) Start lights only when power is on AND at ' +
+          'least one hopper is selected.',
+      },
+      {
+        screen: 'zero-adjust',
+        kind: 'tap-spot',
+        rect: { x: 603, y: 452, w: 88, h: 64 },
+        label: 'Start',
+        instruction: 'Press the Start key in the key row — not the one on the bottom bar.',
+        explain:
+          'Watched on the running original: “Please wait a moment.” pops ' +
+          'up with an hourglass and a progress bar for ten-odd seconds, ' +
+          'the whole bottom bar locks out, and when it clears every ' +
+          'selected hopper has been zeroed — the hoppers turn grey ' +
+          '(deselected) and Start dims again until something is ' +
+          'reselected. Confirm each weigh hopper reads 0.0±0.1 g; if one ' +
+          'doesn’t, run zero adjustment again (4.4.6).',
       },
       {
         screen: 'zero-adjust',
         kind: 'read',
         instruction:
-          'Next you would press Start: “Please wait a moment.” appears ' +
-          'while the weigher zeroes each hopper, then every key shows its ' +
-          'reading. Confirm each weigh hopper reads 0.0±0.1 g — if one ' +
-          'doesn’t, run zero adjustment again (4.4.6).\n\nThen repeat for ' +
-          'the dispersion table: press Slct All DF, confirm the table is ' +
-          'empty, press Start, and confirm it reads 0.0 g.',
+          'Then repeat for the dispersion table: press Slct All DF, ' +
+          'confirm the table is empty, press Start, and confirm it reads ' +
+          '0.0 g (4.4.6).',
       },
       {
         screen: 'zero-adjust',
@@ -141,10 +175,24 @@ export const lessons = [
         instruction:
           'Press Exit to return to the Main Menu.',
         explain:
-          'Production is started from the Main Menu, not from here. The ' +
-          'Start key is dimmed and dead on the preset screens — checked ' +
-          'against the real unit — so a trainee taught to press it here ' +
-          'would be stuck in front of a machine that does nothing.',
+          'The manual’s procedure (4.4.7) starts production from the Main ' +
+          'Menu, so this lesson goes back there. Worth knowing, though: ' +
+          'with power ON, the bottom-bar Start key is live on the Select ' +
+          'Preset screens too, and pressing it drops straight into ' +
+          'Production — verified on the running program. With power OFF it ' +
+          'is dimmed and dead everywhere.',
+      },
+      {
+        screen: 'main-menu',
+        kind: 'tap-power',
+        instruction:
+          'Power the machine on: press the Power key on the bottom bar. ' +
+          'Red icon = off; it turns green when power is on.',
+        explain:
+          '“Please wait a moment.” runs for about ten seconds with the ' +
+          'whole bottom bar locked out, then the Start key lights. ' +
+          'Until this is done, Start is dimmed and pressing it does ' +
+          'nothing at all — verified on the running program.',
       },
       {
         screen: 'main-menu',
@@ -152,13 +200,13 @@ export const lessons = [
         to: 'run-combination',
         via: { x: 746, y: 559 },
         instruction:
-          'With the preset loaded, press the green Start key at the ' +
-          'bottom right to start production.',
+          'With the preset loaded and power on, press the green Start key ' +
+          'at the bottom right to start production.',
         explain:
           'WARNING (6.6): the feeders and hoppers start moving the moment ' +
           'Start is pressed — always confirm the surroundings are safe ' +
-          'first. On the real unit Start only lights once the machine is ' +
-          'powered on. The Production menu appears on the Combination tab.',
+          'first. The Production menu appears on the Combination tab, ' +
+          'already running.',
       },
       {
         screen: 'run-combination',
@@ -193,9 +241,25 @@ export const lessons = [
         screen: 'run-combination',
         kind: 'read',
         instruction:
-          'To stop production (4.4.8): press Infeed Control so its lamp ' +
-          'goes off (the product supply pauses), press the Stop key, then ' +
-          'Exit to return to the Main Menu.',
+          'While production runs you are locked in: HOME and Exit are ' +
+          'dimmed and dead, and so is Start. The live keys are Stop — and ' +
+          'Power, which stops the machine AND cuts control power in one ' +
+          'press (observed on the running program; use it as the emergency ' +
+          'way down, not the routine one). To stop normally (4.4.8): press ' +
+          'Infeed Control so its lamp goes off, then press Stop.',
+      },
+      {
+        screen: 'run-combination',
+        kind: 'tap-spot',
+        rect: { x: 603, y: 528, w: 88, h: 62 },
+        label: 'Stop',
+        instruction: 'Press the red Stop key on the bottom bar.',
+        explain:
+          'The weigher stops: Stop dims, Start lights again, and HOME and ' +
+          'Exit come back to life. Power stays on — stopping and powering ' +
+          'off are separate acts. (This capture shows the running state, ' +
+          'so Stop is drawn live and HOME/Exit dimmed; the picture cannot ' +
+          'change when you press it.)',
       },
       {
         screen: 'run-combination',
@@ -205,12 +269,11 @@ export const lessons = [
         instruction:
           'Press HOME to go back to the Main Menu.',
         explain:
-          'HOME leaves the screen; it does NOT stop the weigher — production ' +
-          'keeps running and Stop is still available from the Main Menu. ' +
-          'Exit is dimmed and dead on the Production screens, checked ' +
-          'against the real unit, so HOME and Stop are the only ways out. ' +
-          'After a run, drain the product left in the weigher — that’s the ' +
-          'Drain lesson.',
+          'With the weigher stopped, HOME and Exit both return to the ' +
+          'Main Menu. While it was running they were dead — Stop first, ' +
+          'then leave; that order is the machine’s, not a suggestion. ' +
+          'After a run, drain the product left in the weigher — that’s ' +
+          'the Drain lesson.',
       },
     ],
   },
@@ -292,9 +355,11 @@ export const lessons = [
           'The Main Menu for the Site Engineer level appears, Preset key ' +
           'and Machine Set pull-up included. (This simulator’s captures ' +
           'were all taken at a high level, so nothing visibly changes ' +
-          'here.) Remember the other half of the rule: pressing Power ' +
-          'resets the level to Operator — after a power cycle you do ' +
-          'this again.',
+          'here.) Remember the other half of the rule: switching the ' +
+          'machine on at the MAIN power switch starts the panel back at ' +
+          'Operator (6.3.4) — after that you do this again. The on-screen ' +
+          'Power key is gentler: on the running program it did not drop ' +
+          'the level.',
       },
     ],
   },
@@ -401,23 +466,47 @@ export const lessons = [
       },
       {
         screen: 'main-menu',
+        kind: 'tap-power',
+        instruction:
+          'Draining moves the machine, so it needs control power: press ' +
+          'the Power key (red = off, green = on).',
+        explain:
+          'After the “Please wait a moment.” pop-up the machine is live. ' +
+          'With power off, Drain START and Drain STOP are dimmed and ' +
+          'pressing them does nothing — settled by pressing them on the ' +
+          'running program.',
+      },
+      {
+        screen: 'main-menu',
         kind: 'tap-nav',
         to: 'discharge-weight',
         via: { x: 378, y: 152 },
         instruction: 'Press the Drain key — middle of the left-hand column.',
         explain:
-          'The Drain menu appears and draining starts. This capture was ' +
-          'taken with control power off, so the Drain STOP / START and ' +
-          'Exit keys show dimmed.',
+          'The Drain menu appears. Draining does NOT start by itself — ' +
+          'the Drain START key starts it. (This capture was grabbed with ' +
+          'the keys dimmed; with power on, Drain START draws live and ' +
+          'green.)',
+      },
+      {
+        screen: 'discharge-weight',
+        kind: 'tap-spot',
+        rect: { x: 603, y: 452, w: 88, h: 64 },
+        label: 'Drain START',
+        instruction: 'Press Drain START to begin draining.',
+        explain:
+          'The machine runs itself empty: Drain START dims, Drain STOP ' +
+          'lights to pause it, and HOME is locked out while product is ' +
+          'moving. On the real unit you watch the hopper weights fall as ' +
+          'the product clears.',
       },
       {
         screen: 'discharge-weight',
         kind: 'read',
         instruction:
-          'Watch the hopper weights fall as product clears. Drain STOP ' +
-          'pauses the drain; Drain START resumes it. Auto Zero (normally ' +
-          'off) would re-zero automatically during the drain; Infeed ' +
-          'Control stops or allows product supply (6.7).',
+          'Drain STOP pauses the drain; Drain START resumes it. Auto Zero ' +
+          '(normally off) would re-zero automatically during the drain; ' +
+          'Infeed Control stops or allows product supply (6.7).',
       },
       {
         screen: 'discharge-weight',

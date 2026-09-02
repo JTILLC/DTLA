@@ -129,6 +129,12 @@ export default function LessonPanel({
           Tap the highlighted {step.label} key on the screen.
         </p>
       )}
+      {step.kind === 'tap-power' && (
+        <p className="step-explain">
+          Tap the highlighted Power key on the bottom bar — it really
+          switches the simulator&rsquo;s power state.
+        </p>
+      )}
 
       {hint && <p className="step-hint">{hint}</p>}
 

@@ -234,6 +234,13 @@
     background: rgba(59, 130, 246, 0.10);
   }
 
+  /* A power-gated key while power is off: outlined in red — tappable, but
+     it will only explain itself, exactly like the dead key on the unit. */
+  .rcu-stage.show-hotspots .hotspot--gated {
+    outline-color: rgba(239, 68, 68, 0.85);
+    background: rgba(239, 68, 68, 0.08);
+  }
+
   .hotspot--target {
     outline: 3px solid var(--highlight) !important;
     outline-offset: -3px;
@@ -464,5 +471,144 @@
     align-items: center;
     flex-wrap: wrap;
     margin-left: auto;
+  }
+
+  /* ---- Control power ------------------------------------------------- */
+
+  /* Header pill: the one glance that says which state the simulator is in.
+     The artwork can't be trusted for this — the captures were grabbed in
+     whatever power state the machine happened to be in. */
+  .power-pill {
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    white-space: nowrap;
+  }
+
+  .power-pill--on {
+    color: #bbf7d0;
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+
+  /* The tappable Power key on the RCU, with a drawn state chip overlaid on
+     the baked-in key art. */
+  .power-key {
+    position: absolute;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.8);
+  }
+
+  .power-key--on {
+    box-shadow: inset 0 0 0 2px rgba(34, 197, 94, 0.9);
+  }
+
+  .power-key:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--primary);
+  }
+
+  .power-chip {
+    position: absolute;
+    top: -0.55em;
+    right: -0.4em;
+    padding: 0.1em 0.45em;
+    border-radius: 999px;
+    font-size: clamp(8px, 1.5cqw, 12px);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: #dc2626;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+  }
+
+  .power-key--on .power-chip {
+    background: #16a34a;
+  }
+
+  /* The original's power-up pop-up: "Please wait a moment.", hourglass,
+     progress bar, ~10 s, everything locked out. */
+  .power-popup {
+    position: absolute;
+    left: 22%;
+    top: 30%;
+    width: 50%;
+    padding: 3% 3.5%;
+    background: #d5d5d5;
+    color: #1a1a1a;
+    border: 2px solid #888;
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+    z-index: 20;
+    text-align: left;
+  }
+
+  .power-popup__title {
+    font-size: clamp(10px, 2cqw, 16px);
+    font-weight: 600;
+    margin-bottom: 5%;
+  }
+
+  .power-popup__bar {
+    height: clamp(8px, 2cqw, 16px);
+    background: #f4f4f4;
+    border: 1px solid #777;
+    overflow: hidden;
+  }
+
+  .power-popup__fill {
+    height: 100%;
+    width: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      #1d4ed8 0 12px,
+      #f4f4f4 12px 15px
+    );
+    animation: power-fill 3.8s linear forwards;
+  }
+
+  @keyframes power-fill {
+    from { width: 2%; }
+    to   { width: 100%; }
+  }
+
+  .power-popup__note {
+    margin-top: 5%;
+    font-size: clamp(8px, 1.4cqw, 12px);
+    color: #444;
+    line-height: 1.4;
+  }
+
+  /* Transient explanation when a dead key is tapped (e.g. Start with power
+     off) — the reason, right on the screen where the tap happened. */
+  .rcu-notice {
+    position: absolute;
+    left: 8%;
+    bottom: 14%;
+    max-width: 84%;
+    padding: 0.6em 1em;
+    background: rgba(15, 23, 42, 0.92);
+    color: #fef3c7;
+    border: 1px solid rgba(245, 158, 11, 0.7);
+    border-radius: 8px;
+    font-size: clamp(10px, 1.8cqw, 14px);
+    line-height: 1.45;
+    z-index: 15;
+    pointer-events: none;
+    animation: notice-in 0.18s ease-out;
+  }
+
+  @keyframes notice-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
   }
 }

@@ -48,7 +48,7 @@ export const screenInfo = {
       'selected preset: here C1 “POTATO CHIPS”, 90.0 g target at 80 wpm.',
     keys: [
       { name: 'Zero Adjst', desc: 'Opens the Zero Adjustment menu (6.5).' },
-      { name: 'Drain', desc: 'Opens the Drain menu and starts draining the product left in the weigher (6.7, 4.4.9).' },
+      { name: 'Drain', desc: 'Opens the Drain menu (6.7, 4.4.9). Draining itself is started there with Drain START — entering the menu moves nothing.' },
       { name: 'Full Open', desc: 'Opens the Full Open Lock menu (6.8).' },
       { name: 'Select Preset (photo key)', desc: 'The photo at top right — opens the Select Preset menu (6.9).' },
       { name: 'Preset', desc: 'Opens the Preset menu for editing the product settings (6.10). Needs Site Engineer level or above.' },
@@ -56,7 +56,7 @@ export const screenInfo = {
       { name: 'Select Total pop-up', desc: 'The vertical tab on the left edge opens the Select Total drawer: six views of the accumulated production statistics and logs (6.11). Real operator content — the totals are how a run is judged.' },
       { name: 'Select operation level (key icon)', desc: 'The key with four dots in the upper bar switches between the Operator, Site Engineer, Installation and Maintenance levels (6.3.4). Available at every level.' },
       { name: 'Machine Set pop-up', desc: 'The pull-up tab at the bottom selects the Machine Set and Check menus (engineering screens).' },
-      { name: 'Power / Stop / Start', desc: 'Control power on-off, stop production, start production (4.4.7). Dimmed keys cannot be pressed.' },
+      { name: 'Power / Stop / Start', desc: 'Control power on-off, stop production, start production (4.4.7). Dimmed keys cannot be pressed. Observed on the running program: with power off, Start and Stop are dimmed and completely dead; pressing Power shows “Please wait a moment.” with a progress bar for about ten seconds (whole bottom bar locked out), then the icon turns from red to green and Start lights. Powering OFF is instant, with no pop-up — and a single Power press while production runs stops the machine AND cuts power.' },
       { name: 'Upper setting bar', desc: 'Message Board, information, Start-up Assistant, language, operation level, Control Panel, date & time and Help keys (6.3).' },
     ],
     note:
@@ -67,9 +67,11 @@ export const screenInfo = {
       'Main Menu shows depends on the level: the Operator-level menu tree ' +
       '(Service 1.3) has no Preset key and no Machine Set pull-up at all — ' +
       'they are absent, not merely dimmed — confirmed against the real ' +
-      'program. Pressing Power resets the level to Operator (6.3.4). These ' +
-      'captures were taken at Maintenance level (four lit dots on the key ' +
-      'icon), so the simulator always shows everything.',
+      'program. Switching the machine on at the main power switch starts ' +
+      'the panel at Operator level (6.3.4); on the running program the ' +
+      'on-screen Power key did NOT reset the level. These captures were ' +
+      'taken at Maintenance level (four lit dots on the key icon), so the ' +
+      'simulator always shows everything.',
   },
 
   'zero-adjust': {
@@ -89,12 +91,19 @@ export const screenInfo = {
       { name: 'Dispersion table key', desc: 'The disc in the middle — selects the dispersion table.' },
       { name: 'Slct All DF', desc: 'Selects (or clears) the dispersion table.' },
       { name: 'Slct All WH', desc: 'Selects (or clears) every weigh hopper at once.' },
-      { name: 'Start', desc: 'Starts zero adjustment for whatever is selected. Dimmed until something is selected.' },
-      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+      { name: 'Start', desc: 'Starts zero adjustment for whatever is selected. Lights only when power is on AND at least one hopper is selected — with power off it is dimmed and dead (observed on the running program).' },
+      { name: 'Exit', desc: 'Returns to the Main Menu. Stays live with power off.' },
     ],
     note:
       'If a hopper does not read 0.0±0.1 g afterwards, run zero adjustment ' +
-      'again (4.4.6). In this capture nothing is selected, so Start is dimmed.',
+      'again (4.4.6). Observed on the running program: the menu opens with ' +
+      'every hopper already selected; pressing Start shows “Please wait a ' +
+      'moment.” with a progress bar (~12 s, whole bottom bar locked out), ' +
+      'then the hoppers deselect (turn grey) and Start dims until ' +
+      'something is reselected. This capture shows that finished state — ' +
+      'nothing selected, so Start is dimmed. Note the bottom-bar Start is ' +
+      'dimmed on this screen even with power on; production is not started ' +
+      'from here.',
   },
 
   'run-combination': {
@@ -118,7 +127,14 @@ export const screenInfo = {
     ],
     note:
       'WARNING (6.6): when Start is pressed the feeders and hoppers start ' +
-      'moving — confirm the surroundings are safe first.',
+      'moving — confirm the surroundings are safe first. Observed on the ' +
+      'running program: while production runs, HOME, Exit and Start are ' +
+      'all dimmed and dead — Stop first, then leave. After Stop, power ' +
+      'stays on and Start relights. A single press of Power while running ' +
+      'stops the machine AND cuts control power in one stroke. This ' +
+      'capture shows the running state (Stop live, HOME/Exit dimmed); the ' +
+      'simulator’s HOME hotspot stays usable so you are never trapped, ' +
+      'but on the machine that key is dead until Stop is pressed.',
   },
 
   'run-feeder': {
@@ -196,21 +212,29 @@ export const screenInfo = {
     source: 'manual',
     summary:
       'Drain empties the product remaining in the weigher after production ' +
-      'stops. Pressing the Drain key on the Main Menu opens this menu and ' +
-      'draining starts. When it finishes, pause the drain and press Exit ' +
-      '— Exit stops the drain and returns to the Main Menu.\n\nFeeder and ' +
-      'timing values adjusted on the Drain menu are NOT written back to ' +
-      'the preset.',
+      'stops. Pressing the Drain key on the Main Menu opens this menu; ' +
+      'draining is then started with Drain START (it does not start by ' +
+      'itself — observed on the running program). When it finishes, pause ' +
+      'the drain and press Exit — Exit stops the drain and returns to the ' +
+      'Main Menu.\n\nFeeder and timing values adjusted on the Drain menu ' +
+      'are NOT written back to the preset.',
     keys: [
-      { name: 'Auto Zero', desc: 'Lamp on = zero adjustment is performed automatically during drain (normally left off).' },
-      { name: 'Infeed Control', desc: 'Lamp on = product infeed continues automatically; off = infeed stopped.' },
-      { name: 'Drain STOP', desc: 'Pauses the drain.' },
-      { name: 'Drain START', desc: 'Starts (resumes) the drain.' },
-      { name: 'Exit', desc: 'Stops drain and displays the Main Menu.' },
+      { name: 'Auto Zero', desc: 'Lamp on = zero adjustment is performed automatically during drain (normally left off). Works with power off.' },
+      { name: 'Infeed Control', desc: 'Lamp on = product infeed continues automatically; off = infeed stopped. Works with power off.' },
+      { name: 'Drain STOP', desc: 'Pauses the drain. Lit only while draining.' },
+      { name: 'Drain START', desc: 'Starts (resumes) the drain. POWER-GATED: with power off it is dimmed and pressing it does nothing — settled by pressing it on the running program. With power on it draws live and green.' },
+      { name: 'Exit', desc: 'Stops drain and displays the Main Menu. On the running program Exit stayed live with power off.' },
       { name: 'Tabs', desc: 'Weight Display, Feeder Adjust and Timing Adjust.' },
     ],
     note:
-      'In this capture the control power is off, so the drain keys are dimmed.',
+      'Power gates the drain: Drain START and Drain STOP are dimmed and ' +
+      'dead until the Power key has been pressed (bottom bar, red → ' +
+      'green). While draining, Drain START dims, Drain STOP lights, and ' +
+      'HOME is locked out. The bottom-bar Start stays dimmed on this ' +
+      'screen even with power on. This capture shows every one of those ' +
+      'keys dimmed — including Exit, which on the running program stayed ' +
+      'live with power off; trust the behaviour described here over the ' +
+      'baked pixels.',
   },
 
   'discharge-feeder': {
@@ -248,15 +272,19 @@ export const screenInfo = {
       'hold the hoppers open / run the feeders, press Close to shut them, ' +
       'then Exit to return to the Main Menu.',
     keys: [
-      { name: 'DF', desc: 'Sets whether to operate the dispersion feeders.' },
+      { name: 'DF', desc: 'Sets whether to operate the dispersion feeders. Selection works even with power off (observed).' },
       { name: 'RF', desc: 'Sets whether to operate the radial feeders.' },
       { name: 'WH', desc: 'Sets whether to fully open the weigh hoppers.' },
       { name: 'PH', desc: 'Sets whether to fully open the pool hoppers.' },
-      { name: 'Open / Close', desc: 'Fully opens or fully closes the selected hoppers.' },
+      { name: 'Open / Close', desc: 'Fully opens or fully closes the selected hoppers. POWER-GATED: with power off BOTH keys are dimmed and pressing Open does nothing — settled by pressing it on the running program. With power on both draw live.' },
     ],
     note:
-      'NOTE (6.8): do not use the Power key during full open lock — doing ' +
-      'so may damage the weigher.',
+      'Power gates the action, not the selection: the DF/RF/PH/WH lamp ' +
+      'keys respond with power off, but Open and Close are dimmed and ' +
+      'dead until the Power key has been pressed. While units are held ' +
+      'open, HOME and Exit lock out until Close is pressed. NOTE (6.8): ' +
+      'do not use the Power key during full open lock — doing so may ' +
+      'damage the weigher.',
   },
 
   'hopper-feeder': {
@@ -281,11 +309,16 @@ export const screenInfo = {
       'preset (a confirmation appears); in this simulator the tiles are ' +
       'display-only.',
     keys: [
-      { name: 'Preset tiles', desc: 'One per preset — press to load it on the real unit.' },
+      { name: 'Preset tiles', desc: 'One per preset — press to load it on the real unit. Selection works with power off (observed).' },
       { name: 'Preset No.', desc: 'Select a preset number directly via the ten-key.' },
       { name: 'Slct Dsply', desc: 'Switches to the list display, which shows many presets at once without photos.' },
-      { name: 'Exit', desc: 'Returns to the Main Menu.' },
+      { name: 'Exit', desc: 'Returns to the Main Menu — the only way back: HOME is dimmed and dead on this screen in both power states (observed).' },
+      { name: 'Start (bottom bar)', desc: 'POWER-GATED, and live here: with power on, pressing Start on this screen drops straight into Production running — verified by pressing it on the running program. With power off it is dimmed and dead.' },
     ],
+    note:
+      'The capture shows the power-off state (red Power icon, Start ' +
+      'dimmed). With power on, the bottom-bar Start lights on this screen ' +
+      'and works.',
   },
 
   'preset-select-b': {
@@ -558,8 +591,10 @@ export const screenInfo = {
     summary:
       'Per-head manual weighing check. The screen shows all 14 weigh ' +
       'hoppers with their current readings (0.0 g empty), an All Head ' +
-      'SLCT/CLR key, and dimmed Zero Adjst and Adjustment keys that ' +
-      'activate once heads are selected.',
+      'SLCT/CLR key, and Zero Adjst / WH Span Adjustment keys. Those two ' +
+      'keys need BOTH control power on and at least one head selected — ' +
+      'with heads selected but power off they dim again (observed on the ' +
+      'running program). Selection itself works with power off.',
     keys: [],
     note: OBSERVED_NOTE,
   },
@@ -677,7 +712,11 @@ export const screenInfo = {
     source: 'observed',
     summary:
       'Exercises units without product: select All WH, DF, RF, PH or WH ' +
-      'and use Drive Start / Drive Stop to run them as a test.',
+      'and use Drive Start / Drive Stop to run them as a test.\n\n' +
+      'NOT power-gated — the exception on this machine: with control ' +
+      'power OFF, Drive Start is live and pressing it runs the test drive ' +
+      '(observed on the running program). While the test runs, the unit ' +
+      'selectors dim and Drive Stop lights.',
     keys: [],
     note: OBSERVED_NOTE,
   },
@@ -1042,7 +1081,7 @@ export const screenInfo = {
       { name: 'Registration', desc: 'Registers per-head AFV coefficients — done after replacing the WCU board, from the values recorded in the delivered reference material (5.3.2 NOTE).' },
       { name: 'Recall', desc: 'Recalling sets every head’s AFV coefficient to 60000 (5.3.2 NOTE).' },
       { name: 'Output', desc: 'Print key.' },
-      { name: 'Start / Stop', desc: 'Run and stop the automatic adjustment; dimmed on this capture.' },
+      { name: 'Start / Stop', desc: 'Run and stop the automatic adjustment; dimmed on this capture. Power alone does not light them — on the running program they stayed dimmed with control power on as well (the adjustment needs its own preconditions, Service 5.3.2).' },
     ],
     note:
       'NOTE (Service 5.3.2): the AFV adjustment is performed before ' +
