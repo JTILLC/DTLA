@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import navmap from './navmap.json';
 import screenInfo from './screenInfo';
-import { allEdges, reachable, canReach } from '../utils/navGraph';
+import { allEdges, drawerScreens, reachable, canReach } from '../utils/navGraph';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const slugs = Object.keys(navmap.screens);
@@ -72,12 +72,26 @@ describe('navigation map integrity', () => {
   it('machine set drawer items and screens are all real', () => {
     const ms = navmap.machineSet;
     for (const item of ms.items) {
+      if (item.to === null) continue;   // deliberately uncaptured; see below
       expect(navmap.screens[item.to], `drawer -> ${item.to}`).toBeDefined();
     }
     for (const s of [...ms.screens, ...ms.drawTabOn]) {
       expect(navmap.screens[s], `drawer on ${s}`).toBeDefined();
     }
-    expect(ms.items.length).toBe(7);
+    // Eight on the real unit at Maintenance level (Service Manual 4.4, p4-18).
+    expect(ms.items.length).toBe(8);
+  });
+
+  it('a drawer item we cannot open says why', () => {
+    // Weigher Information is real and Maintenance-level only, and we hold no
+    // artwork for it. Listing it silently would teach a menu that is missing an
+    // item; dropping it would do the same. It is listed, disabled, and explains
+    // itself — and that explanation is not optional.
+    for (const item of navmap.machineSet.items) {
+      if (item.to !== null) continue;
+      expect(item.note, `${item.label} has no note`).toBeTruthy();
+      expect(item.note.length, `${item.label} note is too thin`).toBeGreaterThan(30);
+    }
   });
 
   it('every screen ships its background image', () => {
@@ -92,11 +106,11 @@ describe('navigation map integrity', () => {
       (n, s) => n + navmap.screens[s].hotspots.length,
       0
     );
-    const drawerScreens =
-      navmap.machineSet.screens.length + navmap.machineSet.drawTabOn.length;
-    expect(allEdges(navmap).length).toBe(
-      hotspotCount + drawerScreens * navmap.machineSet.items.length
-    );
+    // screens and drawTabOn overlap, so the drawer's screens are counted once;
+    // and only the items that actually open a screen contribute edges.
+    const carriers = drawerScreens(navmap).length;
+    const openable = navmap.machineSet.items.filter((i) => i.to !== null).length;
+    expect(allEdges(navmap).length).toBe(hotspotCount + carriers * openable);
   });
 });
 
@@ -111,12 +125,22 @@ describe('training content coverage', () => {
     expect(orphans, `orphan screenInfo: ${orphans.join(', ')}`).toEqual([]);
   });
 
-  it('manual-sourced notes cite a manual section; observed notes carry the caution', () => {
+  it('manual/service notes cite their section; observed notes carry the caution', () => {
     for (const [slug, info] of Object.entries(screenInfo)) {
       if (info.source === 'manual') {
         expect(info.ref, `${slug} manual-sourced but no ref`).toBeTruthy();
+      } else if (info.source === 'service') {
+        // Service Manual refs must be unmistakable: 'Service <section> …'
+        expect(info.ref, `${slug} service-sourced but no Service ref`).toMatch(
+          /^Service \d/
+        );
+        expect(
+          info.note,
+          `${slug} service screen but no engineering note`
+        ).toBeTruthy();
       } else {
         expect(info.source, `${slug} bad source`).toBe('observed');
+        expect(info.ref, `${slug} observed must not claim a ref`).toBeNull();
         expect(info.note, `${slug} observed but no caution note`).toBeTruthy();
       }
     }

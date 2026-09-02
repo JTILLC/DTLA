@@ -2,8 +2,14 @@
  * Pure helpers over the navigation map. Used by the app and by the tests.
  */
 
-/** Every navigation edge as {from, to}, including the reconstructed
- *  Machine Set drawer (available on its listed screens plus drawTabOn). */
+/**
+ * Every navigation edge as {from, to}, hotspots plus the Machine Set drawer.
+ *
+ * Two things this has to get right, both of which were once wrong here:
+ * `screens` and `drawTabOn` overlap, so the screens they name are de-duplicated
+ * rather than counted twice; and a drawer item with `to: null` (real on the
+ * unit, no artwork captured) opens nothing and is not an edge.
+ */
 export function allEdges(navmap) {
   const edges = [];
   for (const [from, s] of Object.entries(navmap.screens)) {
@@ -11,12 +17,19 @@ export function allEdges(navmap) {
   }
   const ms = navmap.machineSet;
   if (ms) {
-    const drawerScreens = [...ms.screens, ...(ms.drawTabOn || [])];
-    for (const from of drawerScreens) {
-      for (const item of ms.items) edges.push({ from, to: item.to });
+    const openable = ms.items.filter((i) => i.to);
+    for (const from of drawerScreens(navmap)) {
+      for (const item of openable) edges.push({ from, to: item.to });
     }
   }
   return edges;
+}
+
+/** The screens that carry the Machine Set tab, each once. */
+export function drawerScreens(navmap) {
+  const ms = navmap.machineSet;
+  if (!ms) return [];
+  return [...new Set([...(ms.screens || []), ...(ms.drawTabOn || [])])];
 }
 
 /** Screens reachable from `start` by tapping. */

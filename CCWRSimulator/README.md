@@ -84,9 +84,12 @@ provenance:
 - `source: 'manual'` — drawn from the CCW R Operation Manual
   (`reference/operation-manual.txt`, full text of the 166-page PDF), with
   the section cited so a trainee can read further.
-- `source: 'observed'` — the screen is an engineering screen the Operation
-  Manual does not cover; the text describes only what is visible, and the
-  app shows a caution telling trainees to consult the Technical Manual.
+- `source: 'service'` — an engineering screen documented in the CCW-R
+  Service Manual (`reference/service-manual.txt`, 236 pages), cited as
+  `Service <section>` so the two manuals cannot be confused. The app shows
+  a notice that these are service-engineer settings, not operator work.
+- `source: 'observed'` — the screen is covered by neither manual we hold;
+  the text describes only what is visible, and the app shows a caution.
 
 `src/data/lessons.js` holds the guided lessons — all four follow real
 manual procedures (zero adjustment 4.4.6, preset selection + production
@@ -101,7 +104,7 @@ leaving a lesson never loses your place.
 - every hotspot targets a screen that exists, inside the 800x600 canvas
 - every screen is reachable from the Main Menu, and every screen can get
   back to it (no dead ends)
-- every screen ships its image and has training notes; observed-only notes
-  carry the caution
+- every screen ships its image and has training notes; service-sourced
+  notes cite a `Service` section, observed-only notes carry the caution
 - every lesson walks real hotspots in a consistent screen order, starts
   and ends on the Main Menu, and its highlights land on the right keys

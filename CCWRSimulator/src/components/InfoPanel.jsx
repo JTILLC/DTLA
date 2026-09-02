@@ -2,7 +2,8 @@ import screenInfo from '../data/screenInfo';
 
 /**
  * Free-explore side panel: what the current screen is for and what its keys
- * do, with the Operation Manual section to read further.
+ * do, with the manual section to read further (Operation Manual for
+ * operator screens, Service Manual for the engineering screens).
  */
 export default function InfoPanel({ slug, labelJa }) {
   const info = screenInfo[slug];
@@ -20,18 +21,27 @@ export default function InfoPanel({ slug, labelJa }) {
     <div className="side-panel__body">
       <div className="panel-heading">
         <h2>{info.title}</h2>
-        {info.ref ? (
+        {info.source === 'service' ? (
+          <span className="chip" title="Section of the CCW-R Service Manual">
+            Service {info.ref.split('/')[0].trim().split(' ')[1]}
+          </span>
+        ) : info.ref ? (
           <span className="chip" title="Section of the CCW R Operation Manual">
             Manual {info.ref.split('/')[0].trim().split(' ')[0]}
           </span>
         ) : (
-          <span className="chip chip--warn">not in Operation Manual</span>
+          <span className="chip chip--warn">not in the manuals</span>
         )}
       </div>
 
       {info.ref && (
         <p className="text-xs mb-2" style={{ color: 'var(--text-subtle)' }}>
-          Read more: {info.ref} — CCW R Operation Manual
+          Read more: {info.ref} —{' '}
+          {info.source === 'service'
+            ? 'CCW-R Service Manual'
+            : info.ref.includes('Service')
+              ? 'CCW R Operation Manual (Service Manual for the Service sections)'
+              : 'CCW R Operation Manual'}
         </p>
       )}
 

@@ -4,7 +4,12 @@ import { pointInRect } from '../utils/navGraph';
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
  * laid over it in percentage coordinates, so it scales to any size without
- * distorting the art. Also draws the reconstructed Machine Set drawer.
+ * distorting the art. Also draws the Machine Set drawer, whose order and
+ * contents are checked against the Service Manual's own figure (4.4, page 4-18)
+ * and against the running program. Weigher Information appears only at
+ * Maintenance level and we hold no artwork for it, so it is drawn disabled —
+ * a drawer silently missing an item teaches the wrong menu just as surely as
+ * one in the wrong order did.
  */
 export default function Rcu({
   navmap,
@@ -127,16 +132,26 @@ export default function Rcu({
           >
             {/* column-reverse: first item ends up nearest the tab */}
             <div className="drawer-note" style={{ padding: '2% 4%', fontSize: 'clamp(7px, 1.2cqw, 11px)' }}>
-              menu reconstructed — order not from the real unit
+              order checked against the Service Manual and the real unit
             </div>
             {[...ms.items].reverse().map((item) => (
               <button
-                key={item.to}
+                key={item.label}
                 type="button"
-                style={{ padding: '2.5% 5%', fontSize: 'clamp(9px, 1.6cqw, 14px)' }}
-                onClick={() => onTap({ type: 'nav', to: item.to, drawer: true })}
+                disabled={!item.to}
+                title={item.note || undefined}
+                style={{
+                  padding: '2.5% 5%',
+                  fontSize: 'clamp(9px, 1.6cqw, 14px)',
+                  opacity: item.to ? 1 : 0.45,
+                  cursor: item.to ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => item.to && onTap({ type: 'nav', to: item.to, drawer: true })}
               >
                 {item.label}
+                {!item.to && (
+                  <span style={{ fontSize: '0.75em', opacity: 0.8 }}> · not captured</span>
+                )}
               </button>
             ))}
           </div>

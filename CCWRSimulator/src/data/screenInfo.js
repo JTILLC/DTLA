@@ -1,15 +1,23 @@
 /**
  * Per-screen training content.
  *
- * Every entry keyed by the screen slug in navmap.json. `ref` is the section
- * of the Ishida CCW R Operation Manual the text is drawn from — quote it to
- * trainees so they can read further. `source` is honest provenance:
+ * Every entry keyed by the screen slug in navmap.json. `ref` is the manual
+ * section the text is drawn from — quote it to trainees so they can read
+ * further. Bare section numbers ('6.10 Preset Menu') are the CCW-R Operation
+ * Manual; sections prefixed 'Service' ('Service 4.4.3.2 …') are the CCW-R
+ * Service Manual (reference/service-manual.txt). `source` is honest
+ * provenance:
  *
- *   'manual'   — summary and key functions come from the Operation Manual.
- *   'observed' — the screen is NOT covered by the Operation Manual (it is an
- *                engineering screen); the description states only what is
- *                visible on the captured screen itself. The InfoPanel shows a
- *                caution for these.
+ *   'manual'   — summary and key functions come from the Operation Manual
+ *                (a few of these also cite the Service Manual where it adds
+ *                something; the ref names both).
+ *   'service'  — the screen is an engineering screen documented in the
+ *                Service Manual, chapter 4 (Maintenance Service level
+ *                functions) or 5 (appendix). The InfoPanel shows a notice
+ *                that these are service-engineer settings.
+ *   'observed' — the screen is covered by NEITHER manual we hold; the
+ *                description states only what is visible on the captured
+ *                screen itself. The InfoPanel shows a caution for these.
  *
  * The captured machine is a 14-head CCW-R running preset C1 "POTATO CHIPS",
  * 90.0 g target, 80 wpm. Those numbers are baked into the screenshots and
@@ -17,15 +25,21 @@
  */
 
 const OBSERVED_NOTE =
-  'This engineering screen is not covered by the CCW-R Operation Manual. ' +
-  'The description states only what is visible on the screen. On a real ' +
-  'machine these settings are normally the service engineer’s territory — ' +
-  'consult the Technical Manual before changing them.';
+  'This engineering screen is not stepped through in the CCW-R Operation ' +
+  'Manual or in the Service Manual we hold. The description states only ' +
+  'what is visible on the screen. On a real machine these settings are the ' +
+  'service engineer’s territory — consult Ishida before changing them.';
+
+const SERVICE_NOTE =
+  'This screen is documented in the CCW-R Service Manual, not the ' +
+  'Operation Manual. These are service-engineer settings — changing them ' +
+  'on a live machine is not an operator task. Work here to the Service ' +
+  'Manual, not from memory.';
 
 export const screenInfo = {
   'main-menu': {
     title: 'Main Menu',
-    ref: '6.4 Main Menu',
+    ref: '6.4 Main Menu / Service 4.2 Maintenance Service Level Menu',
     source: 'manual',
     summary:
       'The home screen. It appears when the main power switch is turned on ' +
@@ -44,6 +58,15 @@ export const screenInfo = {
       { name: 'Power / Stop / Start', desc: 'Control power on-off, stop production, start production (4.4.7). Dimmed keys cannot be pressed.' },
       { name: 'Upper setting bar', desc: 'Message Board, information, Start-up Assistant, language, operation level, Control Panel, date & time and Help keys (6.3).' },
     ],
+    note:
+      'Operation levels (Service 4.2): the CCW-R stacks Operator, Site ' +
+      'Engineer, Installation and Maintenance levels, selected from the ' +
+      '[Select operation level] key in the upper bar; the factory password ' +
+      'for the Maintenance Service level is 123 (Service 4.2.1). What the ' +
+      'Main Menu shows depends on the level: the Operator-level menu tree ' +
+      '(Service 1.3) has no Preset key and no Machine Set pull-up at all — ' +
+      'confirmed against the real program. These captures were taken at a ' +
+      'higher level, so the simulator always shows both.',
   },
 
   'zero-adjust': {
@@ -399,7 +422,7 @@ export const screenInfo = {
 
   'panel-screen-control': {
     title: 'Control Panel — Screen Control',
-    ref: '6.3.5 Control Panel / 6.3.5.1 Screen Control',
+    ref: '6.3.5 Control Panel / 6.3.5.1 Screen Control / Service 4.3.1.1 Touch Panel Coordinate Adjustment',
     source: 'manual',
     summary:
       'Operation panel housekeeping. All Control Panel functions need the ' +
@@ -415,11 +438,16 @@ export const screenInfo = {
       { name: 'Wallpaper / Characters', desc: 'Cosmetic screen settings.' },
       { name: 'Tabs', desc: 'Screen Control, Password Set / LangSlct Set, Destination ID, Com. Setting.' },
     ],
+    note:
+      'The Tune-up procedure is Service 4.3.1.1: press Tune-up, confirm ' +
+      'with Yes, press Cal 4 Point on the Touchkit screen, then touch the ' +
+      'four coordinate marks in the order they appear (a ball-point pen or ' +
+      'similar is used here). It is Maintenance-level work.',
   },
 
   'panel-password': {
     title: 'Control Panel — Password Set / Language Select',
-    ref: '6.3.5.2 Password Set / 6.3.4 Selecting an Operation Level',
+    ref: '6.3.5.2 Password Set / 6.3.4 Selecting an Operation Level / Service 4.3.2 Password Set–Language Select',
     source: 'manual',
     summary:
       'Sets the password for each operation level. The CCW-R has ' +
@@ -431,6 +459,11 @@ export const screenInfo = {
       { name: 'Level keys', desc: 'Choose the operation level whose password to change.' },
       { name: 'Exit', desc: 'Ends the setting.' },
     ],
+    note:
+      'The same tab carries the display-language selection — pick from the ' +
+      '[Select display language] pop-up (Service 4.3.2.1). The factory ' +
+      'password for the Maintenance Service level is 123 (Service 4.2.1); ' +
+      'while a password is typed, the keypad shows *** (Service 4.2.1).',
   },
 
   'panel-data-output': {
@@ -451,15 +484,28 @@ export const screenInfo = {
 
   'panel-comms': {
     title: 'Control Panel — Com. Setting',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.3.4 Communication Set',
+    source: 'service',
     summary:
-      'Communication settings tab of the Control Panel. The Operation ' +
-      'Manual’s Control Panel section (6.3.5) documents Screen Control, ' +
-      'Password Set and Destination ID but not this tab, so only its ' +
-      'presence is described here.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Network setup for the operation panel and its link to the weigher. ' +
+      'The RCU box holds the panel’s own IP address, gateway and subnet ' +
+      'mask (Service 4.3.4.1); the Main Body box holds the IP address, ' +
+      'password, user name and so on of the main-body controller the panel ' +
+      'talks to (Service 4.3.4.2); Server IP Address is set under Service ' +
+      '4.3.4.3. Standard values are set at the factory — use them as they ' +
+      'are, and change them only when interlocking with a computer after ' +
+      'the equipment is received.',
+    keys: [
+      { name: 'RCU: IP Address / GATEWAY / Subnet Mask', desc: 'The panel’s own network parameters (Service 4.3.4.1). The MAC Address line is a display, not a key.' },
+      { name: 'Main Body drop-down', desc: 'Selects the main-body controller (here DACS); its IP Address, Password, User Name and the port fields below are set here (Service 4.3.4.2).' },
+      { name: 'Server IP Address', desc: 'The server address (Service 4.3.4.3).' },
+      { name: 'Setting', desc: 'Lamp key beneath the Server IP Address fields — not described individually in the Service Manual.' },
+      { name: 'Tabs', desc: 'Screen Control, Password Set / LangSlct Set, Destination ID, Com. Setting.' },
+      { name: 'Exit', desc: 'Leaves the Control Panel.' },
+    ],
+    note:
+      'NOTE (Service 4.3.4.3): be sure not to make an incorrect change — ' +
+      'it may cause a communication failure. ' + SERVICE_NOTE,
   },
 
   assistant: {
@@ -530,13 +576,25 @@ export const screenInfo = {
 
   'manual-vibration': {
     title: 'Manual Adjustment — AFV Monitor',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 5.3 AFV (Anti Floor Vibration)',
+    source: 'service',
     summary:
-      'Live anti-floor-vibration monitor: a ±160-count trace for AFV1–4 ' +
-      'with zoom in/out keys and Drive Stop / Drive Start keys.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Live view of the four anti-floor-vibration load cells. The CCW-R ' +
+      'carries four AFV load cells (AFV1–4) whatever the head count; the ' +
+      'floor-vibration component they measure is subtracted from each ' +
+      'weigh signal, which lets a short, high-cutoff filter do what a ' +
+      'long slow one otherwise would (Service 5.3.1–5.3.2). This monitor ' +
+      'traces all four on a ±160-count scale. With the AFV setting in ' +
+      'auto, compensation switches itself off below a capacity-dependent ' +
+      'vibration threshold (0.15–0.5 g) and on above it (5.3.3).',
+    keys: [
+      { name: '+ / − magnifier keys', desc: 'Zoom the trace scale.' },
+      { name: 'Drive Stop / Drive Start', desc: 'Dimmed on this capture; not described individually in the Service Manual.' },
+    ],
+    note:
+      'The AFV system, coefficients and thresholds are Service 5.3; the ' +
+      'monitor screen itself is not stepped through in the manual. ' +
+      SERVICE_NOTE,
   },
 
   'manual-weight-waveform': {
@@ -602,7 +660,12 @@ export const screenInfo = {
       'and voltage. Output prints the list — useful before requesting ' +
       'service.',
     keys: [],
-    note: OBSERVED_NOTE,
+    note:
+      OBSERVED_NOTE +
+      ' The Service Manual’s frequency troubleshooting reads this screen: ' +
+      'if the WCU and FDC program numbers show here but no ' +
+      'natural-frequency response comes back, the FDRV board (or the ' +
+      'WCU–FDC wiring) is suspect (Service 5.4.3.1).',
   },
 
   'selfdiag-test': {
@@ -618,13 +681,19 @@ export const screenInfo = {
 
   'display-screen': {
     title: 'Display & Data Manager — Layout Setting',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.2.1 Layout Setting',
+    source: 'service',
     summary:
-      'Sets where Head No. 1 sits on the on-screen hopper ring so the ' +
-      'display matches the physical machine orientation.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Sets where head No. 1 is drawn on the on-screen hopper ring, so the ' +
+      'display matches how the machine actually stands. No. 1 can be ' +
+      'placed in any position; No. 2 and later follow counterclockwise ' +
+      'from it. Nothing moves physically — only the display changes ' +
+      '(Service 4.4.2.1 TIP).',
+    keys: [
+      { name: 'Head No 1 Location Setting ring', desc: 'The 14 hopper symbols — the display position for head No. 1 is chosen on this ring (Service 4.4.2.1).' },
+      { name: 'Tabs', desc: 'Layout Setting, Preset Manager, Machine Set Mngr, All Setting Mngr, Hopper Name Set.' },
+    ],
+    note: SERVICE_NOTE,
   },
 
   'display-preset': {
@@ -642,38 +711,66 @@ export const screenInfo = {
 
   'display-machine-edit': {
     title: 'Display & Data Manager — Machine Set Mngr',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.2.2 Machine Set Manager',
+    source: 'service',
     summary:
-      'Copies machine settings (Weigh Spec, Combination Set, Section Set, ' +
-      'Infeed Control, Packer Interlock, H DRV Spec, FD Spec, AFV, ' +
-      'Frequency settings) between Memory and Card — the way a machine ' +
-      'backup is taken or restored.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Moves machine-setting data between the weigher’s memory and the ' +
+      'memory card — how a machine backup is taken or restored. The keys ' +
+      'here initialise all parameters on the memory card (RCU, DMU), write ' +
+      'all parameter numbers to the card, and read them back from it ' +
+      '(Service 4.4.2.2). The list shows what travels: Weigh Spec, ' +
+      'Combination, Section, Infeed Control, Packer Interlock, H DRV Spec, ' +
+      'FD Spec, AFV and Frequency settings.',
+    keys: [
+      { name: 'Source / Destination drop-downs', desc: 'Memory or Card at each end of the copy (Memory → Card on this capture).' },
+      { name: 'Copy', desc: 'Copies the selected slot from Source to Destination; the numbered boxes above it show the slots.' },
+      { name: 'All Select', desc: 'Selects every parameter set at once.' },
+      { name: 'Initialize', desc: 'Initialises all parameters on the memory card (Service 4.4.2.2).' },
+    ],
+    note:
+      'Initialize erases the card’s stored parameters. Before restoring, ' +
+      'be sure which direction the copy runs — Source overwrites ' +
+      'Destination. ' + SERVICE_NOTE,
   },
 
   'display-all-edit': {
     title: 'Display & Data Manager — All Setting Mngr',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.2.3 All Setting Manager',
+    source: 'service',
     summary:
-      'Bulk initialise: Memory Initialize, EEPROM Initialize and Card ' +
-      'Initialize, each with its own Initialize key. Destructive — on a ' +
-      'real machine this erases stored settings.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Bulk initialisation of stored settings. Memory Initialize wipes the ' +
+      'weigher’s memory — confirm with Yes, then reboot the main power as ' +
+      'the screen instructs (Service 4.4.2.3.1). Card Initialize wipes a ' +
+      'memory card: insert it in the remote control’s card slot, press ' +
+      'Initialize, confirm, and remove the card when it finishes (Service ' +
+      '4.4.2.3.2). EEPROM Initialize is in the Maintenance menu tree ' +
+      '(Service 1.3, item 25.5.3) but is not stepped through in the manual.',
+    keys: [
+      { name: 'Memory Initialize — Initialize', desc: 'Initialises the memory; needs a main-power reboot afterwards (Service 4.4.2.3.1).' },
+      { name: 'Card Initialize — Initialize', desc: 'Initialises the memory card in the card slot (Service 4.4.2.3.2).' },
+      { name: 'EEPROM Initialize — Initialize', desc: 'Listed in the menu tree only (Service 1.3); not described in the manual.' },
+    ],
+    note:
+      'Destructive — everything initialised here is erased. Feeder ' +
+      'frequency data can be lost with the RAM data (memory ' +
+      'initialisation with DMU DIP SW 2-6 ON): save the frequencies to the ' +
+      'memory card first (Service 5.4.2.3). ' + SERVICE_NOTE,
   },
 
   'display-hopper': {
     title: 'Display & Data Manager — Hopper Name Set',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.2.4 Hopper Name Setting',
+    source: 'service',
     summary:
-      'Renames the auxiliary hoppers: RingShutter (RS), ' +
-      'DivertingTimingHppr (DTH) and TimingHopper (TH) display names.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Chooses the display names for the three auxiliary hopper positions. ' +
+      'Three settings can be selected; pick the desired hopper name from ' +
+      'the menu under each (Service 4.4.2.4). The manual’s figures show ' +
+      'the choices run through the timing-hopper family — Ring Shutter, ' +
+      'Timing Hopper, Diverting Timing Hopper and the other variants.',
+    keys: [
+      { name: 'RingShutter (RS) / DivertingTimingHppr (DTH) / TimingHopper (TH)', desc: 'One drop-down per position; select the desired hopper name from the list in each menu (Service 4.4.2.4).' },
+    ],
+    note: SERVICE_NOTE,
   },
 
   'various-scale-detail': {
@@ -686,7 +783,13 @@ export const screenInfo = {
       'Tolerance and Auto Zero Interval, plus the AFV filter table ' +
       '(Filter0–4, Off/Auto).',
     keys: [],
-    note: OBSERVED_NOTE,
+    note:
+      OBSERVED_NOTE +
+      ' One corner is covered: the filter/AFV relationship (Service ' +
+      '5.3.4). Filters 0 and 1 are weak against low-frequency floor ' +
+      'vibration, so the AFV works with them; filter 2 may be Off or ' +
+      'Auto, judged by conditions; with filters 3 and 4 the AFV does not ' +
+      'operate.',
   },
 
   'various-combination': {
@@ -726,20 +829,48 @@ export const screenInfo = {
       'values, Amplitude Selection (STD AMP / Boost AMP), RF/DF Slow ' +
       'Start, RF Shutter Drive Condition and Photo Eye Switch RF Stop.',
     keys: [],
-    note: OBSERVED_NOTE,
+    note:
+      OBSERVED_NOTE +
+      ' This screen’s section does exist — Service 4.4.3.1 Feeder Drive ' +
+      'Specifications, and the Maintenance menu tree (Service 1.3, items ' +
+      '26.4.x) confirms these item names — but pages 4-19 to 4-25 are ' +
+      'missing from our copy of the Service Manual PDF, so the key ' +
+      'functions are not described here.',
   },
 
   'various-hdrv': {
     title: 'Various Parameter Setting — H DRV Spec Set',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.3.2 Hopper Drive Specification Setting',
+    source: 'service',
     summary:
-      'Hopper drive specification per unit (Pool Hopper, Weigh Hopper, ' +
-      'Booster Hopper, RingShutter, DivertingTimingHppr, TimingHopper): ' +
-      'actuator type (stepping motor / air), brake time, phase type, ' +
-      'drive stop and power parameters, and pulse counts.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'How each hopper’s motor physically drives, one parameter page per ' +
+      'unit — Pool, Weigh and Booster hoppers follow Service 4.4.3.2.1, ' +
+      'the DTH / TH / RingShutter follow 4.4.3.2.3. Three parameter sets ' +
+      'exist per unit, chosen per preset: Parameter 1 is the standard ' +
+      'drive pattern, 2 opens and closes faster, 3 pauses at full open ' +
+      'and is slower (4.4.3.2.1). Scrolling down reveals the Hopper ' +
+      'Open/Close Drive Pattern — up to 8 sections of Range / Speed / ' +
+      'Hold Time / Slow Start / Slow Stop that shape the motor’s rotation ' +
+      '(4.4.3.2.2).',
+    keys: [
+      { name: 'Parameter1 drop-down', desc: 'Selects parameter set 1, 2 or 3 for the unit (4.4.3.2.1).' },
+      { name: 'Pool Hopper … TimingHopper', desc: 'Selects which hopper unit the page edits.' },
+      { name: 'Actuator Type', desc: 'Stepping Motor or Air. Air is only for hoppers driven by an air cylinder — with Air set, the other drive settings become inoperative.' },
+      { name: 'Brake Time', desc: '0–2550 ms of brake holding the stepping-motor phase after the motor stops. Usually 100 ms (RS: 2550 ms).' },
+      { name: 'Phase Type', desc: '1, 2 or 1-2 phase — step angle and torque change with it. Always set 1-2 phase for hopper open/close.' },
+      { name: 'Drive Stop Parameter', desc: 'Slit or Pulse. PH/WH/BH detect the stop position by slit signal — always Slit. DTH/TH/RS use the pulse-count / photo options instead (4.4.3.2.3).' },
+      { name: 'Drive Power Parameter', desc: 'Half or Full motor power. Not an energy saver — always set Full.' },
+      { name: 'Stop Delay Pulse Count', desc: 'Steps from slit detection until the motor stops, 0–255. Factory values differ per hopper (PH 44, WH 2, BH 2, DTH 4, TH 4); other values make the home position unstable and the open/close louder — do not change.' },
+      { name: 'Minimum Output Pulse Count', desc: 'Steps after motor start during which slit signals are not looked at. Usually 100.' },
+      { name: 'Error Detect Pulse Count', desc: 'Step difference between normal and reverse rotation that raises an error. 0 disables the check (overlap errors still occur); usually 20.' },
+      { name: 'Output', desc: 'Prints the hopper drive parameters (4.4.3.2).' },
+    ],
+    note:
+      'The manual is emphatic here: always 1-2 Phase, always Slit for ' +
+      'PH/WH/BH, always Full power, and leave Stop Delay Pulse Count at ' +
+      'the factory value. In the drive-pattern table, never set a section ' +
+      'speed above 300 rpm — operation is not guaranteed there (4.4.3.2.2 ' +
+      'NOTE). ' + SERVICE_NOTE,
   },
 
   'weigh-participation': {
@@ -755,38 +886,74 @@ export const screenInfo = {
 
   'weigh-auto-timing': {
     title: 'Weigher Setting — Auto Timing Set',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.4.1 Automatic Timing Setting',
+    source: 'service',
     summary:
-      'Machine geometry used to compute timing automatically: RF-PH and ' +
-      'PH-WH drop distances (230 mm), WH-to-chute distance (700 mm), ' +
-      'chute angle (53°) and weigh hopper shape (single / double open).',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'The machine geometry the weigher uses to work out its own timing ' +
+      '(Service 4.4.4.1). Enter the real distances product falls through, ' +
+      'the collection chute angle, and the weigh hopper shape. The ' +
+      'matching delay times in the preset’s timing adjustment then follow ' +
+      'automatically when a hopper open time is changed.',
+    keys: [
+      { name: 'RF-PH', desc: 'Distance from the radial feeder edge to the pool hopper bottom, in mm (230 mm here). Ten-key entry.' },
+      { name: 'PH-WH', desc: 'Distance from the pool hopper edge to the weigh hopper bottom, in mm.' },
+      { name: 'WH-chute', desc: 'Distance from the weigh hopper edge to the packer — or to the TH bottom where a timing hopper is fitted — in mm.' },
+      { name: 'Angle', desc: 'Collection chute angle in degrees.' },
+      { name: 'WH Shape', desc: 'Single Open or Double Open, matching the weigh hopper in use.' },
+      { name: 'Output', desc: 'Prints the automatic-timing parameters (4.4.4.1).' },
+    ],
+    note: SERVICE_NOTE,
   },
 
   'weigh-network': {
     title: 'Weigher Setting — Network Setting',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.4.2 Network Setting',
+    source: 'service',
     summary:
-      'Configures the internal network layout — the same WCU / ICU / DMU ' +
-      'tree as Self-diagnosis Network Analyze, but editable: head DUCs, ' +
-      'FDRV / FDC units, EXC 0–4 and MHIC 1–4 assignments.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Configures the weigher’s internal network — the head DUCs, FDRV / ' +
+      'FDC feeder units, WCU / ICU / DMU controllers, ADC, EXC 0–4 and ' +
+      'MHIC 1–4 shown in the tree (the same layout Self-diagnosis Network ' +
+      'Analyze draws read-only). The standard network is initialised at ' +
+      'the factory and the required setting is already in place; this ' +
+      'screen is used when an option unit is added after delivery ' +
+      '(Service 4.4.4.2).',
+    keys: [
+      { name: 'Unit blocks', desc: 'The network tree; used to set up a newly added option unit (4.4.4.2).' },
+      { name: 'Output', desc: 'Print key.' },
+    ],
+    note:
+      'NOTE (Service 4.4.4.2): no setting of this screen is required ' +
+      'again at the site — touch it only to add an option unit. ' +
+      SERVICE_NOTE,
   },
 
   'weigh-adf': {
     title: 'Weigher Setting — AFD Setting',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 4.4.4.3 AFD Setting',
+    source: 'service',
     summary:
-      'Auto feed control options: AFD Stop for Fewer Available Head ' +
-      '(target value), Cleaning Request On/Off, DF Adjust for Overfeed ' +
-      'and DF WT Adjustment On/Off.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Options for the automatic feed (AFD) control system (Service ' +
+      '4.4.4.3). When more heads than the Target Value cannot join the ' +
+      'combination (unstable, full scale and so on), dispersion-feeder ' +
+      'control pauses and the RCU says so — that is AFD Stop for Fewer ' +
+      'Available Head. Cleaning Request watches per-WH empty counters and ' +
+      'stops DF control when a head looks under-supplied. DF Adjust for ' +
+      'Overfeed recalculates the dispersion time every weigh cycle to ' +
+      'steady the dispersion feeder’s discharge; DF WT Adjustment ' +
+      'classifies the weigh status into 5 types and runs the dispersion ' +
+      'weigh to suit.',
+    keys: [
+      { name: 'AFD Stop for Fewer Available Head — Target Value', desc: 'Ten-key entry; usually 2 (4.4.4.3).' },
+      { name: 'Cleaning Request Off / On', desc: 'Usually Off (4.4.4.3).' },
+      { name: 'DF Adjust for Overfeed Off / On', desc: 'Usually Off (4.4.4.3).' },
+      { name: 'DF WT Adjustment Off / On', desc: 'Usually Off (4.4.4.3).' },
+    ],
+    note:
+      'TIP (Service 4.4.4.3): product flow can defeat the AFD function — ' +
+      'turn the AFD settings off when accuracy or speed drops. On this ' +
+      'capture Cleaning Request, DF Adjust for Overfeed and DF WT ' +
+      'Adjustment are all On; the manual’s usual setting for each is Off. ' +
+      SERVICE_NOTE,
   },
 
   'pack-bagmaker': {
@@ -854,39 +1021,85 @@ export const screenInfo = {
 
   'autoadj-afv': {
     title: 'Auto Adjustment — AFV Adjustment',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 5.3 AFV (Anti Floor Vibration)',
+    source: 'service',
     summary:
-      'Anti-floor-vibration auto adjustment: per weigh hopper the AFV ' +
-      'coefficient (or adjustment count) is listed, with live AFV1–4 ' +
-      'readouts at the top, and Registration / Recall / Output / Start / ' +
-      'Stop keys.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Anti-floor-vibration adjustment. The CCW-R carries four AFV load ' +
+      'cells (AFV1–4 — the live readouts at the top) whatever the head ' +
+      'count; the floor-vibration component they measure is subtracted ' +
+      'from each weigh signal (Service 5.3.1–5.3.2). The per-head AFV ' +
+      'coefficient in the table corrects for sensitivity differences ' +
+      'between the weigh and AFV load cells — roughly 40000 to 80000 on ' +
+      'this series. Adjustment runs with the machine set on soft rubber: ' +
+      'alternating halves of the pool hoppers open and close and the ' +
+      'feeders drive to apply vibration, and when the calculation count ' +
+      'reaches 400 for every head it completes automatically (5.3.2).',
+    keys: [
+      { name: 'AFV Coeffic. / AFV Adj. CNT', desc: 'Switches the table between each head’s coefficient and its adjustment count (the manual shows both views, Figures 5-1 and 5-2).' },
+      { name: 'Registration', desc: 'Registers per-head AFV coefficients — done after replacing the WCU board, from the values recorded in the delivered reference material (5.3.2 NOTE).' },
+      { name: 'Recall', desc: 'Recalling sets every head’s AFV coefficient to 60000 (5.3.2 NOTE).' },
+      { name: 'Output', desc: 'Print key.' },
+      { name: 'Start / Stop', desc: 'Run and stop the automatic adjustment; dimmed on this capture.' },
+    ],
+    note:
+      'NOTE (Service 5.3.2): the AFV adjustment is performed before ' +
+      'factory shipment and is not necessary after receiving. ' +
+      SERVICE_NOTE,
   },
 
   'autoadj-neutral': {
     title: 'Auto Adjustment — Ntrl Freq. Adj',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 5.4.4.1 Adjustment of Natural Frequency',
+    source: 'service',
     summary:
-      'Neutral (natural) frequency adjustment of the radial feeder ' +
-      'troughs: per trough RF01… the measured frequency, with Freq. ' +
-      'Adjust / Freq. Set modes and a Start key to run the measurement.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Automatic measurement of each radial-feeder trough’s natural ' +
+      'frequency (Service 5.4.4.1). Select Freq. Adjust, press the trough ' +
+      'keys so their figures turn blue (all of them for a full pass), then ' +
+      'Start: the troughs grey out, the table shows Adjusting, and each ' +
+      'frequency fills in as it completes. All feeders take about 30 ' +
+      'minutes on an R-216B-D; a single feeder about 15. The result is ' +
+      'memorised in both the FDRV board and the DMU, and the two are ' +
+      'checked against each other automatically — a feeder will not drive ' +
+      'while they disagree (5.4.2.1, 5.5.1.1).',
+    keys: [
+      { name: 'Freq. Adjust / Freq. Set', desc: 'Mode switch; the manual’s automatic procedure runs in Freq. Adjust (5.4.4.1). Freq. Set is not stepped through in the manual.' },
+      { name: 'Trough No. keys (RF01…)', desc: 'Select which troughs to measure; selected troughs show blue, grey while adjusting (5.4.4.1).' },
+      { name: 'Start / Stop', desc: 'Start the automatic adjustment, or cancel it mid-run (5.4.4.1).' },
+      { name: 'Output', desc: 'Prints the natural frequencies for storage — photocopy the thermal printout onto plain paper; thermal paper does not keep (5.4.4.1).' },
+    ],
+    note:
+      'TIPs (Service 5.4.4.1): if a single trough errors, check whether ' +
+      'the supply chute or the adjacent trough is touching it, fix that ' +
+      'and retry; errors on every trough point at the FDRV board or the ' +
+      'feeder power unit. ' + SERVICE_NOTE,
   },
 
   'autoadj-drive': {
     title: 'Auto Adjustment — Drive Freq. Adj',
-    ref: null,
-    source: 'observed',
+    ref: 'Service 5.4.4.2 Drive Frequency Check',
+    source: 'service',
     summary:
-      'Drive frequency adjustment: per trough the drive frequency (around ' +
-      '48–50 Hz on this capture) with up/down keys and Drive Start / ' +
-      'Drive Stop to test.',
-    keys: [],
-    note: OBSERVED_NOTE,
+      'Sets the drive frequency each radial feeder actually runs at — a ' +
+      'corrected value offset from the natural frequency, because driving ' +
+      'a feeder at resonance makes the amplitude far too large (Service ' +
+      '5.4.1). Select a trough, step the frequency in 0.1 Hz units, press ' +
+      'Drive Start, and check the amplitude with the indicator board on ' +
+      'the trough (5.4.4.2). On this PWM-controlled feeder, amplitude is ' +
+      'adjusted by frequency, never by the leaf springs: lower frequency ' +
+      'gives more amplitude — roughly 0.1 mm per 0.1 Hz — aiming at a ' +
+      'maximum feeder amplitude of 2.0 mm (5.4.4.3).',
+    keys: [
+      { name: 'Trough No. / Frequency table', desc: 'Per-trough drive frequency, displayed and set in 0.1 Hz units (5.4.2.2).' },
+      { name: 'Up / down arrows', desc: 'Step the selected trough’s drive frequency by 0.1 Hz (5.4.4.2).' },
+      { name: 'Drive Start / Drive Stop', desc: 'Vibrate the selected feeder to check the amplitude, and stop it (5.4.4.2).' },
+      { name: 'Output', desc: 'Print key.' },
+    ],
+    note:
+      'NOTE (Service 5.4.4.2): the setting range is 35.0–130.0 Hz, and ' +
+      'for safety the drive frequency must never equal the natural ' +
+      'frequency. A feeder driven at an improper frequency is damaged ' +
+      '(5.5.1.1). Do not adjust amplitude with a leaf spring — change the ' +
+      'drive frequency instead (5.4.4.3 NOTE). ' + SERVICE_NOTE,
   },
 };
 

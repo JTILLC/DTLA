@@ -94,6 +94,12 @@
     "to": "selfdiag-device"
    },
    {
+    "label": "Weigher Information",
+    "to": null,
+    "maintenanceOnly": true,
+    "note": "Maintenance level only. PH/WH drive counters and their reset (Service 4.4.1). Not captured — no screen artwork for it."
+   },
+   {
     "label": "Display & Data Manager",
     "to": "display-screen"
    },
@@ -109,7 +115,8 @@
     "label": "Peripheral Equipment Setting",
     "to": "pack-bagmaker"
    }
-  ]
+  ],
+  "verified": "Order and contents checked against the Service Manual 4.4 figure (page 4-18) and against the running program."
  },
  "screens": {
   "main-menu": {
