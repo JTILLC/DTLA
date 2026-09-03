@@ -70,15 +70,22 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
   const flat = useMemo(() => flattenExports(blocks), [blocks]);
   const loaded = Object.keys(blocks).length > 0;
 
-  // Which mapped field, if any, each imported setting belongs to.
-  const targets = (label) => {
+  // Which mapped field, if any, each imported setting belongs to - and
+  // whether this value is already sitting in it on the document, so the
+  // button can say so. The screen card lands further down the page, out of
+  // sight, and a click that shows nothing looks like a click that did nothing.
+  const targets = (label, value) => {
     const out = [];
     for (const [slug, screen] of Object.entries(spec.screens)) {
       const field = matchField(label, screen.fields);
-      if (field) out.push({ slug, screen, field });
+      if (!field) continue;
+      const onDocument = (sections || []).find((s) => s.kind === 'mapped' && s.slug === slug);
+      const placed = !!onDocument && String(onDocument.values?.[field.key] ?? '') === String(value);
+      out.push({ slug, screen, field, placed });
     }
     return out;
   };
+  const placedCount = flat.filter((row) => targets(row.label, row.value).some((t) => t.placed)).length;
 
   const shown = flat.filter((row) => {
     if (!filter.trim()) return true;
@@ -251,7 +258,8 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
         <div className="mt-4">
           <div className="flex items-center justify-between gap-3 mb-2">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {flat.length} settings read. {shown.length !== flat.length && `${shown.length} shown.`}
+              {flat.length} settings read. {shown.length !== flat.length && `${shown.length} shown. `}
+              {placedCount > 0 && `${placedCount} placed on the document.`}
             </p>
             <input
               className="field" style={{ maxWidth: '16rem' }} value={filter}
@@ -266,7 +274,7 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
             <table className="w-full text-sm">
               <tbody>
                 {shown.map((row) => {
-                  const places = targets(row.label);
+                  const places = targets(row.label, row.value);
                   return (
                     <tr key={row.path} style={{ borderTop: '1px solid var(--border)' }}>
                       <td className="px-2 py-1" style={{ color: 'var(--text-muted)' }}>
@@ -276,10 +284,14 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
                       <td className="px-2 py-1 text-right whitespace-nowrap">
                         {places.length ? places.map((p) => (
                           <button
-                            key={p.slug} type="button" className="btn ml-1"
+                            key={p.slug} type="button"
+                            className={p.placed ? 'btn btn-primary ml-1' : 'btn ml-1'}
+                            title={p.placed
+                              ? `On the document, in the ${p.field.label} box of the ${p.screen.title} screen`
+                              : `Put this value in the ${p.field.label} box of the ${p.screen.title} screen`}
                             onClick={() => onPlace(p.slug, p.field.key, String(row.value))}
                           >
-                            → {p.screen.title.replace('Preset - ', '')}
+                            {p.placed ? '✓' : '→'} {p.screen.title.replace('Preset - ', '')}
                           </button>
                         )) : (
                           <span className="chip">no matching field</span>
@@ -292,7 +304,9 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
             </table>
           </div>
           <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
-            Nothing is placed on the centerline until you place it.
+            Nothing is placed on the centerline until you place it. An arrow puts that one value
+            into its box on the named screen, which is added to the document below if it is not
+            there yet; the button turns into a check once the value is on the document.
           </p>
         </div>
       )}
