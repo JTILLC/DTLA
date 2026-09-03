@@ -181,6 +181,7 @@ export const screenInfo = {
       { name: 'Timing item keys', desc: 'Select which interval to adjust; the blue arrow shows the direction between units.' },
       { name: '10 ms / 100 ms keys', desc: 'Step the selected value up or down.' },
       { name: 'Enter Time', desc: 'Type the value directly on the ten-key.' },
+      { name: 'What was seen on the program and a running machine', desc: 'The same table as Preset > Timing Adjustment, live: tap a row to select it and the cutaway paints its hoppers; the single arrows move it by 10 ms, the double arrows by 100; Entr Time writes into it (1..2550). The bars are a timeline of delays, each starting where the ones before it end. The BH / TH / DTH toggles in the app bar add the rows of a booster, timing-hopper or DTH machine, with C1 (heads 1-8) and C2 (9-16) keys. The program\'s first row read WH-PH here - its typo for IS-DS.' },
     ],
   },
 

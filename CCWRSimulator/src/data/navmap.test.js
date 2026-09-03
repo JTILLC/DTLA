@@ -141,19 +141,25 @@ describe('navigation map integrity', () => {
 
   it('the timing table rows each have a cutaway capture, and the keys sit on the canvas', () => {
     const ta = navmap.timingAdjust;
-    const sc = ta.screens['preset-timing'];
     expect(ta.rows.map((r) => r.label)).toEqual(['IS-DS', 'IS-TH{n}', 'IS-DTH{n}', 'IS-WH', 'WH-PH', 'PH-RF',
       'STAGGER', 'WH-BH', 'BH-WH', 'WH ON', 'BH ON', 'PH ON']);
     for (const r of ta.rows) {
-      expect(fs.existsSync(path.join(root, 'public', r.image)), r.key).toBe(true);
       for (const k of r.after) expect(ta.rows.some((x) => x.key === k), `${r.key} after ${k}`).toBe(true);
       if (r.option) expect(ta.options[r.option], `${r.key} option`).toBeDefined();
     }
-    // Twelve rows fit inside the table panel.
-    expect(sc.table.top + ta.rows.length * sc.table.pitch).toBeLessThan(sc.dthRadio.y);
-    for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
-    expect(navmap.screens['preset-timing@entr'].keypad.seedFrom).toBe('timing');
-    expect(navmap.screens['preset-timing@entr'].hotspots.find((h) => h.action === 'enter').commit).toBe('timing');
+    // Both Timing Adjust screens: every row's cutaway exists, twelve rows fit
+    // inside the panel, the keys sit on the canvas, Entr writes the row.
+    for (const slug of ['preset-timing', 'run-timing']) {
+      const sc = ta.screens[slug];
+      for (const r of ta.rows) {
+        expect(fs.existsSync(path.join(root, 'public', sc.cutaways[r.cutaway])), `${slug} ${r.key}`).toBe(true);
+      }
+      expect(sc.table.top + ta.rows.length * sc.table.pitch).toBeLessThan(sc.dthRadio.y);
+      for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
+      expect(navmap.screens[`${slug}@entr`].keypad.seedFrom).toBe('timing');
+      expect(navmap.screens[`${slug}@entr`].hotspots.find((h) => h.action === 'enter').commit).toBe('timing');
+      expect(navmap.screens[slug].image).toBe(sc.cutaways.whds);
+    }
   });
 
   it('every screen is reachable from the main menu', () => {

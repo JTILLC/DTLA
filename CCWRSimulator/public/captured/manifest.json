@@ -670,6 +670,14 @@
   "file": "captured/rt-entr-keypad.jpg",
   "sha1": "fd8c361ea064c5991c71a68f73c6c73fbe214508"
  },
+ "rt-row-iswh": {
+  "file": "captured/rt-row-iswh.jpg",
+  "sha1": "946ceea6d772c7040de3cfdafffc5638a8a01f19"
+ },
+ "rt-row-phon": {
+  "file": "captured/rt-row-phon.jpg",
+  "sha1": "2126977d3cb7c98127f3af9e262819540a375a60"
+ },
  "rt-row-phrf": {
   "file": "captured/rt-row-phrf.jpg",
   "sha1": "3dbe1f9ab7e2cfa63a829495c2496851fd94503a"
@@ -677,6 +685,26 @@
  "rt-row-phrf-plus10": {
   "file": "captured/rt-row-phrf-plus10.jpg",
   "sha1": "024afae06aad2adafd812403d74f2182ac407204"
+ },
+ "rt-row-phrf2": {
+  "file": "captured/rt-row-phrf2.jpg",
+  "sha1": "7d5501c478285b80f646b4ab090bdfa0dee4f172"
+ },
+ "rt-row-stagger": {
+  "file": "captured/rt-row-stagger.jpg",
+  "sha1": "fb3943aec4e75e78138c3a9c7ff392aae6c807ba"
+ },
+ "rt-row-whds": {
+  "file": "captured/rt-row-whds.jpg",
+  "sha1": "c81be8d537a38d3cbccedc7aa763e2bdd2c5d21f"
+ },
+ "rt-row-whon": {
+  "file": "captured/rt-row-whon.jpg",
+  "sha1": "d55a712de6e93006ac9c8b2359134dfc491af802"
+ },
+ "rt-row-whph": {
+  "file": "captured/rt-row-whph.jpg",
+  "sha1": "783011a282b41d829321b921d2e97ac9e4532d7d"
  },
  "rtot-output": {
   "file": "captured/rtot-output.jpg",

@@ -2058,7 +2058,7 @@
   "run-timing": {
    "frame": 181,
    "labelJa": "運転_タイミング",
-   "image": "screens/run-timing.jpg",
+   "image": "derived/rt-cut-whds.jpg",
    "hotspots": [
     {
      "x": 12,
@@ -2221,7 +2221,8 @@
      "h": 22,
      "flag": "infeed"
     }
-   ]
+   ],
+   "baseNote": "Per-row captures with the table erased (tools/timing_table.py); the app draws the table and swaps the cutaway with the selected row. The program's first row read WH-PH here - its typo for IS-DS."
   },
   "run-totals": {
    "frame": 191,
@@ -9616,7 +9617,9 @@
      "w": 250,
      "h": 60
     },
-    "seed": "110"
+    "seedFrom": "timing",
+    "min": 1,
+    "max": 2550
    },
    "hotspots": [
     {
@@ -9739,7 +9742,8 @@
      "h": 37,
      "to": "run-timing",
      "action": "enter",
-     "label": "Enter"
+     "label": "Enter",
+     "commit": "timing"
     }
    ]
   },
@@ -13292,8 +13296,8 @@
     "default": 0,
     "after": [],
     "unit": "ds",
-    "image": "derived/pt-cut-whds.jpg",
-    "desc": "Infeed signal to discharge: the delay from the packer asking for product to the weigh hoppers dumping it."
+    "desc": "Infeed signal to discharge: the delay from the packer asking for product to the weigh hoppers dumping it.",
+    "cutaway": "whds"
    },
    {
     "key": "is_th",
@@ -13303,8 +13307,8 @@
     "unit": "th",
     "option": "th",
     "perSection": true,
-    "image": "derived/pt-cut-neutral.jpg",
-    "desc": "Infeed signal to the timing hopper: when the section's timing hopper opens after the request. C1 adjusts TH1, C2 adjusts TH2."
+    "desc": "Infeed signal to the timing hopper: when the section's timing hopper opens after the request. C1 adjusts TH1, C2 adjusts TH2.",
+    "cutaway": "neutral"
    },
    {
     "key": "is_dth",
@@ -13314,8 +13318,8 @@
     "unit": "dth",
     "option": "dth",
     "perDth": true,
-    "image": "derived/pt-cut-neutral.jpg",
-    "desc": "Infeed signal to a diverting timing hopper. DTH1 and DTH2 belong to C1, DTH3 and DTH4 to C2; the radio under the table picks which one the row edits."
+    "desc": "Infeed signal to a diverting timing hopper. DTH1 and DTH2 belong to C1, DTH3 and DTH4 to C2; the radio under the table picks which one the row edits.",
+    "cutaway": "neutral"
    },
    {
     "key": "is_wh",
@@ -13323,8 +13327,8 @@
     "default": 100,
     "after": [],
     "unit": "wh",
-    "image": "derived/pt-cut-iswh.jpg",
-    "desc": "Infeed signal to weigh hopper: the delay before the weigh hoppers open. Everything downstream is timed from the end of this."
+    "desc": "Infeed signal to weigh hopper: the delay before the weigh hoppers open. Everything downstream is timed from the end of this.",
+    "cutaway": "iswh"
    },
    {
     "key": "wh_ph",
@@ -13334,8 +13338,8 @@
      "is_wh"
     ],
     "unit": "whph",
-    "image": "derived/pt-cut-whph.jpg",
-    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them. Starts where IS-WH ends."
+    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them. Starts where IS-WH ends.",
+    "cutaway": "whph"
    },
    {
     "key": "ph_rf",
@@ -13346,8 +13350,8 @@
      "wh_ph"
     ],
     "unit": "ph",
-    "image": "derived/pt-cut-phrf.jpg",
-    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Starts where WH-PH ends."
+    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Starts where WH-PH ends.",
+    "cutaway": "phrf"
    },
    {
     "key": "stagger",
@@ -13355,8 +13359,8 @@
     "default": 0,
     "after": [],
     "unit": "stagger",
-    "image": "derived/pt-cut-stagger.jpg",
-    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once."
+    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once.",
+    "cutaway": "stagger"
    },
    {
     "key": "wh_bh",
@@ -13367,8 +13371,8 @@
     ],
     "unit": "bh",
     "option": "bh",
-    "image": "derived/pt-cut-neutral.jpg",
-    "desc": "Weigh hopper to booster hopper: how long after the weigh hoppers open the booster hoppers below them open. Starts where IS-WH ends."
+    "desc": "Weigh hopper to booster hopper: how long after the weigh hoppers open the booster hoppers below them open. Starts where IS-WH ends.",
+    "cutaway": "neutral"
    },
    {
     "key": "bh_wh",
@@ -13380,8 +13384,8 @@
     ],
     "unit": "bh",
     "option": "bh",
-    "image": "derived/pt-cut-neutral.jpg",
-    "desc": "Booster hopper to weigh hopper: the delay before the weigh hoppers refill the boosters. Starts where WH-BH ends."
+    "desc": "Booster hopper to weigh hopper: the delay before the weigh hoppers refill the boosters. Starts where WH-BH ends.",
+    "cutaway": "neutral"
    },
    {
     "key": "wh_on",
@@ -13391,8 +13395,8 @@
      "is_wh"
     ],
     "unit": "wh",
-    "image": "derived/pt-cut-whon.jpg",
-    "desc": "Weigh hopper open time. Starts where IS-WH ends - when the weigh hoppers open."
+    "desc": "Weigh hopper open time. Starts where IS-WH ends - when the weigh hoppers open.",
+    "cutaway": "whon"
    },
    {
     "key": "bh_on",
@@ -13404,8 +13408,8 @@
     ],
     "unit": "bh",
     "option": "bh",
-    "image": "derived/pt-cut-neutral.jpg",
-    "desc": "Booster hopper open time. Starts where WH-BH ends - when the boosters open."
+    "desc": "Booster hopper open time. Starts where WH-BH ends - when the boosters open.",
+    "cutaway": "neutral"
    },
    {
     "key": "ph_on",
@@ -13416,8 +13420,8 @@
      "wh_ph"
     ],
     "unit": "ph",
-    "image": "derived/pt-cut-phon.jpg",
-    "desc": "Pool hopper open time. Starts where WH-PH ends - when the pool hoppers open."
+    "desc": "Pool hopper open time. Starts where WH-PH ends - when the pool hoppers open.",
+    "cutaway": "phon"
    }
   ],
   "step": {
@@ -13549,6 +13553,118 @@
      "dth": {
       "x": 118,
       "y": 380,
+      "w": 124,
+      "h": 18
+     }
+    },
+    "cutaways": {
+     "whds": "derived/pt-cut-whds.jpg",
+     "iswh": "derived/pt-cut-iswh.jpg",
+     "whph": "derived/pt-cut-whph.jpg",
+     "phrf": "derived/pt-cut-phrf.jpg",
+     "stagger": "derived/pt-cut-stagger.jpg",
+     "whon": "derived/pt-cut-whon.jpg",
+     "phon": "derived/pt-cut-phon.jpg",
+     "neutral": "derived/pt-cut-neutral.jpg"
+    }
+   },
+   "run-timing": {
+    "cutaways": {
+     "whds": "derived/rt-cut-whds.jpg",
+     "iswh": "derived/rt-cut-iswh.jpg",
+     "whph": "derived/rt-cut-whph.jpg",
+     "phrf": "derived/rt-cut-phrf.jpg",
+     "stagger": "derived/rt-cut-stagger.jpg",
+     "whon": "derived/rt-cut-whon.jpg",
+     "phon": "derived/rt-cut-phon.jpg",
+     "neutral": "derived/rt-cut-neutral.jpg"
+    },
+    "table": {
+     "x": 308,
+     "right": 772,
+     "top": 82,
+     "pitch": 18.2,
+     "rowH": 17,
+     "labelX": 314,
+     "valueRight": 508,
+     "valueW": 70,
+     "divider": 509,
+     "textPx": 11
+    },
+    "bar": {
+     "x": 510,
+     "max": 771,
+     "pxPerMs": 0.09,
+     "colour": "#ffc92e",
+     "inset": 2,
+     "note": "Measured off the Production capture: WH-DS 110 ms is 12 px, WH ON 450 is 40, PH ON 400 is 37 - about 0.09 px per ms, the column being wider than Preset's."
+    },
+    "header": {
+     "x": 309,
+     "y": 45,
+     "w": 199,
+     "h": 35,
+     "textPx": 9
+    },
+    "c12": {
+     "x": 414,
+     "y": 50,
+     "w": 90,
+     "h": 18
+    },
+    "dthRadio": {
+     "x": 314,
+     "y": 356,
+     "w": 170,
+     "h": 17
+    },
+    "keys": {
+     "dec100": {
+      "x": 596,
+      "y": 385,
+      "w": 47,
+      "h": 37,
+      "label": "-100 ms"
+     },
+     "dec10": {
+      "x": 647,
+      "y": 385,
+      "w": 47,
+      "h": 37,
+      "label": "-10 ms"
+     },
+     "inc10": {
+      "x": 698,
+      "y": 385,
+      "w": 46,
+      "h": 37,
+      "label": "+10 ms"
+     },
+     "inc100": {
+      "x": 749,
+      "y": 385,
+      "w": 46,
+      "h": 37,
+      "label": "+100 ms"
+     }
+    },
+    "cutaway": {
+     "bh": {
+      "x": 20,
+      "y": 194,
+      "w": 216,
+      "h": 26,
+      "n": 7
+     },
+     "th": {
+      "x": 150,
+      "y": 318,
+      "w": 58,
+      "h": 18
+     },
+     "dth": {
+      "x": 120,
+      "y": 346,
       "w": 124,
       "h": 18
      }

@@ -79,7 +79,7 @@ export default function Rcu({
   const ta = navmap.timingAdjust;
   const taScreen = ta?.screens?.[slug] || null;
   const imageFor = () => {
-    if (taScreen && timing) return rowOf(ta, timing.sel).image;
+    if (taScreen && timing) return taScreen.cutaways[rowOf(ta, timing.sel).cutaway];
     for (const [flag, image] of Object.entries(screen.imageBy || {})) {
       if (flags?.[flag] === true || (flag === 'level4' && flags?.level === 4)) return image;
     }
