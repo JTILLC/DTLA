@@ -115,7 +115,7 @@ export default function PhotoScreen({ section, onChange, onRemove, getIdToken, r
   };
 
   return (
-    <section className="card p-4 mb-4">
+    <section className="card p-4 mb-4" id={section.id}>
       <header className="flex items-start justify-between gap-3 mb-3">
         <input
           className="field font-semibold"

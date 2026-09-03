@@ -114,17 +114,53 @@ export default function App() {
     });
   }, []);
 
-  /** Add a whole imported block; a re-import of the same block replaces it. */
-  const addImportedBlock = useCallback((section) => {
+  /**
+   * Add whole imported blocks; a re-import of a block replaces it.
+   *
+   * The new cards land below the importer, out of sight, so the first one is
+   * scrolled to - otherwise "Add a blank preset" looks like it did nothing.
+   */
+  const addImportedBlocks = useCallback((added) => {
+    const list = Array.isArray(added) ? added : [added];
+    if (!list.length) return;
     setCenterline((c) => {
-      const index = c.sections.findIndex((s) => s.kind === 'photo' && !s.image
-        && s.source === 'imported' && s.title === section.title);
       const sections = [...c.sections];
-      if (index === -1) sections.push(section);
-      else sections[index] = section;
+      for (const section of list) {
+        const index = sections.findIndex((s) => s.kind === 'photo' && !s.image
+          && s.source === 'imported' && s.title === section.title);
+        if (index === -1) sections.push(section);
+        else sections[index] = section;
+      }
       return { ...c, sections };
     });
+    setTimeout(() => {
+      document.getElementById(list[0].id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   }, []);
+
+  /**
+   * Start a fresh centerline. Whatever was on screen is kept under Saved
+   * first: a clear button must never be the way work gets lost.
+   */
+  const [clearedNote, setClearedNote] = useState('');
+  const startFresh = () => {
+    const c = centerline;
+    const hasContent = c.sections.length > 0
+      || HEADER_FIELDS.some(([key]) => key !== 'date' && c[key]) || c.notes;
+    if (hasContent) {
+      const kept = {
+        ...c,
+        customer: c.customer || 'Untitled',
+        notes: [c.notes, `Kept automatically when the sheet was cleared on ${new Date().toISOString().slice(0, 10)}.`]
+          .filter(Boolean).join('\n'),
+      };
+      if (!saveCenterline(kept)) { setStorageWarning(true); return; }
+      setLibrary(listCenterlines());
+      setClearedNote('Cleared. The previous centerline is under Saved.');
+      setTimeout(() => setClearedNote(''), 4000);
+    }
+    setCenterline(emptyCenterline());
+  };
 
   const rows = useMemo(() => settingsTable(centerline, spec), [centerline]);
   const gapList = useMemo(() => gaps(centerline, spec), [centerline]);
@@ -237,9 +273,10 @@ export default function App() {
           <button type="button" className="btn" onClick={save}>Save</button>
           <button
             type="button" className="btn"
-            onClick={() => setCenterline(emptyCenterline())}
+            onClick={startFresh}
+            title="Start a fresh centerline. The current one is kept under Saved."
           >
-            New
+            Clear
           </button>
           <div className="relative">
             <button
@@ -284,6 +321,11 @@ export default function App() {
       </header>
 
       <main className="p-4 max-w-6xl mx-auto">
+        {clearedNote && (
+          <p className="text-sm mb-3 px-3 py-2 rounded" style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}>
+            {clearedNote}
+          </p>
+        )}
         {storageWarning && (
           <p
             className="card p-3 mb-4 text-sm"
@@ -356,7 +398,7 @@ export default function App() {
           </div>
         </section>
 
-        <ImportExports spec={spec} onPlace={placeImported} onAddBlock={addImportedBlock} />
+        <ImportExports spec={spec} onPlace={placeImported} onAddBlock={addImportedBlocks} />
 
         {centerline.sections.map((section, index) => (
           section.kind === 'mapped' ? (

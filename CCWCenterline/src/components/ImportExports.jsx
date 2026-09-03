@@ -75,9 +75,17 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
   const addBlank = () => {
     const heads = Math.min(Math.max(Number(blankHeads) || 14, 1), 32);
     const sections = Math.min(Math.max(Number(blankSections) || 1, 1), 8);
-    for (const [key, block] of Object.entries(blankPresetBlocks(heads, sections))) {
-      onAddBlock(blockToSection(block, key));
-    }
+    onAddBlock(Object.entries(blankPresetBlocks(heads, sections))
+      .map(([key, block]) => blockToSection(block, key)));
+  };
+
+  /** Forget the loaded files. The document is untouched. */
+  const clearFiles = () => {
+    setSet({});
+    setPresets([]);
+    setPresetNo(null);
+    setFilter('');
+    setError('');
   };
 
   return (
@@ -138,7 +146,12 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
 
       {loaded && onAddBlock && (
         <div className="mt-4">
-          <p className="field-label">Whole blocks</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="field-label">Whole blocks</p>
+            <button type="button" className="btn" onClick={clearFiles} title="Forget the loaded files. Nothing already on the document is touched.">
+              Clear files
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {Object.entries(blocks).map(([block, parsed]) => {
               const count = flat.filter((row) => row.block === block).length;

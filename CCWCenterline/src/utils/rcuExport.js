@@ -275,6 +275,7 @@ export function blockToSection(parsed, block) {
   // those show as "check" on the document, like an uncertain photo read.
   const unsure = new Set(parsed.unsure || []);
   return {
+    id: `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     kind: 'photo',
     title: parsed.title || block,
     image: '',
