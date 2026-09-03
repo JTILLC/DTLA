@@ -937,19 +937,123 @@
    the drawn screen (0) and the lamps (2) and values (1) stay on top of it. */
 .fa-df-key { z-index: 0; }
 
-/* Timing Adjustment: the live numbers (right-aligned in the value cell) and
-   the timeline bars, drawn over the capture with those cells erased. */
-.ta-value {
+/* Timing Adjustment: the table is drawn over the capture, whose own table
+   is erased. Cells copy the capture's look: a dark rule top and bottom with a
+   white line under it, the band blue when selected, bold Arial labels. */
+.ta-header {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1% 2%;
+  box-sizing: border-box;
+  color: #1c1c1c;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.1;
+  pointer-events: none;
+}
+.ta-cell {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 0;
+  border: none;
+  border-top: 1px solid #7f7f7f;
+  border-bottom: 1px solid #6a6a6a;
+  box-shadow: 0 1px 0 #f7f7f7;
+  background: #d1d1d1;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.ta-cell:hover { filter: brightness(1.04); }
+.ta-cell--sel { background: #807ee3; color: #00005a; }
+.ta-cell__label, .ta-cell__value {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.ta-cell__label i {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.45em;
+  border: 1px solid #333;
+  background: #e8e8e8;
+}
+.ta-cell--sel .ta-cell__label i { background: #fff; }
+.ta-cell__value { color: #000; }
+.ta-cell__divider { position: absolute; top: 0; bottom: 0; width: 1px; background: #8a8a8a; }
+.ta-bar { position: absolute; z-index: 2; pointer-events: none; }
+
+/* C1/C2 and the DTH radio: small lamp keys, drawn in the header's style. */
+.ta-lamps {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  gap: 4%;
+  align-items: stretch;
+}
+.ta-lamp {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0 0.3em;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: linear-gradient(#f2f2f2, #c9c9c9);
+  color: #1c1c1c;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ta-lamp i {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 50%;
+  border: 1px solid #444;
+  background: radial-gradient(circle at 35% 35%, #ddd, #888);
+}
+.ta-lamp--on i { background: radial-gradient(circle at 35% 35%, #8f8fff, #1a1ad0); }
+.ta-lamps--radio .ta-lamp { border-color: transparent; background: transparent; }
+
+/* Look-alike units on the cutaway: booster ring, timing hopper, DTHs. */
+.ta-unit-ring { position: absolute; z-index: 1; display: flex; gap: 2%; pointer-events: none; }
+.ta-unit-ring i {
+  flex: 1;
+  border: 1px solid #55554f;
+  border-radius: 12% 12% 30% 30% / 20% 20% 45% 45%;
+  background: linear-gradient(#e6e6df, #a9a9a2 60%, #6e6e68);
+}
+.ta-unit-ring.ta-unit--lit i { background: linear-gradient(#9d9dff, #4d4de6 60%, #2a2aa8); border-color: #1a1a6e; }
+.ta-unit-box {
   position: absolute;
   z-index: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
+  border: 1px solid #55554f;
+  border-radius: 3px;
+  background: linear-gradient(#e6e6df, #a9a9a2);
+  color: #222;
   font-family: Arial, Helvetica, sans-serif;
   font-weight: 700;
   pointer-events: none;
 }
-.ta-bar { position: absolute; z-index: 1; pointer-events: none; }
+.ta-unit-pair { position: absolute; z-index: 1; display: flex; gap: 6%; pointer-events: none; }
+.ta-unit-pair .ta-unit-box { position: static; flex: 1; }
+.ta-unit-box.ta-unit--lit { background: linear-gradient(#9d9dff, #4d4de6); color: #fff; border-color: #1a1a6e; }
+
+/* The app bar's machine-unit toggles. */
+.seg--machine button { min-width: 3.2em; }
 
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }

@@ -11,7 +11,8 @@ import LessonPanel from './components/LessonPanel';
 import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
-import { initialTiming, migrateTiming, selectRow, step as timingStep, enter as timingEnter } from './utils/timing';
+import { initialTiming, migrateTiming, selectRow, setSection, setDthPick, ensureVisible, rowOf, rowLabel,
+  current as timingCurrent, step as timingStep, enter as timingEnter } from './utils/timing';
 
 const STORAGE_KEY = 'ccwr-sim-v1';
 
@@ -202,7 +203,7 @@ export default function App() {
   useEffect(() => {
     const s = navmap.screens[screen];
     if (!s?.keypad) return;
-    if (s.keypad.seedFrom === 'timing') setTyped(String(timing.values[timing.sel]));
+    if (s.keypad.seedFrom === 'timing') setTyped(String(timingCurrent(timing, navmap.timingAdjust)));
     else if (s.keypad.seedFrom) setTyped(String(feeder[s.keypad.seedFrom] ?? ''));
     else setTyped(s.keypad.seed || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,18 +319,45 @@ export default function App() {
     }
 
     if (evt.type === 'timing-row') {
-      const row = navmap.timingAdjust.rows.find((r) => r.key === evt.key);
-      setTiming((t) => selectRow(t, evt.key));
-      showNotice(`${row.label}: ${row.desc} The arrows and Entr now act on this row.`);
+      const row = rowOf(navmap.timingAdjust, evt.key);
+      const next = selectRow(timing, evt.key);
+      setTiming(next);
+      showNotice(`${rowLabel(row, next)}: ${row.desc} The arrows and Entr now act on this row.`);
       return;
     }
     if (evt.type === 'timing-step') {
-      const { state: next, changed } = timingStep(timing, navmap.timingAdjust, evt.delta);
+      const ta = navmap.timingAdjust;
+      const { state: next, changed } = timingStep(timing, ta, evt.delta);
       setTiming(next);
-      const row = navmap.timingAdjust.rows.find((r) => r.key === timing.sel);
+      const label = rowLabel(rowOf(ta, timing.sel), timing);
       showNotice(changed === 0
-        ? `${row.label} is already at ${next.values[timing.sel]} ms — the arrows stop at ${evt.delta < 0 ? navmap.timingAdjust.min : navmap.timingAdjust.max}.`
-        : `${row.label} ${changed > 0 ? '+' : ''}${changed} ms → ${next.values[timing.sel]} ms.`);
+        ? `${label} is already at ${timingCurrent(next, ta)} ms — the arrows stop at ${evt.delta < 0 ? ta.min : ta.max}.`
+        : `${label} ${changed > 0 ? '+' : ''}${changed} ms → ${timingCurrent(next, ta)} ms.`);
+      return;
+    }
+    if (evt.type === 'timing-section') {
+      const sec = navmap.timingAdjust.sections[String(evt.section)];
+      setTiming((t) => setSection(t, evt.section));
+      showNotice(`${sec.label} — heads ${sec.heads}. ${evt.section === 1
+        ? 'This section adjusts TH1 and owns DTH1 and DTH2.'
+        : 'This section adjusts TH2 and owns DTH3 and DTH4.'} The other section keeps its own numbers.`);
+      return;
+    }
+    if (evt.type === 'timing-dth') {
+      setTiming((t) => setDthPick(t, evt.pick));
+      showNotice(`The IS-DTH row now edits DTH${(timing.section - 1) * 2 + evt.pick + 1}.`);
+      return;
+    }
+    if (evt.type === 'machine-option') {
+      /* Which units the machine has. Not a key on the RCU: a trainer's choice
+         of machine, so it lives in the app bar. */
+      const flag = { bh: 'optBH', th: 'optTH', dth: 'optDTH' }[evt.option];
+      const nextFlags = toggleFlag(flags, flag);
+      setFlags(nextFlags);
+      setTiming((t) => ensureVisible(t, navmap.timingAdjust,
+        { bh: nextFlags.optBH, th: nextFlags.optTH, dth: nextFlags.optDTH }));
+      const opt = navmap.timingAdjust.options[evt.option];
+      showNotice(`${opt.name} ${nextFlags[flag] ? 'added' : 'removed'}. ${opt.note}`);
       return;
     }
 
@@ -459,15 +487,16 @@ export default function App() {
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
       if (evt.action === 'enter' && evt.commit === 'timing') {
-        const { state: next, reason } = timingEnter(timing, navmap.timingAdjust, typed);
+        const ta = navmap.timingAdjust;
+        const { state: next, reason } = timingEnter(timing, ta, typed);
         setTiming(next);
-        const row = navmap.timingAdjust.rows.find((r) => r.key === timing.sel);
-        const { min, max } = navmap.timingAdjust.keypad;
+        const label = rowLabel(rowOf(ta, timing.sel), timing);
+        const { min, max } = ta.keypad;
         showNotice(reason === 'empty'
-          ? `Nothing entered — ${row.label} is unchanged.`
+          ? `Nothing entered — ${label} is unchanged.`
           : reason === 'clamped'
-            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): ${row.label} ${next.values[timing.sel]} ms.`
-            : `${row.label} set to ${next.values[timing.sel]} ms.`);
+            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): ${label} ${timingCurrent(next, ta)} ms.`
+            : `${label} set to ${timingCurrent(next, ta)} ms.`);
       } else if (evt.action === 'enter' && evt.commit) {
         /* The DF keypads chain: Target Wt, then Upper Limit(%), then Lower
            Limit(%) (seen on the running program). Each Enter commits its own
@@ -585,6 +614,26 @@ export default function App() {
           >
             Hotspots
           </button>
+          {/* Which units the machine has. The program is a plain 14-head
+              single section; a real line may have boosters, a timing hopper,
+              diverting timing hoppers - each adds its Timing Adjustment rows. */}
+          <div className="seg seg--machine" role="group" aria-label="Machine units">
+            {Object.entries(navmap.timingAdjust.options).map(([key, opt]) => {
+              const on = flags[{ bh: 'optBH', th: 'optTH', dth: 'optDTH' }[key]];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={on ? 'is-active' : ''}
+                  title={`${opt.name}: ${opt.note}`}
+                  aria-pressed={on}
+                  onClick={() => handleTap({ type: 'machine-option', option: key })}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="seg" role="tablist">
             <button
               role="tab"
@@ -636,6 +685,7 @@ export default function App() {
           flags={{ ...flags, power: powerOn }}
           typed={typed}
           timing={timing}
+          machineOptions={{ bh: flags.optBH, th: flags.optTH, dth: flags.optDTH }}
           blink={blink}
           zeroing={zeroing}
           notice={notice}

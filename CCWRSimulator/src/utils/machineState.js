@@ -22,6 +22,9 @@ export const initialFlags = () => ({
   drainInfeed: false,
   foDF: false, foRF: false, foPH: false, foWH: false,   // Full Open Lock unit lamps
   hdrvParam: {},       // H DRV Spec Set: which parameter set (1–3) each unit runs
+  optBH: false,        // the machine has booster hoppers (Timing Adjustment rows)
+  optTH: false,        // ... a timing hopper: two sections, C1 and C2
+  optDTH: false,       // ... diverting timing hoppers, two per section
 });
 
 export const applySets = (flags, sets) => {

@@ -3,7 +3,7 @@ import { pointInRect, conditionsMet } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
 import FeederChart from './FeederChart';
-import { bar as timingBar } from '../utils/timing';
+import { bar as timingBar, visibleRows, hasSections, rowOf, rowLabel, valueKey } from '../utils/timing';
 
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
@@ -38,6 +38,7 @@ export default function Rcu({
   flags,          // the machine's state: level, running, drain, lamps… (+ power)
   typed,          // what is typed on an open keypad
   timing,         // Timing Adjustment: selected row + values (utils/timing.js)
+  machineOptions, // which units the machine has: {bh, th, dth}
   blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -78,7 +79,7 @@ export default function Rcu({
   const ta = navmap.timingAdjust;
   const taScreen = ta?.screens?.[slug] || null;
   const imageFor = () => {
-    if (taScreen && timing) return taScreen.rowImages[timing.sel];
+    if (taScreen && timing) return rowOf(ta, timing.sel).image;
     for (const [flag, image] of Object.entries(screen.imageBy || {})) {
       if (flags?.[flag] === true || (flag === 'level4' && flags?.level === 4)) return image;
     }
@@ -741,60 +742,139 @@ export default function Rcu({
           </div>
         )}
 
-        {/* Timing Adjustment (6.13): the rows are keys, the arrows step the
-            selected one by 10 or 100 ms, and the numbers and bars are drawn
-            from the values — the captures behind have those cells erased. */}
-        {taScreen && timing && (
-          <>
-            {taScreen.rowRects.map((r) => {
-              const row = ta.rows.find((x) => x.key === r.key);
-              const v = timing.values[r.key];
-              const b = timingBar(timing, ta, taScreen.bar, r.key);
-              return (
-                <React.Fragment key={r.key}>
-                  <button
-                    type="button"
-                    className={'hotspot' + (timing.sel === r.key ? ' ta-row--sel' : '')}
-                    style={rectStyle(r)}
-                    aria-label={`${row.label} row — ${v} ms${timing.sel === r.key ? ', selected' : ''}`}
-                    title={row.desc}
-                    onClick={() => onTap({ type: 'timing-row', key: r.key })}
-                  />
-                  <span
-                    className="ta-value"
-                    style={{
-                      ...rectStyle({ x: taScreen.value.right - taScreen.value.w, y: r.y, w: taScreen.value.w, h: r.h }),
-                      color: taScreen.value.colour,
-                      fontSize: `clamp(6px, ${(taScreen.value.textPx / CW) * 100}cqw, ${taScreen.value.textPx * 1.5}px)`,
-                    }}
-                  >
-                    {v}
-                  </span>
-                  {b.w > 0 && (
-                    <div
-                      className="ta-bar"
-                      style={{
-                        ...rectStyle({ x: b.x, y: r.y + taScreen.bar.inset, w: b.w, h: r.h - 2 * taScreen.bar.inset }),
-                        background: taScreen.bar.colour,
-                      }}
-                    />
-                  )}
-                </React.Fragment>
-              );
-            })}
-            {[['dec100', -100], ['dec10', -10], ['inc10', 10], ['inc100', 100]].map(([k, delta]) => (
-              <button
-                key={k}
-                type="button"
-                className="hotspot"
-                style={rectStyle(taScreen.keys[k])}
-                aria-label={taScreen.keys[k].label}
-                title={`${taScreen.keys[k].label} on the selected row (${ta.rows.find((x) => x.key === timing.sel).label})`}
-                onClick={() => onTap({ type: 'timing-step', delta })}
-              />
-            ))}
-          </>
-        )}
+        {/* Timing Adjustment (6.13): the table is drawn from the values — the
+            rows depend on which units the machine has — over a capture of the
+            selected row's cutaway with its table erased. Rows are keys, the
+            arrows step the selected one by 10 or 100 ms, and the bars are a
+            timeline: each starts where the ones before it end. */}
+        {taScreen && timing && (() => {
+          const tb = taScreen.table;
+          const rows = visibleRows(ta, machineOptions);
+          const selRow = rowOf(ta, timing.sel);
+          const sections = hasSections(machineOptions);
+          const sec = sections ? ta.sections[String(timing.section)] : ta.single;
+          const fontPx = (px) => `clamp(6px, ${(px / CW) * 100}cqw, ${px * 1.5}px)`;
+          const dthBase = (timing.section - 1) * 2 + 1;
+          const unitLit = (unit) => selRow.unit === unit;
+          const cw = taScreen.cutaway;
+          return (
+            <>
+              {/* Header: section and heads on one line, the selected row on the next. */}
+              <div className="ta-header" style={{ ...rectStyle(taScreen.header), fontSize: fontPx(taScreen.header.textPx) }} aria-hidden="true">
+                <span>{sec.label}:{sec.heads}</span>
+                <span>{rowLabel(selRow, timing)}</span>
+              </div>
+              {sections && (
+                <div className="ta-lamps" style={rectStyle(taScreen.c12)}>
+                  {[1, 2].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={'ta-lamp' + (timing.section === n ? ' ta-lamp--on' : '')}
+                      style={{ fontSize: fontPx(9) }}
+                      aria-label={`${ta.sections[String(n)].label} — heads ${ta.sections[String(n)].heads}${timing.section === n ? ', selected' : ''}`}
+                      title={`${ta.sections[String(n)].label}: heads ${ta.sections[String(n)].heads}. ${n === 1 ? 'Adjusts TH1; owns DTH1 and DTH2.' : 'Adjusts TH2; owns DTH3 and DTH4.'}`}
+                      onClick={() => onTap({ type: 'timing-section', section: n })}
+                    >
+                      <i /> {ta.sections[String(n)].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {rows.map((row, i) => {
+                const y = tb.top + i * tb.pitch;
+                const sel = timing.sel === row.key;
+                const v = timing.values[valueKey(row, timing)];
+                const b = timingBar(timing, ta, taScreen.bar, row);
+                const label = rowLabel(row, timing);
+                return (
+                  <React.Fragment key={row.key}>
+                    <button
+                      type="button"
+                      className={'ta-cell' + (sel ? ' ta-cell--sel' : '')}
+                      style={{ ...rectStyle({ x: tb.x, y, w: tb.right - tb.x, h: tb.rowH }), fontSize: fontPx(tb.textPx) }}
+                      aria-label={`${label} row — ${v} ms${sel ? ', selected' : ''}`}
+                      title={row.desc}
+                      onClick={() => onTap({ type: 'timing-row', key: row.key })}
+                    >
+                      <span className="ta-cell__label" style={{ left: pct(tb.labelX - tb.x, tb.right - tb.x) }}>
+                        <i /> {label}
+                      </span>
+                      <span className="ta-cell__value" style={{ right: pct(tb.right - tb.valueRight, tb.right - tb.x) }}>{v}</span>
+                      <span className="ta-cell__divider" style={{ left: pct(tb.divider - tb.x, tb.right - tb.x) }} />
+                      <span className="ta-cell__divider" style={{ left: pct(taScreen.bar.x - 1 - tb.x, tb.right - tb.x) }} />
+                    </button>
+                    {b.w > 0 && (
+                      <div
+                        className="ta-bar"
+                        style={{
+                          ...rectStyle({ x: b.x, y: y + taScreen.bar.inset, w: b.w, h: tb.rowH - 2 * taScreen.bar.inset }),
+                          background: taScreen.bar.colour,
+                        }}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+              {machineOptions?.dth && (
+                <div className="ta-lamps ta-lamps--radio" style={rectStyle(taScreen.dthRadio)}>
+                  {[0, 1].map((pick) => (
+                    <button
+                      key={pick}
+                      type="button"
+                      className={'ta-lamp' + (timing.dthPick === pick ? ' ta-lamp--on' : '')}
+                      style={{ fontSize: fontPx(9) }}
+                      aria-label={`DTH${dthBase + pick}${timing.dthPick === pick ? ', selected' : ''}`}
+                      title={`The IS-DTH row edits DTH${dthBase + pick} (${sec.label} owns DTH${dthBase} and DTH${dthBase + 1})`}
+                      onClick={() => onTap({ type: 'timing-dth', pick })}
+                    >
+                      <i /> DTH{dthBase + pick}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {[['dec100', -100], ['dec10', -10], ['inc10', 10], ['inc100', 100]].map(([k, delta]) => (
+                <button
+                  key={k}
+                  type="button"
+                  className="hotspot"
+                  style={rectStyle(taScreen.keys[k])}
+                  aria-label={taScreen.keys[k].label}
+                  title={`${taScreen.keys[k].label} on the selected row (${rowLabel(selRow, timing)})`}
+                  onClick={() => onTap({ type: 'timing-step', delta })}
+                />
+              ))}
+
+              {/* Look-alike units on the cutaway. The program's machine has
+                  none of these, so they are drawn: a ring of booster hoppers
+                  under the weigh hoppers, the timing hopper under the chute,
+                  the section's two diverting timing hoppers below it. They
+                  light the way the captured hoppers do. */}
+              {machineOptions?.bh && (
+                <div className={'ta-unit-ring' + (unitLit('bh') ? ' ta-unit--lit' : '')} style={rectStyle(cw.bh)} aria-hidden="true" title="Booster hoppers (drawn)">
+                  {Array.from({ length: cw.bh.n }, (_, i) => <i key={i} />)}
+                </div>
+              )}
+              {machineOptions?.th && (
+                <div className={'ta-unit-box' + (unitLit('th') ? ' ta-unit--lit' : '')} style={{ ...rectStyle(cw.th), fontSize: fontPx(9) }} aria-hidden="true" title="Timing hopper (drawn)">
+                  TH{timing.section}
+                </div>
+              )}
+              {machineOptions?.dth && (
+                <div className="ta-unit-pair" style={rectStyle(cw.dth)} aria-hidden="true" title="Diverting timing hoppers (drawn)">
+                  {[0, 1].map((pick) => (
+                    <span key={pick} className={'ta-unit-box' + (unitLit('dth') && timing.dthPick === pick ? ' ta-unit--lit' : '')} style={{ fontSize: fontPx(8) }}>
+                      DTH{dthBase + pick}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {hpHere && (
           <button

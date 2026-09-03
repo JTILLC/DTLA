@@ -919,7 +919,7 @@
   "preset-timing": {
    "frame": 81,
    "labelJa": "予約設定_タイミング",
-   "image": "derived/pt-row-whds.jpg",
+   "image": "derived/pt-cut-whds.jpg",
    "hotspots": [
     {
      "x": 700,
@@ -972,7 +972,7 @@
      "generated": true
     }
    ],
-   "baseNote": "Seven captures, one per selected row (see tools/timing_table.py); the app swaps them and draws the numbers and bars."
+   "baseNote": "Per-row captures with the table erased (tools/timing_table.py): the app draws the table, and swaps the cutaway with the selected row."
   },
   "preset-weight": {
    "frame": 91,
@@ -13287,63 +13287,137 @@
  "timingAdjust": {
   "rows": [
    {
-    "key": "wh_ds",
-    "label": "WH-DS",
-    "default": 110,
-    "desc": "Discharge request to discharge complete: the time from the packer asking for product to the weigh hoppers having dumped it.",
-    "startsAfter": []
+    "key": "is_ds",
+    "label": "IS-DS",
+    "default": 0,
+    "after": [],
+    "unit": "ds",
+    "image": "derived/pt-cut-whds.jpg",
+    "desc": "Infeed signal to discharge: the delay from the packer asking for product to the weigh hoppers dumping it."
+   },
+   {
+    "key": "is_th",
+    "label": "IS-TH{n}",
+    "default": 0,
+    "after": [],
+    "unit": "th",
+    "option": "th",
+    "perSection": true,
+    "image": "derived/pt-cut-neutral.jpg",
+    "desc": "Infeed signal to the timing hopper: when the section's timing hopper opens after the request. C1 adjusts TH1, C2 adjusts TH2."
+   },
+   {
+    "key": "is_dth",
+    "label": "IS-DTH{n}",
+    "default": 820,
+    "after": [],
+    "unit": "dth",
+    "option": "dth",
+    "perDth": true,
+    "image": "derived/pt-cut-neutral.jpg",
+    "desc": "Infeed signal to a diverting timing hopper. DTH1 and DTH2 belong to C1, DTH3 and DTH4 to C2; the radio under the table picks which one the row edits."
    },
    {
     "key": "is_wh",
     "label": "IS-WH",
-    "default": 0,
-    "desc": "Infeed-signal to weigh hopper: delay between the discharge signal and the weigh hoppers opening.",
-    "startsAfter": []
+    "default": 100,
+    "after": [],
+    "unit": "wh",
+    "image": "derived/pt-cut-iswh.jpg",
+    "desc": "Infeed signal to weigh hopper: the delay before the weigh hoppers open. Everything downstream is timed from the end of this."
    },
    {
     "key": "wh_ph",
     "label": "WH-PH",
-    "default": 200,
-    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them. Its bar starts where IS-WH ends.",
-    "startsAfter": [
+    "default": 350,
+    "after": [
      "is_wh"
-    ]
+    ],
+    "unit": "whph",
+    "image": "derived/pt-cut-whph.jpg",
+    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them. Starts where IS-WH ends."
    },
    {
     "key": "ph_rf",
     "label": "PH-RF",
-    "default": 150,
-    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Its bar starts where WH-PH ends.",
-    "startsAfter": [
+    "default": 180,
+    "after": [
      "is_wh",
      "wh_ph"
-    ]
+    ],
+    "unit": "ph",
+    "image": "derived/pt-cut-phrf.jpg",
+    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Starts where WH-PH ends."
    },
    {
     "key": "stagger",
     "label": "STAGGER",
     "default": 0,
-    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once.",
-    "startsAfter": []
+    "after": [],
+    "unit": "stagger",
+    "image": "derived/pt-cut-stagger.jpg",
+    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once."
+   },
+   {
+    "key": "wh_bh",
+    "label": "WH-BH",
+    "default": 300,
+    "after": [
+     "is_wh"
+    ],
+    "unit": "bh",
+    "option": "bh",
+    "image": "derived/pt-cut-neutral.jpg",
+    "desc": "Weigh hopper to booster hopper: how long after the weigh hoppers open the booster hoppers below them open. Starts where IS-WH ends."
+   },
+   {
+    "key": "bh_wh",
+    "label": "BH-WH",
+    "default": 200,
+    "after": [
+     "is_wh",
+     "wh_bh"
+    ],
+    "unit": "bh",
+    "option": "bh",
+    "image": "derived/pt-cut-neutral.jpg",
+    "desc": "Booster hopper to weigh hopper: the delay before the weigh hoppers refill the boosters. Starts where WH-BH ends."
    },
    {
     "key": "wh_on",
     "label": "WH ON",
     "default": 450,
-    "desc": "Weigh hopper open time. Its bar starts where IS-WH ends - when the weigh hoppers open.",
-    "startsAfter": [
+    "after": [
      "is_wh"
-    ]
+    ],
+    "unit": "wh",
+    "image": "derived/pt-cut-whon.jpg",
+    "desc": "Weigh hopper open time. Starts where IS-WH ends - when the weigh hoppers open."
+   },
+   {
+    "key": "bh_on",
+    "label": "BH ON",
+    "default": 450,
+    "after": [
+     "is_wh",
+     "wh_bh"
+    ],
+    "unit": "bh",
+    "option": "bh",
+    "image": "derived/pt-cut-neutral.jpg",
+    "desc": "Booster hopper open time. Starts where WH-BH ends - when the boosters open."
    },
    {
     "key": "ph_on",
     "label": "PH ON",
-    "default": 400,
-    "desc": "Pool hopper open time. Its bar starts where WH-PH ends - when the pool hoppers open.",
-    "startsAfter": [
+    "default": 500,
+    "after": [
      "is_wh",
      "wh_ph"
-    ]
+    ],
+    "unit": "ph",
+    "image": "derived/pt-cut-phon.jpg",
+    "desc": "Pool hopper open time. Starts where WH-PH ends - when the pool hoppers open."
    }
   ],
   "step": {
@@ -13356,81 +13430,77 @@
    "min": 1,
    "max": 2550
   },
-  "note": "Measured off the running program: the single arrows move the selected row by 10 ms and the double arrows by 100; a row at 0 does not go lower; the Entr keypad (\"Time Input\", Maximum 2550, Minimum 1, digits append) writes into the selected row. The table header keeps reading WH-DS whichever row is picked - that is the program, not a fault here.",
+  "options": {
+   "bh": {
+    "label": "BH",
+    "name": "Booster hoppers",
+    "note": "Adds the WH-BH, BH-WH and BH ON rows and a ring of booster hoppers under the weigh hoppers on the cutaway."
+   },
+   "th": {
+    "label": "TH",
+    "name": "Timing hopper",
+    "note": "Adds the IS-TH row and makes the machine two sections: C1 (heads 1-8) adjusts TH1, C2 (heads 9-16) adjusts TH2."
+   },
+   "dth": {
+    "label": "DTH",
+    "name": "Diverting timing hoppers",
+    "note": "Adds the IS-DTH row: DTH1 and DTH2 belong to C1, DTH3 and DTH4 to C2, and the radio under the table picks which one the row edits."
+   }
+  },
+  "sections": {
+   "1": {
+    "label": "C1",
+    "heads": "1-8"
+   },
+   "2": {
+    "label": "C2",
+    "heads": "9-16"
+   }
+  },
+  "single": {
+   "label": "C1",
+   "heads": "1-14"
+  },
+  "note": "From a running 16-head two-section machine with boosters and timing hoppers (IMG_7816, 2026-09-03) and the Flash program. The single arrows move the selected row by 10 ms and the double arrows by 100; a row at 0 goes no lower; Entr (\"Time Input\", Maximum 2550, Minimum 1, digits append) writes into the row. The bars are a timeline of delays: each interval starts where the ones before it end, so raising IS-WH slides every later bar right. The program's first row read WH-DS (Production: WH-PH); the machine's reads IS-DS, which is used here. The header follows the selected row.",
   "screens": {
    "preset-timing": {
-    "rowImages": {
-     "wh_ds": "derived/pt-row-whds.jpg",
-     "is_wh": "derived/pt-row-iswh.jpg",
-     "wh_ph": "derived/pt-row-whph.jpg",
-     "ph_rf": "derived/pt-row-phrf.jpg",
-     "stagger": "derived/pt-row-stagger.jpg",
-     "wh_on": "derived/pt-row-whon.jpg",
-     "ph_on": "derived/pt-row-phon.jpg"
-    },
-    "rowRects": [
-     {
-      "key": "wh_ds",
-      "x": 266,
-      "y": 117,
-      "w": 201,
-      "h": 13
-     },
-     {
-      "key": "is_wh",
-      "x": 266,
-      "y": 135,
-      "w": 201,
-      "h": 12
-     },
-     {
-      "key": "wh_ph",
-      "x": 266,
-      "y": 152,
-      "w": 201,
-      "h": 12
-     },
-     {
-      "key": "ph_rf",
-      "x": 266,
-      "y": 168,
-      "w": 201,
-      "h": 14
-     },
-     {
-      "key": "stagger",
-      "x": 266,
-      "y": 186,
-      "w": 201,
-      "h": 13
-     },
-     {
-      "key": "wh_on",
-      "x": 266,
-      "y": 202,
-      "w": 201,
-      "h": 14
-     },
-     {
-      "key": "ph_on",
-      "x": 266,
-      "y": 220,
-      "w": 201,
-      "h": 13
-     }
-    ],
-    "value": {
-     "right": 467,
-     "w": 64,
-     "textPx": 12,
-     "colour": "#000000"
+    "table": {
+     "x": 267,
+     "right": 572,
+     "top": 115,
+     "pitch": 17.2,
+     "rowH": 17,
+     "labelX": 273,
+     "valueRight": 466,
+     "valueW": 60,
+     "divider": 456,
+     "textPx": 11
     },
     "bar": {
      "x": 468,
-     "max": 572,
+     "max": 571,
      "pxPerMs": 0.036,
      "colour": "#ffc92e",
-     "inset": 1
+     "inset": 2
+    },
+    "header": {
+     "x": 268,
+     "y": 89,
+     "w": 198,
+     "h": 24,
+     "textPx": 9
+    },
+    "c12": {
+     "x": 376,
+     "y": 92,
+     "w": 88,
+     "h": 18
+    },
+    "dthRadio": {
+     "x": 272,
+     "y": 378,
+     "w": 170,
+     "h": 17
     },
     "keys": {
      "dec100": {
@@ -13461,9 +13531,29 @@
       "h": 40,
       "label": "+100 ms"
      }
+    },
+    "cutaway": {
+     "bh": {
+      "x": 16,
+      "y": 254,
+      "w": 218,
+      "h": 26,
+      "n": 7
+     },
+     "th": {
+      "x": 148,
+      "y": 352,
+      "w": 58,
+      "h": 18
+     },
+     "dth": {
+      "x": 118,
+      "y": 380,
+      "w": 124,
+      "h": 18
+     }
     }
    }
-  },
-  "chainNote": "The bars are a timeline of delays: each interval starts where the ones before it end (IS-WH from the discharge signal, WH-PH when the weigh hoppers open, PH-RF when the pool hoppers open), so raising one slides everything after it to the right. Read off a running machine (IMG_7816) and consistent with the program."
+  }
  }
 }

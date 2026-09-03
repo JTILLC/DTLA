@@ -139,14 +139,18 @@ describe('navigation map integrity', () => {
     expect(fs.existsSync(path.join(root, 'public', navmap.screens['preset-feeder'].image))).toBe(true);
   });
 
-  it('the timing table has seven rows on the canvas, each with its own capture', () => {
+  it('the timing table rows each have a cutaway capture, and the keys sit on the canvas', () => {
     const ta = navmap.timingAdjust;
     const sc = ta.screens['preset-timing'];
-    expect(ta.rows.map((r) => r.label)).toEqual(['WH-DS', 'IS-WH', 'WH-PH', 'PH-RF', 'STAGGER', 'WH ON', 'PH ON']);
-    expect(sc.rowRects.map((r) => r.key)).toEqual(ta.rows.map((r) => r.key));
+    expect(ta.rows.map((r) => r.label)).toEqual(['IS-DS', 'IS-TH{n}', 'IS-DTH{n}', 'IS-WH', 'WH-PH', 'PH-RF',
+      'STAGGER', 'WH-BH', 'BH-WH', 'WH ON', 'BH ON', 'PH ON']);
     for (const r of ta.rows) {
-      expect(fs.existsSync(path.join(root, 'public', sc.rowImages[r.key])), r.key).toBe(true);
+      expect(fs.existsSync(path.join(root, 'public', r.image)), r.key).toBe(true);
+      for (const k of r.after) expect(ta.rows.some((x) => x.key === k), `${r.key} after ${k}`).toBe(true);
+      if (r.option) expect(ta.options[r.option], `${r.key} option`).toBeDefined();
     }
+    // Twelve rows fit inside the table panel.
+    expect(sc.table.top + ta.rows.length * sc.table.pitch).toBeLessThan(sc.dthRadio.y);
     for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
     expect(navmap.screens['preset-timing@entr'].keypad.seedFrom).toBe('timing');
     expect(navmap.screens['preset-timing@entr'].hotspots.find((h) => h.action === 'enter').commit).toBe('timing');
