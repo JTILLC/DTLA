@@ -96,7 +96,10 @@ right. HOME dimmed; Exit leaves. Cancel lights once something changes.
   pressing a head number clears it and picks that head alone.
 - **Timing Adjustment**: the timing table (WH-DS 110, IS-WH 0, WH-PH 200,
   PH-RF 150, STAGGER 0, WH ON 450, PH ON 400), row select highlights the
-  hoppers on the 3-D cutaway, Auto Cal Off, **Entr** keypad ("Time Input",
+  hoppers on the 3-D cutaway (weigh hoppers for WH-DS / IS-WH / WH ON, pool
+  hoppers for PH-RF / PH ON, the DS/IS tags and blue arrow following; the
+  header keeps saying WH-DS), Auto Cal Off (did not respond here), **Entr**
+  keypad ("Time Input",
   max 2550, min 1, digits append to the shown value), ◀◀ −100, ◀ −10,
   ▶ +10, ▶▶ +100 ms.
 - **Weight Setting**: Extended Upper Limit, Extended Upper Limit Dump

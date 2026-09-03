@@ -445,6 +445,7 @@ export const screenInfo = {
       { name: 'Timing item keys', desc: 'WH-DS, IS-WH, WH-PH, PH-RF, STAGGER — see Table 6-43 for what each interval means.' },
       { name: '10 ms / 100 ms keys', desc: 'Step adjustment.' },
       { name: 'Enter Time', desc: 'Direct ten-key entry.' },
+      { name: 'What was seen on the program', desc: 'Tap a row to select it: the band moves and the cutaway paints the hoppers that row is about (weigh hoppers for WH-DS, IS-WH and WH ON; pool hoppers for PH-RF and PH ON), with the DS/IS tags and the blue arrow following. The single arrows move the selected row by 10 ms, the double arrows by 100; a row at 0 goes no lower. Entr opens Time Input (Maximum 2550, Minimum 1, digits append) and writes into the row. The bars are a timeline, and the two PH rows start where WH-PH ends. The header keeps saying WH-DS whichever row is picked — that is the program.' },
     ],
   },
 

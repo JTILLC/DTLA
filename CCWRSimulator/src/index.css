@@ -937,6 +937,20 @@
    the drawn screen (0) and the lamps (2) and values (1) stay on top of it. */
 .fa-df-key { z-index: 0; }
 
+/* Timing Adjustment: the live numbers (right-aligned in the value cell) and
+   the timeline bars, drawn over the capture with those cells erased. */
+.ta-value {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  pointer-events: none;
+}
+.ta-bar { position: absolute; z-index: 1; pointer-events: none; }
+
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }
 

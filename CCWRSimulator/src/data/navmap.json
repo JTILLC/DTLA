@@ -919,7 +919,7 @@
   "preset-timing": {
    "frame": 81,
    "labelJa": "予約設定_タイミング",
-   "image": "screens/preset-timing.jpg",
+   "image": "derived/pt-row-whds.jpg",
    "hotspots": [
     {
      "x": 700,
@@ -971,7 +971,8 @@
      "label": "Help — blink the keys",
      "generated": true
     }
-   ]
+   ],
+   "baseNote": "Seven captures, one per selected row (see tools/timing_table.py); the app swaps them and draws the numbers and bars."
   },
   "preset-weight": {
    "frame": 91,
@@ -8760,7 +8761,9 @@
      "w": 250,
      "h": 60
     },
-    "seed": "110"
+    "seedFrom": "timing",
+    "min": 1,
+    "max": 2550
    },
    "hotspots": [
     {
@@ -8883,7 +8886,8 @@
      "h": 37,
      "to": "preset-timing",
      "action": "enter",
-     "label": "Enter"
+     "label": "Enter",
+     "commit": "timing"
     }
    ]
   },
@@ -13279,5 +13283,176 @@
   ],
   "note": "Service 4.4.3.2.1: three hopper-drive parameter sets exist per unit, and the preset chooses which one the unit runs. The list was not captured (the header never opened under Ruffle), so it is drawn.",
   "drawerNote": "drawn from Service 4.4.3.2.1 — the open list was not captured"
+ },
+ "timingAdjust": {
+  "rows": [
+   {
+    "key": "wh_ds",
+    "label": "WH-DS",
+    "default": 110,
+    "startsAfter": null,
+    "desc": "Discharge request to discharge complete: the time from the packer asking for product to the weigh hoppers having dumped it."
+   },
+   {
+    "key": "is_wh",
+    "label": "IS-WH",
+    "default": 0,
+    "startsAfter": null,
+    "desc": "Infeed-signal to weigh hopper: delay between the discharge signal and the weigh hoppers opening."
+   },
+   {
+    "key": "wh_ph",
+    "label": "WH-PH",
+    "default": 200,
+    "startsAfter": null,
+    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them."
+   },
+   {
+    "key": "ph_rf",
+    "label": "PH-RF",
+    "default": 150,
+    "startsAfter": "wh_ph",
+    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Its bar starts where WH-PH ends."
+   },
+   {
+    "key": "stagger",
+    "label": "STAGGER",
+    "default": 0,
+    "startsAfter": null,
+    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once."
+   },
+   {
+    "key": "wh_on",
+    "label": "WH ON",
+    "default": 450,
+    "startsAfter": null,
+    "desc": "Weigh hopper open time."
+   },
+   {
+    "key": "ph_on",
+    "label": "PH ON",
+    "default": 400,
+    "startsAfter": "wh_ph",
+    "desc": "Pool hopper open time. Its bar starts where WH-PH ends."
+   }
+  ],
+  "step": {
+   "single": 10,
+   "double": 100
+  },
+  "min": 0,
+  "max": 2550,
+  "keypad": {
+   "min": 1,
+   "max": 2550
+  },
+  "note": "Measured off the running program: the single arrows move the selected row by 10 ms and the double arrows by 100; a row at 0 does not go lower; the Entr keypad (\"Time Input\", Maximum 2550, Minimum 1, digits append) writes into the selected row. The table header keeps reading WH-DS whichever row is picked - that is the program, not a fault here.",
+  "screens": {
+   "preset-timing": {
+    "rowImages": {
+     "wh_ds": "derived/pt-row-whds.jpg",
+     "is_wh": "derived/pt-row-iswh.jpg",
+     "wh_ph": "derived/pt-row-whph.jpg",
+     "ph_rf": "derived/pt-row-phrf.jpg",
+     "stagger": "derived/pt-row-stagger.jpg",
+     "wh_on": "derived/pt-row-whon.jpg",
+     "ph_on": "derived/pt-row-phon.jpg"
+    },
+    "rowRects": [
+     {
+      "key": "wh_ds",
+      "x": 266,
+      "y": 117,
+      "w": 201,
+      "h": 13
+     },
+     {
+      "key": "is_wh",
+      "x": 266,
+      "y": 135,
+      "w": 201,
+      "h": 12
+     },
+     {
+      "key": "wh_ph",
+      "x": 266,
+      "y": 152,
+      "w": 201,
+      "h": 12
+     },
+     {
+      "key": "ph_rf",
+      "x": 266,
+      "y": 168,
+      "w": 201,
+      "h": 14
+     },
+     {
+      "key": "stagger",
+      "x": 266,
+      "y": 186,
+      "w": 201,
+      "h": 13
+     },
+     {
+      "key": "wh_on",
+      "x": 266,
+      "y": 202,
+      "w": 201,
+      "h": 14
+     },
+     {
+      "key": "ph_on",
+      "x": 266,
+      "y": 220,
+      "w": 201,
+      "h": 13
+     }
+    ],
+    "value": {
+     "right": 467,
+     "w": 64,
+     "textPx": 12,
+     "colour": "#000000"
+    },
+    "bar": {
+     "x": 468,
+     "max": 572,
+     "pxPerMs": 0.036,
+     "colour": "#ffc92e",
+     "inset": 1
+    },
+    "keys": {
+     "dec100": {
+      "x": 386,
+      "y": 402,
+      "w": 48,
+      "h": 40,
+      "label": "-100 ms"
+     },
+     "dec10": {
+      "x": 436,
+      "y": 402,
+      "w": 48,
+      "h": 40,
+      "label": "-10 ms"
+     },
+     "inc10": {
+      "x": 486,
+      "y": 402,
+      "w": 48,
+      "h": 40,
+      "label": "+10 ms"
+     },
+     "inc100": {
+      "x": 537,
+      "y": 402,
+      "w": 48,
+      "h": 40,
+      "label": "+100 ms"
+     }
+    }
+   }
+  }
  }
 }

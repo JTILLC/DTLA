@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { pointInRect, conditionsMet } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
 import FeederChart from './FeederChart';
+import { bar as timingBar } from '../utils/timing';
 
 /**
  * The RCU screen: the 800x600 capture with the real (extracted) hotspots
@@ -36,6 +37,7 @@ export default function Rcu({
   notice,         // transient message (e.g. tapping a dead key with power off)
   flags,          // the machine's state: level, running, drain, lamps… (+ power)
   typed,          // what is typed on an open keypad
+  timing,         // Timing Adjustment: selected row + values (utils/timing.js)
   blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -72,7 +74,11 @@ export default function Rcu({
   /* The art answers to the machine's state: the Main Menu at Maintenance
      level has the Preset key and the Machine Set handle, the Weight page
      with Average Control on has its Lower Weight Limit. */
+  // Timing Adjustment: the background is the capture of the selected row.
+  const ta = navmap.timingAdjust;
+  const taScreen = ta?.screens?.[slug] || null;
   const imageFor = () => {
+    if (taScreen && timing) return taScreen.rowImages[timing.sel];
     for (const [flag, image] of Object.entries(screen.imageBy || {})) {
       if (flags?.[flag] === true || (flag === 'level4' && flags?.level === 4)) return image;
     }
@@ -733,6 +739,61 @@ export default function Rcu({
               </button>
             ))}
           </div>
+        )}
+
+        {/* Timing Adjustment (6.13): the rows are keys, the arrows step the
+            selected one by 10 or 100 ms, and the numbers and bars are drawn
+            from the values — the captures behind have those cells erased. */}
+        {taScreen && timing && (
+          <>
+            {taScreen.rowRects.map((r) => {
+              const row = ta.rows.find((x) => x.key === r.key);
+              const v = timing.values[r.key];
+              const b = timingBar(timing, ta, taScreen.bar, r.key);
+              return (
+                <React.Fragment key={r.key}>
+                  <button
+                    type="button"
+                    className={'hotspot' + (timing.sel === r.key ? ' ta-row--sel' : '')}
+                    style={rectStyle(r)}
+                    aria-label={`${row.label} row — ${v} ms${timing.sel === r.key ? ', selected' : ''}`}
+                    title={row.desc}
+                    onClick={() => onTap({ type: 'timing-row', key: r.key })}
+                  />
+                  <span
+                    className="ta-value"
+                    style={{
+                      ...rectStyle({ x: taScreen.value.right - taScreen.value.w, y: r.y, w: taScreen.value.w, h: r.h }),
+                      color: taScreen.value.colour,
+                      fontSize: `clamp(6px, ${(taScreen.value.textPx / CW) * 100}cqw, ${taScreen.value.textPx * 1.5}px)`,
+                    }}
+                  >
+                    {v}
+                  </span>
+                  {b.w > 0 && (
+                    <div
+                      className="ta-bar"
+                      style={{
+                        ...rectStyle({ x: b.x, y: r.y + taScreen.bar.inset, w: b.w, h: r.h - 2 * taScreen.bar.inset }),
+                        background: taScreen.bar.colour,
+                      }}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {[['dec100', -100], ['dec10', -10], ['inc10', 10], ['inc100', 100]].map(([k, delta]) => (
+              <button
+                key={k}
+                type="button"
+                className="hotspot"
+                style={rectStyle(taScreen.keys[k])}
+                aria-label={taScreen.keys[k].label}
+                title={`${taScreen.keys[k].label} on the selected row (${ta.rows.find((x) => x.key === timing.sel).label})`}
+                onClick={() => onTap({ type: 'timing-step', delta })}
+              />
+            ))}
+          </>
         )}
 
         {hpHere && (

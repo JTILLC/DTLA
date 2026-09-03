@@ -139,6 +139,19 @@ describe('navigation map integrity', () => {
     expect(fs.existsSync(path.join(root, 'public', navmap.screens['preset-feeder'].image))).toBe(true);
   });
 
+  it('the timing table has seven rows on the canvas, each with its own capture', () => {
+    const ta = navmap.timingAdjust;
+    const sc = ta.screens['preset-timing'];
+    expect(ta.rows.map((r) => r.label)).toEqual(['WH-DS', 'IS-WH', 'WH-PH', 'PH-RF', 'STAGGER', 'WH ON', 'PH ON']);
+    expect(sc.rowRects.map((r) => r.key)).toEqual(ta.rows.map((r) => r.key));
+    for (const r of ta.rows) {
+      expect(fs.existsSync(path.join(root, 'public', sc.rowImages[r.key])), r.key).toBe(true);
+    }
+    for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
+    expect(navmap.screens['preset-timing@entr'].keypad.seedFrom).toBe('timing');
+    expect(navmap.screens['preset-timing@entr'].hotspots.find((h) => h.action === 'enter').commit).toBe('timing');
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

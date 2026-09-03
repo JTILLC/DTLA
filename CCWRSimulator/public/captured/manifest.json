@@ -548,6 +548,14 @@
   "file": "captured/psc-panel01.jpg",
   "sha1": "a163a23bffaa567096960c8059dd074b8bc4a149"
  },
+ "pt-autocal-on": {
+  "file": "captured/pt-autocal-on.jpg",
+  "sha1": "8ab148ab5ab2a101380173850de06da754ba659c"
+ },
+ "pt-entr-applied": {
+  "file": "captured/pt-entr-applied.jpg",
+  "sha1": "a1ea1421e31ebd9eb628807963de647fd249c826"
+ },
  "pt-lamp1-on": {
   "file": "captured/pt-lamp1-on.jpg",
   "sha1": "fe1d4aa73e1e0030f18a36e14544e504626961e4"
@@ -555,6 +563,44 @@
  "pt-panel02": {
   "file": "captured/pt-panel02.jpg",
   "sha1": "4ce94150b9eecffa555ad7f80eaf4f988a884600"
+ },
+ "pt-phrf-plus10": {
+  "file": "captured/pt-phrf-plus10.jpg",
+  "sha1": "df9da1ae5b2e874515d79c01486ad8f0dc06b481"
+ },
+ "pt-phrf-plus110": {
+  "file": "captured/pt-phrf-plus110.jpg",
+  "sha1": "af8c0b5bfd84661a23a3d133a264a9f974e503ab"
+ },
+ "pt-row-iswh": {
+  "file": "captured/pt-row-iswh.jpg",
+  "sha1": "ae9dd2785d5610bf850193202ca04b1ac9f144cd"
+ },
+ "pt-row-phon": {
+  "alias": "pt-autocal-on"
+ },
+ "pt-row-phrf": {
+  "file": "captured/pt-row-phrf.jpg",
+  "sha1": "792d208f2ec235aac776a8c287c3f3ae1b28b39c"
+ },
+ "pt-row-stagger": {
+  "file": "captured/pt-row-stagger.jpg",
+  "sha1": "bd001a6b78bc18fcb15fe25e5bfff5402d757b2e"
+ },
+ "pt-row-whds": {
+  "file": "captured/pt-row-whds.jpg",
+  "sha1": "ef4d3ebeb762c68876c61cced5fa3f5db373096d"
+ },
+ "pt-row-whon": {
+  "file": "captured/pt-row-whon.jpg",
+  "sha1": "6ad1f4e50d5ece9c7be559dede70b090e059f6e7"
+ },
+ "pt-row-whph": {
+  "file": "captured/pt-row-whph.jpg",
+  "sha1": "333a09be10016e589e2b9d687a1a712855432cd2"
+ },
+ "pt-stagger-minus10": {
+  "alias": "pt-row-stagger"
  },
  "pw-panel02": {
   "file": "captured/pw-panel02.jpg",

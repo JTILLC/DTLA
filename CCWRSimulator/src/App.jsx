@@ -11,6 +11,7 @@ import LessonPanel from './components/LessonPanel';
 import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
+import { initialTiming, migrateTiming, selectRow, step as timingStep, enter as timingEnter } from './utils/timing';
 
 const STORAGE_KEY = 'ccwr-sim-v1';
 
@@ -71,6 +72,10 @@ export default function App() {
   const [feeder, setFeeder] = useState(
     () => (saved.feeder ? migrateFeeder(saved.feeder, navmap.feederAdjust)
       : initialFeeder(navmap.feederAdjust)));
+  /* Timing Adjustment: the selected row and the seven intervals (6.13). */
+  const [timing, setTiming] = useState(
+    () => (saved.timing ? migrateTiming(saved.timing, navmap.timingAdjust)
+      : initialTiming(navmap.timingAdjust)));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -127,14 +132,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection, feeder, flags,
+          selection, feeder, flags, timing,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection, feeder, flags]);
+      powerOn, loadedPreset, selection, feeder, flags, timing]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -197,7 +202,8 @@ export default function App() {
   useEffect(() => {
     const s = navmap.screens[screen];
     if (!s?.keypad) return;
-    if (s.keypad.seedFrom) setTyped(String(feeder[s.keypad.seedFrom] ?? ''));
+    if (s.keypad.seedFrom === 'timing') setTyped(String(timing.values[timing.sel]));
+    else if (s.keypad.seedFrom) setTyped(String(feeder[s.keypad.seedFrom] ?? ''));
     else setTyped(s.keypad.seed || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen]);
@@ -308,6 +314,22 @@ export default function App() {
             : `Selected: ${describeHeads(next)}. Blue heads are the ones Increase and Decrease move (6.12).`),
         );
       }
+      return;
+    }
+
+    if (evt.type === 'timing-row') {
+      const row = navmap.timingAdjust.rows.find((r) => r.key === evt.key);
+      setTiming((t) => selectRow(t, evt.key));
+      showNotice(`${row.label}: ${row.desc} The arrows and Entr now act on this row.`);
+      return;
+    }
+    if (evt.type === 'timing-step') {
+      const { state: next, changed } = timingStep(timing, navmap.timingAdjust, evt.delta);
+      setTiming(next);
+      const row = navmap.timingAdjust.rows.find((r) => r.key === timing.sel);
+      showNotice(changed === 0
+        ? `${row.label} is already at ${next.values[timing.sel]} ms — the arrows stop at ${evt.delta < 0 ? navmap.timingAdjust.min : navmap.timingAdjust.max}.`
+        : `${row.label} ${changed > 0 ? '+' : ''}${changed} ms → ${next.values[timing.sel]} ms.`);
       return;
     }
 
@@ -436,7 +458,17 @@ export default function App() {
       setFlags((f) => applySets(f, evt.sets));
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
-      if (evt.action === 'enter' && evt.commit) {
+      if (evt.action === 'enter' && evt.commit === 'timing') {
+        const { state: next, reason } = timingEnter(timing, navmap.timingAdjust, typed);
+        setTiming(next);
+        const row = navmap.timingAdjust.rows.find((r) => r.key === timing.sel);
+        const { min, max } = navmap.timingAdjust.keypad;
+        showNotice(reason === 'empty'
+          ? `Nothing entered — ${row.label} is unchanged.`
+          : reason === 'clamped'
+            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): ${row.label} ${next.values[timing.sel]} ms.`
+            : `${row.label} set to ${next.values[timing.sel]} ms.`);
+      } else if (evt.action === 'enter' && evt.commit) {
         /* The DF keypads chain: Target Wt, then Upper Limit(%), then Lower
            Limit(%) (seen on the running program). Each Enter commits its own
            field and opens the next; the last returns to the screen. */
@@ -492,7 +524,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection, flags, typed]);
+      applySelection, flags, typed, timing]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -603,6 +635,7 @@ export default function App() {
           feeder={feeder && { ...feeder, heads: selection.table ? [] : selection.heads }}
           flags={{ ...flags, power: powerOn }}
           typed={typed}
+          timing={timing}
           blink={blink}
           zeroing={zeroing}
           notice={notice}
