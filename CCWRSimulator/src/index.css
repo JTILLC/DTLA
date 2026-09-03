@@ -1104,6 +1104,91 @@
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }
 
+/* A drawn RCU-style key that is not on the real unit (the Deselect key). */
+.rcu-key-drawn {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  background: linear-gradient(#f4f4f4, #c4c4c4);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0,0,0,0.5);
+  color: #1c1c1c;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.rcu-key-drawn:disabled { opacity: 0.45; cursor: default; }
+
+/* The key icon's access-level dots. */
+.level-dots { position: absolute; z-index: 2; display: flex; justify-content: space-between; pointer-events: none; }
+.level-dots i {
+  display: block;
+  width: 22.4%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d0d0d8, #7a7a86 55%, #3c3c46);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+}
+.level-dots i.is-lit { background: radial-gradient(circle at 35% 30%, #ffffc0, #ffe600 55%, #b89800); }
+
+/* Production's Combination screen while running. */
+.pr-readout {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  font-family: "Courier New", "Lucida Console", monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.pr-badge {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+.pr-badge--selected { background: #fff; color: #10106a; box-shadow: 0 0 0 1px #10106a; }
+.pr-badge--autozero { background: #5a5ae8; color: #40ffff; box-shadow: 0 0 0 1px #5a5ae8; }
+.pr-badge--empty { background: #5a5ae8; color: #ff2020; box-shadow: 0 0 0 1px #5a5ae8; }
+.pr-legend {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+  color: #40ff40;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.pr-legend__track { display: inline-flex; height: 100%; align-items: center; }
+.pr-legend__track--run { animation: pr-marquee 14s linear infinite; }
+.pr-legend__set { display: inline-flex; gap: 1.2em; padding-right: 1.2em; }
+.pr-legend__item { display: inline-flex; align-items: center; gap: 0.4em; }
+.pr-sym { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%; }
+.pr-sym--selected { background: #fff; }
+.pr-sym--available { border: 1px solid #fff; box-sizing: border-box; }
+.pr-sym--autozero { width: 0; height: 0; border-radius: 0; border-left: 0.45em solid transparent; border-right: 0.45em solid transparent; border-bottom: 0.85em solid #40ffff; }
+.pr-sym--empty { height: 2px; border-radius: 0; background: #ff2020; }
+.pr-sym--error { position: relative; border-radius: 0; background: none; }
+.pr-sym--error::before, .pr-sym--error::after { content: ''; position: absolute; left: 45%; top: -10%; width: 2px; height: 120%; background: #ff2020; transform: rotate(45deg); }
+.pr-sym--error::after { transform: rotate(-45deg); }
+.pr-sym--deactivated { border-radius: 0; background: none; color: #ffe600; }
+.pr-sym--deactivated::before { content: '✳'; font-size: 0.9em; }
+.pr-sym--unavailable { width: 0.2em; }
+@keyframes pr-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
 /* The DF target weight, written on the Target Wt key above its label. */
 .fa-run-value--top { z-index: 3; font-size: clamp(7px, 1.4cqw, 13px); }
 .fa-run-value--centre { justify-content: center; }

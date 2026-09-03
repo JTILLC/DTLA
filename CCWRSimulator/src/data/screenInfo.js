@@ -124,6 +124,7 @@ export const screenInfo = {
       { name: 'Infeed Control', desc: 'Lamp on = product infeed to the weigher is controlled automatically; lamp off = infeed stopped.' },
       { name: 'Tabs', desc: 'Combination, Feeder Adjust, Timing Adjust, Total Data and Weight Display switch the production view.' },
       { name: 'Exit', desc: 'Returns to the Main Menu.' },
+      { name: 'While running (seen on the program)', desc: 'Every cycle a combination of hoppers is chosen and its members get the filled Selected badge; the readout shows that combination\'s weight, a few tenths over target; now and then a hopper shows the cyan triangle (Auto Zero) or the red dash (Empty) in place of its number; the legend strip along the bottom scrolls. The hoppers themselves stay blue. The simulator plays the same thing at the program\'s 80 wpm cadence with made-up weights; Stop freezes it with the readout holding.' },
     ],
     note:
       'WARNING (6.6): when Start is pressed the feeders and hoppers start ' +

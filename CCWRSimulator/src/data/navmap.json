@@ -14420,7 +14420,15 @@
      "w": 56,
      "h": 16
     },
-    "dfNote": "With the dispersion feeder picked, a real CCW-R relabels the four keys along the top: DF Time, DF AMP, DF Weight (a lamp key) and Target Wt showing the DF target weight (photographed on a running machine, 2026-09-03). The Flash program this simulator is built from does NOT do this - its keys keep reading RF - so those four keys are drawn from the photograph, not captured."
+    "dfNote": "With the dispersion feeder picked, a real CCW-R relabels the four keys along the top: DF Time, DF AMP, DF Weight (a lamp key) and Target Wt showing the DF target weight (photographed on a running machine, 2026-09-03). The Flash program this simulator is built from does NOT do this - its keys keep reading RF - so those four keys are drawn from the photograph, not captured.",
+    "deselectKey": {
+     "x": 735,
+     "y": 300,
+     "w": 58,
+     "h": 36,
+     "label": "Deselect",
+     "note": "A trainer's key, not on the RCU: clears the head selection back to head 1 alone, on the radial feeders."
+    }
    }
   },
   "lampOn": "keys/lamp-on.png",
@@ -14909,5 +14917,148 @@
     }
    }
   }
+ },
+ "production": {
+  "screen": "run-combination",
+  "badges": [
+   {
+    "no": 1,
+    "x": 253,
+    "y": 342
+   },
+   {
+    "no": 2,
+    "x": 307,
+    "y": 326
+   },
+   {
+    "no": 3,
+    "x": 345,
+    "y": 289
+   },
+   {
+    "no": 4,
+    "x": 359,
+    "y": 246
+   },
+   {
+    "no": 5,
+    "x": 344,
+    "y": 204
+   },
+   {
+    "no": 6,
+    "x": 309,
+    "y": 170
+   },
+   {
+    "no": 7,
+    "x": 253,
+    "y": 148
+   },
+   {
+    "no": 8,
+    "x": 194,
+    "y": 148
+   },
+   {
+    "no": 9,
+    "x": 139,
+    "y": 170
+   },
+   {
+    "no": 10,
+    "x": 103,
+    "y": 204
+   },
+   {
+    "no": 11,
+    "x": 90,
+    "y": 246
+   },
+   {
+    "no": 12,
+    "x": 103,
+    "y": 289
+   },
+   {
+    "no": 13,
+    "x": 141,
+    "y": 326
+   },
+   {
+    "no": 14,
+    "x": 194,
+    "y": 342
+   }
+  ],
+  "badge": {
+   "d": 15,
+   "textPx": 9
+  },
+  "readout": {
+   "x": 150,
+   "y": 48,
+   "w": 480,
+   "h": 76,
+   "textPx": 50,
+   "colour": "#f7c832"
+  },
+  "legend": {
+   "x": 22,
+   "y": 406,
+   "w": 368,
+   "h": 17,
+   "textPx": 9,
+   "items": [
+    [
+     "selected",
+     "Selected"
+    ],
+    [
+     "available",
+     "Available"
+    ],
+    [
+     "autozero",
+     "Auto Zero"
+    ],
+    [
+     "empty",
+     "Empty"
+    ],
+    [
+     "error",
+     "Error"
+    ],
+    [
+     "deactivated",
+     "Deactivated"
+    ],
+    [
+     "unavailable",
+     "Unavailable"
+    ]
+   ]
+  },
+  "target": 90.0,
+  "cycleMs": 750,
+  "headWeight": {
+   "mean": 22,
+   "spread": 7
+  },
+  "combSize": [
+   3,
+   5
+  ],
+  "note": "Watched on the running program (20 frames at 240 ms): every cycle a combination of hoppers gets the filled Selected badge and the readout shows that combination weight near target; now and then a hopper shows the cyan triangle (Auto Zero) or the red dash (Empty) instead of its number; the hoppers themselves stay blue; the legend strip along the bottom scrolls. The badge positions were measured off the screenshot."
+ },
+ "levelDots": {
+  "x": 568,
+  "y": 11,
+  "d": 11,
+  "gap": 13,
+  "n": 4,
+  "note": "The key icon's four dots show the access level: Operator 1 lit, Site Engineer 2, Installation 3, Maintenance 4. The extracted frames all carry four lit (the movie was dumped at Maintenance), so the dots are drawn over every screen from the live level."
  }
 }

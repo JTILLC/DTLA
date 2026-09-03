@@ -3,6 +3,7 @@ import { pointInRect, conditionsMet } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
 import FeederChart from './FeederChart';
+import ProductionRing from './ProductionRing';
 import { bar as timingBar, visibleRows, hasSections, rowOf, rowLabel, valueKey } from '../utils/timing';
 
 /**
@@ -639,6 +640,21 @@ export default function Rcu({
               </>
             )}
 
+            {/* A trainer's key (not on the RCU): back to head 1 alone. */}
+            {faScreen.deselectKey && !popupHere && (
+              <button
+                type="button"
+                className="rcu-key-drawn"
+                style={{ ...rectStyle(faScreen.deselectKey), fontSize: `clamp(7px, ${(11 / CW) * 100}cqw, 14px)` }}
+                title={faScreen.deselectKey.note}
+                aria-label="Deselect — back to head 1 alone"
+                disabled={feeder.feeder === 'rf' && feeder.heads.length === 1 && feeder.heads[0] === 1}
+                onClick={() => onTap({ type: 'feeder-deselect' })}
+              >
+                {faScreen.deselectKey.label}
+              </button>
+            )}
+
             {faScreen.dfLabel && feeder.feeder === 'df' && (
               <img className="key-lit key-lit--overlay" src={`/${faScreen.dfLabel.image}`} alt="DF"
                 style={rectStyle(faScreen.dfLabel)} />
@@ -874,6 +890,25 @@ export default function Rcu({
             </>
           );
         })()}
+
+        {/* The access level's dots on the key icon. Every extracted frame
+            carries four lit (the movie was dumped at Maintenance), so they
+            are drawn from the live level: Operator 1, up to Maintenance 4. */}
+        {navmap.levelDots && (
+          <div className="level-dots" style={rectStyle({ x: navmap.levelDots.x, y: navmap.levelDots.y,
+            w: navmap.levelDots.gap * (navmap.levelDots.n - 1) + navmap.levelDots.d, h: navmap.levelDots.d })} aria-hidden="true"
+            title={`Access level ${flags?.level ?? 1} of 4`}>
+            {Array.from({ length: navmap.levelDots.n }, (_, i) => (
+              <i key={i} className={i < (flags?.level ?? 1) ? 'is-lit' : ''} />
+            ))}
+          </div>
+        )}
+
+        {/* Production's Combination screen, running: the combination badges,
+            the readout and the scrolling legend (components/ProductionRing). */}
+        {navmap.production && navmap.production.screen === slug && (
+          <ProductionRing spec={navmap.production} running={Boolean(flags?.running)} rectStyle={rectStyle} pct={pct} CW={CW} />
+        )}
 
         {/* Values the artwork cannot change, written over it: a field's
             picked entry, a header's picked set. Data-driven (screen.liveText);

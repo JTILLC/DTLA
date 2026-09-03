@@ -361,6 +361,14 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'feeder-deselect') {
+      /* The trainer's Deselect key: head 1 alone, on the radial feeders. */
+      setFeeder((f) => selectFeeder(f, 'rf'));
+      applySelection(() => ({ heads: [1], table: false }),
+        () => 'Selection cleared to head 1. Tap heads to add them again.');
+      return;
+    }
+
     if (evt.type === 'hdrv-param') {
       const unit = navmap.hdrvParameter?.units?.[evt.unit] || 'this unit';
       const opt = navmap.hdrvParameter?.options.find((o) => o.no === evt.no);
