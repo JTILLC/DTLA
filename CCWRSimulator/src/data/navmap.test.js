@@ -105,8 +105,17 @@ describe('navigation map integrity', () => {
       const kp = navmap.screens[popup];
       expect(kp.keypad.seedFrom).toBe('dfTargetWt');
       expect(kp.keypad).toMatchObject({ min: 1, max: 9999 });
+      // Enter chains through Upper Limit(%) and Lower Limit(%) before it
+      // returns; CANCEL on any of the three drops back to the screen.
       const enter = kp.hotspots.find((h) => h.action === 'enter');
-      expect(enter).toMatchObject({ to: parent, commit: 'dfTargetWt' });
+      expect(enter).toMatchObject({ to: `${parent}@df-upper-pct`, commit: 'dfTargetWt' });
+      const upper = navmap.screens[`${parent}@df-upper-pct`];
+      const lower = navmap.screens[`${parent}@df-lower-pct`];
+      expect(upper.keypad).toMatchObject({ seedFrom: 'dfUpperPct', min: 0, max: 100 });
+      expect(lower.keypad).toMatchObject({ seedFrom: 'dfLowerPct', min: 0, max: 100 });
+      expect(upper.hotspots.find((h) => h.action === 'enter')).toMatchObject({ to: `${parent}@df-lower-pct`, commit: 'dfUpperPct' });
+      expect(lower.hotspots.find((h) => h.action === 'enter')).toMatchObject({ to: parent, commit: 'dfLowerPct' });
+      for (const step of [upper, lower]) expect(step.hotspots.find((h) => h.action === 'cancel').to).toBe(parent);
       expect(kp.hotspots.find((h) => h.action === 'cancel').to).toBe(parent);
       // Ten digits and no decimal point: the keypad's "." key is blank.
       expect(kp.hotspots.filter((h) => h.action === 'key').map((h) => h.char).sort())

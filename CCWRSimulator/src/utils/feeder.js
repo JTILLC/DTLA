@@ -37,6 +37,8 @@ export function initialFeeder(spec) {
     rf,
     df: { time, amp },
     dfTargetWt: spec.dfTargetWt?.default ?? 500,   // the DF pan's target weight
+    dfUpperPct: spec.dfLimits?.default ?? 20,      // its upper limit, %
+    dfLowerPct: spec.dfLimits?.default ?? 20,      // its lower limit, %
   };
 }
 
@@ -46,18 +48,24 @@ export const migrateFeeder = (saved, spec) => {
   return { ...fresh, ...saved, params: { ...fresh.params, ...(saved.params || {}) } };
 };
 
+/** The keypad limits each DF field is held to: Target Wt has its own, the
+ *  two percentage limits share one pair. */
+export const dfFieldSpec = (field, spec) => (field === 'dfTargetWt' ? spec.dfTargetWt : spec.dfLimits);
+
 /**
- * Enter on the DF Weight Setting keypad. The keypad shows Maximum 9999 and
- * Minimum 1, so an entry is held inside them; an empty or unreadable entry
- * leaves the value alone.
+ * Enter on one of the DF keypads — DF Weight Setting, then Upper Limit(%),
+ * then Lower Limit(%). Each shows its Maximum and Minimum, so an entry is held
+ * inside them; an empty or unreadable entry leaves the value alone.
  */
-export function setDfTargetWt(state, typed, spec) {
+export function setDfField(state, field, typed, spec) {
   const n = parseInt(String(typed).replace(/[^0-9]/g, ''), 10);
   if (Number.isNaN(n)) return { state, reason: 'empty' };
-  const { min, max } = spec.dfTargetWt;
+  const { min, max } = dfFieldSpec(field, spec);
   const clamped = Math.min(max, Math.max(min, n));
-  return { state: { ...state, dfTargetWt: clamped }, reason: clamped === n ? null : 'clamped' };
+  return { state: { ...state, [field]: clamped }, reason: clamped === n ? null : 'clamped' };
 }
+
+export const setDfTargetWt = (state, typed, spec) => setDfField(state, 'dfTargetWt', typed, spec);
 
 const round1 = (n) => Math.round(n * 10) / 10;
 

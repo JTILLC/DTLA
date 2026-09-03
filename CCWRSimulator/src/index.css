@@ -933,6 +933,10 @@
   pointer-events: none;
 }
 
+/* The four DF key faces on Production: a face is artwork, so it sits with
+   the drawn screen (0) and the lamps (2) and values (1) stay on top of it. */
+.fa-df-key { z-index: 0; }
+
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }
 

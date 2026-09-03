@@ -180,7 +180,7 @@ describe('Read Default', () => {
 
 describe('DF target weight', () => {
   it('starts at the captured 500 and is held inside the keypad limits', async () => {
-    const { setDfTargetWt, migrateFeeder } = await import('./feeder');
+    const { setDfTargetWt, migrateFeeder, setDfField } = await import('./feeder');
     const s = start();
     expect(s.dfTargetWt).toBe(500);
     expect(s.params.weight).toBe(false);
@@ -188,6 +188,11 @@ describe('DF target weight', () => {
     expect(setDfTargetWt(s, '12000', spec)).toMatchObject({ state: { dfTargetWt: 9999 }, reason: 'clamped' });
     expect(setDfTargetWt(s, '0', spec)).toMatchObject({ state: { dfTargetWt: 1 }, reason: 'clamped' });
     expect(setDfTargetWt(s, '', spec)).toMatchObject({ state: s, reason: 'empty' });
+    // The two percentage limits start at the captured 20 and are held to 0..100.
+    expect(s.dfUpperPct).toBe(20);
+    expect(s.dfLowerPct).toBe(20);
+    expect(setDfField(s, 'dfUpperPct', '150', spec)).toMatchObject({ state: { dfUpperPct: 100 }, reason: 'clamped' });
+    expect(setDfField(s, 'dfLowerPct', '0', spec)).toMatchObject({ state: { dfLowerPct: 0 }, reason: null });
     // A state saved before the field existed comes back with it.
     const old = { ...s }; delete old.dfTargetWt; old.params = { time: true, amp: false };
     const m = migrateFeeder(old, spec);

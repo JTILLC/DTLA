@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import navmap from './data/navmap.json';
-import { initialFeeder, migrateFeeder, toggleParam, selectFeeder, adjust, readDefault, setDfTargetWt } from './utils/feeder';
+import { initialFeeder, migrateFeeder, toggleParam, selectFeeder, adjust, readDefault, setDfField, dfFieldSpec } from './utils/feeder';
 import { initialPans, togglePan, toggleTable, selectAllHeads, selectTable, ensurePan,
   nothingSelected, describe as describeSel, describeHeads } from './utils/panSelect';
 import lessons from './data/lessons';
@@ -197,7 +197,7 @@ export default function App() {
   useEffect(() => {
     const s = navmap.screens[screen];
     if (!s?.keypad) return;
-    if (s.keypad.seedFrom === 'dfTargetWt') setTyped(String(feeder.dfTargetWt));
+    if (s.keypad.seedFrom) setTyped(String(feeder[s.keypad.seedFrom] ?? ''));
     else setTyped(s.keypad.seed || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen]);
@@ -436,15 +436,24 @@ export default function App() {
       setFlags((f) => applySets(f, evt.sets));
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
-      if (evt.action === 'enter' && evt.commit === 'dfTargetWt') {
-        const { state: next, reason } = setDfTargetWt(feeder, typed, navmap.feederAdjust);
+      if (evt.action === 'enter' && evt.commit) {
+        /* The DF keypads chain: Target Wt, then Upper Limit(%), then Lower
+           Limit(%) (seen on the running program). Each Enter commits its own
+           field and opens the next; the last returns to the screen. */
+        const field = evt.commit;
+        const { state: next, reason } = setDfField(feeder, field, typed, navmap.feederAdjust);
         setFeeder(next);
-        const { min, max } = navmap.feederAdjust.dfTargetWt;
-        showNotice(reason === 'empty'
-          ? 'Nothing entered — the DF target weight is unchanged.'
+        const { min, max } = dfFieldSpec(field, navmap.feederAdjust);
+        const name = { dfTargetWt: 'DF target weight', dfUpperPct: 'DF upper limit', dfLowerPct: 'DF lower limit' }[field];
+        const unit = field === 'dfTargetWt' ? '' : '%';
+        const then = field === 'dfTargetWt' ? ' Next it asks the upper limit in %.'
+          : field === 'dfUpperPct' ? ' Next it asks the lower limit in %.'
+            : ' That is the last step; the value shows on the Target Wt key whenever DF is picked.';
+        showNotice((reason === 'empty'
+          ? `Nothing entered — the ${name} is unchanged.`
           : reason === 'clamped'
-            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): DF target weight ${next.dfTargetWt}.`
-            : `DF target weight set to ${next.dfTargetWt}. It shows on the Target Wt key whenever the dispersion feeder is picked.`);
+            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): ${name} ${next[field]}${unit}.`
+            : `${name} set to ${next[field]}${unit}.`) + then);
       } else if (evt.action === 'enter') {
         showNotice(`Entered: ${typed || '(nothing)'}. On the machine this is now the value; the artwork here keeps showing what it showed.`);
       }

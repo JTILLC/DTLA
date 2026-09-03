@@ -600,7 +600,10 @@ export default function Rcu({
             {feeder.feeder === 'df' && faScreen.dfKeys && (
               <>
                 {Object.values(faScreen.dfKeys).map((k) => (
-                  <img key={k.image} className="key-lit key-lit--overlay" src={`/${k.image}`} alt=""
+                  /* Key faces only: they sit UNDER the lamps and the live
+                     values, which are drawn over them exactly as over the
+                     RF keys they replace. */
+                  <img key={k.image} className="key-lit key-lit--overlay fa-df-key" src={`/${k.image}`} alt=""
                     style={rectStyle(k)} title={faScreen.dfNote} />
                 ))}
                 {!popupHere && (

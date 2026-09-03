@@ -89,7 +89,10 @@ right. HOME dimmed; Exit leaves. Cancel lights once something changes.
   it turns blue, a **Target Wt** key appears above Read OptimumVal reading
   500, and ▲▼ move the DF values (both lamps were lit: 25.0/50.0 → 26.0/51.0).
   Target Wt opens a "DF Weight Setting" keypad — 500, Maximum 9999, Minimum
-  1, digits append. Pressing the (1) again clears it (readout blanks to ".0");
+  1, digits append. Enter there opens **Upper Limit(%) Setting** (20, Maximum
+  100, Minimum 0), Enter again **Lower Limit(%) Setting** (20, same limits),
+  and Enter again returns; CANCEL on any step drops straight back.
+  Pressing the (1) again clears it (readout blanks to ".0");
   pressing a head number clears it and picks that head alone.
 - **Timing Adjustment**: the timing table (WH-DS 110, IS-WH 0, WH-PH 200,
   PH-RF 150, STAGGER 0, WH ON 450, PH ON 400), row select highlights the

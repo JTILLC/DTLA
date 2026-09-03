@@ -387,9 +387,21 @@
   "file": "captured/password-input-123.jpg",
   "sha1": "16294c077cd6c3b623cd0da1db951468c5eb1b4f"
  },
+ "pf-df-after-limits": {
+  "file": "captured/pf-df-after-limits.jpg",
+  "sha1": "d84e53079afc6de6406fde1b5daea9e7c9a4a358"
+ },
+ "pf-df-high-pct": {
+  "file": "captured/pf-df-high-pct.jpg",
+  "sha1": "93d1482e064f010349c75e0ca1cf9063426096b8"
+ },
  "pf-df-increase": {
   "file": "captured/pf-df-increase.jpg",
   "sha1": "4a24657080d9b3fbe34bf91a2f3b755b348e1ca0"
+ },
+ "pf-df-low-pct": {
+  "file": "captured/pf-df-low-pct.jpg",
+  "sha1": "103b6ca41ed883957f76071de90820336b3a7b39"
  },
  "pf-df-pressed-again": {
   "file": "captured/pf-df-pressed-again.jpg",

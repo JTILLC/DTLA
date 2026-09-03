@@ -11689,7 +11689,7 @@
      "y": 375,
      "w": 74,
      "h": 37,
-     "to": "preset-feeder",
+     "to": "preset-feeder@df-upper-pct",
      "action": "enter",
      "label": "Enter",
      "commit": "dfTargetWt"
@@ -11843,12 +11843,606 @@
      "y": 375,
      "w": 74,
      "h": 37,
-     "to": "run-feeder",
+     "to": "run-feeder@df-upper-pct",
      "action": "enter",
      "label": "Enter",
      "commit": "dfTargetWt"
     }
    ]
+  },
+  "preset-feeder@df-upper-pct": {
+   "parent": "preset-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Feeder — Upper Limit(%) Setting keypad",
+   "image": "captured/pf-df-high-pct.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfUpperPct",
+    "min": 0,
+    "max": 100
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder@df-lower-pct",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfUpperPct"
+    }
+   ]
+  },
+  "preset-feeder@df-lower-pct": {
+   "parent": "preset-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Feeder — Lower Limit(%) Setting keypad",
+   "image": "captured/pf-df-low-pct.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfLowerPct",
+    "min": 0,
+    "max": 100
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfLowerPct"
+    }
+   ]
+  },
+  "run-feeder@df-upper-pct": {
+   "parent": "run-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production Feeder Adjust — Upper Limit(%) Setting keypad",
+   "image": "screens/run-feeder.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfUpperPct",
+    "min": 0,
+    "max": 100
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder@df-lower-pct",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfUpperPct"
+    }
+   ],
+   "keepChart": true,
+   "layers": [
+    {
+     "image": "captured/pf-df-high-pct.jpg",
+     "x": 172,
+     "y": 158,
+     "w": 468,
+     "h": 278
+    }
+   ],
+   "note": "The keypad is the one captured on the Preset screen, laid over Production; the program was not seen to open it here, and the rest of the screen is not dimmed."
+  },
+  "run-feeder@df-lower-pct": {
+   "parent": "run-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production Feeder Adjust — Lower Limit(%) Setting keypad",
+   "image": "screens/run-feeder.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfLowerPct",
+    "min": 0,
+    "max": 100
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfLowerPct"
+    }
+   ],
+   "keepChart": true,
+   "layers": [
+    {
+     "image": "captured/pf-df-low-pct.jpg",
+     "x": 172,
+     "y": 158,
+     "w": 468,
+     "h": 278
+    }
+   ],
+   "note": "The keypad is the one captured on the Preset screen, laid over Production; the program was not seen to open it here, and the rest of the screen is not dimmed."
   }
  },
  "powerKey": {
@@ -12638,6 +13232,12 @@
    "min": 1,
    "max": 9999,
    "note": "The DF target weight: the amount of product the dispersion feeder is held at (the DF pan sits on its own load cell). Captured off the running program: the Target Wt key appears when the (1) under the DF bar is pressed, and opens a \"DF Weight Setting\" keypad reading 500, Maximum 9999, Minimum 1. Digits append to the shown value, as on the Entr keypad."
+  },
+  "dfLimits": {
+   "default": 20,
+   "min": 0,
+   "max": 100,
+   "note": "Entering the DF target weight is a three-step chain on the running program: Enter on DF Weight Setting opens \"Upper Limit(%) Setting\" (20, Maximum 100, Minimum 0), Enter on that opens \"Lower Limit(%) Setting\" (20, the same limits), and Enter on that returns to the screen. CANCEL on any step drops straight back to the screen."
   }
  },
  "hdrvParameter": {
