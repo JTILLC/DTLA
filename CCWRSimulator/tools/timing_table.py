@@ -110,6 +110,92 @@ def is_ds(prefix, sc):
     return left_arrow(base, sc['arrow'])
 
 
+def ring_band(sc, neutral_im, lit_im):
+    """The weigh-hopper ring, cut out of the cutaway.
+
+    Its rows are where the WH ON capture is blue; the rect runs from just above
+    them to the bottom of the black base under them, and a flood fill of the
+    flat background from the rect's edges leaves the ring itself as the mask.
+    Returns (rect, mask, dy) where dy is one ring-height down - where a row of
+    booster hoppers sits on a machine that has them.
+    """
+    import numpy as np
+    from collections import deque
+    from PIL import ImageFilter
+    x0, y0, x1, y1 = sc['cutaway']
+    lit = np.array(lit_im).astype(int)[y0:y1, x0:x1]
+    blue = (lit[:, :, 2] - (lit[:, :, 0] + lit[:, :, 1]) / 2) > 60
+    # A row of hoppers is dozens of blue pixels wide; the little DS/IS tags
+    # lower down are blue too, and must not stretch the band to them.
+    rows = np.where(blue.sum(axis=1) > 40)[0] + y0
+    cols = np.where(blue[rows - y0].any(axis=0))[0] + x0
+    top, bottom = int(rows.min()), int(rows.max())
+    cx = int((cols.min() + cols.max()) / 2)
+    neu = np.array(neutral_im).astype(int)
+    base = bottom
+    while base + 1 < y1 and neu[base + 1, cx].sum() < 300:   # the black base under the ring
+        base += 1
+    rect = (x0, top - 4, x1, base + 4)
+    band = neu[rect[1]:rect[3], rect[0]:rect[2]]
+    free = np.abs(band - np.array(PANEL_GREY)).sum(axis=2) < 24
+    h, w = free.shape
+    reached = np.zeros_like(free, bool)
+    dq = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if free[y, x]:
+                reached[y, x] = True
+                dq.append((y, x))
+    for y in range(h):
+        for x in (0, w - 1):
+            if free[y, x]:
+                reached[y, x] = True
+                dq.append((y, x))
+    while dq:
+        y, x = dq.popleft()
+        for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+            if 0 <= ny < h and 0 <= nx < w and free[ny, nx] and not reached[ny, nx]:
+                reached[ny, nx] = True
+                dq.append((ny, nx))
+    mask = Image.fromarray(((~reached) * 255).astype('uint8'))
+    mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    return rect, mask, bottom - top + 1, int(cols.max())
+
+
+def ring_arrow(sc, whph_im, cols_max, band_rect):
+    """The blue arrow WH-PH draws beside the rings (pointing up, WH to PH),
+    cut out of that capture with a mask of its own blue pixels."""
+    import numpy as np
+    from PIL import ImageFilter
+    x0, y0, x1, y1 = sc['cutaway']
+    a = np.array(whph_im).astype(int)
+    blue = (a[:, :, 2] - (a[:, :, 0] + a[:, :, 1]) / 2) > 60
+    region = np.zeros_like(blue)
+    region[y0:band_rect[3], cols_max + 3:x1] = True
+    hit = blue & region
+    ys, xs = np.where(hit)
+    bx0, by0, bx1, by1 = int(xs.min()) - 2, int(ys.min()) - 2, int(xs.max()) + 3, int(ys.max()) + 3
+    mask = Image.fromarray((hit[by0:by1, bx0:bx1] * 255).astype('uint8')).filter(ImageFilter.MaxFilter(3))
+    return (bx0, by0, bx1, by1), whph_im.crop((bx0, by0, bx1, by1)), mask
+
+
+def with_arrow(im, arrow, mask, box, dy, flip):
+    """WH-BH: the arrow one ring lower and turned to point down (WH to BH);
+    BH-WH: the same arrow pointing up."""
+    from PIL import ImageOps
+    out = im.copy()
+    a, m = (ImageOps.flip(arrow), ImageOps.flip(mask)) if flip else (arrow, mask)
+    out.paste(a, (box[0], box[1] + dy), m)
+    return out
+
+
+def with_boosters(im, src, rect, mask, dy):
+    """Paste the ring one ring-height lower: the booster hoppers."""
+    out = im.copy()
+    out.paste(src.crop(rect), (rect[0], rect[1] + dy), mask)
+    return out
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for prefix, sc in SCREENS.items():
@@ -119,6 +205,28 @@ def main():
         clear_table(neutral(load(sc['cap'] + 'whon'), load(sc['cap'] + 'phon'), sc['cutaway']), sc).save(
             os.path.join(OUT, '%s-cut-neutral.jpg' % prefix), quality=92, optimize=True)
         is_ds(prefix, sc).save(os.path.join(OUT, '%s-cut-isds.jpg' % prefix), quality=92, optimize=True)
+        # A booster-hopper machine: every cutaway gets a grey ring of boosters
+        # under the weigh hoppers, cut from the cutaway itself; the BH rows get
+        # that ring lit, cut from the WH ON capture so the tint is the render's.
+        neutral_im = Image.open(os.path.join(OUT, '%s-cut-neutral.jpg' % prefix)).convert('RGB')
+        lit_im = Image.open(os.path.join(OUT, '%s-cut-whon.jpg' % prefix)).convert('RGB')
+        rect, mask, dy, rect_cols_max = ring_band(sc, neutral_im, lit_im)
+        for key in ROWS + ['neutral', 'isds']:
+            im = Image.open(os.path.join(OUT, '%s-cut-%s.jpg' % (prefix, key))).convert('RGB')
+            with_boosters(im, neutral_im, rect, mask, dy).save(
+                os.path.join(OUT, '%s-cut-%s-bh.jpg' % (prefix, key)), quality=92, optimize=True)
+        with_boosters(neutral_im, lit_im, rect, mask, dy).save(
+            os.path.join(OUT, '%s-cut-bhlit.jpg' % prefix), quality=92, optimize=True)
+        # WH-BH and BH-WH: both rings lit, like WH-PH lights both of its, and
+        # WH-PH's arrow between them - turned down for WH-BH, up for BH-WH.
+        whph_im = Image.open(os.path.join(OUT, '%s-cut-whph.jpg' % prefix)).convert('RGB')
+        both = with_boosters(lit_im, lit_im, rect, mask, dy)
+        box, arrow, amask = ring_arrow(sc, whph_im, rect_cols_max, rect)
+        with_arrow(both, arrow, amask, box, dy, True).save(
+            os.path.join(OUT, '%s-cut-whbh.jpg' % prefix), quality=92, optimize=True)
+        with_arrow(both, arrow, amask, box, dy, False).save(
+            os.path.join(OUT, '%s-cut-bhwh.jpg' % prefix), quality=92, optimize=True)
+        print(prefix, 'ring', rect, 'dy', dy, 'arrow', box)
     print('wrote', sorted(f for f in os.listdir(OUT) if '-cut-' in f))
 
 

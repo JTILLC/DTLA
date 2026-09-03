@@ -1067,15 +1067,7 @@
 .ta-lamp--on i { background: radial-gradient(circle at 35% 35%, #8f8fff, #1a1ad0); }
 .ta-lamps--radio .ta-lamp { border-color: transparent; background: transparent; }
 
-/* Look-alike units on the cutaway: booster ring, timing hopper, DTHs. */
-.ta-unit-ring { position: absolute; z-index: 1; display: flex; gap: 2%; pointer-events: none; }
-.ta-unit-ring i {
-  flex: 1;
-  border: 1px solid #55554f;
-  border-radius: 12% 12% 30% 30% / 20% 20% 45% 45%;
-  background: linear-gradient(#e6e6df, #a9a9a2 60%, #6e6e68);
-}
-.ta-unit-ring.ta-unit--lit i { background: linear-gradient(#9d9dff, #4d4de6 60%, #2a2aa8); border-color: #1a1a6e; }
+/* Look-alike units on the cutaway: timing hopper and DTHs (the boosters are artwork). */
 .ta-unit-box {
   position: absolute;
   z-index: 1;

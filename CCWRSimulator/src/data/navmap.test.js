@@ -153,7 +153,11 @@ describe('navigation map integrity', () => {
       const sc = ta.screens[slug];
       for (const r of ta.rows) {
         expect(fs.existsSync(path.join(root, 'public', sc.cutaways[r.cutaway])), `${slug} ${r.key}`).toBe(true);
+        // ... and with boosters on the machine, the same view with the ring.
+        expect(fs.existsSync(path.join(root, 'public', sc.cutawaysBH[r.cutaway])), `${slug} ${r.key} BH`).toBe(true);
       }
+      // The BH rows light the booster ring itself.
+      expect(ta.rows.filter((x) => x.unit === 'bh').map((r) => r.cutaway)).toEqual(['whbh', 'bhwh', 'bhlit']);
       expect(sc.table.top + ta.rows.length * sc.table.pitch).toBeLessThan(sc.dthRadio.y);
       for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
       expect(navmap.screens[`${slug}@entr`].keypad.seedFrom).toBe('timing');

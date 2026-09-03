@@ -13372,7 +13372,7 @@
     "unit": "bh",
     "option": "bh",
     "desc": "Weigh hopper to booster hopper: how long after the weigh hoppers open the booster hoppers below them open. Starts where IS-WH ends.",
-    "cutaway": "neutral"
+    "cutaway": "whbh"
    },
    {
     "key": "bh_wh",
@@ -13385,7 +13385,7 @@
     "unit": "bh",
     "option": "bh",
     "desc": "Booster hopper to weigh hopper: the delay before the weigh hoppers refill the boosters. Starts where WH-BH ends.",
-    "cutaway": "neutral"
+    "cutaway": "bhwh"
    },
    {
     "key": "wh_on",
@@ -13409,7 +13409,7 @@
     "unit": "bh",
     "option": "bh",
     "desc": "Booster hopper open time. Starts where WH-BH ends - when the boosters open.",
-    "cutaway": "neutral"
+    "cutaway": "bhlit"
    },
    {
     "key": "ph_on",
@@ -13438,7 +13438,7 @@
    "bh": {
     "label": "BH",
     "name": "Booster hoppers",
-    "note": "Adds the WH-BH, BH-WH and BH ON rows and a ring of booster hoppers under the weigh hoppers on the cutaway."
+    "note": "Adds the WH-BH, BH-WH and BH ON rows, and a ring of booster hoppers under the weigh hoppers on the cutaway - the weigh-hopper ring cut from the capture and set one ring lower, lit the same way when a BH row is picked."
    },
    "th": {
     "label": "TH",
@@ -13537,13 +13537,6 @@
      }
     },
     "cutaway": {
-     "bh": {
-      "x": 16,
-      "y": 254,
-      "w": 218,
-      "h": 26,
-      "n": 7
-     },
      "th": {
       "x": 148,
       "y": 352,
@@ -13566,7 +13559,24 @@
      "whon": "derived/pt-cut-whon.jpg",
      "phon": "derived/pt-cut-phon.jpg",
      "neutral": "derived/pt-cut-neutral.jpg",
-     "isds": "derived/pt-cut-isds.jpg"
+     "isds": "derived/pt-cut-isds.jpg",
+     "bhlit": "derived/pt-cut-bhlit.jpg",
+     "whbh": "derived/pt-cut-whbh.jpg",
+     "bhwh": "derived/pt-cut-bhwh.jpg"
+    },
+    "cutawaysBH": {
+     "whds": "derived/pt-cut-whds-bh.jpg",
+     "iswh": "derived/pt-cut-iswh-bh.jpg",
+     "whph": "derived/pt-cut-whph-bh.jpg",
+     "phrf": "derived/pt-cut-phrf-bh.jpg",
+     "stagger": "derived/pt-cut-stagger-bh.jpg",
+     "whon": "derived/pt-cut-whon-bh.jpg",
+     "phon": "derived/pt-cut-phon-bh.jpg",
+     "neutral": "derived/pt-cut-neutral-bh.jpg",
+     "isds": "derived/pt-cut-isds-bh.jpg",
+     "bhlit": "derived/pt-cut-bhlit.jpg",
+     "whbh": "derived/pt-cut-whbh.jpg",
+     "bhwh": "derived/pt-cut-bhwh.jpg"
     }
    },
    "run-timing": {
@@ -13579,7 +13589,10 @@
      "whon": "derived/rt-cut-whon.jpg",
      "phon": "derived/rt-cut-phon.jpg",
      "neutral": "derived/rt-cut-neutral.jpg",
-     "isds": "derived/rt-cut-isds.jpg"
+     "isds": "derived/rt-cut-isds.jpg",
+     "bhlit": "derived/rt-cut-bhlit.jpg",
+     "whbh": "derived/rt-cut-whbh.jpg",
+     "bhwh": "derived/rt-cut-bhwh.jpg"
     },
     "table": {
      "x": 308,
@@ -13651,13 +13664,6 @@
      }
     },
     "cutaway": {
-     "bh": {
-      "x": 20,
-      "y": 194,
-      "w": 216,
-      "h": 26,
-      "n": 7
-     },
      "th": {
       "x": 150,
       "y": 318,
@@ -13670,6 +13676,20 @@
       "w": 124,
       "h": 18
      }
+    },
+    "cutawaysBH": {
+     "whds": "derived/rt-cut-whds-bh.jpg",
+     "iswh": "derived/rt-cut-iswh-bh.jpg",
+     "whph": "derived/rt-cut-whph-bh.jpg",
+     "phrf": "derived/rt-cut-phrf-bh.jpg",
+     "stagger": "derived/rt-cut-stagger-bh.jpg",
+     "whon": "derived/rt-cut-whon-bh.jpg",
+     "phon": "derived/rt-cut-phon-bh.jpg",
+     "neutral": "derived/rt-cut-neutral-bh.jpg",
+     "isds": "derived/rt-cut-isds-bh.jpg",
+     "bhlit": "derived/rt-cut-bhlit.jpg",
+     "whbh": "derived/rt-cut-whbh.jpg",
+     "bhwh": "derived/rt-cut-bhwh.jpg"
     }
    }
   }

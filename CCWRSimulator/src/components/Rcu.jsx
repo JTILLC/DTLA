@@ -79,7 +79,11 @@ export default function Rcu({
   const ta = navmap.timingAdjust;
   const taScreen = ta?.screens?.[slug] || null;
   const imageFor = () => {
-    if (taScreen && timing) return taScreen.cutaways[rowOf(ta, timing.sel).cutaway];
+    if (taScreen && timing) {
+      // A booster machine shows its boosters on every cutaway.
+      const key = rowOf(ta, timing.sel).cutaway;
+      return (machineOptions?.bh && taScreen.cutawaysBH?.[key]) || taScreen.cutaways[key];
+    }
     for (const [flag, image] of Object.entries(screen.imageBy || {})) {
       if (flags?.[flag] === true || (flag === 'level4' && flags?.level === 4)) return image;
     }
@@ -848,16 +852,11 @@ export default function Rcu({
                 />
               ))}
 
-              {/* Look-alike units on the cutaway. The program's machine has
-                  none of these, so they are drawn: a ring of booster hoppers
-                  under the weigh hoppers, the timing hopper under the chute,
-                  the section's two diverting timing hoppers below it. They
-                  light the way the captured hoppers do. */}
-              {machineOptions?.bh && (
-                <div className={'ta-unit-ring' + (unitLit('bh') ? ' ta-unit--lit' : '')} style={rectStyle(cw.bh)} aria-hidden="true" title="Booster hoppers (drawn)">
-                  {Array.from({ length: cw.bh.n }, (_, i) => <i key={i} />)}
-                </div>
-              )}
+              {/* Look-alike units on the cutaway. The boosters are in the
+                  artwork (the weigh-hopper ring cut and set one ring lower,
+                  see tools/timing_table.py); the timing hopper under the
+                  chute and the section's two diverting timing hoppers below
+                  it are drawn. They light the way the captured hoppers do. */}
               {machineOptions?.th && (
                 <div className={'ta-unit-box' + (unitLit('th') ? ' ta-unit--lit' : '')} style={{ ...rectStyle(cw.th), fontSize: fontPx(9) }} aria-hidden="true" title="Timing hopper (drawn)">
                   TH{timing.section}
