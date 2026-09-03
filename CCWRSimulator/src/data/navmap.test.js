@@ -96,6 +96,28 @@ describe('navigation map integrity', () => {
     expect(hp.options.map((o) => o.no)).toEqual([1, 2, 3]);
   });
 
+  it('the DF Weight Setting keypad hangs off Target Wt on both Feeder Adjust screens', () => {
+    for (const [parent, popup] of [['preset-feeder', 'preset-feeder@df-target-wt'],
+      ['run-feeder', 'run-feeder@df-target-wt']]) {
+      const key = navmap.screens[parent].hotspots.find((h) => h.to === popup);
+      expect(key, `${parent} Target Wt`).toBeDefined();
+      expect(key.dfOnly, 'the key exists only with DF picked').toBe(true);
+      const kp = navmap.screens[popup];
+      expect(kp.keypad.seedFrom).toBe('dfTargetWt');
+      expect(kp.keypad).toMatchObject({ min: 1, max: 9999 });
+      const enter = kp.hotspots.find((h) => h.action === 'enter');
+      expect(enter).toMatchObject({ to: parent, commit: 'dfTargetWt' });
+      expect(kp.hotspots.find((h) => h.action === 'cancel').to).toBe(parent);
+      // Ten digits and no decimal point: the keypad's "." key is blank.
+      expect(kp.hotspots.filter((h) => h.action === 'key').map((h) => h.char).sort())
+        .toEqual(['-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    }
+    expect(navmap.feederAdjust.dfTargetWt).toMatchObject({ default: 500, min: 1, max: 9999 });
+    for (const k of Object.values(navmap.feederAdjust.screens['run-feeder'].dfKeys)) {
+      expect(fs.existsSync(path.join(root, 'public', k.image)), k.image).toBe(true);
+    }
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

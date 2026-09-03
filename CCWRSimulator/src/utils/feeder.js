@@ -33,10 +33,30 @@ export function initialFeeder(spec) {
   return {
     feeder: 'rf',            // which feeder the keys act on
     heads: [1],              // selected head numbers (RF only)
-    params: { time: true, amp: false },
+    params: { time: true, amp: false, weight: false },
     rf,
     df: { time, amp },
+    dfTargetWt: spec.dfTargetWt?.default ?? 500,   // the DF pan's target weight
   };
+}
+
+/** A saved state from before a field existed gets the field's default. */
+export const migrateFeeder = (saved, spec) => {
+  const fresh = initialFeeder(spec);
+  return { ...fresh, ...saved, params: { ...fresh.params, ...(saved.params || {}) } };
+};
+
+/**
+ * Enter on the DF Weight Setting keypad. The keypad shows Maximum 9999 and
+ * Minimum 1, so an entry is held inside them; an empty or unreadable entry
+ * leaves the value alone.
+ */
+export function setDfTargetWt(state, typed, spec) {
+  const n = parseInt(String(typed).replace(/[^0-9]/g, ''), 10);
+  if (Number.isNaN(n)) return { state, reason: 'empty' };
+  const { min, max } = spec.dfTargetWt;
+  const clamped = Math.min(max, Math.max(min, n));
+  return { state: { ...state, dfTargetWt: clamped }, reason: clamped === n ? null : 'clamped' };
 }
 
 const round1 = (n) => Math.round(n * 10) / 10;

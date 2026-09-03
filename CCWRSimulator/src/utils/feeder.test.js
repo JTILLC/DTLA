@@ -43,7 +43,7 @@ describe('selection', () => {
 
   it('lights Time and AMP together', () => {
     const s = toggleParam(start(), 'amp');
-    expect(s.params).toEqual({ time: true, amp: true });
+    expect(s.params).toMatchObject({ time: true, amp: true });
   });
 });
 
@@ -175,5 +175,26 @@ describe('Read Default', () => {
     expect(d.heads).toEqual([1, 2]);
     expect(d.params).toEqual({ time: true, amp: true });
     expect(d.feeder).toBe('df');
+  });
+});
+
+describe('DF target weight', () => {
+  it('starts at the captured 500 and is held inside the keypad limits', async () => {
+    const { setDfTargetWt, migrateFeeder } = await import('./feeder');
+    const s = start();
+    expect(s.dfTargetWt).toBe(500);
+    expect(s.params.weight).toBe(false);
+    expect(setDfTargetWt(s, '750', spec)).toMatchObject({ state: { dfTargetWt: 750 }, reason: null });
+    expect(setDfTargetWt(s, '12000', spec)).toMatchObject({ state: { dfTargetWt: 9999 }, reason: 'clamped' });
+    expect(setDfTargetWt(s, '0', spec)).toMatchObject({ state: { dfTargetWt: 1 }, reason: 'clamped' });
+    expect(setDfTargetWt(s, '', spec)).toMatchObject({ state: s, reason: 'empty' });
+    // A state saved before the field existed comes back with it.
+    const old = { ...s }; delete old.dfTargetWt; old.params = { time: true, amp: false };
+    const m = migrateFeeder(old, spec);
+    expect(m.dfTargetWt).toBe(500);
+    expect(m.params).toEqual({ time: true, amp: false, weight: false });
+    // Increase still moves only the lit time/amp, never the target weight.
+    const lit = { ...s, feeder: 'df', params: { time: true, amp: true, weight: true } };
+    expect(adjust(lit, spec, +1).state.dfTargetWt).toBe(500);
   });
 });

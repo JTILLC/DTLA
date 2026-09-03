@@ -903,6 +903,15 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 203,
+     "y": 99,
+     "w": 94,
+     "h": 54,
+     "to": "preset-feeder@df-target-wt",
+     "label": "Target Wt",
+     "dfOnly": true
     }
    ]
   },
@@ -1975,6 +1984,15 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 697,
+     "y": 47,
+     "w": 85,
+     "h": 46,
+     "to": "run-feeder@df-target-wt",
+     "label": "Target Wt",
+     "dfOnly": true
     }
    ],
    "overlays": [
@@ -11533,6 +11551,303 @@
      "label": "No"
     }
    ]
+  },
+  "preset-feeder@df-target-wt": {
+   "parent": "preset-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Feeder — DF Weight Setting keypad",
+   "image": "captured/pf-df-target-wt.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfTargetWt",
+    "min": 1,
+    "max": 9999
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-feeder",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfTargetWt"
+    }
+   ]
+  },
+  "run-feeder@df-target-wt": {
+   "parent": "run-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production Feeder Adjust — DF Weight Setting keypad",
+   "image": "screens/run-feeder.jpg",
+   "keepChart": true,
+   "layers": [
+    {
+     "image": "captured/pf-df-target-wt.jpg",
+     "x": 172,
+     "y": 158,
+     "w": 468,
+     "h": 278
+    }
+   ],
+   "note": "The keypad is the one captured on the Preset screen, laid over Production; the program was not seen to open it here, and the rest of the screen is not dimmed.",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seedFrom": "dfTargetWt",
+    "min": 1,
+    "max": 9999
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "run-feeder",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "dfTargetWt"
+    }
+   ]
   }
  },
  "powerKey": {
@@ -11881,14 +12196,16 @@
       "y": 230,
       "w": 54,
       "h": 50,
-      "label": "RF"
+      "label": "RF",
+      "note": "The grey RF arrow. Kept as a way back to the radial feeders; on the program the head numbers do that."
      },
      "df": {
-      "x": 285,
-      "y": 222,
-      "w": 55,
-      "h": 48,
-      "label": "DF"
+      "x": 348,
+      "y": 249,
+      "w": 26,
+      "h": 37,
+      "label": "DF (the (1) under the DF bar)",
+      "note": "Pressed on the running program: the (1) turns blue, a Target Wt key appears above Read OptimumVal, and Increase/Decrease move the DF values. Pressed again it clears; pressing a head number clears it too and picks that head."
      },
      "time": {
       "x": 10,
@@ -12019,7 +12336,27 @@
       "h": 24
      }
     ],
-    "style": "preset"
+    "style": "preset",
+    "dfOn": {
+     "image": "derived/pf-df-on.png",
+     "x": 348,
+     "y": 249,
+     "w": 26,
+     "h": 37
+    },
+    "targetWt": {
+     "image": "derived/pf-target-wt-key.png",
+     "x": 203,
+     "y": 99,
+     "w": 94,
+     "h": 54,
+     "value": {
+      "x": 228,
+      "y": 115,
+      "w": 52,
+      "h": 18
+     }
+    }
    },
    "run-feeder": {
     "keys": {
@@ -12199,11 +12536,62 @@
      "y": 236,
      "w": 68,
      "h": 54
-    }
+    },
+    "dfKeys": {
+     "time": {
+      "image": "derived/df-time-key.png",
+      "x": 406,
+      "y": 40,
+      "w": 86,
+      "h": 55
+     },
+     "amp": {
+      "image": "derived/df-amp-key.png",
+      "x": 501,
+      "y": 40,
+      "w": 89,
+      "h": 55
+     },
+     "weight": {
+      "image": "derived/df-weight-key.png",
+      "x": 600,
+      "y": 47,
+      "w": 85,
+      "h": 46,
+      "label": "DF Weight"
+     },
+     "target": {
+      "image": "derived/df-target-key.png",
+      "x": 697,
+      "y": 47,
+      "w": 85,
+      "h": 46,
+      "label": "Target Wt"
+     }
+    },
+    "dfWeightLamp": {
+     "x": 603,
+     "y": 56,
+     "w": 10,
+     "h": 21
+    },
+    "dfTargetValue": {
+     "x": 712,
+     "y": 52,
+     "w": 56,
+     "h": 16
+    },
+    "dfNote": "With the dispersion feeder picked, a real CCW-R relabels the four keys along the top: DF Time, DF AMP, DF Weight (a lamp key) and Target Wt showing the DF target weight (photographed on a running machine, 2026-09-03). The Flash program this simulator is built from does NOT do this - its keys keep reading RF - so those four keys are drawn from the photograph, not captured."
    }
   },
   "lampOn": "keys/lamp-on.png",
-  "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head — counted on the original, where RF Time went 25.0 to 26.0 on a single press."
+  "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head — counted on the original, where RF Time went 25.0 to 26.0 on a single press.",
+  "dfTargetWt": {
+   "default": 500,
+   "min": 1,
+   "max": 9999,
+   "note": "The DF target weight: the amount of product the dispersion feeder is held at (the DF pan sits on its own load cell). Captured off the running program: the Target Wt key appears when the (1) under the DF bar is pressed, and opens a \"DF Weight Setting\" keypad reading 500, Maximum 9999, Minimum 1. Digits append to the shown value, as on the Entr keypad."
+  }
  },
  "hdrvParameter": {
   "screens": [

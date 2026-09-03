@@ -387,6 +387,34 @@
   "file": "captured/password-input-123.jpg",
   "sha1": "16294c077cd6c3b623cd0da1db951468c5eb1b4f"
  },
+ "pf-df-increase": {
+  "file": "captured/pf-df-increase.jpg",
+  "sha1": "4a24657080d9b3fbe34bf91a2f3b755b348e1ca0"
+ },
+ "pf-df-pressed-again": {
+  "file": "captured/pf-df-pressed-again.jpg",
+  "sha1": "f9ed601f6f9be9beb8e9edaa3ad80430c6973e02"
+ },
+ "pf-df-selected": {
+  "file": "captured/pf-df-selected.jpg",
+  "sha1": "036156a9344defe8fbb18d0f14223bdf07237d61"
+ },
+ "pf-df-target-wt": {
+  "file": "captured/pf-df-target-wt.jpg",
+  "sha1": "98738f78da9d7219ca5766eb2677ccfaed6dcfc8"
+ },
+ "pf-df-then-head3": {
+  "file": "captured/pf-df-then-head3.jpg",
+  "sha1": "f919967aed7e959165ec80930a91008e380d09f0"
+ },
+ "pf-head3-then-df": {
+  "file": "captured/pf-head3-then-df.jpg",
+  "sha1": "17e188230979a9423c77944a5cf46d25a92ccbda"
+ },
+ "pf-live-rf": {
+  "file": "captured/pf-live-rf.jpg",
+  "sha1": "89311759a03b8fe26ff48e2f7cbaa86511a58887"
+ },
  "pf-panel02": {
   "file": "captured/pf-panel02.jpg",
   "sha1": "218face1d640ce90514a5560d65b2314d8ff7f7e"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import navmap from './data/navmap.json';
-import { initialFeeder, toggleHead, toggleParam, selectFeeder, adjust, readDefault } from './utils/feeder';
+import { initialFeeder, migrateFeeder, toggleParam, selectFeeder, adjust, readDefault, setDfTargetWt } from './utils/feeder';
 import { initialPans, togglePan, toggleTable, selectAllHeads, selectTable, ensurePan,
   nothingSelected, describe as describeSel, describeHeads } from './utils/panSelect';
 import lessons from './data/lessons';
@@ -69,7 +69,8 @@ export default function App() {
   const [zeroing, setZeroing] = useState(false);
   /* Feeder adjustment values: per head for RF, single for DF (6.12). */
   const [feeder, setFeeder] = useState(
-    () => saved.feeder ?? initialFeeder(navmap.feederAdjust));
+    () => (saved.feeder ? migrateFeeder(saved.feeder, navmap.feederAdjust)
+      : initialFeeder(navmap.feederAdjust)));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -191,10 +192,14 @@ export default function App() {
     return () => clearTimeout(autoTimer.current);
   }, [screen, showNotice]);
 
-  /* A keypad opens showing the value it holds. */
+  /* A keypad opens showing the value it holds — a fixed seed for the ones
+     whose artwork cannot change, the live value for the DF target weight. */
   useEffect(() => {
     const s = navmap.screens[screen];
-    if (s?.keypad) setTyped(s.keypad.seed || '');
+    if (!s?.keypad) return;
+    if (s.keypad.seedFrom === 'dfTargetWt') setTyped(String(feeder.dfTargetWt));
+    else setTyped(s.keypad.seed || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen]);
 
   const advanceLesson = useCallback(() => {
@@ -256,7 +261,10 @@ export default function App() {
       return;
     }
     if (evt.type === 'feeder-head') {
-      setFeeder((f) => toggleHead(f, evt.no));
+      /* The preset screen's head strip. The heads shown are the shared pan
+         selection, so a tap has to go through it — toggling a private list
+         changed nothing on screen. */
+      handleTap({ type: 'feeder-pan', no: evt.no });
       return;
     }
     if (evt.type === 'feeder-param') {
@@ -428,7 +436,18 @@ export default function App() {
       setFlags((f) => applySets(f, evt.sets));
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
-      if (evt.action === 'enter') showNotice(`Entered: ${typed || '(nothing)'}. On the machine this is now the value; the artwork here keeps showing what it showed.`);
+      if (evt.action === 'enter' && evt.commit === 'dfTargetWt') {
+        const { state: next, reason } = setDfTargetWt(feeder, typed, navmap.feederAdjust);
+        setFeeder(next);
+        const { min, max } = navmap.feederAdjust.dfTargetWt;
+        showNotice(reason === 'empty'
+          ? 'Nothing entered — the DF target weight is unchanged.'
+          : reason === 'clamped'
+            ? `Held to the keypad's limits (Minimum ${min}, Maximum ${max}): DF target weight ${next.dfTargetWt}.`
+            : `DF target weight set to ${next.dfTargetWt}. It shows on the Target Wt key whenever the dispersion feeder is picked.`);
+      } else if (evt.action === 'enter') {
+        showNotice(`Entered: ${typed || '(nothing)'}. On the machine this is now the value; the artwork here keeps showing what it showed.`);
+      }
       navigate(evt.to);
       return;
     }

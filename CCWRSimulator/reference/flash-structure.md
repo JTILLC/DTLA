@@ -85,6 +85,12 @@ right. HOME dimmed; Exit leaves. Cancel lights once something changes.
 - **Feeder Adjustment**: a *bar-chart* feeder view (RF bars for 14 heads,
   DF bar), Time/AMP lamp keys, ▲▼, **Read Default** ("Set default value of
   RF and DF. OK?"), Read OptimumVal, a Feeder tab.
+  The **(1) under the DF bar** picks the dispersion feeder (seen 2026-09-03):
+  it turns blue, a **Target Wt** key appears above Read OptimumVal reading
+  500, and ▲▼ move the DF values (both lamps were lit: 25.0/50.0 → 26.0/51.0).
+  Target Wt opens a "DF Weight Setting" keypad — 500, Maximum 9999, Minimum
+  1, digits append. Pressing the (1) again clears it (readout blanks to ".0");
+  pressing a head number clears it and picks that head alone.
 - **Timing Adjustment**: the timing table (WH-DS 110, IS-WH 0, WH-PH 200,
   PH-RF 150, STAGGER 0, WH ON 450, PH ON 400), row select highlights the
   hoppers on the 3-D cutaway, Auto Cal Off, **Entr** keypad ("Time Input",

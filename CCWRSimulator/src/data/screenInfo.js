@@ -161,6 +161,8 @@ export const screenInfo = {
       { name: 'Head mean / Section mean lamps', desc: 'Overlay the mean infeed per weigh hopper (pink) or per section (red) on the chart.' },
       { name: 'Increase / Decrease', desc: 'The two ROUND keys. One press moves every lit parameter on every selected head by 1.0. The blue → ← arrows beside the trough are not these: pressed on the original in every state, they do nothing at all.' },
       { name: 'Write feeder OptimumVal', desc: 'Visible at the bottom of the production tabs on this machine.' },
+      { name: '(1) on the centre disc', desc: 'Picks the dispersion feeder: the disc turns blue, the arrow reads DF, and the chart draws one circle per parameter. Tap any head to come back to the radial feeders.' },
+      { name: 'DF Time / DF AMP / DF Weight / Target Wt', desc: 'What the top row becomes with DF picked on a real CCW-R (photographed on a running machine, 2026-09-03): the lamp keys read DF, a DF Weight lamp key replaces Head mean, and Target Wt shows the DF target weight — the weight the dispersion pan is held at, NOT the preset target weight. Target Wt opens the DF Weight Setting keypad (Maximum 9999, Minimum 1). The Flash program this trainer is built from keeps the RF labels here, so these four keys are drawn from the photograph.' },
     ],
   },
 
@@ -426,6 +428,8 @@ export const screenInfo = {
       { name: 'Head select keys', desc: 'The numbered keys select heads; selected heads show blue.' },
       { name: 'Read Default / Read OptimumVal', desc: 'Load stored default or optimum feeder values (as shown on this machine).' },
       { name: 'AFD pop-up', desc: 'Opens the AFD Set menu.' },
+      { name: '(1) under the DF bar', desc: 'Picks the dispersion feeder (seen on the running program): the (1) turns blue, a Target Wt key appears above Read OptimumVal, and the arrows move the DF values. Press it again, or a head number, to clear it.' },
+      { name: 'Target Wt', desc: 'Only shown with DF picked. The DF target weight — the weight the dispersion pan is held at, not the preset target weight. Opens the DF Weight Setting keypad: 500 on this machine, Maximum 9999, Minimum 1; digits append to the shown value.' },
     ],
   },
 

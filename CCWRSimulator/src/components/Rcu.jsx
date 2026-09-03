@@ -92,6 +92,9 @@ export default function Rcu({
   const faScreen = faAll?.screens?.[slug]
     || (screen.keepChart && faAll?.screens?.[screen.parent]) || null;
   const fa = faScreen ? { ...faAll, ...faScreen } : faAll;
+  // A pop-up locks every other key on the original; the chart underneath
+  // still shows, but the Feeder Adjust keys must not answer.
+  const popupHere = screen.kind === 'popup';
   const feederShown = feeder && faScreen
     ? { time: formatValue(shownValues(feeder).time), amp: formatValue(shownValues(feeder).amp) }
     : { time: '', amp: '' };
@@ -140,6 +143,7 @@ export default function Rcu({
           'rcu-stage' +
           (showHotspots && !lessonActive ? ' show-hotspots' : '') +
           (blink ? ' blink-keys' : '') +
+          (popupHere ? ' popup-open' : '') +
           (flashing ? ' flash-wrong' : '')
         }
         style={{ width: '100%', maxWidth: `calc((100dvh - 120px) * ${CW / CH})` }}
@@ -152,7 +156,9 @@ export default function Rcu({
           draggable={false}
         />
 
-        {screen.hotspots.filter((h) => h.action !== 'zero-start').map((h, i) => {
+        {screen.hotspots.filter((h) => h.action !== 'zero-start'
+          // The Target Wt key exists only while the dispersion feeder is picked.
+          && (!h.dfOnly || feeder?.feeder === 'df')).map((h, i) => {
           const dead = !gatingOff && (
             (h.requiresPower && !powerOn)
             || !conditionsMet(h.requires, flags || {}, false));
@@ -173,7 +179,7 @@ export default function Rcu({
               onClick={() => onTap({
                 type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower,
                 requires: h.requires, sets: h.sets, toggles: h.toggles,
-                action: h.action, char: h.char, note: h.note, label: h.label,
+                action: h.action, char: h.char, note: h.note, label: h.label, commit: h.commit,
               })}
             />
           );
@@ -372,13 +378,32 @@ export default function Rcu({
                 type="button"
                 className={'fa-key' + (feeder.feeder === which ? ' fa-key--on' : '')}
                 style={rectStyle(fa.keys[which])}
-                aria-label={`${fa.keys[which].label} feeder — ${feeder.feeder === which ? 'selected' : 'not selected'}`}
-                title={which === 'rf'
+                aria-label={`${fa.keys[which].label} — ${feeder.feeder === which ? 'selected' : 'not selected'}`}
+                title={fa.keys[which].note || (which === 'rf'
                   ? 'Radial feeders — one per head, so the head strip applies'
-                  : 'Dispersion feeder — a single feeder, no head selection'}
-                onClick={() => onTap({ type: 'feeder-select', which })}
+                  : 'Dispersion feeder — a single feeder, no head selection')}
+                /* The (1) is a toggle on the program: pressed again it clears. */
+                onClick={() => onTap({ type: 'feeder-select',
+                  which: which === 'df' && feeder.feeder === 'df' ? 'rf' : which })}
               />
             ))}
+
+            {/* Seen on the running program: with DF picked the (1) is blue and
+                a Target Wt key appears above Read OptimumVal, showing the DF
+                target weight. Both are cut from that capture. */}
+            {feeder.feeder === 'df' && faScreen.dfOn && (
+              <img className="key-lit key-lit--overlay" src={`/${faScreen.dfOn.image}`} alt=""
+                style={rectStyle(faScreen.dfOn)} />
+            )}
+            {feeder.feeder === 'df' && faScreen.targetWt && (
+              <>
+                <img className="key-lit key-lit--overlay" src={`/${faScreen.targetWt.image}`} alt=""
+                  style={rectStyle(faScreen.targetWt)} />
+                <span className="fa-run-value fa-run-value--top" style={rectStyle(faScreen.targetWt.value)}>
+                  {feeder.dfTargetWt}
+                </span>
+              </>
+            )}
 
             {['time', 'amp'].map((which) => (
               <button
@@ -522,6 +547,38 @@ export default function Rcu({
               showHotspots={showHotspots}
               onTapHead={(no) => onTap({ type: 'feeder-pan', no })}
             />
+
+            {/* With DF picked a real CCW-R relabels the top row: DF Time, DF
+                AMP, DF Weight and Target Wt. Drawn from a photograph of a
+                running machine — the Flash program keeps its RF labels — and
+                the screen's notes say so. */}
+            {feeder.feeder === 'df' && faScreen.dfKeys && (
+              <>
+                {Object.values(faScreen.dfKeys).map((k) => (
+                  <img key={k.image} className="key-lit key-lit--overlay" src={`/${k.image}`} alt=""
+                    style={rectStyle(k)} title={faScreen.dfNote} />
+                ))}
+                {!popupHere && (
+                  <button
+                    type="button"
+                    className="fa-key fa-lamp"
+                    style={rectStyle(faScreen.dfKeys.weight)}
+                    aria-label={`DF Weight lamp — ${feeder.params.weight ? 'lit' : 'off'}`}
+                    title={'DF Weight: weight control of the dispersion feeder, held at the Target Wt beside it. '
+                      + 'Drawn from a photograph; what Increase and Decrease do with it lit was not seen.'}
+                    onClick={() => onTap({ type: 'feeder-param', which: 'weight' })}
+                  />
+                )}
+                {feeder.params.weight && (
+                  <img className="fa-lamp-on" src={`/${faAll.lampOn}`} alt=""
+                    style={rectStyle(faScreen.dfWeightLamp)} />
+                )}
+                <span className="fa-run-value fa-run-value--top fa-run-value--centre"
+                  style={rectStyle(faScreen.dfTargetValue)}>
+                  {feeder.dfTargetWt}
+                </span>
+              </>
+            )}
 
             {faScreen.dfLabel && feeder.feeder === 'df' && (
               <img className="key-lit key-lit--overlay" src={`/${faScreen.dfLabel.image}`} alt="DF"
