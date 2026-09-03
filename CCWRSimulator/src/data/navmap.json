@@ -13290,50 +13290,60 @@
     "key": "wh_ds",
     "label": "WH-DS",
     "default": 110,
-    "startsAfter": null,
-    "desc": "Discharge request to discharge complete: the time from the packer asking for product to the weigh hoppers having dumped it."
+    "desc": "Discharge request to discharge complete: the time from the packer asking for product to the weigh hoppers having dumped it.",
+    "startsAfter": []
    },
    {
     "key": "is_wh",
     "label": "IS-WH",
     "default": 0,
-    "startsAfter": null,
-    "desc": "Infeed-signal to weigh hopper: delay between the discharge signal and the weigh hoppers opening."
+    "desc": "Infeed-signal to weigh hopper: delay between the discharge signal and the weigh hoppers opening.",
+    "startsAfter": []
    },
    {
     "key": "wh_ph",
     "label": "WH-PH",
     "default": 200,
-    "startsAfter": null,
-    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them."
+    "desc": "Weigh hopper to pool hopper: how long after the weigh hoppers open the pool hoppers refill them. Its bar starts where IS-WH ends.",
+    "startsAfter": [
+     "is_wh"
+    ]
    },
    {
     "key": "ph_rf",
     "label": "PH-RF",
     "default": 150,
-    "startsAfter": "wh_ph",
-    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Its bar starts where WH-PH ends."
+    "desc": "Pool hopper to radial feeder: how long after the pool hoppers open the radial feeders run to refill them. Its bar starts where WH-PH ends.",
+    "startsAfter": [
+     "is_wh",
+     "wh_ph"
+    ]
    },
    {
     "key": "stagger",
     "label": "STAGGER",
     "default": 0,
-    "startsAfter": null,
-    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once."
+    "desc": "Stagger: a spread between the weigh hoppers opening, so the product does not all land at once.",
+    "startsAfter": []
    },
    {
     "key": "wh_on",
     "label": "WH ON",
     "default": 450,
-    "startsAfter": null,
-    "desc": "Weigh hopper open time."
+    "desc": "Weigh hopper open time. Its bar starts where IS-WH ends - when the weigh hoppers open.",
+    "startsAfter": [
+     "is_wh"
+    ]
    },
    {
     "key": "ph_on",
     "label": "PH ON",
     "default": 400,
-    "startsAfter": "wh_ph",
-    "desc": "Pool hopper open time. Its bar starts where WH-PH ends."
+    "desc": "Pool hopper open time. Its bar starts where WH-PH ends - when the pool hoppers open.",
+    "startsAfter": [
+     "is_wh",
+     "wh_ph"
+    ]
    }
   ],
   "step": {
@@ -13453,6 +13463,7 @@
      }
     }
    }
-  }
+  },
+  "chainNote": "The bars are a timeline of delays: each interval starts where the ones before it end (IS-WH from the discharge signal, WH-PH when the weigh hoppers open, PH-RF when the pool hoppers open), so raising one slides everything after it to the right. Read off a running machine (IMG_7816) and consistent with the program."
  }
 }

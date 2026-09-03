@@ -49,8 +49,9 @@ export function enter(state, spec, typed) {
 /** Where a row's bar starts and how wide it is, in screen px. */
 export function bar(state, spec, layout, key) {
   const row = spec.rows.find((r) => r.key === key);
-  const start = row.startsAfter ? state.values[row.startsAfter] * layout.pxPerMs : 0;
-  const x = layout.x + start;
+  // A timeline of delays: the bar starts where the intervals before it end.
+  const start = (row.startsAfter || []).reduce((sum, k) => sum + state.values[k], 0) * layout.pxPerMs;
+  const x = Math.min(layout.max, layout.x + start);   // a start past the column stays at its edge
   const w = Math.min(state.values[key] * layout.pxPerMs, Math.max(0, layout.max - x));
   return { x, w };
 }

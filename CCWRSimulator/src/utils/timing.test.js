@@ -42,6 +42,14 @@ describe('timing adjustment', () => {
     const t = initialTiming(spec);
     expect(bar(t, spec, layout, 'wh_ds').x).toBe(layout.x);
     expect(bar(t, spec, layout, 'ph_rf').x).toBeCloseTo(layout.x + 200 * layout.pxPerMs);
+    // Raising IS-WH slides WH-PH, PH-RF, WH ON and PH ON right (the delays
+    // chain, as on the running machine in IMG_7816), and leaves WH-DS alone.
+    const later = { ...t, values: { ...t.values, is_wh: 100 } };
+    expect(bar(later, spec, layout, 'wh_ph').x).toBeCloseTo(layout.x + 100 * layout.pxPerMs);
+    expect(bar(later, spec, layout, 'ph_rf').x).toBeCloseTo(layout.x + 300 * layout.pxPerMs);
+    expect(bar(later, spec, layout, 'wh_on').x).toBeCloseTo(layout.x + 100 * layout.pxPerMs);
+    expect(bar(later, spec, layout, 'ph_on').x).toBeCloseTo(layout.x + 300 * layout.pxPerMs);
+    expect(bar(later, spec, layout, 'wh_ds').x).toBe(layout.x);
     let big = t;
     for (const k of Object.keys(t.values)) big = { ...big, values: { ...big.values, [k]: 2550 } };
     const b = bar(big, spec, layout, 'ph_on');
