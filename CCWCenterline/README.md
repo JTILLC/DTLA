@@ -22,6 +22,7 @@ Four ways, because no single one covers a plant visit:
 |---|---|
 | **Type them** | Always works. The screen preview updates as you type. |
 | **Import from the machine** | The `.csv` files the RCU's Output button writes, and `Preset.prm` from the backup's `cw` folder. Read, listed, and placed only where you place them — one value onto a mapped screen, or a whole block (AD parameter, hopper drive, a preset's timing or feeder table) as its own section. The text files hold the machine-level settings; the presets themselves are only in the binary. |
+| **Write back to the machine** | With a backup's `Preset.prm` loaded and preset blocks on the document, *Write Preset.prm* builds a copy of that file with one preset replaced by the blocks as edited. Only fields whose place in the file is proven are written; the `?` ones keep the machine's values. Try an empty preset number first and read the screens back. |
 | **Write a preset by hand** | The same preset blocks with every setting named and every value empty, for a machine that cannot be read. Pick the head and section count. |
 | **Photograph a screen** | For any RCU whose artwork we do not hold — which is most newer units. Straightened, then optionally read by the screen reader. |
 | **Copy a previous centerline** | Start from the last one for that customer and change what differs. |

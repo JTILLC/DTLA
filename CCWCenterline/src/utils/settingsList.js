@@ -93,7 +93,11 @@ export const listFileName = (centerline, extension) => {
 
 /** Hand a built string to the browser as a file. */
 export function downloadText(text, filename, mime = 'text/csv;charset=utf-8') {
-  const blob = new Blob([text], { type: mime });
+  downloadBlob(new Blob([text], { type: mime }), filename);
+}
+
+/** Hand bytes to the browser as a file. */
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

@@ -398,7 +398,10 @@ export default function App() {
           </div>
         </section>
 
-        <ImportExports spec={spec} onPlace={placeImported} onAddBlock={addImportedBlocks} />
+        <ImportExports
+          spec={spec} onPlace={placeImported} onAddBlock={addImportedBlocks}
+          sections={centerline.sections}
+        />
 
         {centerline.sections.map((section, index) => (
           section.kind === 'mapped' ? (

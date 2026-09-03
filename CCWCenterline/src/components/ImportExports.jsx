@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { parseExportSet, flattenExports, blockToSection } from '../utils/rcuExport';
 import { parsePresets, presetBlocks, blankPresetBlocks, isPresetFile } from '../utils/rcuPreset';
+import { presetFromSections, writePreset, emptySlots, keptFields } from '../utils/rcuPresetWrite';
+import { parseRecord, RECORD } from '../utils/rcuPreset';
+import { downloadBlob } from '../utils/settingsList';
 import { matchField } from '../utils/centerline';
 
 /**
@@ -16,10 +19,13 @@ import { matchField } from '../utils/centerline';
  * For a machine that cannot be read at all there is the blank preset: the
  * same blocks with every setting named and every value empty, to be typed.
  */
-export default function ImportExports({ spec, onPlace, onAddBlock }) {
+export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
   const [set, setSet] = useState({});
   const [presets, setPresets] = useState([]);
   const [presetNo, setPresetNo] = useState(null);
+  const [presetFile, setPresetFile] = useState(null);   // { name, buffer } of the loaded Preset.prm
+  const [slot, setSlot] = useState('');
+  const [writeNote, setWriteNote] = useState('');
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const [blankHeads, setBlankHeads] = useState(14);
@@ -35,7 +41,11 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
       const read = await Promise.all(textFiles.map(async (f) => ({ name: f.name, text: await f.text() })));
       const exports = parseExportSet(read);
       let found = [];
-      for (const f of presetFiles) found = found.concat(parsePresets(await f.arrayBuffer()));
+      for (const f of presetFiles) {
+        const buffer = await f.arrayBuffer();
+        found = found.concat(parsePresets(buffer));
+        setPresetFile({ name: f.name, buffer });
+      }
       if (!Object.keys(exports).length && !found.length) {
         setError('Nothing readable in that selection - the .csv files the Output button writes, or Preset.prm.');
         return;
@@ -44,6 +54,7 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
       if (found.length) {
         setPresets(found);
         setPresetNo(found[0].no);
+        setSlot(String(emptySlots(found)[0] || ''));
       }
     } catch (err) {
       setError(err?.message || 'Could not read those files.');
@@ -84,8 +95,33 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
     setSet({});
     setPresets([]);
     setPresetNo(null);
+    setPresetFile(null);
+    setWriteNote('');
     setFilter('');
     setError('');
+  };
+
+  // The preset blocks on the document are what gets written back.
+  const presetSections = (sections || []).filter((s) => s.kind === 'photo' && /^Preset(?: \d+)? · /.test(s.title || ''));
+  const slotNo = Number(slot);
+  const overwriting = presets.find((p) => p.no === slotNo);
+
+  const writeFile = () => {
+    setWriteNote('');
+    try {
+      const p = presetFromSections(presetSections);
+      const out = writePreset(presetFile.buffer, slotNo, p);
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(new Blob([out], { type: 'application/octet-stream' }), `Preset_${slotNo}_${stamp}.prm`);
+      const record = parseRecord(new DataView(out), (slotNo - 1) * RECORD, slotNo - 1);
+      const kept = keptFields(record).map(([k, v]) => `${k} ${v}`).join(', ');
+      const basis = p.from && p.from !== slotNo ? `preset ${p.from}` : `what preset ${slotNo} already held`;
+      setWriteNote(`Written: preset ${slotNo}${p.name ? ` "${p.name}"` : ''} into a copy of ${presetFile.name}. `
+        + 'Rename it Preset.prm beside the other .prm files before restoring. '
+        + `Not written, kept from ${basis}: ${kept}.`);
+    } catch (err) {
+      setWriteNote(`Not written: ${err.message}`);
+    }
   };
 
   return (
@@ -140,6 +176,44 @@ export default function ImportExports({ spec, onPlace, onAddBlock }) {
           <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
             Values marked “?” are decoded from the binary with good evidence but are not proven;
             they go on the document flagged “check”.
+          </p>
+        </div>
+      )}
+
+      {presetFile && presetSections.length > 0 && (
+        <div className="mt-4 p-3 rounded" style={{ background: 'var(--surface-sunken)' }}>
+          <p className="field-label">Write back to the machine</p>
+          <p className="text-sm mb-2" style={{ color: 'var(--text-muted)' }}>
+            The {presetSections.length} preset block{presetSections.length === 1 ? '' : 's'} on this document,
+            as edited, become one preset in a copy of {presetFile.name}. Only settings whose place in the
+            file is proven are written; those marked “?” keep the machine’s own values.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Preset number</span>
+            <input
+              className="field" type="number" min="1" max="200" style={{ width: '5.5rem' }}
+              value={slot} onChange={(e) => setSlot(e.target.value)} aria-label="Preset number"
+            />
+            {overwriting && (
+              <span className="chip" style={{ color: 'var(--warn)' }}>
+                replaces {overwriting.no}: {overwriting.name}
+              </span>
+            )}
+            <button
+              type="button" className="btn btn-primary" onClick={writeFile}
+              disabled={!(slotNo >= 1 && slotNo <= 200)}
+            >
+              Write Preset.prm
+            </button>
+          </div>
+          {writeNote && (
+            <p className="text-sm mt-2" style={{ color: writeNote.startsWith('Not') ? 'var(--danger)' : 'var(--text)' }}>
+              {writeNote}
+            </p>
+          )}
+          <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
+            First time on a machine: write into an empty number, restore it, and read the screens back
+            before trusting it on a live preset.
           </p>
         </div>
       )}
