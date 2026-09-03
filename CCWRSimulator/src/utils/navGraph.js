@@ -19,7 +19,12 @@ export function drawers(navmap) {
 export function allEdges(navmap) {
   const edges = [];
   for (const [from, s] of Object.entries(navmap.screens)) {
-    for (const h of s.hotspots) edges.push({ from, to: h.to });
+    // A key that only toggles a lamp or types a digit has no `to` and is not
+    // an edge; a wait pop-up that clears itself (autoNext) is one.
+    for (const h of s.hotspots) if (h.to) edges.push({ from, to: h.to });
+    if (s.autoNext) edges.push({ from, to: s.autoNext.to });
+    // A screen that lands on a state first (a "loading" pop-up) leads there.
+    if (s.onEnter) edges.push({ from, to: s.onEnter });
   }
   for (const drawer of drawers(navmap)) {
     const openable = drawer.items.filter((i) => i.to);
@@ -82,4 +87,30 @@ export function pointInRect(pt, rect) {
     pt.x >= rect.x && pt.x <= rect.x + rect.w &&
     pt.y >= rect.y && pt.y <= rect.y + rect.h
   );
+}
+
+/** The base screen a state belongs to: `run-feeder@bar` -> `run-feeder`. */
+export function baseOf(navmap, slug) {
+  const s = navmap.screens[slug];
+  return (s && s.parent) || slug;
+}
+
+/**
+ * Whether a key's conditions hold. `flags` is the machine's state — power,
+ * running, access level and so on. Free mode passes everything, since it
+ * withholds nothing by design.
+ */
+export function conditionsMet(requires, flags, freeMode) {
+  if (freeMode || !requires || !requires.length) return true;
+  const test = {
+    power: () => Boolean(flags.power),
+    running: () => Boolean(flags.running),
+    stopped: () => !flags.running,
+    level4: () => flags.level === 4,
+    avg: () => Boolean(flags.avg),
+    drain: () => Boolean(flags.drain),
+    drainStopped: () => !flags.drain,
+    homeDead: () => false,       // HOME is dimmed on this screen; Exit leaves
+  };
+  return requires.every((r) => (test[r] ? test[r]() : false));
 }

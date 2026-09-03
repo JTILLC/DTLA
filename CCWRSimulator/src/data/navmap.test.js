@@ -18,16 +18,39 @@ describe('navigation map integrity', () => {
   it('every hotspot points at a screen that exists', () => {
     for (const [slug, s] of Object.entries(navmap.screens)) {
       for (const h of s.hotspots) {
+        // A lamp toggle or a keypad digit navigates nowhere, and says what it
+        // does instead. Anything else must go somewhere real.
+        if (!h.to) {
+          expect(h.action || h.toggles || h.sets, `${slug}: a key that does nothing`).toBeTruthy();
+          continue;
+        }
         expect(navmap.screens[h.to], `${slug} -> ${h.to}`).toBeDefined();
       }
+      if (s.autoNext) expect(navmap.screens[s.autoNext.to], `${slug} autoNext`).toBeDefined();
+      if (s.onEnter) expect(navmap.screens[s.onEnter], `${slug} onEnter`).toBeDefined();
     }
   });
 
   it('no hotspot is a self-loop', () => {
     for (const [slug, s] of Object.entries(navmap.screens)) {
       for (const h of s.hotspots) {
-        expect(h.to, `${slug} loops to itself`).not.toBe(slug);
+        if (h.to) expect(h.to, `${slug} loops to itself`).not.toBe(slug);
       }
+    }
+  });
+
+  it('every state screen names its parent, and the parent is a real screen', () => {
+    // States (`run-feeder@bar`) are the program's pop-ups, modes, wizard steps
+    // and locks — sprites and script rather than frames — and every one of
+    // them belongs to the frame it is drawn over.
+    for (const [slug, s] of Object.entries(navmap.screens)) {
+      if (!slug.includes('@')) continue;
+      expect(s.parent, `${slug} has no parent`).toBeTruthy();
+      expect(navmap.screens[s.parent], `${slug} parent ${s.parent}`).toBeDefined();
+      expect(s.parent.includes('@'), `${slug} parent is itself a state`).toBe(false);
+      expect(['popup', 'state', 'wizard']).toContain(s.kind);
+      expect(s.captured, `${slug} is a capture`).toBe(true);
+      expect(slug.startsWith(s.parent + '@'), `${slug} is named for its parent`).toBe(true);
     }
   });
 
@@ -60,10 +83,8 @@ describe('navigation map integrity', () => {
   it('every screen has at least one way out', () => {
     for (const [slug, s] of Object.entries(navmap.screens)) {
       const drawer = drawers(navmap).some((d) => drawerScreens(d).includes(slug));
-      expect(
-        s.hotspots.length + (drawer ? 1 : 0),
-        `${slug} has no exits`
-      ).toBeGreaterThan(0);
+      const exits = s.hotspots.filter((h) => h.to).length + (drawer ? 1 : 0) + (s.autoNext ? 1 : 0);
+      expect(exits, `${slug} has no exits`).toBeGreaterThan(0);
     }
   });
 
@@ -131,10 +152,10 @@ describe('navigation map integrity', () => {
   });
 
   it('captured screens are marked as captures, extracted screens are not', () => {
-    // Eight screens are Ruffle captures of the running program, not bitmaps
-    // extracted from the movie (assets/captured/README.md). The flag keeps
-    // that provenance in the data itself.
-    const captured = slugs.filter((s) => navmap.screens[s].captured);
+    // Eight base screens are Ruffle captures of the running program, not
+    // bitmaps extracted from the movie (assets/captured/README.md), and so is
+    // every state. The flag keeps that provenance in the data itself.
+    const captured = slugs.filter((s) => navmap.screens[s].captured && !s.includes('@'));
     expect(captured.sort()).toEqual([
       'level-password',
       'level-select',
@@ -154,10 +175,14 @@ describe('navigation map integrity', () => {
     }
   });
 
-  it('every screen ships its background image', () => {
+  it('every screen ships its background image, and every variant of it', () => {
     for (const [slug, s] of Object.entries(navmap.screens)) {
-      const file = path.join(root, 'public', s.image);
-      expect(fs.existsSync(file), `${slug} missing ${s.image}`).toBe(true);
+      const images = [s.image, ...Object.values(s.imageBy || {}),
+        ...(s.layers || []).map((l) => l.image)];
+      for (const image of images) {
+        const file = path.join(root, 'public', image);
+        expect(fs.existsSync(file), `${slug} missing ${image}`).toBe(true);
+      }
     }
   });
 
@@ -192,6 +217,24 @@ describe('navigation map integrity', () => {
       'main-menu -> run-combination',
       'preset-select-a -> run-combination',
     ]);
+    // The states found on the fine-tooth-comb pass gate on power the same way,
+    // through `requires`: Drain START, Full Open's Open, Test Drive's Drive
+    // Start, and the wizard's final START. All pressed cold and seen dead.
+    const also = [];
+    for (const [slug, s] of Object.entries(navmap.screens)) {
+      for (const h of s.hotspots) {
+        if ((h.requires || []).includes('power')) also.push(`${slug} -> ${h.to || h.label}`);
+      }
+    }
+    expect(also.sort()).toEqual([
+      'assistant@standby -> run-combination',
+      'discharge-feeder -> Drain START',
+      'discharge-timing -> Drain START',
+      'discharge-weight -> Drain START',
+      'hopper-discharge -> hopper-discharge@open',
+      'selfdiag-test -> selfdiag-test@drive',
+      'zero-adjust -> zero-adjust@starting',
+    ]);
   });
 
   it('with power off, only the Production screens become unreachable', () => {
@@ -201,22 +244,22 @@ describe('navigation map integrity', () => {
     // bug in the gating, not a fact about the machine.
     const cold = JSON.parse(JSON.stringify(navmap));
     for (const s of Object.values(cold.screens)) {
-      s.hotspots = s.hotspots.filter((h) => !h.requiresPower);
+      s.hotspots = s.hotspots.filter((h) => !h.requiresPower && !(h.requires || []).includes('power'));
     }
     const seen = reachable(cold, 'main-menu');
     const dark = slugs.filter((s) => !seen.has(s)).sort();
-    expect(dark).toEqual([
-      'run-combination',
-      'run-feeder',
-      'run-timing',
-      'run-totals',
-      'run-weight',
-    ]);
+    // The five Production tabs and every state under them, plus the two
+    // states whose only door is a power-gated key.
+    const expected = slugs.filter((s) => s.startsWith('run-')
+      || s === 'hopper-discharge@open' || s === 'selfdiag-test@drive'
+      || s === 'zero-adjust@starting').sort();
+    expect(dark).toEqual(expected);
   });
 
   it('edge list matches hotspot count plus drawer wiring', () => {
     const hotspotCount = slugs.reduce(
-      (n, s) => n + navmap.screens[s].hotspots.length,
+      (n, s) => n + navmap.screens[s].hotspots.filter((h) => h.to).length
+        + (navmap.screens[s].autoNext ? 1 : 0) + (navmap.screens[s].onEnter ? 1 : 0),
       0
     );
     // screens and drawTabOn overlap, so each drawer's screens are counted
@@ -232,7 +275,8 @@ describe('navigation map integrity', () => {
 
 describe('training content coverage', () => {
   it('every screen has training notes', () => {
-    const missing = slugs.filter((s) => !screenInfo[s]);
+    // A state reads its parent's notes; it needs none of its own.
+    const missing = slugs.filter((s) => !screenInfo[s] && !screenInfo[navmap.screens[s].parent]);
     expect(missing, `no screenInfo for: ${missing.join(', ')}`).toEqual([]);
   });
 

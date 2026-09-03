@@ -76,8 +76,12 @@ describe('lessons are walkable on the real navigation map', () => {
             x: step.rect.x + step.rect.w / 2,
             y: step.rect.y + step.rect.h / 2,
           };
+          // A key that does something in place — Stop, Drain START, a lamp
+          // toggle — may sit under a tap-spot; those are the machine's own
+          // keys and the step is teaching them. Only a key that would carry
+          // the trainee off to another screen is a clash.
           const clash = navmap.screens[step.screen].hotspots.find((h) =>
-            pointInRect(center, h)
+            pointInRect(center, h) && !(h.action || h.toggles || h.sets)
           );
           expect(clash, `${step.label} overlaps hotspot to ${clash?.to}`).toBeUndefined();
         }

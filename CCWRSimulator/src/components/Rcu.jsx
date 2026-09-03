@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { pointInRect } from '../utils/navGraph';
+import { pointInRect, conditionsMet } from '../utils/navGraph';
 import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
 import FeederChart from './FeederChart';
@@ -34,6 +34,9 @@ export default function Rcu({
   zeroing,        // true while "Please wait a moment." runs
   feeder,         // Feeder Adjustment state (see utils/feeder.js)
   notice,         // transient message (e.g. tapping a dead key with power off)
+  flags,          // the machine's state: level, running, drain, lamps… (+ power)
+  typed,          // what is typed on an open keypad
+  blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
   const screen = navmap.screens[slug];
@@ -41,6 +44,13 @@ export default function Rcu({
   const st = navmap.selectTotal;
   const [flashing, setFlashing] = useState(false);
   const flashTimer = useRef(null);
+  const [powerFrame, setPowerFrame] = useState(0);
+
+  useEffect(() => {
+    if (!powerBusy) { setPowerFrame(0); return undefined; }
+    const t = setInterval(() => setPowerFrame((f) => Math.min(f + 1, 3)), 900);
+    return () => clearInterval(t);
+  }, [powerBusy]);
 
   useEffect(() => {
     if (!wrongFlash) return;
@@ -59,16 +69,28 @@ export default function Rcu({
      the screen has one image per state rather than an overlay. */
   const za = navmap.zeroAdjust;
   const zaHere = za && za.screen === slug;
+  /* The art answers to the machine's state: the Main Menu at Maintenance
+     level has the Preset key and the Machine Set handle, the Weight page
+     with Average Control on has its Lower Weight Limit. */
   const imageFor = () => {
-    if (!zaHere) return screen.image;
+    for (const [flag, image] of Object.entries(screen.imageBy || {})) {
+      if (flags?.[flag] === true || (flag === 'level4' && flags?.level === 4)) return image;
+    }
     return screen.image;
+  };
+  const holds = (when) => {
+    if (!when) return true;
+    if (when === 'stopped') return !flags?.running;
+    if (when === 'level4') return flags?.level === 4;
+    return Boolean(flags?.[when]);
   };
 
   const zaAnySelected = zaHere && selection
     && (selection.table || (selection.heads && selection.heads.length > 0));
 
   const faAll = navmap.feederAdjust;
-  const faScreen = faAll?.screens?.[slug] || null;
+  const faScreen = faAll?.screens?.[slug]
+    || (screen.keepChart && faAll?.screens?.[screen.parent]) || null;
   const fa = faScreen ? { ...faAll, ...faScreen } : faAll;
   const feederShown = feeder && faScreen
     ? { time: formatValue(shownValues(feeder).time), amp: formatValue(shownValues(feeder).amp) }
@@ -82,9 +104,14 @@ export default function Rcu({
     height: pct(r.h, CH),
   });
 
-  const hasBakedTab = ms && ms.screens.includes(slug);
-  const drawsTab = ms && (ms.drawTabOn || []).includes(slug);
-  const showsDrawer = hasBakedTab || drawsTab;
+  // On the Main Menu the handle exists only at Maintenance level (the frame
+  // script shows Conp01 when KRlevel == 4), and the level-4 capture has it
+  // baked in, so there it is a hotspot and never a drawn look-alike.
+  const atMaintenance = flags?.level === 4;
+  const mainMenuHere = slug === 'main-menu';
+  const hasBakedTab = ms && (ms.screens.includes(slug) || (mainMenuHere && atMaintenance));
+  const drawsTab = ms && (ms.drawTabOn || []).includes(slug) && !mainMenuHere;
+  const showsDrawer = (hasBakedTab || drawsTab) && !(mainMenuHere && !atMaintenance);
 
   // The Select Total tab is baked into every capture that carries it (the
   // Main Menu and the six Total views), so it only ever needs an invisible
@@ -105,6 +132,7 @@ export default function Rcu({
         className={
           'rcu-stage' +
           (showHotspots && !lessonActive ? ' show-hotspots' : '') +
+          (blink ? ' blink-keys' : '') +
           (flashing ? ' flash-wrong' : '')
         }
         style={{ width: '100%', maxWidth: `calc((100dvh - 120px) * ${CW / CH})` }}
@@ -117,26 +145,75 @@ export default function Rcu({
           draggable={false}
         />
 
-        {screen.hotspots.map((h, i) => (
-          <button
-            key={`${h.button}-${i}`}
-            type="button"
-            className={
-              'hotspot' +
-              (isNavTarget(h) ? ' hotspot--target' : '') +
-              (h.requiresPower && !powerOn && !gatingOff ? ' hotspot--gated' : '')
-            }
-            style={rectStyle(h)}
-            aria-label={
-              h.requiresPower && !powerOn && !gatingOff
-                ? `${h.label || 'Key'} (dead — machine not powered on)`
-                : `Go to ${h.to}`
-            }
-            onClick={() =>
-              onTap({ type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower })
-            }
-          />
+        {screen.hotspots.filter((h) => h.action !== 'zero-start').map((h, i) => {
+          const dead = !gatingOff && (
+            (h.requiresPower && !powerOn)
+            || !conditionsMet(h.requires, flags || {}, false));
+          const what = h.label || (h.action === 'key' ? `Key ${h.char}` : h.to ? `Go to ${h.to}` : 'Key');
+          return (
+            <button
+              key={`${h.button || h.label || h.to}-${i}`}
+              type="button"
+              className={
+                'hotspot' +
+                (isNavTarget(h) ? ' hotspot--target' : '') +
+                (dead ? ' hotspot--gated' : '') +
+                (h.action === 'key' ? ' hotspot--key' : '')
+              }
+              style={rectStyle(h)}
+              aria-label={dead ? `${what} (dead in this state)` : what}
+              title={h.note || (dead ? `${what} — dead in this state` : what)}
+              onClick={() => onTap({
+                type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower,
+                requires: h.requires, sets: h.sets, toggles: h.toggles,
+                action: h.action, char: h.char, note: h.note, label: h.label,
+              })}
+            />
+          );
+        })}
+
+        {/* Crops composited over the art: the Feeder tab's slide-out drawer
+            over whichever chart mode is showing. */}
+        {(screen.layers || []).map((l, i) => (
+          <div key={`layer-${i}`} className="rcu-layer" style={rectStyle(l)}>
+            <img
+              src={`/${l.image}`}
+              alt=""
+              draggable={false}
+              style={{
+                width: `${(CW / l.w) * 100}%`,
+                height: `${(CH / l.h) * 100}%`,
+                left: `${-(l.x / l.w) * 100}%`,
+                top: `${-(l.y / l.h) * 100}%`,
+              }}
+            />
+          </div>
         ))}
+
+        {/* Keys whose look follows the machine's state — Stop grey and Start
+            lit once stopped, Drain STOP lit while draining — cut from captures
+            of those states. */}
+        {(screen.overlays || []).filter((o) => holds(o.when)).map((o, i) => (
+          <img key={`ov-${i}`} className="key-lit key-lit--overlay" src={`/${o.image}`} alt="" style={rectStyle(o)} />
+        ))}
+
+        {/* Lamps: the small green bar at a key's edge while its flag holds. */}
+        {(screen.lamps || []).filter((l) => flags?.[l.flag]).map((l, i) => (
+          <img key={`lamp-${i}`} className="fa-lamp-on" src="/keys/lamp-on.png" alt="" style={rectStyle(l)} />
+        ))}
+
+        {/* An open keypad or keyboard: what has been typed, over the field. */}
+        {screen.keypad && (
+          <div
+            className={'keypad-field' + (screen.keypad.password ? ' keypad-field--password' : '')}
+            style={rectStyle(screen.keypad.field)}
+            aria-live="polite"
+          >
+            <span className="keypad-field__value">
+              {screen.keypad.password ? '•'.repeat(typed.length) : typed}
+            </span>
+          </div>
+        )}
 
         {/* The Power key, and the lit keys that follow from it.
             The artwork is a fixed JPEG of a machine with its control power
@@ -352,12 +429,15 @@ export default function Rcu({
             the arrows move the values of the selected pans. */}
         {faScreen && faScreen.style === 'run' && feeder && (
           <>
+            {/* The dispersion feeder's key is the ① printed on the centre
+                disc (found on the original: the disc turns blue, the arrow
+                reads DF, the chart draws circles). Press again for RF. */}
             <button
               type="button"
-              className={'fa-key' + (feeder.feeder === 'rf' ? ' fa-key--on' : '')}
+              className={'fa-key fa-round' + (feeder.feeder === 'df' ? ' fa-key--on' : '')}
               style={rectStyle(faScreen.keys.rf)}
-              aria-label={`RF feeder — ${feeder.feeder === 'rf' ? 'selected' : 'not selected'}`}
-              title="Radial feeders — press to adjust these; press again for the dispersion feeder"
+              aria-label={`${faScreen.keys.rf.label} — ${feeder.feeder === 'df' ? 'selected' : 'not selected'}`}
+              title={faScreen.keys.rf.note}
               onClick={() => onTap({ type: 'feeder-select', which: feeder.feeder === 'rf' ? 'df' : 'rf' })}
             />
 
@@ -430,9 +510,16 @@ export default function Rcu({
               heads={feeder.heads}
               values={feeder.rf}
               params={feeder.params}
+              df={feeder.feeder === 'df'}
+              dfValues={feeder.df}
               showHotspots={showHotspots}
               onTapHead={(no) => onTap({ type: 'pan', no })}
             />
+
+            {faScreen.dfLabel && feeder.feeder === 'df' && (
+              <img className="key-lit key-lit--overlay" src={`/${faScreen.dfLabel.image}`} alt="DF"
+                style={rectStyle(faScreen.dfLabel)} />
+            )}
 
             {(faScreen.unknownKeys || []).map((k, i) => (
               <div
@@ -445,19 +532,18 @@ export default function Rcu({
           </>
         )}
 
-        {/* Power-up: the original shows this pop-up for ~10 s with the whole
-            bottom bar (HOME included) locked out. */}
+        {/* Power-up: the original shows "Please wait a moment." with an
+            hourglass and a progress bar for ~10 s, the whole bottom bar (HOME
+            included) locked out. These are four frames of that pop-up cut
+            from captures of the real thing, played in turn. */}
         {powerBusy && (
-          <div className="power-popup" role="status">
-            <div className="power-popup__title">Please wait a moment.</div>
-            <div className="power-popup__bar">
-              <div className="power-popup__fill" />
-            </div>
-            <div className="power-popup__note">
-              Powering up — on the real unit this takes about ten seconds,
-              and every key on the bottom bar is locked out until it finishes.
-            </div>
-          </div>
+          <img
+            className="power-popup-art"
+            src={`/keys/power-wait-${powerFrame}.png`}
+            alt="Please wait a moment — powering up"
+            style={rectStyle({ x: 180, y: 180, w: 392, h: 186 })}
+            draggable={false}
+          />
         )}
 
         {notice && (

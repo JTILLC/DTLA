@@ -46,6 +46,9 @@ export default function ScreenIndex({ current, onPick }) {
     const out = new Map(GROUPS.map(([name]) => [name, []]));
     out.set('Other', out.get('Other') || []);
     for (const slug of Object.keys(navmap.screens)) {
+      // States (pop-ups, modes, wizard steps) are reached from their screen,
+      // not from here: the index lists the machine's menu, not every moment.
+      if (navmap.screens[slug].parent) continue;
       const title = screenInfo[slug]?.title || slug;
       if (q && !`${title} ${slug}`.toLowerCase().includes(q)) continue;
       const name = groupFor(slug);

@@ -8,6 +8,19 @@
 </style>
 <div id="bar">status: <span id="s">booting…</span> · stage <span id="r">?</span></div>
 <div id="stage"></div>
+<script>
+  // Ruffle ignores preferredRenderer:'canvas' on this machine and takes WebGL,
+  // whose canvas reads back BLANK from toDataURL unless the context was created
+  // with preserveDrawingBuffer. Ruffle does not expose that, so the context
+  // request is intercepted here, before ruffle.js loads, and the flag added.
+  const realGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
+      attrs = Object.assign({}, attrs || {}, { preserveDrawingBuffer: true });
+    }
+    return realGetContext.call(this, type, attrs);
+  };
+</script>
 <script src="node_modules/@ruffle-rs/ruffle/ruffle.js"></script>
 <script>
   const s = document.getElementById('s');

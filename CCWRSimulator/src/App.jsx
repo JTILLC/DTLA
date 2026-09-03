@@ -9,7 +9,8 @@ import Rcu from './components/Rcu';
 import InfoPanel from './components/InfoPanel';
 import LessonPanel from './components/LessonPanel';
 import ScreenIndex from './components/ScreenIndex';
-import { drawers, drawerScreens } from './utils/navGraph';
+import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
+import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
 
 const STORAGE_KEY = 'ccwr-sim-v1';
 
@@ -71,6 +72,14 @@ export default function App() {
     () => saved.feeder ?? initialFeeder(navmap.feederAdjust));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
+  /* The machine's state beyond power: access level, running or stopped,
+     draining, the lamps, Average Control. Keys set and test these
+     (utils/machineState.js), and the artwork answers to them. */
+  const [flags, setFlags] = useState(() => ({ ...initialFlags(), ...(saved.flags || {}) }));
+  /* What has been typed on an open keypad or keyboard. */
+  const [typed, setTyped] = useState('');
+  const [blink, setBlink] = useState(false);
+  const autoTimer = useRef(null);
   const [notice, setNotice] = useState(null);
   const noticeTimer = useRef(null);
   const powerTimer = useRef(null);
@@ -117,14 +126,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection, feeder,
+          selection, feeder, flags,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection, feeder]);
+      powerOn, loadedPreset, selection, feeder, flags]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -137,7 +146,7 @@ export default function App() {
   /* Prefetch the screens one tap away so navigation feels instant. */
   useEffect(() => {
     const targets = new Set(
-      (navmap.screens[screen]?.hotspots || []).map((h) => h.to)
+      (navmap.screens[screen]?.hotspots || []).map((h) => h.to).filter(Boolean)
     );
     for (const drawer of drawers(navmap)) {
       if (drawerScreens(drawer).includes(screen)) {
@@ -147,15 +156,45 @@ export default function App() {
       }
     }
     for (const t of targets) {
+      if (!navmap.screens[t]) continue;
       const img = new Image();
       img.src = `/${navmap.screens[t].image}`;
     }
   }, [screen]);
 
   const navigate = useCallback((to) => {
+    // A screen that opens on a pop-up (Preset Manager's "Loading preset
+    // data") lands on that state first; the pop-up clears itself.
+    const dest = navmap.screens[to]?.onEnter || to;
     setHistory((h) => [...h.slice(-49), screen]);
-    setScreen(to);
+    setScreen(dest);
     setOpenDrawer(null);
+  }, [screen]);
+
+  /* Wait pop-ups clear themselves — power-up, zero adjustment, the wizard's
+     "In WH Zero Adjst." — and may change the machine when they do (a
+     finished zero adjustment deselects everything). */
+  useEffect(() => {
+    const s = navmap.screens[screen];
+    clearTimeout(autoTimer.current);
+    if (!s?.autoNext) return undefined;
+    autoTimer.current = setTimeout(() => {
+      if (s.sets) {
+        setFlags((f) => applySets(f, s.sets));
+        if (s.sets.zeroDone) {
+          setSelection({ heads: [], table: false });
+          showNotice('Zero adjustment complete. Confirm each hopper reads 0.0 ±0.1 g (4.4.6).');
+        }
+      }
+      setScreen(s.autoNext.to);
+    }, s.autoNext.ms);
+    return () => clearTimeout(autoTimer.current);
+  }, [screen, showNotice]);
+
+  /* A keypad opens showing the value it holds. */
+  useEffect(() => {
+    const s = navmap.screens[screen];
+    if (s?.keypad) setTyped(s.keypad.seed || '');
   }, [screen]);
 
   const advanceLesson = useCallback(() => {
@@ -176,6 +215,7 @@ export default function App() {
          pop-up — and works from any screen. Mid-production, one press
          stops the machine AND cuts power in the same stroke. */
       setPowerOn(false);
+      setFlags((f) => ({ ...f, running: false, drain: false }));
       return;
     }
     /* Observed: powering ON shows "Please wait a moment." with an hourglass
@@ -276,18 +316,11 @@ export default function App() {
           + 'WH / Slct All DF — Start only zeroes what is shown in blue.');
         return;
       }
-      // 4.4.6: the message appears and the adjustment runs; when it finishes the
-      // selection clears and Start goes dark again, as on the real unit.
-      setZeroing(true);
-      clearTimeout(zeroTimer.current);
-      zeroTimer.current = setTimeout(() => {
-        setZeroing(false);
-        const was = describeSel(selection);
-        setSelection({ heads: [], table: false });   // a finished cycle deselects
-        showNotice(selection.table
-          ? `Zero adjustment complete on ${was}. Confirm it reads 0.0 g (4.4.6).`
-          : `Zero adjustment complete on ${was}. Confirm each reads 0.0 ±0.1 g (4.4.6).`);
-      }, 4000);
+      // 4.4.6: "Please wait a moment." with its progress bar comes up over the
+      // hoppers — the same pop-up as power-up — and when it clears the
+      // selection has gone and Start is dark again. The pop-up is a captured
+      // state that clears itself (autoNext) and deselects (sets.zeroDone).
+      navigate('zero-adjust@starting');
       return;
     }
 
@@ -302,6 +335,62 @@ export default function App() {
       );
       return;
     }
+
+    /* Keys that need the machine in a state: power on, stopped, Maintenance
+       level, draining. Each says why it is dead (utils/machineState.js). */
+    if (evt.requires && !conditionsMet(evt.requires, { ...flags, power: powerOn }, freeMode)) {
+      setWrongFlash((n) => n + 1);
+      const why = evt.requires.find((r) => !conditionsMet([r], { ...flags, power: powerOn }, false));
+      showNotice(REQUIRE_MESSAGES[why] || `This key needs: ${why}.`);
+      return;
+    }
+
+    /* Keypads and keyboards, the help blink, lamps, and keys that only change
+       the machine's state. */
+    if (evt.action === 'key') { setTyped((t) => t + evt.char); return; }
+    if (evt.action === 'bs') { setTyped((t) => t.slice(0, -1)); return; }
+    if (evt.action === 'clr') { setTyped(''); return; }
+    if (evt.action === 'blink') {
+      setBlink((b) => !b);
+      showNotice('The ? key: every key you can press blinks until you press ? again.');
+      return;
+    }
+    if (evt.action === 'inert') {
+      setWrongFlash((n) => n + 1);
+      showNotice(evt.note || 'This key does nothing here.');
+      return;
+    }
+    if (evt.action === 'password') {
+      // The keyboard commits the level that was picked on the list. 123 is the
+      // Maintenance password from the Operation Manual; the demo accepts it
+      // for every level, and rejects an empty entry.
+      if (typed === '123') {
+        setFlags((f) => ({ ...f, level: f.pendingLevel || f.level, pendingLevel: null }));
+        showNotice('Access level set. Maintenance shows four yellow dots, and the Main Menu gains the Preset key and the Machine Set drawer.');
+        navigate('main-menu');
+      } else {
+        setWrongFlash((n) => n + 1);
+        showNotice(typed ? 'Wrong password. The Maintenance password is 1 2 3.' : 'Enter the password first — an empty entry is rejected.');
+      }
+      return;
+    }
+    if (evt.action === 'zero-start') {
+      handleTap({ type: 'zero-start' });
+      return;
+    }
+    if (evt.toggles) {
+      setFlags((f) => toggleFlag(f, evt.toggles));
+    }
+    if (evt.sets) {
+      if (evt.sets.power === false) setPowerOn(false);
+      setFlags((f) => applySets(f, evt.sets));
+    }
+    if (evt.action === 'enter' || evt.action === 'cancel') {
+      if (evt.action === 'enter') showNotice(`Entered: ${typed || '(nothing)'}. On the machine this is now the value; the artwork here keeps showing what it showed.`);
+      navigate(evt.to);
+      return;
+    }
+    if (!evt.to) return;
 
     /* The one gating rule: a key the original dims with power off must not
        navigate, and says why (data-driven via requiresPower in navmap). */
@@ -333,7 +422,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection]);
+      applySelection, flags, typed]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -365,7 +454,9 @@ export default function App() {
     return null;
   }, [step]);
 
-  const title = screenInfo[screen]?.title || screen;
+  const title = screenInfo[screen]?.title
+    || navmap.screens[screen]?.label
+    || screen;
 
   return (
     <div className="app-shell">
@@ -440,6 +531,9 @@ export default function App() {
           loadedPreset={loadedPreset}
           selection={selection}
           feeder={feeder && { ...feeder, heads: selection.table ? [] : selection.heads }}
+          flags={{ ...flags, power: powerOn }}
+          typed={typed}
+          blink={blink}
           zeroing={zeroing}
           notice={notice}
         />

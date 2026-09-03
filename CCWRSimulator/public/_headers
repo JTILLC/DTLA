@@ -37,5 +37,8 @@
 /derived/*
   Cache-Control: no-cache
 
+/captured/*
+  Cache-Control: no-cache
+
 /masks/*
   Cache-Control: no-cache

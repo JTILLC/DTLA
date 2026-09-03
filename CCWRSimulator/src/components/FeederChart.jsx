@@ -30,7 +30,7 @@ const UNLIT = '#808080';
 
 export default function FeederChart({
   baseImage, wedgeMap, ringMap, chart, heads, values, params,
-  onTapHead, showHotspots,
+  df, dfValues, onTapHead, showHotspots,
 }) {
   const canvasRef = useRef(null);
   const dataRef = useRef(null);
@@ -87,8 +87,20 @@ export default function FeederChart({
       // The trough is far darker than the Zero Adjustment hoppers, so its
       // luminance is lifted into their range first and a selected wedge comes
       // out the same clear blue a selected hopper does.
-      if (lit.has(wedges[i])) paintSelected(d, i * 4, liftToHopperRange);
-      else if (lit.has(ring[i])) paintSelected(d, i * 4);
+      if (!df && lit.has(wedges[i])) paintSelected(d, i * 4, liftToHopperRange);
+      else if (!df && lit.has(ring[i])) paintSelected(d, i * 4);
+    }
+    // The dispersion feeder is selected by its own key — the ① on the centre
+    // disc — and the disc turns blue (measured off the original with DF
+    // selected: bbox 136,213 to 247,295, an ellipse in perspective).
+    if (df) {
+      const [ex, ey, rx, ry] = [191, 254, 56, 41];
+      for (let y = ey - ry; y <= ey + ry; y += 1) {
+        for (let x = ex - rx; x <= ex + rx; x += 1) {
+          const nx = (x - ex) / rx; const ny = (y - ey) / ry;
+          if (nx * nx + ny * ny <= 1) paintSelected(d, (y * w + x) * 4);
+        }
+      }
     }
 
     const canvas = canvasRef.current;
@@ -113,6 +125,18 @@ export default function FeederChart({
       ctx.fillStyle = ink;
       ctx.lineWidth = 1.2;
 
+      // With DF selected there is one value per parameter, not fourteen, and
+      // the original draws each as a plain circle at that radius (seen with
+      // DF selected: a navy circle at r≈30 for time 25.0, magenta at r≈61).
+      if (df) {
+        const v = dfValues?.[param] ?? 0;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, (v / 100) * chart.rFull, 0, Math.PI * 2);
+        ctx.stroke();
+        continue;
+      }
+
       ctx.beginPath();
       for (let n = 1; n <= chart.segments; n += 1) {
         const [x, y] = at(param, n);
@@ -133,7 +157,7 @@ export default function FeederChart({
         ctx.fill();
       }
     }
-  }, [ready, heads, values, params, chart]);
+  }, [ready, heads, values, params, chart, df, dfValues]);
 
   const labelAt = (event) => {
     const data = dataRef.current;

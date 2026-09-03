@@ -1,4 +1,5 @@
 import screenInfo from '../data/screenInfo';
+import navmap from '../data/navmap.json';
 
 /**
  * Free-explore side panel: what the current screen is for and what its keys
@@ -6,7 +7,10 @@ import screenInfo from '../data/screenInfo';
  * operator screens, Service Manual for the engineering screens).
  */
 export default function InfoPanel({ slug, labelJa }) {
-  const info = screenInfo[slug];
+  // A state — a pop-up, a chart mode, a wizard step — reads its screen's
+  // notes, under its own name.
+  const state = navmap.screens[slug]?.parent ? navmap.screens[slug] : null;
+  const info = screenInfo[slug] || (state && screenInfo[state.parent]);
 
   if (!info) {
     return (
@@ -21,6 +25,7 @@ export default function InfoPanel({ slug, labelJa }) {
     <div className="side-panel__body">
       <div className="panel-heading">
         <h2>{info.title}</h2>
+        {state && <p className="info-state">{state.label}</p>}
         {info.source === 'service' ? (
           <span className="chip" title="Section of the CCW-R Service Manual">
             Service {info.ref.split('/')[0].trim().split(' ')[1]}

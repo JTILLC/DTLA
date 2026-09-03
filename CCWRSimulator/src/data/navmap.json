@@ -98,7 +98,7 @@
     "label": "Weigher Information",
     "to": null,
     "maintenanceOnly": true,
-    "note": "Maintenance level only. PH/WH drive counters and their reset (Service 4.4.1). Not captured \u2014 no screen artwork for it."
+    "note": "Maintenance level only. PH/WH drive counters and their reset (Service 4.4.1). Not captured — no screen artwork for it."
    },
    {
     "label": "Display & Data Manager",
@@ -169,7 +169,7 @@
  "screens": {
   "main-menu": {
    "frame": 3,
-   "labelJa": "\u30e1\u30a4\u30f3\u30e1\u30cb\u30e5\u30fc",
+   "labelJa": "メインメニュー",
    "image": "screens/main-menu.jpg",
    "hotspots": [
     {
@@ -228,7 +228,10 @@
      "to": "run-combination",
      "button": 98,
      "requiresPower": true,
-     "label": "Start"
+     "label": "Start",
+     "sets": {
+      "running": true
+     }
     },
     {
      "x": 369,
@@ -252,12 +255,90 @@
      "w": 72,
      "h": 36,
      "to": "level-select"
+    },
+    {
+     "x": 706,
+     "y": 194,
+     "w": 88,
+     "h": 62,
+     "to": "preset-product",
+     "requires": [
+      "level4"
+     ],
+     "label": "Preset",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 87,
+     "w": 121,
+     "h": 18,
+     "to": "main-menu@product-name",
+     "label": "Product Name",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 128,
+     "w": 115,
+     "h": 17,
+     "to": "main-menu@product-code",
+     "label": "Product Code",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 168,
+     "w": 121,
+     "h": 17,
+     "to": "main-menu@target-weight",
+     "label": "Target Weight",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 189,
+     "w": 62,
+     "h": 16,
+     "to": "main-menu@speed",
+     "label": "Speed",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 209,
+     "w": 109,
+     "h": 15,
+     "to": "main-menu@dump-count",
+     "label": "Dump Count",
+     "generated": true
+    },
+    {
+     "x": 432,
+     "y": 229,
+     "w": 151,
+     "h": 15,
+     "to": "main-menu@upper-limit",
+     "label": "Upper Weight Limit",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
-   ]
+   ],
+   "imageBy": {
+    "level4": "captured/main-menu-maintenance.jpg"
+   }
   },
   "preset-select-a": {
    "frame": 11,
-   "labelJa": "\u4e88\u7d04\u9078\u629eA",
+   "labelJa": "予約選択A",
    "image": "screens/preset-select-a.jpg",
    "hotspots": [
     {
@@ -284,13 +365,34 @@
      "to": "run-combination",
      "requiresPower": true,
      "label": "Start",
-     "observed": "Pressed in the running original 2026-09-02: with power on, Start is live on Select Preset and jumps straight into Production running."
+     "observed": "Pressed in the running original 2026-09-02: with power on, Start is live on Select Preset and jumps straight into Production running.",
+     "sets": {
+      "running": true
+     }
+    },
+    {
+     "x": 697,
+     "y": 66,
+     "w": 89,
+     "h": 64,
+     "to": "preset-select-a@preset-no",
+     "label": "Preset No.",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-select-b": {
    "frame": 21,
-   "labelJa": "\u4e88\u7d04\u9078\u629eB",
+   "labelJa": "予約選択B",
    "image": "screens/preset-select-b.jpg",
    "hotspots": [
     {
@@ -308,12 +410,21 @@
      "h": 64,
      "to": "preset-select-a",
      "button": 390
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-product": {
    "frame": 31,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u5546\u54c1",
+   "labelJa": "予約設定_商品",
    "image": "screens/preset-product.jpg",
    "hotspots": [
     {
@@ -371,12 +482,57 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 53,
+     "y": 41,
+     "w": 47,
+     "h": 37,
+     "to": "preset-product@preset-no",
+     "label": "Preset No.",
+     "generated": true
+    },
+    {
+     "x": 72,
+     "y": 266,
+     "w": 236,
+     "h": 68,
+     "to": "preset-product@category",
+     "label": "Product Category",
+     "generated": true
+    },
+    {
+     "x": 389,
+     "y": 301,
+     "w": 88,
+     "h": 66,
+     "to": "preset-product@camera",
+     "label": "Camera",
+     "generated": true
+    },
+    {
+     "x": 351,
+     "y": 254,
+     "w": 166,
+     "h": 24,
+     "to": "preset-product@photo",
+     "label": "photo picker",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-machine": {
    "frame": 41,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u6a5f\u7269",
+   "labelJa": "予約設定_機物",
    "image": "screens/preset-machine.jpg",
    "hotspots": [
     {
@@ -442,12 +598,55 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 325,
+     "y": 184,
+     "w": 236,
+     "h": 65,
+     "to": "preset-machine@interlock",
+     "label": "Interlock Parameter Number",
+     "generated": true
+    },
+    {
+     "x": 180,
+     "y": 310,
+     "w": 60,
+     "h": 30,
+     "sets": {
+      "avg": true
+     },
+     "label": "Average Control On",
+     "generated": true
+    },
+    {
+     "x": 70,
+     "y": 310,
+     "w": 60,
+     "h": 30,
+     "sets": {
+      "avg": false
+     },
+     "label": "Average Control Off",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
-   ]
+   ],
+   "imageBy": {
+    "avg": "captured/pm-average-control-on.jpg"
+   }
   },
   "preset-item": {
    "frame": 51,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30a2\u30a4\u30c6\u30e0",
+   "labelJa": "予約設定_アイテム",
    "image": "screens/preset-item.jpg",
    "hotspots": [
     {
@@ -513,12 +712,57 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 71,
+     "y": 102,
+     "w": 236,
+     "h": 65,
+     "to": "preset-item@auto-feed",
+     "label": "Auto Feed Target",
+     "generated": true
+    },
+    {
+     "x": 71,
+     "y": 185,
+     "w": 236,
+     "h": 65,
+     "to": "preset-item@priority",
+     "label": "Disch. Priority Count",
+     "generated": true
+    },
+    {
+     "x": 71,
+     "y": 269,
+     "w": 236,
+     "h": 65,
+     "to": "preset-item@efficiency",
+     "label": "Good Efficiency Judgement Value",
+     "generated": true
+    },
+    {
+     "x": 324,
+     "y": 102,
+     "w": 236,
+     "h": 65,
+     "to": "preset-item@multiplier",
+     "label": "Feed Multiplier",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-other": {
    "frame": 61,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u305d\u306e\u4ed6",
+   "labelJa": "予約設定_その他",
    "image": "screens/preset-other.jpg",
    "hotspots": [
     {
@@ -584,12 +828,30 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 71,
+     "y": 102,
+     "w": 236,
+     "h": 65,
+     "to": "preset-other@stable-time",
+     "label": "Stable Time",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-feeder": {
    "frame": 71,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30d5\u30a3\u30fc\u30c0",
+   "labelJa": "予約設定_フィーダ",
    "image": "screens/preset-feeder.jpg",
    "hotspots": [
     {
@@ -623,12 +885,30 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 12,
+     "y": 166,
+     "w": 87,
+     "h": 46,
+     "to": "preset-feeder@read-default",
+     "label": "Read Default",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-timing": {
    "frame": 81,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u30bf\u30a4\u30df\u30f3\u30b0",
+   "labelJa": "予約設定_タイミング",
    "image": "screens/preset-timing.jpg",
    "hotspots": [
     {
@@ -662,12 +942,30 @@
      "h": 37,
      "to": "preset-weight",
      "button": 411
+    },
+    {
+     "x": 337,
+     "y": 404,
+     "w": 48,
+     "h": 37,
+     "to": "preset-timing@entr",
+     "label": "Entr Time",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "preset-weight": {
    "frame": 91,
-   "labelJa": "\u4e88\u7d04\u8a2d\u5b9a_\u91cd\u91cf",
+   "labelJa": "予約設定_重量",
    "image": "screens/preset-weight.jpg",
    "hotspots": [
     {
@@ -701,12 +999,54 @@
      "h": 37,
      "to": "preset-timing",
      "button": 410
+    },
+    {
+     "x": 71,
+     "y": 102,
+     "w": 236,
+     "h": 65,
+     "to": "preset-weight@ext-upper",
+     "label": "Extended Upper Limit",
+     "generated": true
+    },
+    {
+     "x": 324,
+     "y": 102,
+     "w": 236,
+     "h": 65,
+     "to": "preset-weight@dump-cycle",
+     "label": "Extended Upper Limit Dump Cycle",
+     "generated": true
+    },
+    {
+     "x": 71,
+     "y": 353,
+     "w": 235,
+     "h": 65,
+     "to": "preset-weight@lower",
+     "requires": [
+      "avg"
+     ],
+     "label": "Lower Weight Limit",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
-   ]
+   ],
+   "imageBy": {
+    "avg": "captured/preset-weight-avg-on.jpg"
+   }
   },
   "zero-adjust": {
    "frame": 101,
-   "labelJa": "\u96f6\u70b9\u8abf\u6574",
+   "labelJa": "零点調整",
    "image": "screens/zero-adjust.jpg",
    "hotspots": [
     {
@@ -724,12 +1064,34 @@
      "h": 62,
      "to": "main-menu",
      "button": 669
+    },
+    {
+     "x": 602,
+     "y": 449,
+     "w": 91,
+     "h": 76,
+     "to": "zero-adjust@starting",
+     "requires": [
+      "power"
+     ],
+     "action": "zero-start",
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "discharge-weight": {
    "frame": 111,
-   "labelJa": "\u5168\u6392\u51fa_\u91cd\u91cf\u8868\u793a",
+   "labelJa": "全排出_重量表示",
    "image": "screens/discharge-weight.jpg",
    "hotspots": [
     {
@@ -763,12 +1125,110 @@
      "h": 34,
      "to": "discharge-timing",
      "button": 747
+    },
+    {
+     "x": 302,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainAutoZero",
+     "label": "Auto Zero",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainInfeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": true
+     },
+     "requires": [
+      "power",
+      "drainStopped"
+     ],
+     "label": "Drain START",
+     "generated": true
+    },
+    {
+     "x": 504,
+     "y": 453,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": false
+     },
+     "requires": [
+      "drain"
+     ],
+     "label": "Drain STOP",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/drain-stop-on.png",
+     "x": 504,
+     "y": 452,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/drain-start-off.png",
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/home-off.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "drain"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 297,
+     "y": 481,
+     "w": 15,
+     "h": 24,
+     "flag": "drainAutoZero"
+    },
+    {
+     "x": 400,
+     "y": 481,
+     "w": 13,
+     "h": 24,
+     "flag": "drainInfeed"
     }
    ]
   },
   "discharge-feeder": {
    "frame": 121,
-   "labelJa": "\u5168\u6392\u51fa_\u30d5\u30a3\u30fc\u30c0",
+   "labelJa": "全排出_フィーダ",
    "image": "screens/discharge-feeder.jpg",
    "hotspots": [
     {
@@ -802,12 +1262,110 @@
      "h": 34,
      "to": "discharge-timing",
      "button": 747
+    },
+    {
+     "x": 302,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainAutoZero",
+     "label": "Auto Zero",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainInfeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": true
+     },
+     "requires": [
+      "power",
+      "drainStopped"
+     ],
+     "label": "Drain START",
+     "generated": true
+    },
+    {
+     "x": 504,
+     "y": 453,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": false
+     },
+     "requires": [
+      "drain"
+     ],
+     "label": "Drain STOP",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/drain-stop-on.png",
+     "x": 504,
+     "y": 452,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/drain-start-off.png",
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/home-off.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "drain"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 297,
+     "y": 481,
+     "w": 15,
+     "h": 24,
+     "flag": "drainAutoZero"
+    },
+    {
+     "x": 400,
+     "y": 481,
+     "w": 13,
+     "h": 24,
+     "flag": "drainInfeed"
     }
    ]
   },
   "discharge-timing": {
    "frame": 131,
-   "labelJa": "\u5168\u6392\u51fa_\u30bf\u30a4\u30df\u30f3\u30b0",
+   "labelJa": "全排出_タイミング",
    "image": "screens/discharge-timing.jpg",
    "hotspots": [
     {
@@ -841,12 +1399,110 @@
      "h": 34,
      "to": "discharge-feeder",
      "button": 746
+    },
+    {
+     "x": 302,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainAutoZero",
+     "label": "Auto Zero",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 87,
+     "h": 46,
+     "toggles": "drainInfeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": true
+     },
+     "requires": [
+      "power",
+      "drainStopped"
+     ],
+     "label": "Drain START",
+     "generated": true
+    },
+    {
+     "x": 504,
+     "y": 453,
+     "w": 87,
+     "h": 66,
+     "sets": {
+      "drain": false
+     },
+     "requires": [
+      "drain"
+     ],
+     "label": "Drain STOP",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/drain-stop-on.png",
+     "x": 504,
+     "y": 452,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/drain-start-off.png",
+     "x": 604,
+     "y": 451,
+     "w": 87,
+     "h": 66,
+     "when": "drain"
+    },
+    {
+     "image": "keys/home-off.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "drain"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 297,
+     "y": 481,
+     "w": 15,
+     "h": 24,
+     "flag": "drainAutoZero"
+    },
+    {
+     "x": 400,
+     "y": 481,
+     "w": 13,
+     "h": 24,
+     "flag": "drainInfeed"
     }
    ]
   },
   "hopper-discharge": {
    "frame": 141,
-   "labelJa": "\u30dd\u30c3\u30d1_\u6392\u51fa",
+   "labelJa": "ポッパ_排出",
    "image": "screens/hopper-discharge.jpg",
    "hotspots": [
     {
@@ -872,12 +1528,99 @@
      "h": 34,
      "to": "hopper-feeder",
      "button": 909
+    },
+    {
+     "x": 387,
+     "y": 129,
+     "w": 87,
+     "h": 65,
+     "toggles": "foDF",
+     "label": "DF",
+     "generated": true
+    },
+    {
+     "x": 487,
+     "y": 129,
+     "w": 87,
+     "h": 65,
+     "toggles": "foRF",
+     "label": "RF",
+     "generated": true
+    },
+    {
+     "x": 387,
+     "y": 206,
+     "w": 87,
+     "h": 65,
+     "toggles": "foPH",
+     "label": "PH",
+     "generated": true
+    },
+    {
+     "x": 487,
+     "y": 206,
+     "w": 87,
+     "h": 65,
+     "toggles": "foWH",
+     "label": "WH",
+     "generated": true
+    },
+    {
+     "x": 604,
+     "y": 452,
+     "w": 87,
+     "h": 66,
+     "to": "hopper-discharge@open",
+     "requires": [
+      "power"
+     ],
+     "label": "Open",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "lamps": [
+    {
+     "x": 384,
+     "y": 137,
+     "w": 13,
+     "h": 23,
+     "flag": "foDF"
+    },
+    {
+     "x": 484,
+     "y": 137,
+     "w": 12,
+     "h": 23,
+     "flag": "foRF"
+    },
+    {
+     "x": 384,
+     "y": 214,
+     "w": 13,
+     "h": 23,
+     "flag": "foPH"
+    },
+    {
+     "x": 484,
+     "y": 214,
+     "w": 12,
+     "h": 23,
+     "flag": "foWH"
     }
    ]
   },
   "hopper-feeder": {
    "frame": 151,
-   "labelJa": "\u30dd\u30c3\u30d1_\u30d5\u30a3\u30fc\u30c0",
+   "labelJa": "ポッパ_フィーダ",
    "image": "screens/hopper-feeder.jpg",
    "hotspots": [
     {
@@ -903,12 +1646,21 @@
      "h": 34,
      "to": "hopper-discharge",
      "button": 90
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "run-combination": {
    "frame": 161,
-   "labelJa": "\u904b\u8ee2_\u7d44\u5408\u305b",
+   "labelJa": "運転_組合せ",
    "image": "screens/run-combination.jpg",
    "hotspots": [
     {
@@ -949,7 +1701,10 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 97
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
     },
     {
      "x": 703,
@@ -957,13 +1712,123 @@
      "w": 90,
      "h": 64,
      "to": "main-menu",
-     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 504,
+     "y": 471,
+     "w": 87,
+     "h": 47,
+     "toggles": "infeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 89,
+     "h": 47,
+     "to": "run-combination@write-optimum",
+     "label": "Write feeder OptimumVal",
+     "generated": true
+    },
+    {
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": false
+     },
+     "requires": [
+      "running"
+     ],
+     "label": "Stop",
+     "generated": true
+    },
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "stopped"
+     ],
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-combination@select",
+     "label": "Select Display",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/stop-off.png",
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/start-on-run.png",
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/exit-on.png",
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/home-on.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 500,
+     "y": 482,
+     "w": 12,
+     "h": 22,
+     "flag": "infeed"
     }
    ]
   },
   "run-feeder": {
    "frame": 171,
-   "labelJa": "\u904b\u8ee2_\u30d5\u30a3\u30fc\u30c0",
+   "labelJa": "運転_フィーダ",
    "image": "screens/run-feeder.jpg",
    "hotspots": [
     {
@@ -1004,7 +1869,10 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 97
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
     },
     {
      "x": 703,
@@ -1012,13 +1880,164 @@
      "w": 90,
      "h": 64,
      "to": "main-menu",
-     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 504,
+     "y": 471,
+     "w": 87,
+     "h": 47,
+     "toggles": "infeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 89,
+     "h": 47,
+     "to": "run-feeder@write-optimum",
+     "label": "Write feeder OptimumVal",
+     "generated": true
+    },
+    {
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": false
+     },
+     "requires": [
+      "running"
+     ],
+     "label": "Stop",
+     "generated": true
+    },
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "stopped"
+     ],
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 729,
+     "y": 395,
+     "w": 70,
+     "h": 27,
+     "to": "run-feeder@drawer",
+     "label": "Feeder (chart modes)",
+     "generated": true
+    },
+    {
+     "x": 6,
+     "y": 388,
+     "w": 75,
+     "h": 27,
+     "to": "run-feeder@live",
+     "label": "Live (camera)",
+     "generated": true
+    },
+    {
+     "x": 600,
+     "y": 47,
+     "w": 85,
+     "h": 46,
+     "toggles": "headMean",
+     "label": "Head mean",
+     "generated": true
+    },
+    {
+     "x": 697,
+     "y": 47,
+     "w": 85,
+     "h": 46,
+     "toggles": "sectionMean",
+     "label": "Section mean",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/stop-off.png",
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/start-on-run.png",
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/exit-on.png",
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/home-on.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 500,
+     "y": 482,
+     "w": 12,
+     "h": 22,
+     "flag": "infeed"
+    },
+    {
+     "x": 597,
+     "y": 58,
+     "w": 12,
+     "h": 21,
+     "flag": "headMean"
+    },
+    {
+     "x": 695,
+     "y": 58,
+     "w": 11,
+     "h": 21,
+     "flag": "sectionMean"
     }
    ]
   },
   "run-timing": {
    "frame": 181,
-   "labelJa": "\u904b\u8ee2_\u30bf\u30a4\u30df\u30f3\u30b0",
+   "labelJa": "運転_タイミング",
    "image": "screens/run-timing.jpg",
    "hotspots": [
     {
@@ -1059,7 +2078,10 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 97
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
     },
     {
      "x": 703,
@@ -1067,13 +2089,123 @@
      "w": 90,
      "h": 64,
      "to": "main-menu",
-     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 504,
+     "y": 471,
+     "w": 87,
+     "h": 47,
+     "toggles": "infeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 89,
+     "h": 47,
+     "to": "run-timing@write-optimum",
+     "label": "Write feeder OptimumVal",
+     "generated": true
+    },
+    {
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": false
+     },
+     "requires": [
+      "running"
+     ],
+     "label": "Stop",
+     "generated": true
+    },
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "stopped"
+     ],
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 460,
+     "y": 385,
+     "w": 85,
+     "h": 37,
+     "to": "run-timing@entr",
+     "label": "Entr Time",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/stop-off.png",
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/start-on-run.png",
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/exit-on.png",
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/home-on.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 500,
+     "y": 482,
+     "w": 12,
+     "h": 22,
+     "flag": "infeed"
     }
    ]
   },
   "run-totals": {
    "frame": 191,
-   "labelJa": "\u904b\u8ee2_\u96c6\u8a08",
+   "labelJa": "運転_集計",
    "image": "screens/run-totals.jpg",
    "hotspots": [
     {
@@ -1114,7 +2246,10 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 97
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
     },
     {
      "x": 703,
@@ -1122,13 +2257,123 @@
      "w": 90,
      "h": 64,
      "to": "main-menu",
-     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 504,
+     "y": 471,
+     "w": 87,
+     "h": 47,
+     "toggles": "infeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 89,
+     "h": 47,
+     "to": "run-totals@write-optimum",
+     "label": "Write feeder OptimumVal",
+     "generated": true
+    },
+    {
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": false
+     },
+     "requires": [
+      "running"
+     ],
+     "label": "Stop",
+     "generated": true
+    },
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "stopped"
+     ],
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/stop-off.png",
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/start-on-run.png",
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/exit-on.png",
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/home-on.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 500,
+     "y": 482,
+     "w": 12,
+     "h": 22,
+     "flag": "infeed"
     }
    ]
   },
   "run-weight": {
    "frame": 201,
-   "labelJa": "\u904b\u8ee2_\u91cd\u91cf",
+   "labelJa": "運転_重量",
    "image": "screens/run-weight.jpg",
    "hotspots": [
     {
@@ -1169,7 +2414,10 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 97
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
     },
     {
      "x": 703,
@@ -1177,13 +2425,114 @@
      "w": 90,
      "h": 64,
      "to": "main-menu",
-     "note": "Exit \u2014 leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing."
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 504,
+     "y": 471,
+     "w": 87,
+     "h": 47,
+     "toggles": "infeed",
+     "label": "Infeed Control",
+     "generated": true
+    },
+    {
+     "x": 402,
+     "y": 471,
+     "w": 89,
+     "h": 47,
+     "to": "run-weight@write-optimum",
+     "label": "Write feeder OptimumVal",
+     "generated": true
+    },
+    {
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": false
+     },
+     "requires": [
+      "running"
+     ],
+     "label": "Stop",
+     "generated": true
+    },
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "stopped"
+     ],
+     "label": "Start",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "overlays": [
+    {
+     "image": "keys/stop-off.png",
+     "x": 563,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/start-on-run.png",
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/exit-on.png",
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "when": "stopped"
+    },
+    {
+     "image": "keys/home-on.png",
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "when": "stopped"
+    }
+   ],
+   "lamps": [
+    {
+     "x": 500,
+     "y": 482,
+     "w": 12,
+     "h": 22,
+     "flag": "infeed"
     }
    ]
   },
   "manual-scale-adjust": {
    "frame": 211,
-   "labelJa": "\u624b\u52d5_\u79e4\u8abf\u6574",
+   "labelJa": "手動_秤調整",
    "image": "screens/manual-scale-adjust.jpg",
    "hotspots": [
     {
@@ -1225,12 +2574,30 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
+    },
+    {
+     "x": 705,
+     "y": 48,
+     "w": 85,
+     "h": 46,
+     "to": "manual-scale-adjust@all",
+     "label": "All Head SLCT/CLR",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "manual-combination": {
    "frame": 221,
-   "labelJa": "\u624b\u52d5_\u7d44\u5408\u305b",
+   "labelJa": "手動_組合せ",
    "image": "screens/manual-combination.jpg",
    "hotspots": [
     {
@@ -1272,12 +2639,21 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "manual-vibration": {
    "frame": 231,
-   "labelJa": "\u624b\u52d5_\u632f\u52d5",
+   "labelJa": "手動_振動",
    "image": "screens/manual-vibration.jpg",
    "hotspots": [
     {
@@ -1319,12 +2695,21 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "manual-weight-waveform": {
    "frame": 241,
-   "labelJa": "\u624b\u52d5_\u91cd\u91cf\u6ce2\u5f62",
+   "labelJa": "手動_重量波形",
    "image": "screens/manual-weight-waveform.jpg",
    "hotspots": [
     {
@@ -1366,12 +2751,21 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "selfdiag-device": {
    "frame": 251,
-   "labelJa": "\u81ea\u5df1_\u30c7\u30d0\u30a4\u30b9",
+   "labelJa": "自己_デバイス",
    "image": "screens/selfdiag-device.jpg",
    "hotspots": [
     {
@@ -1421,12 +2815,21 @@
      "h": 33,
      "to": "selfdiag-network",
      "button": 1098
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "selfdiag-io": {
    "frame": 261,
-   "labelJa": "\u81ea\u5df1_\u5165\u51fa\u529b",
+   "labelJa": "自己_入出力",
    "image": "screens/selfdiag-io.jpg",
    "hotspots": [
     {
@@ -1476,12 +2879,21 @@
      "h": 33,
      "to": "selfdiag-network",
      "button": 1098
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "selfdiag-network": {
    "frame": 271,
-   "labelJa": "\u81ea\u5df1_\u30cd\u30c3\u30c8",
+   "labelJa": "自己_ネット",
    "image": "screens/selfdiag-network.jpg",
    "hotspots": [
     {
@@ -1531,12 +2943,21 @@
      "h": 33,
      "to": "selfdiag-test",
      "button": 1097
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "selfdiag-program": {
    "frame": 281,
-   "labelJa": "\u81ea\u5df1_\u30d7\u30ed\u30b0\u30e9\u30e0",
+   "labelJa": "自己_プログラム",
    "image": "screens/selfdiag-program.jpg",
    "hotspots": [
     {
@@ -1586,12 +3007,21 @@
      "h": 33,
      "to": "selfdiag-network",
      "button": 1098
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "selfdiag-test": {
    "frame": 291,
-   "labelJa": "\u81ea\u5df1_\u30c6\u30b9\u30c8",
+   "labelJa": "自己_テスト",
    "image": "screens/selfdiag-test.jpg",
    "hotspots": [
     {
@@ -1641,12 +3071,33 @@
      "h": 33,
      "to": "selfdiag-network",
      "button": 1098
+    },
+    {
+     "x": 705,
+     "y": 350,
+     "w": 87,
+     "h": 65,
+     "to": "selfdiag-test@drive",
+     "requires": [
+      "power"
+     ],
+     "label": "Drive Start",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "display-screen": {
    "frame": 301,
-   "labelJa": "\u8868\u793a_\u753b\u9762",
+   "labelJa": "表示_画面",
    "image": "screens/display-screen.jpg",
    "hotspots": [
     {
@@ -1696,12 +3147,21 @@
      "h": 33,
      "to": "display-hopper",
      "button": 1208
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "display-preset": {
    "frame": 311,
-   "labelJa": "\u8868\u793a_\u4e88\u7d04",
+   "labelJa": "表示_予約",
    "image": "screens/display-preset.jpg",
    "hotspots": [
     {
@@ -1751,12 +3211,31 @@
      "h": 33,
      "to": "display-hopper",
      "button": 1208
+    },
+    {
+     "x": 8,
+     "y": 45,
+     "w": 86,
+     "h": 65,
+     "to": "display-preset@initialize",
+     "label": "Initialize",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
-   ]
+   ],
+   "onEnter": "display-preset@loading"
   },
   "display-machine-edit": {
    "frame": 321,
-   "labelJa": "\u8868\u793a_\u6a5f\u7269\u8a2d\u5b9a\u7de8\u96c6",
+   "labelJa": "表示_機物設定編集",
    "image": "screens/display-machine-edit.jpg",
    "hotspots": [
     {
@@ -1806,12 +3285,21 @@
      "h": 33,
      "to": "display-hopper",
      "button": 1208
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "display-all-edit": {
    "frame": 331,
-   "labelJa": "\u8868\u793a_\u5168\u8a2d\u5b9a\u7de8\u96c6",
+   "labelJa": "表示_全設定編集",
    "image": "screens/display-all-edit.jpg",
    "hotspots": [
     {
@@ -1861,12 +3349,30 @@
      "h": 33,
      "to": "display-hopper",
      "button": 1208
+    },
+    {
+     "x": 291,
+     "y": 153,
+     "w": 90,
+     "h": 64,
+     "to": "display-all-edit@initialize",
+     "label": "Initialize",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "display-hopper": {
    "frame": 341,
-   "labelJa": "\u8868\u793a_\u30db\u30c3\u30d1",
+   "labelJa": "表示_ホッパ",
    "image": "screens/display-hopper.jpg",
    "hotspots": [
     {
@@ -1916,12 +3422,21 @@
      "h": 33,
      "to": "display-all-edit",
      "button": 1207
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "various-scale-detail": {
    "frame": 351,
-   "labelJa": "\u5404\u7a2e_\u79e4\u8a73\u7d30",
+   "labelJa": "各種_秤詳細",
    "image": "screens/various-scale-detail.jpg",
    "hotspots": [
     {
@@ -1971,12 +3486,30 @@
      "h": 33,
      "to": "various-hdrv",
      "button": 1350
+    },
+    {
+     "x": 33,
+     "y": 137,
+     "w": 235,
+     "h": 65,
+     "to": "various-scale-detail@empty-weight",
+     "label": "Empty Judgment Weight",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "various-combination": {
    "frame": 361,
-   "labelJa": "\u5404\u7a2e_\u7d44\u5408\u305b",
+   "labelJa": "各種_組合せ",
    "image": "screens/various-combination.jpg",
    "hotspots": [
     {
@@ -2026,12 +3559,21 @@
      "h": 33,
      "to": "various-hdrv",
      "button": 1350
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "various-section": {
    "frame": 371,
-   "labelJa": "\u5404\u7a2e_\u30bb\u30af\u30b7\u30e7\u30f3",
+   "labelJa": "各種_セクション",
    "image": "screens/various-section.jpg",
    "hotspots": [
     {
@@ -2081,12 +3623,21 @@
      "h": 33,
      "to": "various-hdrv",
      "button": 1350
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "various-fd": {
    "frame": 381,
-   "labelJa": "\u5404\u7a2e_FD",
+   "labelJa": "各種_FD",
    "image": "screens/various-fd.jpg",
    "hotspots": [
     {
@@ -2136,12 +3687,21 @@
      "h": 33,
      "to": "various-hdrv",
      "button": 1350
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "various-hdrv": {
    "frame": 391,
-   "labelJa": "\u5404\u7a2e_HDRV",
+   "labelJa": "各種_HDRV",
    "image": "screens/various-hdrv.jpg",
    "hotspots": [
     {
@@ -2191,12 +3751,61 @@
      "h": 33,
      "to": "various-fd",
      "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "weigh-participation": {
    "frame": 401,
-   "labelJa": "\u8a08\u91cf_\u53c2\u52a0",
+   "labelJa": "計量_参加",
    "image": "screens/weigh-participation.jpg",
    "hotspots": [
     {
@@ -2238,12 +3847,21 @@
      "h": 33,
      "to": "weigh-auto-timing",
      "button": 1503
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "weigh-auto-timing": {
    "frame": 411,
-   "labelJa": "\u8a08\u91cf_\u81ea\u52d5\u30bf\u30a4\u30df\u30f3\u30b0",
+   "labelJa": "計量_自動タイミング",
    "image": "screens/weigh-auto-timing.jpg",
    "hotspots": [
     {
@@ -2285,12 +3903,21 @@
      "h": 33,
      "to": "weigh-network",
      "button": 1502
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "weigh-network": {
    "frame": 421,
-   "labelJa": "\u8a08\u91cf_\u30cd\u30c3\u30c8\u30ef\u30fc\u30af",
+   "labelJa": "計量_ネットワーク",
    "image": "screens/weigh-network.jpg",
    "hotspots": [
     {
@@ -2332,12 +3959,21 @@
      "h": 33,
      "to": "weigh-auto-timing",
      "button": 1503
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "weigh-adf": {
    "frame": 431,
-   "labelJa": "\u8a08\u91cf_ADF",
+   "labelJa": "計量_ADF",
    "image": "screens/weigh-adf.jpg",
    "hotspots": [
     {
@@ -2379,12 +4015,21 @@
      "h": 33,
      "to": "weigh-auto-timing",
      "button": 1503
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "pack-bagmaker": {
    "frame": 441,
-   "labelJa": "\u5305\u88c5_\u5305\u88c5\u6a5f",
+   "labelJa": "包装_包装機",
    "image": "screens/pack-bagmaker.jpg",
    "hotspots": [
     {
@@ -2434,12 +4079,30 @@
      "h": 40,
      "to": "pack-timing",
      "button": 1561
+    },
+    {
+     "x": 74,
+     "y": 104,
+     "w": 235,
+     "h": 65,
+     "to": "pack-bagmaker@dump-hold",
+     "label": "Dump Confirm Hold",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "pack-ring": {
    "frame": 451,
-   "labelJa": "\u5305\u88c5_\u30ea\u30f3\u30b0",
+   "labelJa": "包装_リング",
    "image": "screens/pack-ring.jpg",
    "hotspots": [
     {
@@ -2497,12 +4160,21 @@
      "h": 40,
      "to": "pack-timing",
      "button": 1561
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "pack-distribution": {
    "frame": 461,
-   "labelJa": "\u5305\u88c5_\u632f\u5206\u3051",
+   "labelJa": "包装_振分け",
    "image": "screens/pack-distribution.jpg",
    "hotspots": [
     {
@@ -2560,12 +4232,21 @@
      "h": 40,
      "to": "pack-timing",
      "button": 1561
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "pack-timing": {
    "frame": 471,
-   "labelJa": "\u5305\u88c5_\u30bf\u30a4\u30df\u30f3\u30b0",
+   "labelJa": "包装_タイミング",
    "image": "screens/pack-timing.jpg",
    "hotspots": [
     {
@@ -2623,12 +4304,21 @@
      "h": 40,
      "to": "pack-distribution",
      "button": 1560
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "pack-supply": {
    "frame": 481,
-   "labelJa": "\u5305\u88c5_\u4f9b\u7d66\u6a5f",
+   "labelJa": "包装_供給機",
    "image": "screens/pack-supply.jpg",
    "hotspots": [
     {
@@ -2654,12 +4344,21 @@
      "h": 33,
      "to": "pack-bagmaker",
      "button": 1553
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "panel-screen-control": {
    "frame": 491,
-   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u753b\u9762\u5236\u5fa1",
+   "labelJa": "コンパネ_画面制御",
    "image": "screens/panel-screen-control.jpg",
    "hotspots": [
     {
@@ -2701,12 +4400,30 @@
      "h": 33,
      "to": "panel-comms",
      "button": 1645
+    },
+    {
+     "x": 134,
+     "y": 341,
+     "w": 88,
+     "h": 65,
+     "to": "panel-screen-control@tune-up",
+     "label": "Tune-up",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "panel-password": {
    "frame": 501,
-   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u30d1\u30b9\u30ef\u30fc\u30c9",
+   "labelJa": "コンパネ_パスワード",
    "image": "screens/panel-password.jpg",
    "hotspots": [
     {
@@ -2748,12 +4465,21 @@
      "h": 33,
      "to": "panel-comms",
      "button": 1645
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "panel-data-output": {
    "frame": 511,
-   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u30c7\u30fc\u30bf\u51fa\u529b\u5148",
+   "labelJa": "コンパネ_データ出力先",
    "image": "screens/panel-data-output.jpg",
    "hotspots": [
     {
@@ -2795,12 +4521,21 @@
      "h": 33,
      "to": "panel-comms",
      "button": 1645
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "panel-comms": {
    "frame": 521,
-   "labelJa": "\u30b3\u30f3\u30d1\u30cd_\u901a\u4fe1\u8a2d\u5b9a",
+   "labelJa": "コンパネ_通信設定",
    "image": "screens/panel-comms.jpg",
    "hotspots": [
     {
@@ -2842,12 +4577,21 @@
      "h": 33,
      "to": "panel-data-output",
      "button": 1644
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "assistant": {
    "frame": 531,
-   "labelJa": "\u30a2\u30b7\u30b9\u30bf\u30f3\u30c8",
+   "labelJa": "アシスタント",
    "image": "screens/assistant.jpg",
    "hotspots": [
     {
@@ -2865,12 +4609,30 @@
      "h": 64,
      "to": "main-menu",
      "button": 1038
+    },
+    {
+     "x": 296,
+     "y": 385,
+     "w": 90,
+     "h": 40,
+     "to": "assistant@select-preset",
+     "label": "Next",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "memo": {
    "frame": 541,
-   "labelJa": "\u30e1\u30e2",
+   "labelJa": "メモ",
    "image": "screens/memo.jpg",
    "hotspots": [
     {
@@ -2879,7 +4641,11 @@
      "w": 88,
      "h": 62,
      "to": "main-menu",
-     "button": 1037
+     "button": 1037,
+     "requires": [
+      "homeDead"
+     ],
+     "label": "HOME (dimmed here — use Exit)"
     },
     {
      "x": 704,
@@ -2896,12 +4662,39 @@
      "h": 64,
      "to": "main-menu",
      "button": 1730
+    },
+    {
+     "x": 602,
+     "y": 446,
+     "w": 90,
+     "h": 65,
+     "to": "memo@transmit",
+     "label": "Transmit",
+     "generated": true
+    },
+    {
+     "x": 702,
+     "y": 389,
+     "w": 90,
+     "h": 44,
+     "to": "memo@delete",
+     "label": "delete",
+     "generated": true
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "autoadj-afv": {
    "frame": 551,
-   "labelJa": "\u81ea\u52d5\u8abf\u6574_AFV",
+   "labelJa": "自動調整_AFV",
    "image": "screens/autoadj-afv.jpg",
    "hotspots": [
     {
@@ -2935,12 +4728,21 @@
      "h": 33,
      "to": "autoadj-drive",
      "button": 1749
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "autoadj-neutral": {
    "frame": 561,
-   "labelJa": "\u81ea\u52d5\u8abf\u6574_Ntrl",
+   "labelJa": "自動調整_Ntrl",
    "image": "screens/autoadj-neutral.jpg",
    "hotspots": [
     {
@@ -2974,12 +4776,21 @@
      "h": 33,
      "to": "autoadj-drive",
      "button": 1749
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
   "autoadj-drive": {
    "frame": 570,
-   "labelJa": "\u81ea\u52d5\u8abf\u6574_Drive",
+   "labelJa": "自動調整_Drive",
    "image": "screens/autoadj-drive.jpg",
    "hotspots": [
     {
@@ -3013,6 +4824,15 @@
      "h": 33,
      "to": "autoadj-neutral",
      "button": 1748
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3026,6 +4846,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3039,6 +4868,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3052,6 +4890,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3065,6 +4912,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3078,6 +4934,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3091,6 +4956,15 @@
      "w": 90,
      "h": 64,
      "to": "main-menu"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3103,42 +4977,69 @@
      "y": 529,
      "w": 88,
      "h": 62,
-     "to": "main-menu"
+     "to": "main-menu",
+     "label": "HOME"
     },
     {
      "x": 482,
      "y": 63,
      "w": 210,
      "h": 44,
-     "to": "main-menu"
+     "to": "main-menu",
+     "sets": {
+      "level": 1
+     },
+     "label": "Operator"
     },
     {
      "x": 482,
      "y": 110,
      "w": 210,
      "h": 44,
-     "to": "level-password"
+     "to": "level-password",
+     "sets": {
+      "pendingLevel": 2
+     },
+     "label": "Site Engineer"
     },
     {
      "x": 482,
      "y": 158,
      "w": 210,
      "h": 44,
-     "to": "level-password"
+     "to": "level-password",
+     "sets": {
+      "pendingLevel": 3
+     },
+     "label": "Installation"
     },
     {
      "x": 482,
      "y": 206,
      "w": 210,
      "h": 44,
-     "to": "level-password"
+     "to": "level-password",
+     "sets": {
+      "pendingLevel": 4
+     },
+     "label": "Maintenance"
     },
     {
      "x": 482,
      "y": 255,
      "w": 210,
      "h": 24,
-     "to": "main-menu"
+     "to": "main-menu",
+     "label": "close"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
     }
    ]
   },
@@ -3147,18 +5048,6487 @@
    "image": "screens/level-password.jpg",
    "hotspots": [
     {
+     "x": 91,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 144,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 195,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 248,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 299,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 352,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 403,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 456,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 560,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 664,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 115,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 219,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 323,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 427,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 531,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 584,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 635,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 142,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 246,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 350,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 454,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 507,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 558,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 611,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 662,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "'"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 217,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 321,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 425,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 529,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
      "x": 90,
      "y": 54,
      "w": 72,
      "h": 38,
-     "to": "main-menu"
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
     },
     {
      "x": 630,
      "y": 255,
      "w": 90,
      "h": 88,
-     "to": "main-menu"
+     "to": "main-menu",
+     "action": "password",
+     "label": "Enter"
+    },
+    {
+     "x": 764,
+     "y": 1,
+     "w": 36,
+     "h": 35,
+     "action": "blink",
+     "label": "Help — blink the keys",
+     "generated": true
+    }
+   ],
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "",
+    "password": true
+   }
+  },
+  "main-menu@product-name": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Product Name keyboard",
+   "image": "captured/mm-panel02-product-name.jpg",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "POTATO CHIPS"
+   },
+   "hotspots": [
+    {
+     "x": 91,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 144,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 195,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 248,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 299,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 352,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 403,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 456,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 560,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 664,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 115,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 219,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 323,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 427,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 531,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 584,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 635,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 142,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 246,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 350,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 454,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 507,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 558,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 611,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 662,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "'"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 217,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 321,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 425,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 529,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 91,
+     "y": 64,
+     "w": 75,
+     "h": 38,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 632,
+     "y": 262,
+     "w": 79,
+     "h": 83,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "main-menu@product-code": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Product Code keyboard",
+   "image": "captured/mm-panel03-product-code.jpg",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "01"
+   },
+   "hotspots": [
+    {
+     "x": 90,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 142,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 194,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 246,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 298,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 350,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 402,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 454,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 559,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 663,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 116,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 220,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 324,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 428,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 533,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 585,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 637,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 143,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 247,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 351,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 455,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 508,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 560,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 612,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 216,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 320,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 424,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 528,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 91,
+     "y": 64,
+     "w": 75,
+     "h": 38,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 632,
+     "y": 262,
+     "w": 79,
+     "h": 83,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "main-menu@target-weight": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Target Weight keypad",
+   "image": "captured/mm-panel04-target-weight.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "90"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "main-menu@speed": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Speed keypad",
+   "image": "captured/mm-panel05-speed.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "80"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "main-menu@dump-count": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Dump Count keypad",
+   "image": "captured/mm-panel06-dump-count.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "main-menu@upper-limit": {
+   "parent": "main-menu",
+   "kind": "popup",
+   "captured": true,
+   "label": "Main Menu — Upper Weight Limit keypad",
+   "image": "captured/mm-panel07-upper-limit.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "3.0"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "main-menu",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-select-a@preset-no": {
+   "parent": "preset-select-a",
+   "kind": "popup",
+   "captured": true,
+   "label": "Select Preset — Preset No. keypad",
+   "image": "captured/psa-panel01.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-select-a",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-select-a",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-product@preset-no": {
+   "parent": "preset-product",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset — Preset No. keypad",
+   "image": "captured/pp-panel01-preset-no.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 435,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 377,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-product",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-product",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-product@category": {
+   "parent": "preset-product",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset — Product Category keyboard",
+   "image": "captured/pp-panel04.jpg",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "01"
+   },
+   "hotspots": [
+    {
+     "x": 90,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 142,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 194,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 246,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 298,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 350,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 402,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 454,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 559,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 663,
+     "y": 125,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 116,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 220,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 324,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 428,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 533,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 585,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 637,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 143,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 247,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 351,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 455,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 508,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 560,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 612,
+     "y": 216,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 216,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 320,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 424,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 528,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 91,
+     "y": 64,
+     "w": 75,
+     "h": 38,
+     "to": "preset-product",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 632,
+     "y": 262,
+     "w": 79,
+     "h": 83,
+     "to": "preset-product",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-product@camera": {
+   "parent": "preset-product",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset — \"Do you want to take photo of product?\"",
+   "image": "captured/pp-panel05.jpg",
+   "hotspots": [
+    {
+     "x": 300,
+     "y": 320,
+     "w": 72,
+     "h": 36,
+     "to": "preset-product",
+     "label": "Yes"
+    },
+    {
+     "x": 424,
+     "y": 320,
+     "w": 70,
+     "h": 36,
+     "to": "preset-product",
+     "label": "No"
+    }
+   ]
+  },
+  "preset-product@photo": {
+   "parent": "preset-product",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset — product photo picker",
+   "image": "captured/pp-panel06.jpg",
+   "hotspots": [
+    {
+     "x": 351,
+     "y": 261,
+     "w": 164,
+     "h": 212,
+     "to": "preset-product",
+     "label": "close"
+    },
+    {
+     "x": 351,
+     "y": 261,
+     "w": 164,
+     "h": 212,
+     "to": "preset-product",
+     "label": "pick a picture"
+    }
+   ]
+  },
+  "preset-machine@interlock": {
+   "parent": "preset-machine",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Machine — Interlock Parameter list",
+   "image": "captured/pm-panel05.jpg",
+   "hotspots": [
+    {
+     "x": 521,
+     "y": 398,
+     "w": 88,
+     "h": 65,
+     "to": "preset-machine",
+     "label": "close"
+    }
+   ]
+  },
+  "preset-weight@ext-upper": {
+   "parent": "preset-weight",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Weight — Extended Upper Limit keypad",
+   "image": "captured/pw-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1.0"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-weight@dump-cycle": {
+   "parent": "preset-weight",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Weight — Extended Upper Limit Dump Cycle keypad",
+   "image": "captured/pw-panel05.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "100"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-weight@lower": {
+   "parent": "preset-weight",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Weight — Lower Weight Limit keypad",
+   "image": "captured/pw-panel06.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "4.5"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 377,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-weight",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-item@auto-feed": {
+   "parent": "preset-item",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Item — Auto Feed Target keypad",
+   "image": "captured/pi-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "3.8"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-item@priority": {
+   "parent": "preset-item",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Item — Disch. Priority Count keypad",
+   "image": "captured/pi-panel03.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "30"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-item@efficiency": {
+   "parent": "preset-item",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Item — Good Efficiency Judgement Value keypad",
+   "image": "captured/pi-panel04.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "99.0"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-item@multiplier": {
+   "parent": "preset-item",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Item — Feed Multiplier keypad",
+   "image": "captured/pi-panel05.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-item",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-other@stable-time": {
+   "parent": "preset-other",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Others — Stable Time keypad",
+   "image": "captured/po-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "400"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-other",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-other",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "preset-feeder@read-default": {
+   "parent": "preset-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Feeder — \"Set default value of RF and DF. OK?\"",
+   "image": "captured/pf-panel03.jpg",
+   "hotspots": [
+    {
+     "x": 533,
+     "y": 400,
+     "w": 90,
+     "h": 65,
+     "to": "preset-feeder",
+     "label": "Yes"
+    },
+    {
+     "x": 683,
+     "y": 400,
+     "w": 90,
+     "h": 65,
+     "to": "preset-feeder",
+     "label": "No"
+    }
+   ]
+  },
+  "preset-timing@entr": {
+   "parent": "preset-timing",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Timing — Time Input keypad",
+   "image": "captured/pt-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "110"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "preset-timing",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "preset-timing",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "zero-adjust@starting": {
+   "parent": "zero-adjust",
+   "kind": "popup",
+   "captured": true,
+   "label": "Zero Adjustment — running (\"Please wait a moment.\")",
+   "image": "captured/za-start-0.jpg",
+   "autoNext": {
+    "to": "zero-adjust",
+    "ms": 4000
+   },
+   "sets": {
+    "zeroDone": true
+   },
+   "hotspots": []
+  },
+  "hopper-discharge@open": {
+   "parent": "hopper-discharge",
+   "kind": "state",
+   "captured": true,
+   "label": "Full Open Lock — OPEN (locked: HOME and Exit are dead until Close)",
+   "image": "captured/fo-open-pressed.jpg",
+   "hotspots": [
+    {
+     "x": 468,
+     "y": 448,
+     "w": 88,
+     "h": 66,
+     "to": "hopper-discharge",
+     "label": "Close"
+    }
+   ]
+  },
+  "run-combination@write-optimum": {
+   "parent": "run-combination",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production — \"Set the current RF and DF value as optimized value. OK?\"",
+   "image": "captured/run-panel00-write-optimum.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-combination",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-combination",
+     "label": "No"
+    }
+   ]
+  },
+  "run-feeder@write-optimum": {
+   "parent": "run-feeder",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production — \"Set the current RF and DF value as optimized value. OK?\"",
+   "image": "captured/run-panel00-write-optimum.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-feeder",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-feeder",
+     "label": "No"
+    }
+   ]
+  },
+  "run-timing@write-optimum": {
+   "parent": "run-timing",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production — \"Set the current RF and DF value as optimized value. OK?\"",
+   "image": "captured/run-panel00-write-optimum.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-timing",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-timing",
+     "label": "No"
+    }
+   ]
+  },
+  "run-totals@write-optimum": {
+   "parent": "run-totals",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production — \"Set the current RF and DF value as optimized value. OK?\"",
+   "image": "captured/run-panel00-write-optimum.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-totals",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-totals",
+     "label": "No"
+    }
+   ]
+  },
+  "run-weight@write-optimum": {
+   "parent": "run-weight",
+   "kind": "popup",
+   "captured": true,
+   "label": "Production — \"Set the current RF and DF value as optimized value. OK?\"",
+   "image": "captured/run-panel00-write-optimum.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-weight",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "run-weight",
+     "label": "No"
+    }
+   ]
+  },
+  "run-combination@select": {
+   "parent": "run-combination",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Combination — Select Display strip",
+   "image": "captured/rc-select-display.jpg",
+   "hotspots": [
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 5,
+     "y": 68,
+     "w": 78,
+     "h": 50,
+     "to": "run-combination",
+     "label": "weights view"
+    },
+    {
+     "x": 5,
+     "y": 125,
+     "w": 78,
+     "h": 50,
+     "to": "run-combination@magnify",
+     "label": "magnified weight"
+    },
+    {
+     "x": 3,
+     "y": 200,
+     "w": 24,
+     "h": 210,
+     "to": "run-combination",
+     "label": "close strip"
+    }
+   ]
+  },
+  "run-combination@magnify": {
+   "parent": "run-combination",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Combination — magnified weight",
+   "image": "captured/rc-view-magnify.jpg",
+   "hotspots": [
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-combination@select",
+     "label": "Select Display"
+    }
+   ]
+  },
+  "run-feeder@drawer": {
+   "parent": "run-feeder",
+   "kind": "state",
+   "captured": true,
+   "label": "Feeder Adjust — chart-mode drawer",
+   "image": "screens/run-feeder.jpg",
+   "layers": [
+    {
+     "image": "captured/rf-feeder-drawer.jpg",
+     "x": 730,
+     "y": 180,
+     "w": 70,
+     "h": 245
+    }
+   ],
+   "keepChart": true,
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 730,
+     "y": 189,
+     "w": 67,
+     "h": 32,
+     "to": "run-feeder",
+     "label": "close"
+    },
+    {
+     "x": 740,
+     "y": 228,
+     "w": 47,
+     "h": 38,
+     "to": "run-feeder@status",
+     "label": "operating status"
+    },
+    {
+     "x": 740,
+     "y": 278,
+     "w": 47,
+     "h": 38,
+     "to": "run-feeder",
+     "label": "radar chart"
+    },
+    {
+     "x": 740,
+     "y": 326,
+     "w": 47,
+     "h": 38,
+     "to": "run-feeder@bar",
+     "label": "bar chart"
+    },
+    {
+     "x": 740,
+     "y": 375,
+     "w": 47,
+     "h": 38,
+     "to": "run-feeder@afd",
+     "label": "AFD setting"
+    }
+   ]
+  },
+  "run-feeder@status": {
+   "parent": "run-feeder",
+   "kind": "state",
+   "captured": true,
+   "label": "Feeder Adjust — operating status (Under AFD control, condition lamps)",
+   "image": "captured/rf-mode-status.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 729,
+     "y": 395,
+     "w": 70,
+     "h": 27,
+     "to": "run-feeder@drawer",
+     "label": "Feeder (chart modes)"
+    }
+   ]
+  },
+  "run-feeder@bar": {
+   "parent": "run-feeder",
+   "kind": "state",
+   "captured": true,
+   "label": "Feeder Adjust — bar chart view",
+   "image": "captured/rf-mode-bar.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 729,
+     "y": 395,
+     "w": 70,
+     "h": 27,
+     "to": "run-feeder@drawer",
+     "label": "Feeder (chart modes)"
+    }
+   ]
+  },
+  "run-feeder@afd": {
+   "parent": "run-feeder",
+   "kind": "state",
+   "captured": true,
+   "label": "Feeder Adjust — AFD range and control mode",
+   "image": "captured/rf-mode-afd.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 729,
+     "y": 395,
+     "w": 70,
+     "h": 27,
+     "to": "run-feeder@drawer",
+     "label": "Feeder (chart modes)"
+    }
+   ]
+  },
+  "run-feeder@live": {
+   "parent": "run-feeder",
+   "kind": "state",
+   "captured": true,
+   "label": "Feeder Adjust — Live camera view of the dispersion feeder",
+   "image": "captured/rf-live-tab.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 406,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-totals",
+     "button": 944
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 290,
+     "y": 389,
+     "w": 70,
+     "h": 27,
+     "to": "run-feeder",
+     "label": "C.G."
+    }
+   ]
+  },
+  "run-timing@entr": {
+   "parent": "run-timing",
+   "kind": "popup",
+   "captured": true,
+   "label": "Timing Adjust — Time Input keypad",
+   "image": "captured/rt-entr-keypad.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "110"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "run-timing",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "run-timing",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "run-totals@select": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — Select Total strip",
+   "image": "captured/rtot-select-display.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 5,
+     "y": 68,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals",
+     "label": "current total / histogram"
+    },
+    {
+     "x": 5,
+     "y": 129,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals@v2",
+     "label": "X-bar chart"
+    },
+    {
+     "x": 5,
+     "y": 190,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals@v3",
+     "label": "transitional data"
+    },
+    {
+     "x": 5,
+     "y": 251,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals@v4",
+     "label": "participation per head"
+    },
+    {
+     "x": 5,
+     "y": 312,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals@v5",
+     "label": "total setting"
+    },
+    {
+     "x": 5,
+     "y": 373,
+     "w": 78,
+     "h": 50,
+     "to": "run-totals@v6",
+     "label": "operation log"
+    },
+    {
+     "x": 3,
+     "y": 200,
+     "w": 24,
+     "h": 210,
+     "to": "run-totals",
+     "label": "close strip"
+    }
+   ]
+  },
+  "run-totals@v2": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — X-bar chart",
+   "image": "captured/rtot-view2.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total"
+    }
+   ]
+  },
+  "run-totals@v3": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — transitional data",
+   "image": "captured/rtot-view3.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total"
+    }
+   ]
+  },
+  "run-totals@v4": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — participation per head",
+   "image": "captured/rtot-view4.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total"
+    }
+   ]
+  },
+  "run-totals@v5": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — total setting",
+   "image": "captured/rtot-view5.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total"
+    }
+   ]
+  },
+  "run-totals@v6": {
+   "parent": "run-totals",
+   "kind": "state",
+   "captured": true,
+   "label": "Production Total Data — operation log",
+   "image": "captured/rtot-view6.jpg",
+   "hotspots": [
+    {
+     "x": 12,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-combination",
+     "button": 941
+    },
+    {
+     "x": 144,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-feeder",
+     "button": 942
+    },
+    {
+     "x": 275,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-timing",
+     "button": 943
+    },
+    {
+     "x": 537,
+     "y": 425,
+     "w": 126,
+     "h": 35,
+     "to": "run-weight",
+     "button": 945
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 97,
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 703,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "note": "Exit — leaves production. The same key rect as every other screen's Exit; it was the only one on the five Production tabs left unwired, so pressing it did nothing.",
+     "requires": [
+      "stopped"
+     ]
+    },
+    {
+     "x": 3,
+     "y": 40,
+     "w": 24,
+     "h": 370,
+     "to": "run-totals@select",
+     "label": "Select Total"
+    }
+   ]
+  },
+  "manual-scale-adjust@all": {
+   "parent": "manual-scale-adjust",
+   "kind": "state",
+   "captured": true,
+   "label": "Manual Adjustment — all heads selected",
+   "image": "captured/msa-all-head-slct.jpg",
+   "hotspots": [
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-combination",
+     "button": 1005
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-vibration",
+     "button": 1006
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "manual-weight-waveform",
+     "button": 1007
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 705,
+     "y": 48,
+     "w": 85,
+     "h": 46,
+     "to": "manual-scale-adjust",
+     "label": "All Head SLCT/CLR"
+    },
+    {
+     "x": 8,
+     "y": 362,
+     "w": 88,
+     "h": 50,
+     "to": "manual-scale-adjust@zeroing",
+     "label": "Zero Adjst"
+    },
+    {
+     "x": 660,
+     "y": 362,
+     "w": 88,
+     "h": 50,
+     "to": "manual-scale-adjust@span-error",
+     "label": "WH Span Adjustment"
+    }
+   ]
+  },
+  "manual-scale-adjust@zeroing": {
+   "parent": "manual-scale-adjust",
+   "kind": "popup",
+   "captured": true,
+   "label": "Manual Adjustment — zero adjusting (\"Please wait a moment.\")",
+   "image": "captured/msa-zero-adjst-0.jpg",
+   "autoNext": {
+    "to": "manual-scale-adjust",
+    "ms": 4000
+   },
+   "hotspots": []
+  },
+  "manual-scale-adjust@span-error": {
+   "parent": "manual-scale-adjust",
+   "kind": "state",
+   "captured": true,
+   "label": "Manual Adjustment — SPAN ERROR (Ch1 WH1-14)",
+   "image": "captured/msa-span-0.jpg",
+   "hotspots": [
+    {
+     "x": 373,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "to": "main-menu",
+     "sets": {
+      "power": false
+     },
+     "label": "Power (reboot)"
+    },
+    {
+     "x": 465,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "action": "inert",
+     "label": "Err Clr&Stop",
+     "note": "Pressed on the original: nothing. The demo's span error cannot be cleared."
+    },
+    {
+     "x": 650,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "to": "manual-scale-adjust@span-description",
+     "label": "Description"
+    }
+   ]
+  },
+  "manual-scale-adjust@span-description": {
+   "parent": "manual-scale-adjust",
+   "kind": "state",
+   "captured": true,
+   "label": "Manual Adjustment — SPAN ERROR description",
+   "image": "captured/msa-span-description.jpg",
+   "hotspots": [
+    {
+     "x": 373,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "to": "main-menu",
+     "sets": {
+      "power": false
+     },
+     "label": "Power (reboot)"
+    },
+    {
+     "x": 465,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "action": "inert",
+     "label": "Err Clr&Stop",
+     "note": "Pressed on the original: nothing. The demo's span error cannot be cleared."
+    },
+    {
+     "x": 650,
+     "y": 428,
+     "w": 85,
+     "h": 65,
+     "to": "manual-scale-adjust@span-error",
+     "label": "back"
+    }
+   ]
+  },
+  "selfdiag-test@drive": {
+   "parent": "selfdiag-test",
+   "kind": "state",
+   "captured": true,
+   "label": "Self-diagnosis Test Drive — driving",
+   "image": "captured/sdt-offset-on.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-device",
+     "button": 1094
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-io",
+     "button": 1095
+    },
+    {
+     "x": 405,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-program",
+     "button": 1096
+    },
+    {
+     "x": 275,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "selfdiag-network",
+     "button": 1098
+    },
+    {
+     "x": 565,
+     "y": 350,
+     "w": 87,
+     "h": 65,
+     "to": "selfdiag-test",
+     "label": "Drive Stop"
+    }
+   ]
+  },
+  "display-preset@loading": {
+   "parent": "display-preset",
+   "kind": "popup",
+   "captured": true,
+   "label": "Display & Data Manager — \"Loading preset data\"",
+   "image": "captured/display-preset-live.jpg",
+   "autoNext": {
+    "to": "display-preset",
+    "ms": 2500
+   },
+   "hotspots": []
+  },
+  "display-preset@initialize": {
+   "parent": "display-preset",
+   "kind": "popup",
+   "captured": true,
+   "label": "Display & Data Manager — \"Initialize the Memory. OK?\"",
+   "image": "captured/dp-initialize.jpg",
+   "hotspots": [
+    {
+     "x": 203,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "display-preset",
+     "label": "Yes"
+    },
+    {
+     "x": 313,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "display-preset",
+     "label": "No"
+    }
+   ]
+  },
+  "display-all-edit@initialize": {
+   "parent": "display-all-edit",
+   "kind": "popup",
+   "captured": true,
+   "label": "All Setting Manager — \"Initialize the Memory. OK?\"",
+   "image": "captured/dae-panel01.jpg",
+   "hotspots": [
+    {
+     "x": 203,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "display-all-edit",
+     "label": "Yes"
+    },
+    {
+     "x": 313,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "display-all-edit",
+     "label": "No"
+    }
+   ]
+  },
+  "various-scale-detail@empty-weight": {
+   "parent": "various-scale-detail",
+   "kind": "popup",
+   "captured": true,
+   "label": "Various — Empty Judgment Weight keypad",
+   "image": "captured/vsd-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "1"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 377,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "various-scale-detail",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "various-scale-detail",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "various-hdrv@weigh": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — Weigh Hopper",
+   "image": "captured/hdrv-weigh-hopper.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    }
+   ]
+  },
+  "various-hdrv@booster": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — Booster Hopper",
+   "image": "captured/hdrv-booster-hopper.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    }
+   ]
+  },
+  "various-hdrv@ring": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — RingShutter",
+   "image": "captured/hdrv-ring-shutter.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    }
+   ]
+  },
+  "various-hdrv@diverting": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — DivertingTimingHppr",
+   "image": "captured/hdrv-diverting.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    }
+   ]
+  },
+  "various-hdrv@timing": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — TimingHopper",
+   "image": "captured/hdrv-timing-hopper.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    }
+   ]
+  },
+  "pack-bagmaker@dump-hold": {
+   "parent": "pack-bagmaker",
+   "kind": "popup",
+   "captured": true,
+   "label": "Peripheral — Dump Confirm Hold keypad",
+   "image": "captured/pack-panel02.jpg",
+   "keypad": {
+    "field": {
+     "x": 365,
+     "y": 172,
+     "w": 250,
+     "h": 60
+    },
+    "seed": "100"
+   },
+   "hotspots": [
+    {
+     "x": 382,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 436,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 489,
+     "y": 242,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 382,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 436,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 489,
+     "y": 286,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 382,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 436,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 489,
+     "y": 331,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 382,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 489,
+     "y": 376,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 436,
+     "y": 377,
+     "w": 48,
+     "h": 36,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 543,
+     "y": 241,
+     "w": 74,
+     "h": 37,
+     "to": "pack-bagmaker",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 543,
+     "y": 285,
+     "w": 74,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 543,
+     "y": 330,
+     "w": 74,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 543,
+     "y": 375,
+     "w": 74,
+     "h": 37,
+     "to": "pack-bagmaker",
+     "action": "enter",
+     "label": "Enter"
+    }
+   ]
+  },
+  "panel-screen-control@tune-up": {
+   "parent": "panel-screen-control",
+   "kind": "popup",
+   "captured": true,
+   "label": "Control Panel — \"Screen moves to calibration screen to calibrate touch panel coordinates. OK?\"",
+   "image": "captured/psc-panel01.jpg",
+   "hotspots": [
+    {
+     "x": 203,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "panel-screen-control@calib1",
+     "label": "Yes"
+    },
+    {
+     "x": 313,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "panel-screen-control",
+     "label": "No"
+    }
+   ]
+  },
+  "panel-screen-control@calib1": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "label": "Touch-panel calibration — first cross",
+   "image": "captured/panel-password-live.jpg",
+   "hotspots": [
+    {
+     "x": 700,
+     "y": 30,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control@calib2",
+     "label": "tap the cross"
+    }
+   ]
+  },
+  "panel-screen-control@calib2": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "label": "Touch-panel calibration — second cross",
+   "image": "captured/ppw-panel01.jpg",
+   "hotspots": [
+    {
+     "x": 40,
+     "y": 510,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control",
+     "label": "tap the cross"
+    }
+   ]
+  },
+  "assistant@select-preset": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — Select Preset (press OK)",
+   "image": "captured/assistant-step2-select-preset.jpg",
+   "hotspots": [
+    {
+     "x": 658,
+     "y": 452,
+     "w": 85,
+     "h": 62,
+     "to": "assistant@wh-start",
+     "label": "OK"
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "assistant@wh-start": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — WH Zero Adjustment Start",
+   "image": "captured/assistant-step3.jpg",
+   "hotspots": [
+    {
+     "x": 470,
+     "y": 128,
+     "w": 85,
+     "h": 68,
+     "to": "assistant@wh-running",
+     "label": "Start"
+    },
+    {
+     "x": 638,
+     "y": 128,
+     "w": 85,
+     "h": 68,
+     "to": "assistant@df-start",
+     "label": "Next"
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "assistant@wh-running": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — In WH Zero Adjst.",
+   "image": "captured/assistant-step4-in-wh-zero.jpg",
+   "autoNext": {
+    "to": "assistant@df-start",
+    "ms": 4000
+   },
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "assistant@df-start": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — DF Zero Adjustment Start",
+   "image": "captured/assistant-step5.jpg",
+   "hotspots": [
+    {
+     "x": 470,
+     "y": 128,
+     "w": 85,
+     "h": 68,
+     "to": "assistant@df-running",
+     "label": "Start"
+    },
+    {
+     "x": 638,
+     "y": 128,
+     "w": 85,
+     "h": 68,
+     "to": "assistant@standby",
+     "label": "Next"
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "assistant@df-running": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — In DF Zero Adjst",
+   "image": "captured/assistant-step6-in-df-zero.jpg",
+   "autoNext": {
+    "to": "assistant@standby",
+    "ms": 4000
+   },
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "assistant@standby": {
+   "parent": "assistant",
+   "kind": "wizard",
+   "captured": true,
+   "label": "Start-Up Assistant — Production Standby (press START)",
+   "image": "captured/assistant-step7.jpg",
+   "hotspots": [
+    {
+     "x": 658,
+     "y": 528,
+     "w": 88,
+     "h": 62,
+     "to": "run-combination",
+     "sets": {
+      "running": true
+     },
+     "requires": [
+      "power"
+     ],
+     "label": "Start"
+    },
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "label": "HOME"
+    }
+   ]
+  },
+  "memo@transmit": {
+   "parent": "memo",
+   "kind": "popup",
+   "captured": true,
+   "label": "Message Board — \"E-mail will be sent. OK?\"",
+   "image": "captured/memo-transmit.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "memo",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "memo",
+     "label": "No"
+    }
+   ]
+  },
+  "memo@delete": {
+   "parent": "memo",
+   "kind": "popup",
+   "captured": true,
+   "label": "Message Board — \"Delete OK?\"",
+   "image": "captured/memo-delete-ok.jpg",
+   "hotspots": [
+    {
+     "x": 263,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "memo",
+     "label": "Yes"
+    },
+    {
+     "x": 405,
+     "y": 396,
+     "w": 90,
+     "h": 65,
+     "to": "memo",
+     "label": "No"
     }
    ]
   }
@@ -3495,12 +11865,12 @@
    "time": 1.0,
    "amp": 1.0
   },
-  "note": "Operation Manual 6.12. Light the Time and/or AMP lamp key \u2014 the lamp goes green \u2014 then press Increase or Decrease to move the values of the selected pans. RF is per head; DF is the single dispersion feeder. The pans selected on Zero Adjustment are the same pans, so the selection carries.",
+  "note": "Operation Manual 6.12. Light the Time and/or AMP lamp key — the lamp goes green — then press Increase or Decrease to move the values of the selected pans. RF is per head; DF is the single dispersion feeder. The pans selected on Zero Adjustment are the same pans, so the selection carries.",
   "arrowLit": {
    "up": "keys/fa-up-on.png",
    "down": "keys/fa-down-on.png"
   },
-  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and \u2014 on RF \u2014 at least one head selected.",
+  "arrowNote": "The Increase and Decrease keys are DIMMED in the artwork. They light only when there is something to move: a lamp key lit, and — on RF — at least one head selected.",
   "screens": {
    "preset-feeder": {
     "keys": {
@@ -3680,11 +12050,12 @@
       "label": "Decrease"
      },
      "rf": {
-      "x": 378,
-      "y": 238,
-      "w": 62,
-      "h": 54,
-      "label": "RF"
+      "x": 196,
+      "y": 218,
+      "w": 27,
+      "h": 22,
+      "label": "DF (the (1) on the disc)",
+      "note": "The (1) printed on the centre disc is the dispersion feeder's key: pressed on the original, the disc turns blue, the RF arrow reads DF, and the chart draws one circle per parameter. The grey RF arrow beside the chart is not a key."
      }
     },
     "lamps": {
@@ -3819,10 +12190,17 @@
      "seg1Centre": 77.1,
      "rFull": 120,
      "note": "Amplitude is the magenta trace. Measured off the capture: every head at 50.0 put it at r=61, so 100 sits at r=120, the ring's inner edge. Segment 1's arc is centred at 77 degrees, not at the bottom."
+    },
+    "dfLabel": {
+     "image": "keys/df-label.png",
+     "x": 360,
+     "y": 236,
+     "w": 68,
+     "h": 54
     }
    }
   },
   "lampOn": "keys/lamp-on.png",
-  "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head \u2014 counted on the original, where RF Time went 25.0 to 26.0 on a single press."
+  "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head — counted on the original, where RF Time went 25.0 to 26.0 on a single press."
  }
 }

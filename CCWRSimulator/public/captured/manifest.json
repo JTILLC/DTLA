@@ -1,0 +1,755 @@
+{
+ "assistant-step1": {
+  "file": "captured/assistant-step1.jpg",
+  "sha1": "dde16e773743a6b4c8fe728a84fd8b971a7b832f"
+ },
+ "assistant-step2": {
+  "alias": "assistant-step2-select-preset"
+ },
+ "assistant-step2-select-preset": {
+  "file": "captured/assistant-step2-select-preset.jpg",
+  "sha1": "77102408466f818a67a35c178d77944fd9182358"
+ },
+ "assistant-step3": {
+  "file": "captured/assistant-step3.jpg",
+  "sha1": "eb5f176a22ae9d3c2d325b0841aebfc8e6018381"
+ },
+ "assistant-step4": {
+  "alias": "assistant-step2-select-preset"
+ },
+ "assistant-step4-in-wh-zero": {
+  "file": "captured/assistant-step4-in-wh-zero.jpg",
+  "sha1": "ed7430d775338a6f64584f0dfdc68fe9b3299eaa"
+ },
+ "assistant-step5": {
+  "file": "captured/assistant-step5.jpg",
+  "sha1": "acce90ee795e319d67543bb6b9866baed8a0c84d"
+ },
+ "assistant-step6-in-df-zero": {
+  "file": "captured/assistant-step6-in-df-zero.jpg",
+  "sha1": "c42dd3dcafa77271ea341cd3fe8086b1db036cf3"
+ },
+ "assistant-step7": {
+  "file": "captured/assistant-step7.jpg",
+  "sha1": "14e61b3eaf372db40c1e54e2855947de23960135"
+ },
+ "assistant-step8-production": {
+  "file": "captured/assistant-step8-production.jpg",
+  "sha1": "272167d795966697c97a3b8e77cf5a41ea9d5f7d"
+ },
+ "autoadj-afv-live": {
+  "file": "captured/autoadj-afv-live.jpg",
+  "sha1": "57da7b08cfb476e7017df50b130504dda8e71c2d"
+ },
+ "autoadj-drive-live": {
+  "file": "captured/autoadj-drive-live.jpg",
+  "sha1": "1c2353b86c3c32f0a30ed3290662c1f65ff756a6"
+ },
+ "autoadj-neutral-live": {
+  "file": "captured/autoadj-neutral-live.jpg",
+  "sha1": "a625f323582a0456d4cf351f6909532df5ae6614"
+ },
+ "dae-panel01": {
+  "file": "captured/dae-panel01.jpg",
+  "sha1": "f0bc5b1db2759848f4ca297daaf894b9f9f5c8de"
+ },
+ "dh-btn56-next": {
+  "file": "captured/dh-btn56-next.jpg",
+  "sha1": "7f13895b52e6c6132ee728c5b6b2f2fab70311f1"
+ },
+ "dh-cycler-rs-1": {
+  "alias": "dh-btn56-next"
+ },
+ "dh-cycler-rs-2": {
+  "alias": "dh-btn56-next"
+ },
+ "discharge-feeder-live": {
+  "file": "captured/discharge-feeder-live.jpg",
+  "sha1": "c9fe9e224f9c3c47b9f67219243744d29a6fe7b0"
+ },
+ "discharge-timing-live": {
+  "file": "captured/discharge-timing-live.jpg",
+  "sha1": "6ee11d4ac7764cd8862434d4f61f2d265b01f769"
+ },
+ "discharge-weight-live": {
+  "file": "captured/discharge-weight-live.jpg",
+  "sha1": "807c73abf8a2deee8952f65c9b15499726944003"
+ },
+ "display-all-edit-live": {
+  "file": "captured/display-all-edit-live.jpg",
+  "sha1": "a068092fda99c27a6869e64f9fb453390cc70fc4"
+ },
+ "display-hopper-live": {
+  "alias": "dh-btn56-next"
+ },
+ "display-machine-edit-live": {
+  "file": "captured/display-machine-edit-live.jpg",
+  "sha1": "adfbcf12607fdc69dc5e558b30a9549afcc4a650"
+ },
+ "display-preset-live": {
+  "file": "captured/display-preset-live.jpg",
+  "sha1": "74e89680c98691f1800e07dea93ec2696fb703cf"
+ },
+ "display-screen-live": {
+  "file": "captured/display-screen-live.jpg",
+  "sha1": "4225fefc7a9509f382e49a518ebb786079c52df1"
+ },
+ "dp-initialize": {
+  "file": "captured/dp-initialize.jpg",
+  "sha1": "ad704968a38c59bb7466869ac7ce926d363b6e3b"
+ },
+ "dp-loading-popup": {
+  "alias": "display-preset-live"
+ },
+ "dp-panel02": {
+  "file": "captured/dp-panel02.jpg",
+  "sha1": "a8ef7e6a270c28f644ce936d9b2cdf9e9658d4f7"
+ },
+ "dp-source-dropdown": {
+  "alias": "display-preset-live"
+ },
+ "dw-auto-zero-on": {
+  "file": "captured/dw-auto-zero-on.jpg",
+  "sha1": "824ef3f84341e9c0f40de7c4b487c710ccd63daf"
+ },
+ "dw-drain-stopped": {
+  "alias": "discharge-weight-live"
+ },
+ "dw-infeed-on": {
+  "file": "captured/dw-infeed-on.jpg",
+  "sha1": "566040d4cfce01d3f84dd6d8935052a1dd071d1e"
+ },
+ "fo-all-on": {
+  "file": "captured/fo-all-on.jpg",
+  "sha1": "80d1d76ee88a0830ea0528185a6d346931017a97"
+ },
+ "fo-close-after-open": {
+  "alias": "fo-all-on"
+ },
+ "fo-close-pressed": {
+  "alias": "fo-all-on"
+ },
+ "fo-df-on": {
+  "file": "captured/fo-df-on.jpg",
+  "sha1": "87259e67c25934419fe214d5dbb7b30ee975e188"
+ },
+ "fo-df-rf-on": {
+  "file": "captured/fo-df-rf-on.jpg",
+  "sha1": "dde971f3c9074254c762e490fe09c627143da985"
+ },
+ "fo-df-rf-ph-on": {
+  "file": "captured/fo-df-rf-ph-on.jpg",
+  "sha1": "5b4efe9bc38a2cdbc3a60d497f60284986f1cfdc"
+ },
+ "fo-open-pressed": {
+  "file": "captured/fo-open-pressed.jpg",
+  "sha1": "46280c56bd93c025affaceb9085f45578ca06b88"
+ },
+ "hd-gra1-on": {
+  "file": "captured/hd-gra1-on.jpg",
+  "sha1": "c5424dfd14db187b35dd77079b318cf87c46c696"
+ },
+ "hdrv-booster-hopper": {
+  "file": "captured/hdrv-booster-hopper.jpg",
+  "sha1": "b5c4d2b511bcbd5d68211adea59bc400f47c981b"
+ },
+ "hdrv-diverting": {
+  "file": "captured/hdrv-diverting.jpg",
+  "sha1": "e4783857bf843272cc430221c331c1ffc64734f0"
+ },
+ "hdrv-parameter-dropdown": {
+  "file": "captured/hdrv-parameter-dropdown.jpg",
+  "sha1": "33c6aa2fd665ec68683d3e8d51c5b11958d41808"
+ },
+ "hdrv-ring-shutter": {
+  "file": "captured/hdrv-ring-shutter.jpg",
+  "sha1": "70e1da0123a396796efd2a807bf08cdb512d0815"
+ },
+ "hdrv-timing-hopper": {
+  "file": "captured/hdrv-timing-hopper.jpg",
+  "sha1": "e3765d3a500c753d4d4cd1034a2b70f740567069"
+ },
+ "hdrv-weigh-hopper": {
+  "file": "captured/hdrv-weigh-hopper.jpg",
+  "sha1": "6604b3e53e0592760938e5caa33f46e1fc8bc388"
+ },
+ "hopper-discharge-live": {
+  "alias": "hd-gra1-on"
+ },
+ "hopper-feeder-live": {
+  "file": "captured/hopper-feeder-live.jpg",
+  "sha1": "a897fd7ec78d1eb109037d31469fced73034a737"
+ },
+ "main-menu-maintenance": {
+  "file": "captured/main-menu-maintenance.jpg",
+  "sha1": "8e4bd21b5a761f84254b237dc486adb9d2c6b8b6"
+ },
+ "main-menu-power-off": {
+  "file": "captured/main-menu-power-off.jpg",
+  "sha1": "81799db180573f2a710e56f0a6c9d36f2490f58c"
+ },
+ "main-menu-power-on-2": {
+  "file": "captured/main-menu-power-on-2.jpg",
+  "sha1": "5225787fed5d1ceb0026dc229cdf68973cc2e0ea"
+ },
+ "main-menu-power-on-3": {
+  "file": "captured/main-menu-power-on-3.jpg",
+  "sha1": "53bfcb6ce0c52c2499497bf6510f4b5641726890"
+ },
+ "main-menu-stopped": {
+  "alias": "main-menu-maintenance"
+ },
+ "manual-combination-live": {
+  "file": "captured/manual-combination-live.jpg",
+  "sha1": "f97b6b40edad28c594a6b2a50c798000e3b68ee2"
+ },
+ "manual-scale-adjust-live": {
+  "file": "captured/manual-scale-adjust-live.jpg",
+  "sha1": "d95ece7f9081dae97cc394e8f308843d2e9bf834"
+ },
+ "manual-vibration-live": {
+  "file": "captured/manual-vibration-live.jpg",
+  "sha1": "08a0938047b4549162a75eed5ab511399360e866"
+ },
+ "manual-weight-waveform-live": {
+  "file": "captured/manual-weight-waveform-live.jpg",
+  "sha1": "5af6a84161ca00aa1a1d4b68372ec1661cfa4073"
+ },
+ "memo-delete-ok": {
+  "file": "captured/memo-delete-ok.jpg",
+  "sha1": "89bf4d561148fdc8166b6996e51d572758b0e81e"
+ },
+ "memo-live": {
+  "file": "captured/memo-live.jpg",
+  "sha1": "975e42a70290aba27d803469f98e521910bb54eb"
+ },
+ "memo-scribble": {
+  "file": "captured/memo-scribble.jpg",
+  "sha1": "2e0a386f29869b43d6ecdaa197080842c87a353c"
+ },
+ "memo-transmit": {
+  "file": "captured/memo-transmit.jpg",
+  "sha1": "4360b507b8a0c5dc831e7e182798ac12d0a79630"
+ },
+ "mm-help-blink-0": {
+  "file": "captured/mm-help-blink-0.jpg",
+  "sha1": "fdd3f29d557b395f34e8eb427084113a0a3c6952"
+ },
+ "mm-help-blink-1": {
+  "file": "captured/mm-help-blink-1.jpg",
+  "sha1": "9c506db976ee08661c106a81c945fb297e7c656c"
+ },
+ "mm-help-blink-2": {
+  "file": "captured/mm-help-blink-2.jpg",
+  "sha1": "0bee0de452d74cd22dd5284261552e428844c71d"
+ },
+ "mm-help-blink-3": {
+  "alias": "mm-help-blink-0"
+ },
+ "mm-help-blink-4": {
+  "alias": "main-menu-maintenance"
+ },
+ "mm-help-blink-5": {
+  "alias": "mm-help-blink-1"
+ },
+ "mm-help-blink-a": {
+  "file": "captured/mm-help-blink-a.jpg",
+  "sha1": "9e02c340be6fb866df66f160ba494a1f822559de"
+ },
+ "mm-help-blink-b": {
+  "file": "captured/mm-help-blink-b.jpg",
+  "sha1": "bb3ed7523f1d1ce654dec98e166422c7e4d48ad7"
+ },
+ "mm-help-blink-c": {
+  "file": "captured/mm-help-blink-c.jpg",
+  "sha1": "c442d77be7511e2261e093eb1b179823dce46fea"
+ },
+ "mm-machine-set-drawer": {
+  "file": "captured/mm-machine-set-drawer.jpg",
+  "sha1": "e712d045501cf7a89185f1e5d0ed998c275c55d2"
+ },
+ "mm-panel01-access-level": {
+  "file": "captured/mm-panel01-access-level.jpg",
+  "sha1": "b496c085467c417157b52c734b1db0ef079e1835"
+ },
+ "mm-panel02-product-name": {
+  "file": "captured/mm-panel02-product-name.jpg",
+  "sha1": "7b0281137a1bda995fae6d0890c26ca6ac634a3e"
+ },
+ "mm-panel03-product-code": {
+  "file": "captured/mm-panel03-product-code.jpg",
+  "sha1": "c7de5c49fd718e569aca17feffdff3d0e592d076"
+ },
+ "mm-panel04-target-weight": {
+  "file": "captured/mm-panel04-target-weight.jpg",
+  "sha1": "ff2369e9b7a1129408603c784e8e6db2479a9e2a"
+ },
+ "mm-panel05-speed": {
+  "file": "captured/mm-panel05-speed.jpg",
+  "sha1": "23a9f36df61b9f82408f676e44b6bcb39892627b"
+ },
+ "mm-panel06-dump-count": {
+  "file": "captured/mm-panel06-dump-count.jpg",
+  "sha1": "a4eb1b47fb33eee032ea3c899c6dacdee6cb3bd6"
+ },
+ "mm-panel07-upper-limit": {
+  "file": "captured/mm-panel07-upper-limit.jpg",
+  "sha1": "bab0ae6f3329f62b561da6d326bedafefd7a18b9"
+ },
+ "msa-all-head-slct": {
+  "file": "captured/msa-all-head-slct.jpg",
+  "sha1": "e873fc97550cc1e23930257edfc8e7677d0ed08a"
+ },
+ "msa-hopper3-off": {
+  "file": "captured/msa-hopper3-off.jpg",
+  "sha1": "93c6c40167cc474da0b1990e2462b9749cfeab18"
+ },
+ "msa-panel02": {
+  "alias": "manual-scale-adjust-live"
+ },
+ "msa-span-0": {
+  "file": "captured/msa-span-0.jpg",
+  "sha1": "c22fdd1bc4aab5c8ba1c1b497b42ebabdf4bb3a5"
+ },
+ "msa-span-1": {
+  "alias": "msa-span-0"
+ },
+ "msa-span-2": {
+  "alias": "msa-span-0"
+ },
+ "msa-span-3": {
+  "alias": "msa-span-0"
+ },
+ "msa-span-description": {
+  "file": "captured/msa-span-description.jpg",
+  "sha1": "7bc589c3274d9d2096fe4c48aecd12173bdb62db"
+ },
+ "msa-span-errclr": {
+  "alias": "msa-span-description"
+ },
+ "msa-zero-adjst": {
+  "alias": "msa-zero-adjst-later"
+ },
+ "msa-zero-adjst-0": {
+  "file": "captured/msa-zero-adjst-0.jpg",
+  "sha1": "09fb57a1da6fcd34305728565a33ab77e33ed421"
+ },
+ "msa-zero-adjst-1": {
+  "file": "captured/msa-zero-adjst-1.jpg",
+  "sha1": "9f4cfb4240807bb054f2e212147c51975ee29d66"
+ },
+ "msa-zero-adjst-later": {
+  "file": "captured/msa-zero-adjst-later.jpg",
+  "sha1": "dcd2a0246ba32c22743f41afc7160ddc31ac7173"
+ },
+ "pack-bagmaker-live": {
+  "file": "captured/pack-bagmaker-live.jpg",
+  "sha1": "f261e2ea66b2f20b9cce1e48a0c313b5446156f8"
+ },
+ "pack-distribution-live": {
+  "file": "captured/pack-distribution-live.jpg",
+  "sha1": "ed24f1a3923fceadb9a3ed59f6f021d0b8606775"
+ },
+ "pack-panel02": {
+  "file": "captured/pack-panel02.jpg",
+  "sha1": "046d8364837fdf32e9b5c7ed75a60dda44433ac1"
+ },
+ "pack-ring-live": {
+  "alias": "pack-distribution-live"
+ },
+ "pack-supply-live": {
+  "alias": "pack-distribution-live"
+ },
+ "pack-timing-live": {
+  "alias": "pack-distribution-live"
+ },
+ "panel-comms-live": {
+  "file": "captured/panel-comms-live.jpg",
+  "sha1": "852964bb397a46aa513bda367b5a5dc729d0ffaf"
+ },
+ "panel-data-output-live": {
+  "file": "captured/panel-data-output-live.jpg",
+  "sha1": "56c8a3890c97a39d382c8fe3df9bc95fefcb7504"
+ },
+ "panel-password-live": {
+  "file": "captured/panel-password-live.jpg",
+  "sha1": "211ee196d0def23bb29708ed183f2eac16c0ced2"
+ },
+ "panel-screen-control-live": {
+  "file": "captured/panel-screen-control-live.jpg",
+  "sha1": "23c9f1e0bbdbaa713a8e9a169377a1d64097e5f1"
+ },
+ "password-input": {
+  "file": "captured/password-input.jpg",
+  "sha1": "79f8328d48ab747a94085459e4129b431b7399c4"
+ },
+ "password-input-123": {
+  "file": "captured/password-input-123.jpg",
+  "sha1": "16294c077cd6c3b623cd0da1db951468c5eb1b4f"
+ },
+ "pf-panel02": {
+  "file": "captured/pf-panel02.jpg",
+  "sha1": "218face1d640ce90514a5560d65b2314d8ff7f7e"
+ },
+ "pf-panel03": {
+  "file": "captured/pf-panel03.jpg",
+  "sha1": "7fcb8911080e039e7f6be67d5c6bdf3b5dd1b957"
+ },
+ "pi-panel02": {
+  "file": "captured/pi-panel02.jpg",
+  "sha1": "2d171f5f5925be9a7f874b77d4ebfbca9595fe6d"
+ },
+ "pi-panel03": {
+  "file": "captured/pi-panel03.jpg",
+  "sha1": "9f23ecda1125fd5892ab81c28a1309e2cff82f9e"
+ },
+ "pi-panel04": {
+  "file": "captured/pi-panel04.jpg",
+  "sha1": "2a1d289c428aaad66c1896f5d1dc9bad33a9f9eb"
+ },
+ "pi-panel05": {
+  "file": "captured/pi-panel05.jpg",
+  "sha1": "0d75b69a6b8fbbaa4496bcf2114eeae1a030f91a"
+ },
+ "pm-average-control-on": {
+  "file": "captured/pm-average-control-on.jpg",
+  "sha1": "9b5197eafd3ad0f919a7c695ff07d7d72f6d795d"
+ },
+ "pm-panel05": {
+  "file": "captured/pm-panel05.jpg",
+  "sha1": "c67a71d0fb866505fb8ed9aeab78ae667aced9ff"
+ },
+ "po-panel02": {
+  "file": "captured/po-panel02.jpg",
+  "sha1": "f65f0ebcafd4b54ad8206529adfc3c8daee195f5"
+ },
+ "popup-power-wait": {
+  "alias": "main-menu-power-on-2"
+ },
+ "popup-power-wait-0": {
+  "file": "captured/popup-power-wait-0.jpg",
+  "sha1": "9da0a64bdddf8b0de7b1d1779dcec7028e2f5a28"
+ },
+ "popup-power-wait-1": {
+  "file": "captured/popup-power-wait-1.jpg",
+  "sha1": "e3d08dae2382dfeb80ac21df6603083c65e97a61"
+ },
+ "popup-power-wait-2": {
+  "file": "captured/popup-power-wait-2.jpg",
+  "sha1": "4817f16a4803884dd422961860b5c98b2c51ec6b"
+ },
+ "popup-power-wait-3": {
+  "file": "captured/popup-power-wait-3.jpg",
+  "sha1": "4f1749242b6348cf87900f8a0ed497a9b857311a"
+ },
+ "popup-power-wait-4": {
+  "alias": "main-menu-maintenance"
+ },
+ "pp-panel01-preset-no": {
+  "file": "captured/pp-panel01-preset-no.jpg",
+  "sha1": "d710ffc5744a7ece3533691078d44dcc11b2e12a"
+ },
+ "pp-panel04": {
+  "file": "captured/pp-panel04.jpg",
+  "sha1": "a15813433bde7aa2cee8232114a59e9c6029ed17"
+ },
+ "pp-panel05": {
+  "file": "captured/pp-panel05.jpg",
+  "sha1": "cbee4395e605d3615ac6d06787b5f673093103f4"
+ },
+ "pp-panel06": {
+  "file": "captured/pp-panel06.jpg",
+  "sha1": "a8da89e54d862026f770d81ecd2d5d85bad53398"
+ },
+ "ppw-panel01": {
+  "file": "captured/ppw-panel01.jpg",
+  "sha1": "c3073b2b70e53776532dd5c334c39bcd19ae732b"
+ },
+ "preset-feeder-live": {
+  "alias": "pf-panel02"
+ },
+ "preset-item-live": {
+  "file": "captured/preset-item-live.jpg",
+  "sha1": "db55ba49308c0d48e0c65b618e068daea801f47b"
+ },
+ "preset-machine-live": {
+  "file": "captured/preset-machine-live.jpg",
+  "sha1": "0d45ed52dd38e465729b15b428952504e2f77e62"
+ },
+ "preset-other-live": {
+  "file": "captured/preset-other-live.jpg",
+  "sha1": "e2cdd5317d6604e0923068450536f90d83fd69d5"
+ },
+ "preset-product-live": {
+  "file": "captured/preset-product-live.jpg",
+  "sha1": "3e45b99fd266cdb5a09462008cfb70ce2a5aec53"
+ },
+ "preset-select-a-live": {
+  "file": "captured/preset-select-a-live.jpg",
+  "sha1": "b1f357bf9d9703e245ead6c5b7ebc7de7e6c87c4"
+ },
+ "preset-timing-live": {
+  "file": "captured/preset-timing-live.jpg",
+  "sha1": "8e4e04b2579fa5ffddf84d14f405bb9ec193812f"
+ },
+ "preset-weight-avg-on": {
+  "file": "captured/preset-weight-avg-on.jpg",
+  "sha1": "e359c448787f13a1fb3e868dd16ce3a0861bae87"
+ },
+ "preset-weight-live": {
+  "file": "captured/preset-weight-live.jpg",
+  "sha1": "e235d27b97bc0efadd7dcbe612115455d6907175"
+ },
+ "psa-panel01": {
+  "file": "captured/psa-panel01.jpg",
+  "sha1": "66e5ad8e06ea330be783c4f39c4468094fba38f3"
+ },
+ "psc-panel01": {
+  "file": "captured/psc-panel01.jpg",
+  "sha1": "a163a23bffaa567096960c8059dd074b8bc4a149"
+ },
+ "pt-lamp1-on": {
+  "file": "captured/pt-lamp1-on.jpg",
+  "sha1": "fe1d4aa73e1e0030f18a36e14544e504626961e4"
+ },
+ "pt-panel02": {
+  "file": "captured/pt-panel02.jpg",
+  "sha1": "4ce94150b9eecffa555ad7f80eaf4f988a884600"
+ },
+ "pw-panel02": {
+  "file": "captured/pw-panel02.jpg",
+  "sha1": "13fec83925e5dff3793d91f2e1acb4b2ba4aeaed"
+ },
+ "pw-panel05": {
+  "file": "captured/pw-panel05.jpg",
+  "sha1": "5dbfdad93833ccc099f445179aca7edbb3abca75"
+ },
+ "pw-panel06": {
+  "file": "captured/pw-panel06.jpg",
+  "sha1": "5b43eac6de3509d3834ada2d1d68c975e1bd139d"
+ },
+ "rc-select-display": {
+  "file": "captured/rc-select-display.jpg",
+  "sha1": "5e7abb3322124ef34a43256cae4edb6708a6b251"
+ },
+ "rc-view-magnify": {
+  "file": "captured/rc-view-magnify.jpg",
+  "sha1": "0ed1c1d6bc8e3d6cb5cb951455299333515cc773"
+ },
+ "rf-cg-toggle": {
+  "file": "captured/rf-cg-toggle.jpg",
+  "sha1": "206f4252b3f0bf194796b91de84759f73eda7e7c"
+ },
+ "rf-df-selected": {
+  "file": "captured/rf-df-selected.jpg",
+  "sha1": "0f8fd90a2edf6497d0d75122ce2e2c441dfee5f7"
+ },
+ "rf-feeder-drawer": {
+  "file": "captured/rf-feeder-drawer.jpg",
+  "sha1": "d9a781f2564677418e4cb3e7c53505221a0aaa76"
+ },
+ "rf-head-mean-on": {
+  "file": "captured/rf-head-mean-on.jpg",
+  "sha1": "f1bfc44871050ceae0fa88e1a90931a0cb9db49f"
+ },
+ "rf-live-tab": {
+  "file": "captured/rf-live-tab.jpg",
+  "sha1": "a9011ed2f1bf29a4ac3c81332b10d77c57e91362"
+ },
+ "rf-mode-afd": {
+  "file": "captured/rf-mode-afd.jpg",
+  "sha1": "1410d080f8f7aab7f69db837c343bfdb6840416c"
+ },
+ "rf-mode-bar": {
+  "file": "captured/rf-mode-bar.jpg",
+  "sha1": "b9374ec7e8b048a8a0d9878c23254b96ffd57c5a"
+ },
+ "rf-mode-radar": {
+  "file": "captured/rf-mode-radar.jpg",
+  "sha1": "43b94a3bb18a7235cdc7afc6982c9dc9aef04139"
+ },
+ "rf-mode-status": {
+  "file": "captured/rf-mode-status.jpg",
+  "sha1": "af728355658f3935b81bed26dc92c59171c74133"
+ },
+ "rf-section-mean-on": {
+  "file": "captured/rf-section-mean-on.jpg",
+  "sha1": "0ffd2decb747b47b30208feab200736485d28baa"
+ },
+ "rt-autocal-on": {
+  "file": "captured/rt-autocal-on.jpg",
+  "sha1": "4088e5369d25d580c1acafd501e921ba816ca4dc"
+ },
+ "rt-entr-keypad": {
+  "file": "captured/rt-entr-keypad.jpg",
+  "sha1": "fd8c361ea064c5991c71a68f73c6c73fbe214508"
+ },
+ "rt-row-phrf": {
+  "file": "captured/rt-row-phrf.jpg",
+  "sha1": "3dbe1f9ab7e2cfa63a829495c2496851fd94503a"
+ },
+ "rt-row-phrf-plus10": {
+  "file": "captured/rt-row-phrf-plus10.jpg",
+  "sha1": "024afae06aad2adafd812403d74f2182ac407204"
+ },
+ "rtot-output": {
+  "file": "captured/rtot-output.jpg",
+  "sha1": "b0bfe26f709f999a0957e6b84594bda9d1ddafe1"
+ },
+ "rtot-select-display": {
+  "file": "captured/rtot-select-display.jpg",
+  "sha1": "71594c179e5f9c2ca00ad8c4b54eb88f3de90695"
+ },
+ "rtot-total-log": {
+  "alias": "rtot-output"
+ },
+ "rtot-view1": {
+  "alias": "rtot-output"
+ },
+ "rtot-view2": {
+  "file": "captured/rtot-view2.jpg",
+  "sha1": "c9606554a1252b5fa66ac4b2b7c1bfed4abfbf88"
+ },
+ "rtot-view3": {
+  "file": "captured/rtot-view3.jpg",
+  "sha1": "899c6be83df7b432132747cc325a864ba3adc330"
+ },
+ "rtot-view4": {
+  "file": "captured/rtot-view4.jpg",
+  "sha1": "06796132ecfb79c04103cda9cbc4004c99bfe936"
+ },
+ "rtot-view5": {
+  "file": "captured/rtot-view5.jpg",
+  "sha1": "098df1061cbe3405bff0689226d64cf0e9de8372"
+ },
+ "rtot-view6": {
+  "file": "captured/rtot-view6.jpg",
+  "sha1": "d2b09f765a7cf07101a16740421d71948a017b12"
+ },
+ "run-combination-live": {
+  "file": "captured/run-combination-live.jpg",
+  "sha1": "5744a94fcc5d45610f201f0ed52fc575bf25a4e3"
+ },
+ "run-feeder-live": {
+  "alias": "rf-mode-radar"
+ },
+ "run-infeed-on": {
+  "file": "captured/run-infeed-on.jpg",
+  "sha1": "b3cf521e03a2a65b89c8410000305768b6a471a9"
+ },
+ "run-panel00-write-optimum": {
+  "file": "captured/run-panel00-write-optimum.jpg",
+  "sha1": "34646e4d5524910c0d1d01215c78b51dbbea1b57"
+ },
+ "run-timing-live": {
+  "alias": "rt-autocal-on"
+ },
+ "run-totals-live": {
+  "alias": "rtot-output"
+ },
+ "run-weight-live": {
+  "file": "captured/run-weight-live.jpg",
+  "sha1": "21ac290d0dd821cb5b93d830bffe09e3f3ba27d7"
+ },
+ "run-weight-stopped": {
+  "file": "captured/run-weight-stopped.jpg",
+  "sha1": "df531547fc5613d2ab534b2d5cb15b088e41670e"
+ },
+ "sdt-drive-stopped": {
+  "file": "captured/sdt-drive-stopped.jpg",
+  "sha1": "3d1694c245e039fd3b7f6efbdde44510eff2fc68"
+ },
+ "sdt-offset-on": {
+  "file": "captured/sdt-offset-on.jpg",
+  "sha1": "d168745afb203522dd2ffe1296e05c92a6743b72"
+ },
+ "selfdiag-device-live": {
+  "file": "captured/selfdiag-device-live.jpg",
+  "sha1": "708284f516d0af3a47d19119476fc3038263e15f"
+ },
+ "selfdiag-io-live": {
+  "file": "captured/selfdiag-io-live.jpg",
+  "sha1": "ca5a0e8ef60b762554540439738d3bcf7f061c2d"
+ },
+ "selfdiag-network-live": {
+  "file": "captured/selfdiag-network-live.jpg",
+  "sha1": "ab2a155b0c7fd6d0e6962b7fb93e3825a8263ce5"
+ },
+ "selfdiag-program-live": {
+  "file": "captured/selfdiag-program-live.jpg",
+  "sha1": "951fe3f0c3fa2f5e2dc640ef6d50248dbe085840"
+ },
+ "selfdiag-test-live": {
+  "alias": "sdt-drive-stopped"
+ },
+ "various-combination-live": {
+  "file": "captured/various-combination-live.jpg",
+  "sha1": "e84037096268674164b5ac889988d4ecf6eb6078"
+ },
+ "various-fd-live": {
+  "file": "captured/various-fd-live.jpg",
+  "sha1": "b0a242596b5faa200407be235e5d42df24a943fc"
+ },
+ "various-hdrv-live": {
+  "alias": "hdrv-parameter-dropdown"
+ },
+ "various-scale-detail-live": {
+  "file": "captured/various-scale-detail-live.jpg",
+  "sha1": "79b20578024f02b7dbf191242774514b95ec82cc"
+ },
+ "various-section-live": {
+  "file": "captured/various-section-live.jpg",
+  "sha1": "713c0fd11fa37bd8348cf588cc80ad9602e1f50f"
+ },
+ "vsd-panel02": {
+  "file": "captured/vsd-panel02.jpg",
+  "sha1": "51b5f245b70e65789bf982d757f528b1ed915a05"
+ },
+ "weigh-adf-live": {
+  "file": "captured/weigh-adf-live.jpg",
+  "sha1": "bceba4a27e60782480f3513906b35baa2334378a"
+ },
+ "weigh-auto-timing-live": {
+  "file": "captured/weigh-auto-timing-live.jpg",
+  "sha1": "fced0722ea6db01b6fd039a5485beb924352f465"
+ },
+ "weigh-network-live": {
+  "file": "captured/weigh-network-live.jpg",
+  "sha1": "6f8b13c37e65c314121415798cef306e885a7a66"
+ },
+ "weigh-participation-live": {
+  "file": "captured/weigh-participation-live.jpg",
+  "sha1": "e41dbfcf065a5d63a557f7dadd0b359f7bce0116"
+ },
+ "za-after-start": {
+  "file": "captured/za-after-start.jpg",
+  "sha1": "2f778aa9d2c16a6067065b8d7751597eaf16bf23"
+ },
+ "za-hopper3-off": {
+  "file": "captured/za-hopper3-off.jpg",
+  "sha1": "06c16b58729ae36c148dc34f2bbda64b2523cf17"
+ },
+ "za-slct-all-df": {
+  "file": "captured/za-slct-all-df.jpg",
+  "sha1": "c07f8110d08c593a8c98d175e9cd4f9fb69b1f51"
+ },
+ "za-slct-all-wh": {
+  "file": "captured/za-slct-all-wh.jpg",
+  "sha1": "505899fb1beb8d77fc8a0fed01f4426f193f7fbe"
+ },
+ "za-start-0": {
+  "file": "captured/za-start-0.jpg",
+  "sha1": "f5b5e4980beceab4bf916d8d886c6c8acc858d10"
+ },
+ "za-start-1": {
+  "file": "captured/za-start-1.jpg",
+  "sha1": "539343707ac3b4ea7128aa748996f0d7d05df73e"
+ },
+ "za-start-2": {
+  "file": "captured/za-start-2.jpg",
+  "sha1": "46505c065341d6eb33b8e4b86d4cd6667e43fc3f"
+ },
+ "zero-adjust-live": {
+  "alias": "za-slct-all-wh"
+ }
+}

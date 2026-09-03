@@ -66,6 +66,35 @@ it looks exactly like a frozen movie.
 
 Re-measure after any window resize; the factor changes.
 
-Captures need the 2D canvas renderer for `__grab` to read the canvas back, but
-you do not need it — take a screenshot with `save_to_disk` and read the file.
-Leave `preferredRenderer` unset; Ruffle picks the best available.
+## Capturing
+
+`__grab(name)` posts the 1439x1079 canvas to `serve.py`, which writes
+`captures/<name>.png`. It came back BLANK for a long time: Ruffle ignores
+`preferredRenderer: 'canvas'` here and takes WebGL, whose buffer cannot be
+read back after the frame is presented. `index.html` now intercepts
+`getContext` before ruffle.js loads and adds `preserveDrawingBuffer: true`,
+and the grab works. Two things to know about it:
+
+- The buffer holds the LAST DRAWN frame. A pop-up that has just closed can
+  still be in it if nothing has repainted since; grab after something moves.
+- `tools/process_captures.py` turns the PNGs into the 800x600 JPEGs the app
+  serves (`public/captured/`) and folds exact duplicates.
+
+## Driving it
+
+Synthetic events do nothing — Ruffle wants trusted pointer events — so
+clicks go through the `computer` tool, batched with `browser_batch`
+(dozens of clicks and grabs in one call). Convert movie coordinates to
+screenshot coordinates with `sx = mx * f`, `sy = (27.5 + my) * f`,
+`f = 1568 / window.innerWidth` (the 27.5 is the status bar above the
+stage). The first click after a load only focuses the player.
+
+Get the machine into the right state first or you will miss half of it:
+**Power on** (HOME then Power, wait ~12 s) and **Maintenance level** (key
+icon > Maintenance > 1 2 3 > Enter). Then keep three things in mind:
+
+- The Machine Set drawer toggles and its state persists across screens.
+- A pop-up disables every other key until it is closed; close it with its
+  own Cancel/No, not HOME.
+- WH Span Adjustment on Manual Adjustment is a dead end (SPAN ERROR);
+  reload the page to get out.

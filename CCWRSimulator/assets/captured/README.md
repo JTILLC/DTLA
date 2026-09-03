@@ -20,3 +20,13 @@ the raw grabs; `public/screens/*.jpg` are what the app serves.
 
 If a genuine capture of any of these ever turns up, replace it and delete the
 corresponding file here.
+
+## 2026-09-02: the fine-tooth-comb pass
+
+`public/captured/` holds 160-odd further captures — every pop-up, drawer,
+chart mode, wizard step and lock state the program has — taken the same way
+at Maintenance level with power on, and served from there (revalidating, not
+immutable, since they get recaptured). `public/captured/manifest.json` maps
+each name to its file and folds exact duplicates. `tools/build_states.py`
+turns them into the `parent@state` screens in the map, and
+`reference/flash-structure.md` says what each one is.
