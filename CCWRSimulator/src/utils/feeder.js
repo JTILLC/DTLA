@@ -58,6 +58,19 @@ export const toggleParam = (state, which) => ({
 export const selectFeeder = (state, feeder) => ({ ...state, feeder });
 
 /**
+ * Read Default (Preset > Feeder Adjustment): "Set default value of RF and DF.
+ * OK?" — Yes puts every radial feeder and the dispersion feeder back to the
+ * machine's defaults. Which heads are selected and which lamps are lit are not
+ * values, so they stay as they were.
+ */
+export function readDefault(state, spec) {
+  const { time, amp } = spec.defaults;
+  const rf = {};
+  for (const h of spec.heads) rf[h.no] = { time, amp };
+  return { ...state, rf, df: { time, amp } };
+}
+
+/**
  * Increase or decrease the lit parameters.
  *
  * On RF this moves every selected head; on DF there is only one feeder. With no

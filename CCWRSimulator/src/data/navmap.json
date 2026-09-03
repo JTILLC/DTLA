@@ -8709,18 +8709,20 @@
    "image": "captured/pf-panel03.jpg",
    "hotspots": [
     {
-     "x": 533,
-     "y": 400,
+     "x": 283,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "preset-feeder",
-     "label": "Yes"
+     "label": "Yes",
+     "action": "read-default",
+     "note": "Yes: every radial feeder and the dispersion feeder go back to the machine defaults (time 25.0, amplitude 50.0)."
     },
     {
-     "x": 683,
-     "y": 400,
+     "x": 433,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "preset-feeder",
      "label": "No"
     }
@@ -10436,18 +10438,18 @@
    "image": "captured/dp-initialize.jpg",
    "hotspots": [
     {
-     "x": 203,
-     "y": 396,
+     "x": 283,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "display-preset",
      "label": "Yes"
     },
     {
-     "x": 313,
-     "y": 396,
+     "x": 433,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "display-preset",
      "label": "No"
     }
@@ -10461,18 +10463,18 @@
    "image": "captured/dae-panel01.jpg",
    "hotspots": [
     {
-     "x": 203,
-     "y": 396,
+     "x": 283,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "display-all-edit",
      "label": "Yes"
     },
     {
-     "x": 313,
-     "y": 396,
+     "x": 433,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "display-all-edit",
      "label": "No"
     }
@@ -11267,18 +11269,18 @@
    "image": "captured/psc-panel01.jpg",
    "hotspots": [
     {
-     "x": 203,
-     "y": 396,
+     "x": 283,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "panel-screen-control@calib1",
      "label": "Yes"
     },
     {
-     "x": 313,
-     "y": 396,
+     "x": 433,
+     "y": 393,
      "w": 90,
-     "h": 65,
+     "h": 70,
      "to": "panel-screen-control",
      "label": "No"
     }
@@ -12202,5 +12204,45 @@
   },
   "lampOn": "keys/lamp-on.png",
   "stepNote": "One press of Increase or Decrease moves every lit parameter by 1.0, on every selected head — counted on the original, where RF Time went 25.0 to 26.0 on a single press."
+ },
+ "hdrvParameter": {
+  "screens": [
+   "various-hdrv",
+   "various-hdrv@weigh",
+   "various-hdrv@booster",
+   "various-hdrv@ring",
+   "various-hdrv@diverting",
+   "various-hdrv@timing"
+  ],
+  "header": {
+   "x": 603,
+   "y": 47,
+   "w": 196,
+   "h": 53
+  },
+  "units": {
+   "various-hdrv": "Pool Hopper",
+   "various-hdrv@weigh": "Weigh Hopper",
+   "various-hdrv@booster": "Booster Hopper",
+   "various-hdrv@ring": "RingShutter",
+   "various-hdrv@diverting": "DivertingTimingHppr",
+   "various-hdrv@timing": "TimingHopper"
+  },
+  "options": [
+   {
+    "no": 1,
+    "desc": "Standard drive pattern"
+   },
+   {
+    "no": 2,
+    "desc": "Opens and closes faster"
+   },
+   {
+    "no": 3,
+    "desc": "Pauses at full open; slower"
+   }
+  ],
+  "note": "Service 4.4.3.2.1: three hopper-drive parameter sets exist per unit, and the preset chooses which one the unit runs. The list was not captured (the header never opened under Ruffle), so it is drawn.",
+  "drawerNote": "drawn from Service 4.4.3.2.1 — the open list was not captured"
  }
 }

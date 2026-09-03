@@ -902,7 +902,7 @@ export const screenInfo = {
       'Hold Time / Slow Start / Slow Stop that shape the motor’s rotation ' +
       '(4.4.3.2.2).',
     keys: [
-      { name: 'Parameter1 drop-down', desc: 'Selects parameter set 1, 2 or 3 for the unit (4.4.3.2.1).' },
+      { name: 'Parameter1 drop-down', desc: 'Selects parameter set 1, 2 or 3 for the unit (4.4.3.2.1). Tap it here to open the list: 1 is the standard drive pattern, 2 opens and closes faster, 3 pauses at full open and is slower. The list is drawn — it never opened in the capture.' },
       { name: 'Pool Hopper … TimingHopper', desc: 'Selects which hopper unit the page edits.' },
       { name: 'Actuator Type', desc: 'Stepping Motor or Air. Air is only for hoppers driven by an air cylinder — with Air set, the other drive settings become inoperative.' },
       { name: 'Brake Time', desc: '0–2550 ms of brake holding the stepping-motor phase after the motor stops. Usually 100 ms (RS: 2550 ms).' },

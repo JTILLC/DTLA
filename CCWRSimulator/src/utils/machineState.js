@@ -21,6 +21,7 @@ export const initialFlags = () => ({
   drainAutoZero: false,
   drainInfeed: false,
   foDF: false, foRF: false, foPH: false, foWH: false,   // Full Open Lock unit lamps
+  hdrvParam: {},       // H DRV Spec Set: which parameter set (1–3) each unit runs
 });
 
 export const applySets = (flags, sets) => {

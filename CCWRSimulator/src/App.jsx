@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import navmap from './data/navmap.json';
-import { initialFeeder, toggleHead, toggleParam, selectFeeder, adjust } from './utils/feeder';
-import { initialPans, togglePan, toggleTable, selectAllHeads, selectTable,
-  nothingSelected, describe as describeSel } from './utils/panSelect';
+import { initialFeeder, toggleHead, toggleParam, selectFeeder, adjust, readDefault } from './utils/feeder';
+import { initialPans, togglePan, toggleTable, selectAllHeads, selectTable, ensurePan,
+  nothingSelected, describe as describeSel, describeHeads } from './utils/panSelect';
 import lessons from './data/lessons';
 import screenInfo from './data/screenInfo';
 import Rcu from './components/Rcu';
@@ -279,6 +279,40 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'feeder-pan') {
+      /* A head tapped on Production's trough or ring. The heads are the radial
+         feeders' business: with the dispersion feeder picked (the ① on the
+         disc) nothing was lighting, so the tap goes back to RF with that head
+         lit — the head strip is how you come back, the disc is how you go. */
+      if (zeroing) return;
+      if (feeder.feeder === 'df') {
+        setFeeder((f) => selectFeeder(f, 'rf'));
+        applySelection(
+          (cur) => ensurePan(cur, evt.no),
+          (next) => `Back to the radial feeders — ${describeHeads(next)} selected. `
+            + 'The ① on the disc picks DF; tapping a head picks RF.',
+        );
+      } else {
+        applySelection(
+          (cur) => togglePan(cur, evt.no),
+          (next) => (nothingSelected(next)
+            ? 'No head selected — Increase and Decrease have nothing to move.'
+            : `Selected: ${describeHeads(next)}. Blue heads are the ones Increase and Decrease move (6.12).`),
+        );
+      }
+      return;
+    }
+
+    if (evt.type === 'hdrv-param') {
+      const unit = navmap.hdrvParameter?.units?.[evt.unit] || 'this unit';
+      const opt = navmap.hdrvParameter?.options.find((o) => o.no === evt.no);
+      setFlags((f) => ({ ...f, hdrvParam: { ...(f.hdrvParam || {}), [evt.unit]: evt.no } }));
+      setOpenDrawer(null);
+      showNotice(`${unit}: Parameter ${evt.no} — ${opt?.desc || ''}. Three drive-parameter sets `
+        + 'exist per unit and the preset chooses one (Service 4.4.3.2.1).');
+      return;
+    }
+
     if (evt.type === 'pan' || evt.type === 'pan-table') {
       if (zeroing) return;
       applySelection(
@@ -376,6 +410,14 @@ export default function App() {
     }
     if (evt.action === 'zero-start') {
       handleTap({ type: 'zero-start' });
+      return;
+    }
+    if (evt.action === 'read-default') {
+      const { time, amp } = navmap.feederAdjust.defaults;
+      setFeeder((f) => readDefault(f, navmap.feederAdjust));
+      showNotice(`Defaults read: every radial feeder and the dispersion feeder are back to `
+        + `time ${time.toFixed(1)} and amplitude ${amp.toFixed(1)}.`);
+      navigate(evt.to);
       return;
     }
     if (evt.toggles) {

@@ -118,6 +118,13 @@ export default function Rcu({
   // hotspot — never a drawn look-alike tab.
   const showsTotalTab = st && st.screens.includes(slug);
 
+  // H DRV Spec Set's ▼Parameter1 header. The open list was never captured
+  // (it did not respond under Ruffle), so the list is drawn, like the Select
+  // Total drawer, and a picked set is written over the header's baked text.
+  const hp = navmap.hdrvParameter;
+  const hpHere = hp && hp.screens.includes(slug);
+  const hpCurrent = (hpHere && flags?.hdrvParam?.[slug]) || 1;
+
   const isNavTarget = (h) => {
     if (!highlight || highlight.kind !== 'nav' || h.to !== highlight.to) return false;
     // When a `via` point is given, highlight only the hotspot containing it —
@@ -513,7 +520,7 @@ export default function Rcu({
               df={feeder.feeder === 'df'}
               dfValues={feeder.df}
               showHotspots={showHotspots}
-              onTapHead={(no) => onTap({ type: 'pan', no })}
+              onTapHead={(no) => onTap({ type: 'feeder-pan', no })}
             />
 
             {faScreen.dfLabel && feeder.feeder === 'df' && (
@@ -620,6 +627,48 @@ export default function Rcu({
                 )}
               </button>
             ))}
+          </div>
+        )}
+
+        {hpHere && (
+          <button
+            type="button"
+            className="hotspot"
+            style={rectStyle(hp.header)}
+            aria-label={`Parameter ${hpCurrent} drop-down — pick parameter set 1, 2 or 3 for ${hp.units[slug]}`}
+            title={hp.note}
+            onClick={() => onToggleDrawer('hdrvParam')}
+          />
+        )}
+        {hpHere && hpCurrent !== 1 && (
+          <div className="hdrv-header" style={{ ...rectStyle(hp.header), fontSize: 'clamp(9px, 1.7cqw, 15px)' }} aria-hidden="true">
+            ▼Parameter{hpCurrent}
+          </div>
+        )}
+        {hpHere && openDrawer === 'hdrvParam' && (
+          <div
+            className="mset-drawer mset-drawer--down"
+            style={{
+              left: pct(hp.header.x, CW),
+              top: pct(hp.header.y + hp.header.h, CH),
+              width: pct(hp.header.w, CW),
+            }}
+          >
+            {hp.options.map((o) => (
+              <button
+                key={o.no}
+                type="button"
+                className={o.no === hpCurrent ? 'is-hl' : ''}
+                style={{ padding: '2.5% 5%', fontSize: 'clamp(9px, 1.6cqw, 14px)' }}
+                onClick={() => onTap({ type: 'hdrv-param', unit: slug, no: o.no })}
+              >
+                <span>Parameter{o.no}</span>
+                <small>{o.desc}</small>
+              </button>
+            ))}
+            <div className="drawer-note" style={{ padding: '2% 4%', fontSize: 'clamp(7px, 1.2cqw, 11px)' }}>
+              {hp.drawerNote}
+            </div>
           </div>
         )}
 

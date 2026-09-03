@@ -157,3 +157,23 @@ describe('the radar chart', () => {
     expect(chart.seg1Centre).toBeCloseTo(77.1, 1);
   });
 });
+
+describe('Read Default', () => {
+  it('puts every head and the dispersion feeder back to the defaults', async () => {
+    const { readDefault } = await import('./feeder');
+    let s = { ...start(), heads: [1, 2], params: { time: true, amp: true } };
+    s = adjust(s, spec, +1).state;
+    s = adjust(s, spec, +1).state;
+    s = adjust(selectFeeder(s, 'df'), spec, -1).state;
+    expect(s.rf[1].time).not.toBe(spec.defaults.time);
+    expect(s.df.amp).not.toBe(spec.defaults.amp);
+
+    const d = readDefault(s, spec);
+    for (const h of spec.heads) expect(d.rf[h.no]).toEqual(spec.defaults);
+    expect(d.df).toEqual(spec.defaults);
+    // Selection and lamps are not values: they stay.
+    expect(d.heads).toEqual([1, 2]);
+    expect(d.params).toEqual({ time: true, amp: true });
+    expect(d.feeder).toBe('df');
+  });
+});

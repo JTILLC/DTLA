@@ -36,6 +36,23 @@ export function togglePan(state, no) {
   };
 }
 
+/**
+ * Make sure one hopper is selected. Production's Feeder Adjust uses this when
+ * a head is tapped while the dispersion feeder is picked: the tap brings the
+ * radial feeders back with THAT head lit, and never toggles it off.
+ */
+export const ensurePan = (state, no) => (
+  !state.table && state.heads.includes(no) ? state : togglePan(state, no)
+);
+
+/** The same selection in Feeder Adjust's words: heads, not weigh hoppers. */
+export function describeHeads(state) {
+  const n = state.heads.length;
+  if (state.table || n === 0) return 'no head';
+  if (n === PAN_COUNT) return 'all 14 heads';
+  return `${n === 1 ? 'head' : 'heads'} ${state.heads.join(', ')}`;
+}
+
 /** Tap the dispersion pan. Selecting it clears every hopper. */
 export function toggleTable(state) {
   return state.table ? { heads: [], table: false } : { heads: [], table: true };

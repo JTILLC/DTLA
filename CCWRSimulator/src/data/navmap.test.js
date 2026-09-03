@@ -68,6 +68,34 @@ describe('navigation map integrity', () => {
     }
   });
 
+  it('a confirmation dialog\'s Yes and No sit on its buttons, not beside them', () => {
+    // The Read Default dialog had its Yes/No rects out at x=533/683 — the
+    // blank right half of the panel and the wall beyond it — so neither key
+    // did anything and the screen could not be left. Measured off the four
+    // captures that share this panel: Yes 283..373, No 433..523, y 393..463.
+    for (const slug of ['preset-feeder@read-default', 'display-preset@initialize',
+      'display-all-edit@initialize', 'panel-screen-control@tune-up']) {
+      const spots = navmap.screens[slug].hotspots;
+      const yes = spots.find((h) => h.label === 'Yes');
+      const no = spots.find((h) => h.label === 'No');
+      expect(yes, `${slug} Yes`).toMatchObject({ x: 283, y: 393, w: 90, h: 70 });
+      expect(no, `${slug} No`).toMatchObject({ x: 433, y: 393, w: 90, h: 70 });
+    }
+    expect(navmap.screens['preset-feeder@read-default'].hotspots
+      .find((h) => h.label === 'Yes').action).toBe('read-default');
+  });
+
+  it('the H DRV Parameter drop-down covers every unit page, and its header is on the canvas', () => {
+    const hp = navmap.hdrvParameter;
+    expect(hp.screens).toContain('various-hdrv');
+    for (const slug of hp.screens) {
+      expect(navmap.screens[slug], slug).toBeDefined();
+      expect(hp.units[slug], `${slug} unit name`).toBeTruthy();
+    }
+    expect(hp.header.x + hp.header.w).toBeLessThanOrEqual(navmap.canvas.w);
+    expect(hp.options.map((o) => o.no)).toEqual([1, 2, 3]);
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

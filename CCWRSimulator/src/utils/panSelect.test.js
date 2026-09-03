@@ -95,3 +95,18 @@ describe('describe', () => {
     expect(nothingSelected({ heads: [], table: true })).toBe(false);
   });
 });
+
+describe('coming back from the dispersion feeder', () => {
+  it('lights the tapped head without toggling one that is already lit', async () => {
+    const { ensurePan, describeHeads } = await import('./panSelect');
+    // Already lit: unchanged, not switched off.
+    const lit = { heads: [3, 5], table: false };
+    expect(ensurePan(lit, 3)).toBe(lit);
+    // Not lit: added.
+    expect(ensurePan(lit, 4).heads).toEqual([3, 4, 5]);
+    // The dispersion pan was selected: it clears, and the head is lit alone.
+    expect(ensurePan({ heads: [], table: true }, 7)).toEqual({ heads: [7], table: false });
+    expect(describeHeads({ heads: [7], table: false })).toBe('head 7');
+    expect(describeHeads({ heads: [], table: true })).toBe('no head');
+  });
+});
