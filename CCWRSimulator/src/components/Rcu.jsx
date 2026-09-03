@@ -875,6 +875,27 @@ export default function Rcu({
           );
         })()}
 
+        {/* Values the artwork cannot change, written over it: a field's
+            picked entry, a header's picked set. Data-driven (screen.liveText);
+            the baked art shows through while the value is the default. */}
+        {(screen.liveText || []).map((t, i) => {
+          const v = flags?.[t.flag] ?? t.default;
+          if (v === t.default && t.style !== 'field') return null;
+          const text = t.template ? t.template.replace('{v}', v) : (t.labels?.[v] ?? String(v));
+          return (
+            <div
+              key={`lt-${i}`}
+              className={'live-text' + (t.style === 'header' ? ' hdrv-header' : ' live-text--field')}
+              style={{ ...rectStyle(t.rect), fontSize: `clamp(6px, ${(t.textPx / CW) * 100}cqw, ${t.textPx * 1.5}px)`,
+                background: t.bg, color: t.colour }}
+              aria-hidden="true"
+              title={t.note}
+            >
+              {text}
+            </div>
+          );
+        })}
+
         {hpHere && (
           <button
             type="button"

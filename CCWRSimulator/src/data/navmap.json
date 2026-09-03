@@ -3821,6 +3821,15 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@pool-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -4118,6 +4127,59 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 326,
+     "y": 147,
+     "w": 222,
+     "h": 24,
+     "to": "pack-bagmaker@interface",
+     "label": "Interface drop-down",
+     "note": "Opens the Interface list: Slave, Master, Stroke On Demand, Bag On Demand (seen on the running program)."
+    },
+    {
+     "x": 603,
+     "y": 52,
+     "w": 196,
+     "h": 46,
+     "to": "pack-bagmaker@parameter",
+     "label": "Parameter 1 drop-down",
+     "note": "Opens the list of parameter sets, Parameter1 to Parameter4 (seen on the running program)."
+    }
+   ],
+   "liveText": [
+    {
+     "flag": "packInterface",
+     "rect": {
+      "x": 336,
+      "y": 121,
+      "w": 212,
+      "h": 16
+     },
+     "labels": {
+      "slave": "Slave",
+      "master": "Master",
+      "stroke": "Stroke On Demand",
+      "bag": "Bag On Demand"
+     },
+     "default": "master",
+     "bg": "#d4fce4",
+     "colour": "#0000cc",
+     "textPx": 11,
+     "note": "The program shows the pick in its list but leaves the field reading Master; here the field follows the pick."
+    },
+    {
+     "flag": "packParam",
+     "rect": {
+      "x": 604,
+      "y": 56,
+      "w": 194,
+      "h": 40
+     },
+     "template": "▼ Parameter {v}",
+     "default": 1,
+     "style": "header",
+     "textPx": 12
     }
    ]
   },
@@ -10749,6 +10811,15 @@
      "h": 40,
      "to": "various-hdrv@timing",
      "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@weigh-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -10846,6 +10917,15 @@
      "h": 40,
      "to": "various-hdrv@timing",
      "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@booster-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -10943,6 +11023,15 @@
      "h": 40,
      "to": "various-hdrv@timing",
      "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@ring-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -11040,6 +11129,15 @@
      "h": 40,
      "to": "various-hdrv@timing",
      "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@diverting-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -11137,6 +11235,15 @@
      "h": 40,
      "to": "various-hdrv@diverting",
      "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@timing-pattern",
+     "label": "scroll down",
+     "note": "Scrolls the page down to the Hopper Open/Close Drive Pattern table (Service 4.4.3.2.2)."
     }
    ]
   },
@@ -12451,6 +12558,1089 @@
     }
    ],
    "note": "The keypad is the one captured on the Preset screen, laid over Production; the program was not seen to open it here, and the rest of the screen is not dimmed."
+  },
+  "pack-bagmaker@interface": {
+   "parent": "pack-bagmaker",
+   "kind": "popup",
+   "captured": true,
+   "label": "Peripheral — Interface list (Slave / Master / Stroke On Demand / Bag On Demand)",
+   "image": "captured/pack-interface-open.jpg",
+   "hotspots": [
+    {
+     "x": 326,
+     "y": 150,
+     "w": 222,
+     "h": 47,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packInterface": "slave"
+     },
+     "label": "Slave"
+    },
+    {
+     "x": 326,
+     "y": 199,
+     "w": 222,
+     "h": 47,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packInterface": "master"
+     },
+     "label": "Master"
+    },
+    {
+     "x": 326,
+     "y": 248,
+     "w": 222,
+     "h": 47,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packInterface": "stroke"
+     },
+     "label": "Stroke On Demand"
+    },
+    {
+     "x": 326,
+     "y": 297,
+     "w": 222,
+     "h": 47,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packInterface": "bag"
+     },
+     "label": "Bag On Demand"
+    },
+    {
+     "x": 326,
+     "y": 346,
+     "w": 222,
+     "h": 24,
+     "to": "pack-bagmaker",
+     "label": "close"
+    }
+   ]
+  },
+  "pack-bagmaker@parameter": {
+   "parent": "pack-bagmaker",
+   "kind": "popup",
+   "captured": true,
+   "label": "Peripheral — Parameter list (Parameter1 to 4)",
+   "image": "captured/pack-parameter-open.jpg",
+   "hotspots": [
+    {
+     "x": 603,
+     "y": 110,
+     "w": 196,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packParam": 1
+     },
+     "label": "Parameter1"
+    },
+    {
+     "x": 603,
+     "y": 150,
+     "w": 196,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packParam": 2
+     },
+     "label": "Parameter2"
+    },
+    {
+     "x": 603,
+     "y": 191,
+     "w": 196,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packParam": 3
+     },
+     "label": "Parameter3"
+    },
+    {
+     "x": 603,
+     "y": 232,
+     "w": 196,
+     "h": 40,
+     "to": "pack-bagmaker",
+     "sets": {
+      "packParam": 4
+     },
+     "label": "Parameter4"
+    }
+   ]
+  },
+  "various-hdrv@pool-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — pool drive pattern",
+   "image": "captured/hdrv-scroll-1.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv",
+     "label": "scroll up"
+    }
+   ]
+  },
+  "various-hdrv@weigh-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — weigh drive pattern",
+   "image": "captured/hdrv-pattern-weigh.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@weigh",
+     "label": "scroll up"
+    }
+   ]
+  },
+  "various-hdrv@booster-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — booster drive pattern",
+   "image": "captured/hdrv-pattern-booster.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@booster",
+     "label": "scroll up"
+    }
+   ]
+  },
+  "various-hdrv@ring-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — ring drive pattern (1)",
+   "image": "captured/hdrv-pattern-ring.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@ring",
+     "label": "scroll up"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@ring-pattern-2",
+     "label": "scroll down"
+    }
+   ]
+  },
+  "various-hdrv@ring-pattern-2": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — ring drive pattern (2)",
+   "image": "captured/hdrv-pattern-ring-2.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@ring-pattern",
+     "label": "scroll up"
+    }
+   ]
+  },
+  "various-hdrv@diverting-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — diverting drive pattern (1)",
+   "image": "captured/hdrv-pattern-diverting.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@diverting",
+     "label": "scroll up"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@diverting-pattern-2",
+     "label": "scroll down"
+    }
+   ]
+  },
+  "various-hdrv@diverting-pattern-2": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — diverting drive pattern (2)",
+   "image": "captured/hdrv-pattern-diverting-2.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 312,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@timing",
+     "label": "TimingHopper"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@diverting-pattern",
+     "label": "scroll up"
+    }
+   ]
+  },
+  "various-hdrv@timing-pattern": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — timing drive pattern (1)",
+   "image": "captured/hdrv-pattern-timing.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@timing",
+     "label": "scroll up"
+    },
+    {
+     "x": 576,
+     "y": 398,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@timing-pattern-2",
+     "label": "scroll down"
+    }
+   ]
+  },
+  "various-hdrv@timing-pattern-2": {
+   "parent": "various-hdrv",
+   "kind": "state",
+   "captured": true,
+   "label": "H DRV Spec Set — timing drive pattern (2)",
+   "image": "captured/hdrv-pattern-timing-2.jpg",
+   "hotspots": [
+    {
+     "x": 8,
+     "y": 529,
+     "w": 88,
+     "h": 62,
+     "to": "main-menu",
+     "button": 1037
+    },
+    {
+     "x": 704,
+     "y": 452,
+     "w": 90,
+     "h": 64,
+     "to": "main-menu",
+     "button": 1038
+    },
+    {
+     "x": 12,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-scale-detail",
+     "button": 1346
+    },
+    {
+     "x": 143,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-combination",
+     "button": 1347
+    },
+    {
+     "x": 274,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-section",
+     "button": 1348
+    },
+    {
+     "x": 406,
+     "y": 426,
+     "w": 125,
+     "h": 33,
+     "to": "various-fd",
+     "button": 1349
+    },
+    {
+     "x": 603,
+     "y": 107,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv",
+     "label": "Pool Hopper"
+    },
+    {
+     "x": 603,
+     "y": 147,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@weigh",
+     "label": "Weigh Hopper"
+    },
+    {
+     "x": 603,
+     "y": 188,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@booster",
+     "label": "Booster Hopper"
+    },
+    {
+     "x": 603,
+     "y": 229,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@ring",
+     "label": "RingShutter"
+    },
+    {
+     "x": 603,
+     "y": 270,
+     "w": 196,
+     "h": 40,
+     "to": "various-hdrv@diverting",
+     "label": "DivertingTimingHppr"
+    },
+    {
+     "x": 576,
+     "y": 66,
+     "w": 24,
+     "h": 24,
+     "to": "various-hdrv@timing-pattern",
+     "label": "scroll up"
+    }
+   ]
   }
  },
  "powerKey": {
@@ -13251,11 +14441,20 @@
  "hdrvParameter": {
   "screens": [
    "various-hdrv",
-   "various-hdrv@weigh",
    "various-hdrv@booster",
-   "various-hdrv@ring",
+   "various-hdrv@booster-pattern",
    "various-hdrv@diverting",
-   "various-hdrv@timing"
+   "various-hdrv@diverting-pattern",
+   "various-hdrv@diverting-pattern-2",
+   "various-hdrv@pool-pattern",
+   "various-hdrv@ring",
+   "various-hdrv@ring-pattern",
+   "various-hdrv@ring-pattern-2",
+   "various-hdrv@timing",
+   "various-hdrv@timing-pattern",
+   "various-hdrv@timing-pattern-2",
+   "various-hdrv@weigh",
+   "various-hdrv@weigh-pattern"
   ],
   "header": {
    "x": 603,
@@ -13269,7 +14468,16 @@
    "various-hdrv@booster": "Booster Hopper",
    "various-hdrv@ring": "RingShutter",
    "various-hdrv@diverting": "DivertingTimingHppr",
-   "various-hdrv@timing": "TimingHopper"
+   "various-hdrv@timing": "TimingHopper",
+   "various-hdrv@booster-pattern": "Booster Hopper",
+   "various-hdrv@diverting-pattern": "DivertingTimingHppr",
+   "various-hdrv@diverting-pattern-2": "DivertingTimingHppr",
+   "various-hdrv@pool-pattern": "Pool Hopper",
+   "various-hdrv@ring-pattern": "RingShutter",
+   "various-hdrv@ring-pattern-2": "RingShutter",
+   "various-hdrv@timing-pattern": "TimingHopper",
+   "various-hdrv@timing-pattern-2": "TimingHopper",
+   "various-hdrv@weigh-pattern": "Weigh Hopper"
   },
   "options": [
    {
@@ -13283,10 +14491,14 @@
    {
     "no": 3,
     "desc": "Pauses at full open; slower"
+   },
+   {
+    "no": 4,
+    "desc": "Fourth set"
    }
   ],
-  "note": "Service 4.4.3.2.1: three hopper-drive parameter sets exist per unit, and the preset chooses which one the unit runs. The list was not captured (the header never opened under Ruffle), so it is drawn.",
-  "drawerNote": "drawn from Service 4.4.3.2.1 — the open list was not captured"
+  "note": "Service 4.4.3.2.1 describes three hopper-drive parameter sets per unit, and the preset chooses which one the unit runs; the program's own list (opened on the Peripheral screen) runs to Parameter4. This header never opened under Ruffle, so the list is drawn.",
+  "drawerNote": "drawn — the program's header did not open here; its list elsewhere runs Parameter1 to 4"
  },
  "timingAdjust": {
   "rows": [

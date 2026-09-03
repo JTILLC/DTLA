@@ -909,7 +909,7 @@ export const screenInfo = {
       'Hold Time / Slow Start / Slow Stop that shape the motor’s rotation ' +
       '(4.4.3.2.2).',
     keys: [
-      { name: 'Parameter1 drop-down', desc: 'Selects parameter set 1, 2 or 3 for the unit (4.4.3.2.1). Tap it here to open the list: 1 is the standard drive pattern, 2 opens and closes faster, 3 pauses at full open and is slower. The list is drawn — it never opened in the capture.' },
+      { name: 'Parameter1 drop-down', desc: 'Selects the parameter set for the unit (4.4.3.2.1 describes three: 1 the standard drive pattern, 2 opens and closes faster, 3 pauses at full open and is slower; the program\'s list runs to 4). Tap it here to open the list. It is drawn — this header never opened on the program, though the same header on the Peripheral screen does.' },
       { name: 'Pool Hopper … TimingHopper', desc: 'Selects which hopper unit the page edits.' },
       { name: 'Actuator Type', desc: 'Stepping Motor or Air. Air is only for hoppers driven by an air cylinder — with Air set, the other drive settings become inoperative.' },
       { name: 'Brake Time', desc: '0–2550 ms of brake holding the stepping-motor phase after the motor stops. Usually 100 ms (RS: 2550 ms).' },
@@ -920,6 +920,7 @@ export const screenInfo = {
       { name: 'Minimum Output Pulse Count', desc: 'Steps after motor start during which slit signals are not looked at. Usually 100.' },
       { name: 'Error Detect Pulse Count', desc: 'Step difference between normal and reverse rotation that raises an error. 0 disables the check (overlap errors still occur); usually 20.' },
       { name: 'Output', desc: 'Prints the hopper drive parameters (4.4.3.2).' },
+      { name: 'Scroll down (seen on the program)', desc: 'The scrollbar\'s down arrow scrolls the page to the Hopper Open/Close Drive Pattern table (4.4.3.2.2): eight sections of Range, Speed, Hold Time, Slow Start and Slow Stop for the pool, weigh and booster hoppers; the RingShutter, DTH and TimingHopper show a 16-section table of Speed (multiplying power) and Repeat (pulse) over two pages. The Graphic/Numerical radio did not respond on the program. Scroll up returns to the parameters, and picking a unit returns to the top.' },
     ],
     note:
       'The manual is emphatic here: always 1-2 Phase, always Slit for ' +
@@ -1096,6 +1097,8 @@ export const screenInfo = {
       { name: 'Recall', desc: 'Recalling sets every head’s AFV coefficient to 60000 (5.3.2 NOTE).' },
       { name: 'Output', desc: 'Print key.' },
       { name: 'Start / Stop', desc: 'Run and stop the automatic adjustment; dimmed on this capture. Power alone does not light them — on the running program they stayed dimmed with control power on as well (the adjustment needs its own preconditions, Service 5.3.2).' },
+      { name: 'Interface drop-down (seen on the program)', desc: 'The arrow bar under Interface opens a list: Slave, Master, Stroke On Demand, Bag On Demand — the packer interlock modes of Table 6-21. The program closes the list on a pick but leaves the field reading Master; the simulator writes the pick into the field.' },
+      { name: 'Parameter 1 header (seen on the program)', desc: 'Opens the list of parameter sets, Parameter1 to Parameter4, in place of the menu. The program keeps the header reading Parameter 1 whichever is picked; the simulator relabels it.' },
     ],
     note:
       'NOTE (Service 5.3.2): the AFV adjustment is performed before ' +

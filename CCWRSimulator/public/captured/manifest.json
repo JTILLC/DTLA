@@ -161,9 +161,45 @@
   "file": "captured/hdrv-parameter-dropdown.jpg",
   "sha1": "33c6aa2fd665ec68683d3e8d51c5b11958d41808"
  },
+ "hdrv-pattern-booster": {
+  "file": "captured/hdrv-pattern-booster.jpg",
+  "sha1": "9d0433e2ee004fb2112ca0a08ad0082687466e96"
+ },
+ "hdrv-pattern-diverting": {
+  "file": "captured/hdrv-pattern-diverting.jpg",
+  "sha1": "c2e13cbfb6e7360b9f82662fb3eabb0ce6ded45e"
+ },
+ "hdrv-pattern-diverting-2": {
+  "file": "captured/hdrv-pattern-diverting-2.jpg",
+  "sha1": "5f0ab113964efb0efa6d392a83b0b8660b6f5b9c"
+ },
+ "hdrv-pattern-ring": {
+  "file": "captured/hdrv-pattern-ring.jpg",
+  "sha1": "43aad7fc6371998a345b4cc83b112c6285462204"
+ },
+ "hdrv-pattern-ring-2": {
+  "file": "captured/hdrv-pattern-ring-2.jpg",
+  "sha1": "9a93afc72b03fe3d6730f29c6f8e6993312816dc"
+ },
+ "hdrv-pattern-timing": {
+  "file": "captured/hdrv-pattern-timing.jpg",
+  "sha1": "8f29d2bd784502c41f6220ff27c23950a7ace16a"
+ },
+ "hdrv-pattern-timing-2": {
+  "file": "captured/hdrv-pattern-timing-2.jpg",
+  "sha1": "4e7c5bc8e15b8166ab8f2dd0952e9a969fcfc75e"
+ },
+ "hdrv-pattern-weigh": {
+  "file": "captured/hdrv-pattern-weigh.jpg",
+  "sha1": "f0cb88b8d4d8a177f516c60ba21f7b66c1934dc9"
+ },
  "hdrv-ring-shutter": {
   "file": "captured/hdrv-ring-shutter.jpg",
   "sha1": "70e1da0123a396796efd2a807bf08cdb512d0815"
+ },
+ "hdrv-scroll-1": {
+  "file": "captured/hdrv-scroll-1.jpg",
+  "sha1": "692ddd4f42aa8386fde2dd703a7784ba6c4567ea"
  },
  "hdrv-timing-hopper": {
   "file": "captured/hdrv-timing-hopper.jpg",
@@ -350,9 +386,25 @@
   "file": "captured/pack-distribution-live.jpg",
   "sha1": "ed24f1a3923fceadb9a3ed59f6f021d0b8606775"
  },
+ "pack-infeeder": {
+  "file": "captured/pack-infeeder.jpg",
+  "sha1": "0bd90420511eabeb82ad005fe3730f68455de746"
+ },
+ "pack-interface-open": {
+  "file": "captured/pack-interface-open.jpg",
+  "sha1": "31c90ca0dac0352cd562e2450da364f41d91f134"
+ },
+ "pack-interface-slave": {
+  "file": "captured/pack-interface-slave.jpg",
+  "sha1": "34eec79c62ac9438ea9e34891357a38a526ab23d"
+ },
  "pack-panel02": {
   "file": "captured/pack-panel02.jpg",
   "sha1": "046d8364837fdf32e9b5c7ed75a60dda44433ac1"
+ },
+ "pack-parameter-open": {
+  "file": "captured/pack-parameter-open.jpg",
+  "sha1": "e1ea37dc378e9336f937f68d8eec4306dd66c884"
  },
  "pack-ring-live": {
   "alias": "pack-distribution-live"

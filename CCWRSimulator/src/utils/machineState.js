@@ -25,6 +25,8 @@ export const initialFlags = () => ({
   optBH: false,        // the machine has booster hoppers (Timing Adjustment rows)
   optTH: false,        // ... a timing hopper: two sections, C1 and C2
   optDTH: false,       // ... diverting timing hoppers, two per section
+  packInterface: 'master', // Peripheral > Pckr Intrlck Set: Interface
+  packParam: 1,        // ... its parameter set (1-4)
 });
 
 export const applySets = (flags, sets) => {

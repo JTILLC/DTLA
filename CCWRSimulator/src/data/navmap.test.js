@@ -93,7 +93,7 @@ describe('navigation map integrity', () => {
       expect(hp.units[slug], `${slug} unit name`).toBeTruthy();
     }
     expect(hp.header.x + hp.header.w).toBeLessThanOrEqual(navmap.canvas.w);
-    expect(hp.options.map((o) => o.no)).toEqual([1, 2, 3]);
+    expect(hp.options.map((o) => o.no)).toEqual([1, 2, 3, 4]);   // the program's own list runs to 4
   });
 
   it('the DF Weight Setting keypad hangs off Target Wt on both Feeder Adjust screens', () => {

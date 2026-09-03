@@ -344,7 +344,16 @@ Trash → "Delete OK?". The bottom bar is entirely dead here.
 - The Machine Set drawer's persistence across screens (it is redrawn closed
   on each screen here).
 - H DRV's ▼Parameter1 header, the Hopper Name Set drop-down cyclers and
-  Display's Source/Destination lists: none responded under Ruffle.
+  Display's Source/Destination lists: none responded under Ruffle (H DRV's
+  header re-checked 2026-09-03: still dead). Its scrollbar's down arrow DOES
+  scroll to the Hopper Open/Close Drive Pattern table: 8 sections x Range /
+  Speed / Hold Time / Slow Start / Slow Stop for PH, WH, BH; a 16-section
+  Speed / Repeat table over two pages for RingShutter, DTH and TH. Picking a
+  unit returns to the top; the Graphic/Numerical radio did nothing.
+- Peripheral > Pckr Intrlck Set: the Interface arrow bar opens Slave / Master
+  / Stroke On Demand / Bag On Demand (a pick closes the list but the field
+  keeps reading Master); its ▼ Parameter 1 header opens Parameter1..4 in place
+  of the menu (a pick closes it, header unchanged).
 - Full Open's blue painting of the lit units on the machine picture (the
   lamps are drawn; the picture is not recoloured).
 - Typing into a keypad shows on the keypad; Enter does not rewrite the
