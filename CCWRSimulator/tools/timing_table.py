@@ -27,9 +27,9 @@ SCREENS = {
     # prefix, capture prefix, rows area inside the frame, header box (ruler
     # excluded), the cutaway region the neutral is built over
     'pt': dict(cap='pt-row-', panel=(267, 114, 573, 402), header=(268, 86, 467, 114), cutaway=(0, 90, 262, 420),
-               tags=(22, 392, 49, 82, 414), arrow=(20, 371, 62, 387)),
+               tags=(22, 392, 49, 82, 414), arrow=(20, 371, 62, 387), uparrow=(49, 353, 70, 390)),
     'rt': dict(cap='rt-row-', panel=(308, 82, 773, 382), header=(309, 45, 509, 81), cutaway=(0, 60, 300, 400),
-               tags=(50, 355, 79, 110, 379), arrow=(48, 333, 92, 350)),
+               tags=(50, 355, 79, 110, 379), arrow=(48, 333, 92, 350), uparrow=(76, 316, 97, 352)),
 }
 
 
@@ -196,22 +196,52 @@ def with_boosters(im, src, rect, mask, dy):
     return out
 
 
+def is_wh_fix(im, sc):
+    """IS-WH on the program lit the DS tag; on the machine only IS is blue.
+    The tag strip of the WH-DS capture has DS plain and IS blue."""
+    x0, y0, xm, x1, y1 = sc['tags']
+    im.paste(load(sc['cap'] + 'whds').crop((x0, y0, x1, y1)), (x0, y0))
+    return im
+
+
+def is_th(prefix, sc):
+    """IS-TH and IS-DTH: nothing lit on the captured machine, the IS tag blue,
+    and an arrow pointing DOWN at it - WH-DS's up arrow, turned over. The
+    timing hopper or DTH itself is drawn by the app and lights there."""
+    from PIL import ImageOps, ImageFilter
+    import numpy as np
+    base = clear_table(neutral(load(sc['cap'] + 'whon'), load(sc['cap'] + 'phon'), sc['cutaway']), sc)
+    whds = load(sc['cap'] + 'whds')
+    x0, y0, xm, x1, y1 = sc['tags']
+    base.paste(whds.crop((xm, y0, x1, y1)), (xm, y0))          # IS blue, DS left plain
+    ax0, ay0, ax1, ay1 = sc['uparrow']
+    a = np.array(whds).astype(int)[ay0:ay1, ax0:ax1]
+    blue = (a[:, :, 2] - (a[:, :, 0] + a[:, :, 1]) / 2) > 60
+    mask = Image.fromarray((blue * 255).astype('uint8')).filter(ImageFilter.MaxFilter(3))
+    arrow = whds.crop((ax0, ay0, ax1, ay1))
+    base.paste(ImageOps.flip(arrow), (ax0, ay0), ImageOps.flip(mask))
+    return base
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for prefix, sc in SCREENS.items():
         for row in ROWS:
-            clear_table(load(sc['cap'] + row), sc).save(
-                os.path.join(OUT, '%s-cut-%s.jpg' % (prefix, row)), quality=92, optimize=True)
+            im = clear_table(load(sc['cap'] + row), sc)
+            if row == 'iswh':
+                im = is_wh_fix(im, sc)
+            im.save(os.path.join(OUT, '%s-cut-%s.jpg' % (prefix, row)), quality=92, optimize=True)
         clear_table(neutral(load(sc['cap'] + 'whon'), load(sc['cap'] + 'phon'), sc['cutaway']), sc).save(
             os.path.join(OUT, '%s-cut-neutral.jpg' % prefix), quality=92, optimize=True)
         is_ds(prefix, sc).save(os.path.join(OUT, '%s-cut-isds.jpg' % prefix), quality=92, optimize=True)
+        is_th(prefix, sc).save(os.path.join(OUT, '%s-cut-isth.jpg' % prefix), quality=92, optimize=True)
         # A booster-hopper machine: every cutaway gets a grey ring of boosters
         # under the weigh hoppers, cut from the cutaway itself; the BH rows get
         # that ring lit, cut from the WH ON capture so the tint is the render's.
         neutral_im = Image.open(os.path.join(OUT, '%s-cut-neutral.jpg' % prefix)).convert('RGB')
         lit_im = Image.open(os.path.join(OUT, '%s-cut-whon.jpg' % prefix)).convert('RGB')
         rect, mask, dy, rect_cols_max = ring_band(sc, neutral_im, lit_im)
-        for key in ROWS + ['neutral', 'isds']:
+        for key in ROWS + ['neutral', 'isds', 'isth']:
             im = Image.open(os.path.join(OUT, '%s-cut-%s.jpg' % (prefix, key))).convert('RGB')
             with_boosters(im, neutral_im, rect, mask, dy).save(
                 os.path.join(OUT, '%s-cut-%s-bh.jpg' % (prefix, key)), quality=92, optimize=True)

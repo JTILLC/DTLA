@@ -13308,7 +13308,7 @@
     "option": "th",
     "perSection": true,
     "desc": "Infeed signal to the timing hopper: when the section's timing hopper opens after the request. C1 adjusts TH1, C2 adjusts TH2.",
-    "cutaway": "neutral"
+    "cutaway": "isth"
    },
    {
     "key": "is_dth",
@@ -13319,7 +13319,7 @@
     "option": "dth",
     "perDth": true,
     "desc": "Infeed signal to a diverting timing hopper. DTH1 and DTH2 belong to C1, DTH3 and DTH4 to C2; the radio under the table picks which one the row edits.",
-    "cutaway": "neutral"
+    "cutaway": "isth"
    },
    {
     "key": "is_wh",
@@ -13327,7 +13327,7 @@
     "default": 100,
     "after": [],
     "unit": "wh",
-    "desc": "Infeed signal to weigh hopper: the delay before the weigh hoppers open. Everything downstream is timed from the end of this.",
+    "desc": "Infeed signal to weigh hopper: the delay before the weigh hoppers open. Everything downstream is timed from the end of this. Only the IS tag lights (the program lit DS too; the machine does not).",
     "cutaway": "iswh"
    },
    {
@@ -13562,7 +13562,8 @@
      "isds": "derived/pt-cut-isds.jpg",
      "bhlit": "derived/pt-cut-bhlit.jpg",
      "whbh": "derived/pt-cut-whbh.jpg",
-     "bhwh": "derived/pt-cut-bhwh.jpg"
+     "bhwh": "derived/pt-cut-bhwh.jpg",
+     "isth": "derived/pt-cut-isth.jpg"
     },
     "cutawaysBH": {
      "whds": "derived/pt-cut-whds-bh.jpg",
@@ -13576,7 +13577,8 @@
      "isds": "derived/pt-cut-isds-bh.jpg",
      "bhlit": "derived/pt-cut-bhlit.jpg",
      "whbh": "derived/pt-cut-whbh.jpg",
-     "bhwh": "derived/pt-cut-bhwh.jpg"
+     "bhwh": "derived/pt-cut-bhwh.jpg",
+     "isth": "derived/pt-cut-isth-bh.jpg"
     }
    },
    "run-timing": {
@@ -13592,7 +13594,8 @@
      "isds": "derived/rt-cut-isds.jpg",
      "bhlit": "derived/rt-cut-bhlit.jpg",
      "whbh": "derived/rt-cut-whbh.jpg",
-     "bhwh": "derived/rt-cut-bhwh.jpg"
+     "bhwh": "derived/rt-cut-bhwh.jpg",
+     "isth": "derived/rt-cut-isth.jpg"
     },
     "table": {
      "x": 308,
@@ -13689,7 +13692,8 @@
      "isds": "derived/rt-cut-isds-bh.jpg",
      "bhlit": "derived/rt-cut-bhlit.jpg",
      "whbh": "derived/rt-cut-whbh.jpg",
-     "bhwh": "derived/rt-cut-bhwh.jpg"
+     "bhwh": "derived/rt-cut-bhwh.jpg",
+     "isth": "derived/rt-cut-isth-bh.jpg"
     }
    }
   }
