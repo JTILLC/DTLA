@@ -919,7 +919,7 @@
   "preset-timing": {
    "frame": 81,
    "labelJa": "予約設定_タイミング",
-   "image": "derived/pt-cut-whds.jpg",
+   "image": "derived/pt-cut-isds.jpg",
    "hotspots": [
     {
      "x": 700,
@@ -2058,7 +2058,7 @@
   "run-timing": {
    "frame": 181,
    "labelJa": "運転_タイミング",
-   "image": "derived/rt-cut-whds.jpg",
+   "image": "derived/rt-cut-isds.jpg",
    "hotspots": [
     {
      "x": 12,
@@ -13296,8 +13296,8 @@
     "default": 0,
     "after": [],
     "unit": "ds",
-    "desc": "Infeed signal to discharge: the delay from the packer asking for product to the weigh hoppers dumping it.",
-    "cutaway": "whds"
+    "desc": "Infeed signal to discharge: the delay from the packer asking for product to the weigh hoppers dumping it. Nothing lights on the cutaway; both tags go blue with an arrow beside them (seen on a running machine).",
+    "cutaway": "isds"
    },
    {
     "key": "is_th",
@@ -13565,7 +13565,8 @@
      "stagger": "derived/pt-cut-stagger.jpg",
      "whon": "derived/pt-cut-whon.jpg",
      "phon": "derived/pt-cut-phon.jpg",
-     "neutral": "derived/pt-cut-neutral.jpg"
+     "neutral": "derived/pt-cut-neutral.jpg",
+     "isds": "derived/pt-cut-isds.jpg"
     }
    },
    "run-timing": {
@@ -13577,7 +13578,8 @@
      "stagger": "derived/rt-cut-stagger.jpg",
      "whon": "derived/rt-cut-whon.jpg",
      "phon": "derived/rt-cut-phon.jpg",
-     "neutral": "derived/rt-cut-neutral.jpg"
+     "neutral": "derived/rt-cut-neutral.jpg",
+     "isds": "derived/rt-cut-isds.jpg"
     },
     "table": {
      "x": 308,

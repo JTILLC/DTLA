@@ -158,7 +158,7 @@ describe('navigation map integrity', () => {
       for (const k of Object.values(sc.keys)) expect(k.x + k.w).toBeLessThanOrEqual(navmap.canvas.w);
       expect(navmap.screens[`${slug}@entr`].keypad.seedFrom).toBe('timing');
       expect(navmap.screens[`${slug}@entr`].hotspots.find((h) => h.action === 'enter').commit).toBe('timing');
-      expect(navmap.screens[slug].image).toBe(sc.cutaways.whds);
+      expect(navmap.screens[slug].image).toBe(sc.cutaways[ta.rows[0].cutaway]);   // opens on IS-DS
     }
   });
 

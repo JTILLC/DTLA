@@ -95,16 +95,58 @@
     padding: 0.75rem;
   }
 
-  /* Portrait / narrow: panel below the screen */
-  @media (max-aspect-ratio: 1/1), (max-width: 900px) {
+  /* Phones and tablets. Desktop is the primary, side-by-side layout; on a
+     small screen the RCU comes first at full width and the notes follow
+     below, the page scrolling as one. A landscape phone keeps the two side
+     by side, with the notes narrowed so the screen keeps its height. */
+  @media (orientation: portrait), (max-width: 640px) {
     .app-main {
       flex-direction: column;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0.5rem;
+      gap: 0.5rem;
+    }
+    /* The screen was a flex item with min-height 0 in a column, and shrank
+       to nothing under the notes: it now keeps its own height. */
+    .rcu-wrap {
+      /* !important because the desktop rule comes later in this file and
+         would win the cascade. As a flex row the wrap measured its
+         aspect-ratio child at 0 tall and centred it over the notes; as a
+         block it is as tall as the screen. */
+      flex: none !important;
+      width: 100% !important;
+      display: block !important;
+    }
+    .rcu-stage {
+      width: 100% !important;
+      max-width: none !important;
+      /* Its height is normally capped at the wrap's; in the column the wrap
+         has no height of its own, so the cap collapsed the screen. */
+      max-height: none !important;
+      height: auto;
     }
     .side-panel {
+      flex: none;
       width: 100% !important;
       max-height: none !important;
+      min-height: 40vh;
     }
+    .app-header {
+      /* Wrapped to three rows, the header was shrinking as a flex item and
+         the screen slid up underneath it: it keeps its full height. */
+      flex: none !important;
+      padding: 0.4rem 0.6rem;
+      gap: 0.4rem;
+    }
+    .app-title { font-size: 0.95rem; }
+    .toolbar-row { margin-left: 0; width: 100%; }
+    .btn, .seg button { padding: 0.5rem 0.7rem; min-height: 2.4rem; }
+  }
+
+  @media (orientation: landscape) and (max-width: 900px) and (min-width: 641px) {
+    .app-main { gap: 0.5rem; padding: 0.5rem; }
+    .side-panel { width: min(380px, 42%); }
   }
 
   .btn {
