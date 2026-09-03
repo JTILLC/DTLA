@@ -179,9 +179,9 @@ export default function PhotoScreen({ section, onChange, onRemove, getIdToken, r
         </div>
       )}
 
-      {section.image && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div>
+      {(section.image || section.fields?.length > 0) && (
+        <div className={section.image ? 'grid gap-4 lg:grid-cols-2' : ''}>
+          {section.image && <div>
             <img
               src={section.image} alt={section.title || 'RCU screen'}
               className="w-full h-auto rounded border" style={{ borderColor: 'var(--border)' }}
@@ -220,10 +220,15 @@ export default function PhotoScreen({ section, onChange, onRemove, getIdToken, r
             {section.notes && (
               <p className="text-xs mt-2" style={{ color: 'var(--warn)' }}>{section.notes}</p>
             )}
-          </div>
+          </div>}
 
           <div>
-            <p className="field-label">Settings on this screen</p>
+            <p className="field-label">
+              {section.image ? 'Settings on this screen' : 'Settings'}
+              {!section.image && section.source === 'imported' && (
+                <span className="chip ml-2">read from the machine's export</span>
+              )}
+            </p>
             {!section.fields?.length && (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 Nothing recorded yet.
@@ -256,6 +261,17 @@ export default function PhotoScreen({ section, onChange, onRemove, getIdToken, r
                 </button>
               </div>
             ))}
+            {!section.image && (
+              <button
+                type="button" className="btn mt-1"
+                onClick={() => onChange({
+                  ...section,
+                  fields: [...(section.fields || []), { label: '', value: '', confident: true }],
+                })}
+              >
+                Add a setting
+              </button>
+            )}
             {section.fields?.some((f) => f.confident === false) && (
               <p className="text-xs" style={{ color: 'var(--warn)' }}>
                 Values marked “check” were read but not with confidence. Confirm them

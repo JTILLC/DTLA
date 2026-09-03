@@ -1,39 +1,60 @@
-import React, { useState } from 'react';
-import { parseExportSet, flattenExports } from '../utils/rcuExport';
+import React, { useMemo, useState } from 'react';
+import { parseExportSet, flattenExports, blockToSection } from '../utils/rcuExport';
+import { parsePresets, presetBlocks, blankPresetBlocks, isPresetFile } from '../utils/rcuPreset';
 import { matchField } from '../utils/centerline';
 
 /**
- * Pull settings out of the files a CCW writes to its output folder.
+ * Pull settings out of what a CCW backup holds.
  *
- * The RCU's Output button writes a folder of text files — one block per file,
- * a couple of hundred settings in all. Most of them are machine-level and are
- * not what a product centerline is about, so this shows everything it read and
- * lets the engineer place what matters, rather than guessing which of 289
- * values belong on the document.
+ * The RCU's Output button writes a folder of text files - one machine block
+ * per file, a couple of hundred settings in all. The presets themselves are
+ * not among them: they live in the binary `Preset.prm` one folder up. Both
+ * are read here. Everything read is listed, and nothing lands on the document
+ * until the engineer places it: one value onto a mapped screen, or a whole
+ * block (AD parameter, hopper drive, a preset's feeder table) as one section.
+ *
+ * For a machine that cannot be read at all there is the blank preset: the
+ * same blocks with every setting named and every value empty, to be typed.
  */
-export default function ImportExports({ spec, onPlace }) {
-  const [flat, setFlat] = useState(null);
+export default function ImportExports({ spec, onPlace, onAddBlock }) {
+  const [set, setSet] = useState({});
+  const [presets, setPresets] = useState([]);
+  const [presetNo, setPresetNo] = useState(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
+  const [blankHeads, setBlankHeads] = useState(14);
+  const [blankSections, setBlankSections] = useState(1);
 
   const openFiles = async (fileList) => {
     setError('');
     const files = [...(fileList || [])];
     if (!files.length) return;
     try {
-      const read = await Promise.all(files.map(async (f) => ({
-        name: f.name, text: await f.text(),
-      })));
-      const set = parseExportSet(read);
-      if (!Object.keys(set).length) {
-        setError('No RCU export files in that selection — they are the .csv files the Output button writes.');
+      const presetFiles = files.filter(isPresetFile);
+      const textFiles = files.filter((f) => /\.csv$/i.test(f.name));
+      const read = await Promise.all(textFiles.map(async (f) => ({ name: f.name, text: await f.text() })));
+      const exports = parseExportSet(read);
+      let found = [];
+      for (const f of presetFiles) found = found.concat(parsePresets(await f.arrayBuffer()));
+      if (!Object.keys(exports).length && !found.length) {
+        setError('Nothing readable in that selection - the .csv files the Output button writes, or Preset.prm.');
         return;
       }
-      setFlat(flattenExports(set));
-    } catch {
-      setError('Could not read those files.');
+      if (Object.keys(exports).length) setSet((s) => ({ ...s, ...exports }));
+      if (found.length) {
+        setPresets(found);
+        setPresetNo(found[0].no);
+      }
+    } catch (err) {
+      setError(err?.message || 'Could not read those files.');
     }
   };
+
+  const preset = presets.find((p) => p.no === presetNo);
+  // The chosen preset's blocks sit beside the machine blocks, in one list.
+  const blocks = useMemo(() => (preset ? { ...set, ...presetBlocks(preset) } : set), [set, preset]);
+  const flat = useMemo(() => flattenExports(blocks), [blocks]);
+  const loaded = Object.keys(blocks).length > 0;
 
   // Which mapped field, if any, each imported setting belongs to.
   const targets = (label) => {
@@ -45,29 +66,97 @@ export default function ImportExports({ spec, onPlace }) {
     return out;
   };
 
-  const shown = (flat || []).filter((row) => {
+  const shown = flat.filter((row) => {
     if (!filter.trim()) return true;
     const q = filter.toLowerCase();
     return row.path.toLowerCase().includes(q) || String(row.value).toLowerCase().includes(q);
   });
 
+  const addBlank = () => {
+    const heads = Math.min(Math.max(Number(blankHeads) || 14, 1), 32);
+    const sections = Math.min(Math.max(Number(blankSections) || 1, 1), 8);
+    for (const [key, block] of Object.entries(blankPresetBlocks(heads, sections))) {
+      onAddBlock(blockToSection(block, key));
+    }
+  };
+
   return (
     <section className="card p-4 mb-4">
       <h3 className="font-semibold mb-1">Import from the machine</h3>
       <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
-        Select the .csv files the RCU’s Output button wrote to its output folder.
+        Select the .csv files the RCU’s Output button wrote, and Preset.prm from the
+        backup’s cw folder for the presets themselves.
       </p>
 
-      <label className="btn">
-        Choose export files
-        <input
-          type="file" accept=".csv,text/csv,text/plain" multiple className="hidden"
-          onChange={(e) => openFiles(e.target.files)}
-        />
-      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="btn">
+          Choose backup files
+          <input
+            type="file" accept=".csv,.prm,text/csv,text/plain" multiple className="hidden"
+            onChange={(e) => openFiles(e.target.files)}
+          />
+        </label>
+        {onAddBlock && (
+          <span className="flex flex-wrap items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <span>or write one by hand:</span>
+            <input
+              className="field" type="number" min="1" max="32" style={{ width: '4.5rem' }}
+              value={blankHeads} onChange={(e) => setBlankHeads(e.target.value)} aria-label="Heads"
+            />
+            <span>heads</span>
+            <input
+              className="field" type="number" min="1" max="8" style={{ width: '4.5rem' }}
+              value={blankSections} onChange={(e) => setBlankSections(e.target.value)} aria-label="Sections"
+            />
+            <span>sections</span>
+            <button type="button" className="btn" onClick={addBlank}>Add a blank preset</button>
+          </span>
+        )}
+      </div>
       {error && <p className="text-sm mt-2" style={{ color: 'var(--danger)' }}>{error}</p>}
 
-      {flat && (
+      {presets.length > 0 && (
+        <div className="mt-4">
+          <p className="field-label">Presets in Preset.prm</p>
+          <div className="flex flex-wrap gap-2">
+            {presets.map((p) => (
+              <button
+                key={p.no} type="button" className={p.no === presetNo ? 'btn btn-primary' : 'btn'}
+                onClick={() => setPresetNo(p.no)}
+                title={p.modified ? `Last changed on the RCU ${p.modified}` : ''}
+              >
+                {p.no}: {p.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
+            Values marked “?” are decoded from the binary with good evidence but are not proven;
+            they go on the document flagged “check”.
+          </p>
+        </div>
+      )}
+
+      {loaded && onAddBlock && (
+        <div className="mt-4">
+          <p className="field-label">Whole blocks</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(blocks).map(([block, parsed]) => {
+              const count = flat.filter((row) => row.block === block).length;
+              return (
+                <button
+                  key={block} type="button" className="btn" disabled={!count}
+                  title={count ? `Add all ${count} settings as one section` : 'Nothing readable in this file'}
+                  onClick={() => onAddBlock(blockToSection(parsed, block))}
+                >
+                  + {parsed.title || block} ({count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {loaded && (
         <div className="mt-4">
           <div className="flex items-center justify-between gap-3 mb-2">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -112,7 +201,6 @@ export default function ImportExports({ spec, onPlace }) {
             </table>
           </div>
           <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
-            Most of these are machine-level parameters rather than product settings.
             Nothing is placed on the centerline until you place it.
           </p>
         </div>

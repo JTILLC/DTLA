@@ -65,12 +65,24 @@ function footer(doc, centerline, page, total) {
   setText(doc, COLORS.ink);
 }
 
-/** Label/value rows in two columns of a fixed width. */
-function valueRows(doc, rows, x, y, width) {
+/**
+ * Label/value rows in two columns of a fixed width.
+ *
+ * Runs onto a new page when it has to: a photographed screen has a dozen
+ * rows, but an imported hopper-drive block has over a hundred.
+ */
+function valueRows(doc, rows, x, y, width, centerline) {
+  const h = doc.internal.pageSize.getHeight();
   const labelW = width * 0.62;
   let cursor = y;
   doc.setFontSize(9);
   for (const row of rows) {
+    if (cursor > h - 22 && centerline) {
+      doc.addPage();
+      stamp(doc, centerline);
+      cursor = 24;
+      doc.setFontSize(9);
+    }
     doc.setFont('helvetica', 'normal');
     setText(doc, COLORS.muted);
     const label = doc.splitTextToSize(row.label, labelW - 2);
@@ -166,20 +178,23 @@ function screenPage(doc, centerline, section) {
   }
   y += 5;
 
-  // The screen, at whatever width keeps it whole.
-  const imgW = w - 20;
-  const imgH = imgW * (section.imageHeight / section.imageWidth);
-  doc.addImage(section.image, 'JPEG', 10, y, imgW, imgH);
-  setDraw(doc, COLORS.rule);
-  doc.setLineWidth(0.3);
-  doc.rect(10, y, imgW, imgH);
-  y += imgH + 6;
+  // The screen, at whatever width keeps it whole. A section with no image
+  // (an imported block, or a list typed without a photo) is just its rows.
+  if (section.image) {
+    const imgW = w - 20;
+    const imgH = imgW * (section.imageHeight / section.imageWidth);
+    doc.addImage(section.image, 'JPEG', 10, y, imgW, imgH);
+    setDraw(doc, COLORS.rule);
+    doc.setLineWidth(0.3);
+    doc.rect(10, y, imgW, imgH);
+    y += imgH + 6;
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('Settings on this screen', 10, y);
   y += 5;
-  valueRows(doc, section.rows, 10, y, w - 20);
+  valueRows(doc, section.rows, 10, y, w - 20, centerline);
 }
 
 function summaryPage(doc, centerline, rows) {

@@ -114,6 +114,18 @@ export default function App() {
     });
   }, []);
 
+  /** Add a whole imported block; a re-import of the same block replaces it. */
+  const addImportedBlock = useCallback((section) => {
+    setCenterline((c) => {
+      const index = c.sections.findIndex((s) => s.kind === 'photo' && !s.image
+        && s.source === 'imported' && s.title === section.title);
+      const sections = [...c.sections];
+      if (index === -1) sections.push(section);
+      else sections[index] = section;
+      return { ...c, sections };
+    });
+  }, []);
+
   const rows = useMemo(() => settingsTable(centerline, spec), [centerline]);
   const gapList = useMemo(() => gaps(centerline, spec), [centerline]);
 
@@ -140,11 +152,13 @@ export default function App() {
             imageHeight: canvas.height,
             rows: mappedRows(screen, section.values),
           });
-        } else if (section.image) {
+        } else if (section.image || section.fields?.length) {
+          // A photographed screen, or a plain list (an imported block, or one
+          // typed in with no photo to hand).
           pages.push({
-            title: section.title || 'Photographed screen',
+            title: section.title || (section.image ? 'Photographed screen' : 'Settings'),
             manual: '',
-            image: section.image,
+            image: section.image || '',
             imageWidth: 1024,
             imageHeight: 768,
             rows: (section.fields || [])
@@ -342,7 +356,7 @@ export default function App() {
           </div>
         </section>
 
-        <ImportExports spec={spec} onPlace={placeImported} />
+        <ImportExports spec={spec} onPlace={placeImported} onAddBlock={addImportedBlock} />
 
         {centerline.sections.map((section, index) => (
           section.kind === 'mapped' ? (
