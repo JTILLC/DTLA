@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { parseExportSet, flattenExports, blockToSection } from '../utils/rcuExport';
-import { parsePresets, presetBlocks, blankPresetBlocks, isPresetFile } from '../utils/rcuPreset';
+import { parsePresets, presetBlocks, blankPresetBlocks, isPresetFile, presetLabel, layoutFor } from '../utils/rcuPreset';
 import { presetFromSections, writePreset, emptySlots, keptFields } from '../utils/rcuPresetWrite';
-import { parseRecord, RECORD } from '../utils/rcuPreset';
+import { parseRecord } from '../utils/rcuPreset';
 import { downloadBlob } from '../utils/settingsList';
 import { matchField } from '../utils/centerline';
 
@@ -47,14 +47,17 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
         setPresetFile({ name: f.name, buffer });
       }
       if (!Object.keys(exports).length && !found.length) {
-        setError('Nothing readable in that selection - the .csv files the Output button writes, or Preset.prm.');
+        const prm = files.find((f) => /\.prm$/i.test(f.name) && /^preset/i.test(f.name));
+        setError(prm
+          ? `${prm.name} is ${prm.size} bytes, which is not a Preset.prm size this reads (578,400 for the 32-head file, 793,600 for the 14-head). If it is from another RCU generation, send it over and the layout can be added.`
+          : 'Nothing readable in that selection - the .csv files the Output button writes, or Preset.prm.');
         return;
       }
       if (Object.keys(exports).length) setSet((s) => ({ ...s, ...exports }));
       if (found.length) {
         setPresets(found);
         setPresetNo(found[0].no);
-        setSlot(String(emptySlots(found)[0] || ''));
+        setSlot(String(emptySlots(found, layoutFor(found[0].layout).count)[0] || ''));
       }
     } catch (err) {
       setError(err?.message || 'Could not read those files.');
@@ -113,7 +116,8 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
       const out = writePreset(presetFile.buffer, slotNo, p);
       const stamp = new Date().toISOString().slice(0, 10);
       downloadBlob(new Blob([out], { type: 'application/octet-stream' }), `Preset_${slotNo}_${stamp}.prm`);
-      const record = parseRecord(new DataView(out), (slotNo - 1) * RECORD, slotNo - 1);
+      const L = layoutFor(out.byteLength);
+      const record = parseRecord(new DataView(out), (slotNo - 1) * L.record, slotNo - 1, L);
       const kept = keptFields(record).map(([k, v]) => `${k} ${v}`).join(', ');
       const basis = p.from && p.from !== slotNo ? `preset ${p.from}` : `what preset ${slotNo} already held`;
       setWriteNote(`Written: preset ${slotNo}${p.name ? ` "${p.name}"` : ''} into a copy of ${presetFile.name}. `
@@ -161,7 +165,7 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
 
       {presets.length > 0 && (
         <div className="mt-4">
-          <p className="field-label">Presets in Preset.prm</p>
+          <p className="field-label">Presets in Preset.prm ({layoutFor(presets[0].layout).label} file)</p>
           <div className="flex flex-wrap gap-2">
             {presets.map((p) => (
               <button
@@ -169,7 +173,7 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
                 onClick={() => setPresetNo(p.no)}
                 title={p.modified ? `Last changed on the RCU ${p.modified}` : ''}
               >
-                {p.no}: {p.name}
+                {p.no}: {presetLabel(p)}
               </button>
             ))}
           </div>
@@ -191,17 +195,17 @@ export default function ImportExports({ spec, onPlace, onAddBlock, sections }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Preset number</span>
             <input
-              className="field" type="number" min="1" max="200" style={{ width: '5.5rem' }}
+              className="field" type="number" min="1" max={layoutFor(presetFile.buffer.byteLength).count} style={{ width: '5.5rem' }}
               value={slot} onChange={(e) => setSlot(e.target.value)} aria-label="Preset number"
             />
             {overwriting && (
               <span className="chip" style={{ color: 'var(--warn)' }}>
-                replaces {overwriting.no}: {overwriting.name}
+                replaces {overwriting.no}: {presetLabel(overwriting)}
               </span>
             )}
             <button
               type="button" className="btn btn-primary" onClick={writeFile}
-              disabled={!(slotNo >= 1 && slotNo <= 200)}
+              disabled={!(slotNo >= 1 && slotNo <= layoutFor(presetFile.buffer.byteLength).count)}
             >
               Write Preset.prm
             </button>

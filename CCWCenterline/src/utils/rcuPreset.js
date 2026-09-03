@@ -14,15 +14,31 @@
 // reading is marked with a trailing `?` in its label and flagged `check` on
 // the document, exactly like an uncertain photo read.
 
-export const RECORD = 2892;
-export const COUNT = 200;
 const HEADS = 32;
-const SECTIONS = 8;
-const FEEDER_SET = 292;
-export const PRESET_FILE_SIZE = RECORD * COUNT;
 
-export const isPresetFile = (file) =>
-  /\.prm$/i.test(file.name) && file.size === PRESET_FILE_SIZE;
+/**
+ * Two generations of the file have been seen. The building blocks are the
+ * same - section entries, feeder sets, weight blocks, names, timestamp - at
+ * different offsets, with 8 or 4 section slots. The file size says which.
+ */
+export const LAYOUTS = {
+  578400: { size: 578400, label: '32-head / 8-section', record: 2892, count: 200, sections: 8, nameLen: 24,
+    sectionsAt: 0xa4, feeder: 0x13c, optimum: 0x320, blocks: 0x510, total: 0x950, names: 0x978, stamp: 0xb18 },
+  793600: { size: 793600, label: '14-head / 4-section', record: 1984, count: 400, sections: 4, nameLen: 15,
+    sectionsAt: 0xa4, feeder: 0xf0, optimum: 0x2a4, blocks: 0x464, total: 0x684, names: 0x6ac, stamp: 0x78c },
+};
+
+// The first generation's numbers, for callers that build a file by hand.
+export const RECORD = LAYOUTS[578400].record;
+export const COUNT = LAYOUTS[578400].count;
+export const PRESET_FILE_SIZE = LAYOUTS[578400].size;
+
+export const layoutFor = (byteLength) => LAYOUTS[byteLength] || null;
+
+export const isPresetFile = (file) => /\.prm$/i.test(file.name) && !!layoutFor(file.size);
+
+/** Flag, AFD per section, 32 RF pairs, 8 DF pairs, 8 DF ranges, 8 DF infeeds. */
+export const feederSetSize = (sections) => 4 + 12 * sections + 64 + 16 + 32 + 80;
 
 const text = (dv, o, n) => {
   let s = '';
@@ -52,10 +68,10 @@ export function headsOf(mask) {
   return runs.join(',');
 }
 
-function feederSet(dv, o) {
+function feederSet(dv, o, sections) {
   const out = { written: dv.getUint32(o) !== 0xffffffff, afd: [], rf: [], df: [], dfInfeed: [] };
   let p = o + 4;
-  for (let i = 0; i < SECTIONS; i += 1) {
+  for (let i = 0; i < sections; i += 1) {
     out.afd.push({
       autoAmpMax: dv.getUint8(p + 8), autoAmpMin: dv.getUint8(p + 9),
       autoTimeMax: dv.getUint8(p + 10), autoTimeMin: dv.getUint8(p + 11),
@@ -63,16 +79,16 @@ function feederSet(dv, o) {
     p += 12;
   }
   for (let i = 0; i < HEADS; i += 1) { out.rf.push({ amp: dv.getUint8(p), time: dv.getUint8(p + 1) }); p += 2; }
-  for (let i = 0; i < SECTIONS; i += 1) { out.df.push({ amp: dv.getUint8(p), time: dv.getUint8(p + 1) }); p += 2; }
-  p += 4 * SECTIONS; // DF ranges: not decoded
-  for (let i = 0; i < SECTIONS; i += 1) {
+  for (let i = 0; i < 8; i += 1) { out.df.push({ amp: dv.getUint8(p), time: dv.getUint8(p + 1) }); p += 2; }
+  p += 4 * 8; // DF ranges: not decoded
+  for (let i = 0; i < 8; i += 1) {
     out.dfInfeed.push({
       infeedWt: dv.getUint16(p), upperPct: dv.getUint8(p + 2), lowerPct: dv.getUint8(p + 3),
       afdUpperWt: dv.getUint16(p + 4), afdLowerWt: dv.getUint16(p + 6), afdStopLowerWt: dv.getUint8(p + 8),
     });
     p += 10;
   }
-  if (p !== o + FEEDER_SET) throw new Error('feeder set size');
+  if (p !== o + feederSetSize(sections)) throw new Error('feeder set size');
   return out;
 }
 
@@ -83,10 +99,11 @@ const weights = (dv, o) => ({
   exUpper: dv.getUint16(o + 0x10) / 10,
 });
 
-export function parseRecord(dv, base, index) {
-  const r = { no: index + 1, name: text(dv, base + 0x08, 24), code: text(dv, base + 0x21, 23), sections: [] };
-  for (let k = 0; k < SECTIONS; k += 1) {
-    const o = base + 0xa4 + 16 * k;
+export function parseRecord(dv, base, index, L = LAYOUTS[578400]) {
+  const S = L.sections;
+  const r = { no: index + 1, layout: L.size, name: text(dv, base + 0x08, L.nameLen), code: text(dv, base + 0x21, 23), sections: [] };
+  for (let k = 0; k < S; k += 1) {
+    const o = base + L.sectionsAt + 16 * k;
     const t = (i) => dv.getUint8(o + 4 + i) * 10;
     r.sections.push({
       heads: headsOf(dv.getUint32(o)),
@@ -94,10 +111,10 @@ export function parseRecord(dv, base, index) {
         'WH delay?': t(4), 'Stagger?': t(5), 'WH on?': t(6), 'PH on?': t(7), 'BH on?': t(8) },
     });
   }
-  r.feeder = feederSet(dv, base + 0x13c);
-  r.feederOptimum = feederSet(dv, base + 0x320);
-  for (let k = 0; k < SECTIONS; k += 1) {
-    const o = base + 0x510 + 136 * k;
+  r.feeder = feederSet(dv, base + L.feeder, S);
+  r.feederOptimum = feederSet(dv, base + L.optimum, S);
+  for (let k = 0; k < S; k += 1) {
+    const o = base + L.blocks + 136 * k;
     Object.assign(r.sections[k], weights(dv, o), {
       autoFeedTarget: dv.getUint8(o + 0x1a) / 10,
       priority: dv.getUint8(o + 0x24),
@@ -105,30 +122,38 @@ export function parseRecord(dv, base, index) {
       goodEfficiency: dv.getUint16(o + 0x64) / 10,
     });
   }
-  const o = base + 0x950;
+  const o = base + L.total;
   r.total = { ...weights(dv, o), speed: dv.getUint16(o + 0x18), dumpCount: dv.getUint8(o + 0x1a),
     avControl: dv.getUint8(o + 0x21), sectSet: dv.getUint8(o + 0x27) };
-  for (let k = 0; k < SECTIONS; k += 1) {
-    const p = base + 0x978 + 48 * k;
+  for (let k = 0; k < S; k += 1) {
+    const p = base + L.names + 48 * k;
     r.sections[k].prodName = text(dv, p, 25);
     r.sections[k].prodCode = text(dv, p + 25, 23);
   }
-  const b = (i) => dv.getUint8(base + 0xb18 + i);
+  const b = (i) => dv.getUint8(base + L.stamp + i);
   const two = (n) => String(n).padStart(2, '0');
   r.modified = b(1) ? `20${two(b(0))}-${two(b(1))}-${two(b(2))} ${two(b(5))}:${two(b(6))}:${two(b(7))}` : '';
   return r;
 }
 
-/** Every named preset in a Preset.prm. */
+/** A preset somebody has used: it has a name, a code, or a target weight. */
+export const inUse = (r) => !!(r.name || r.code || r.total.target > 0);
+
+/** What to call a preset in a list: its name, else its code, else nothing. */
+export const presetLabel = (r) => r.name || r.code || '(no name)';
+
+/** Every preset in use in a Preset.prm, of either generation. */
 export function parsePresets(buffer) {
-  if (buffer.byteLength !== PRESET_FILE_SIZE) {
-    throw new Error(`Preset.prm is ${buffer.byteLength} bytes; expected ${PRESET_FILE_SIZE}`);
+  const L = layoutFor(buffer.byteLength);
+  if (!L) {
+    const known = Object.values(LAYOUTS).map((l) => `${l.size} (${l.label})`).join(' or ');
+    throw new Error(`Preset.prm is ${buffer.byteLength} bytes; expected ${known}`);
   }
   const dv = new DataView(buffer);
   const out = [];
-  for (let i = 0; i < COUNT; i += 1) {
-    const r = parseRecord(dv, i * RECORD, i);
-    if (r.name) out.push(r);
+  for (let i = 0; i < L.count; i += 1) {
+    const r = parseRecord(dv, i * L.record, i, L);
+    if (inUse(r)) out.push(r);
   }
   return out;
 }
@@ -157,12 +182,12 @@ export function presetBlocks(p) {
   const q = (label) => { unsure.push(label); return label; };
   const blocks = {};
 
-  const product = { title: `${key} · ${p.name}`, values: {}, groups: {}, unsure };
+  const product = { title: `${key} · ${presetLabel(p)}`, values: {}, groups: {}, unsure };
   const v = product.values;
   v['Product Name'] = p.name;
   v['Product Code'] = p.code;
   v['Target Weight'] = g(p.total.target);
-  v['Upper Weight Limit'] = g(p.total.upper);
+  v[q('Upper Weight Limit?')] = g(p.total.upper);
   v[q('Tolerance Negative Error?')] = g(p.total.tolNegErr);
   v[q('Extended Upper Limit?')] = g(p.total.exUpper);
   v[q('Speed?')] = `${p.total.speed} bpm`;
@@ -181,7 +206,7 @@ export function presetBlocks(p) {
 
   const sectionRows = (s) => ({
     Heads: s.heads, 'Product Name': s.prodName, 'Product Code': s.prodCode,
-    'Target Weight': g(s.target), 'Upper Weight Limit': g(s.upper),
+    'Target Weight': g(s.target), [q('Upper Weight Limit?')]: g(s.upper),
     [q('Tolerance Negative Error?')]: g(s.tolNegErr), [q('Extended Upper Limit?')]: g(s.exUpper),
     'Auto Feed Target': String(s.autoFeedTarget), 'Disch. Priority Count': String(s.priority),
     'Feed Multiplier': String(s.feederMultiply),

@@ -1,7 +1,8 @@
 """The layout of a preset record, checked on a record built by hand."""
 import os, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from parse_preset import parse_record, heads_of, RECORD
+from parse_preset import parse_record, heads_of, LAYOUTS
+RECORD = LAYOUTS[578400]['record']
 
 
 def test_head_masks_print_like_the_rcu():
@@ -43,7 +44,7 @@ def build():
 
 
 def test_record_layout():
-    r = parse_record(build(), 1)
+    r = parse_record(build(), 1, LAYOUTS[578400])
     assert (r['no'], r['name'], r['code']) == (2, 'MIX 2.5L', '096619885718')
     assert r['modified'] == '2024-07-29 12:09:38'
     s1 = r['sections'][0]

@@ -79,8 +79,12 @@ RCU W0530G) checked against the preset printout example in the CCW-R-2**
 instruction manual, whose defaults match the file's unused sections byte for
 byte. Everything is big-endian.
 
-- `Preset.prm` is 200 records of 2892 bytes; record *i* is preset *i+1*.
-  `Preset2.prm` was all zeros.
+- Two generations of `Preset.prm` are read, told apart by size: 578,400
+  bytes is 200 records of 2892 with 8 section slots (the 32-head OFI mix
+  weigher); 793,600 bytes is 400 records of 1984 with 4 section slots (the
+  14-head SunTree S-2). Same building blocks, different offsets; the table is
+  `LAYOUTS` in `src/utils/rcuPreset.js`. Record *i* is preset *i+1*.
+  `Preset2.prm` was all zeros. The offsets below are the 32-head file's.
 - Name at `0x08`, product code at `0x21`; the section product names and codes
   from `0x978` in 48-byte slots; a modified timestamp (yy mm dd weekday 0 hh
   mm ss) at `0xb18`.

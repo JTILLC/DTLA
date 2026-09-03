@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parsePresets, parseRecord, presetBlocks, RECORD, PRESET_FILE_SIZE } from './rcuPreset';
 import { blockToSection } from './rcuExport';
-import { headMask, num, presetFromSections, writePreset, emptySlots, keptFields } from './rcuPresetWrite';
+import { headMask, num, presetFromSections, writePreset, emptySlots, keptFields, LAYOUTS } from './rcuPresetWrite';
 
 /** A file with one real preset in slot 2, built the way the decoder test does. */
 function file() {
@@ -67,7 +67,7 @@ describe('writePreset', () => {
     const sections = sectionsOf(preset);
     const target = sections[0].fields.find((f) => f.label === 'Target Weight');
     target.value = '400.0 g';
-    const upper = sections[0].fields.find((f) => f.label === 'Upper Weight Limit');
+    const upper = sections[0].fields.find((f) => f.label === 'Upper Weight Limit?');
     upper.value = '9.9 g';           // not confirmed: must NOT be written
     const written = writePreset(original, 2, presetFromSections(sections), new Date(2026, 8, 3, 9, 0, 0));
     const r = parseRecord(new DataView(written), RECORD, 1);
@@ -116,7 +116,7 @@ describe('writePreset', () => {
     expect([r.no, r.name]).toEqual([6, 'UNSALTED TRIAL']);
     expect(r.total.upper).toBe(5);       // came along from preset 2, not slot 6's zero
     expect(r.total.speed).toBe(40);
-    expect(keptFields(r)[0]).toEqual(['Upper Weight Limit', '5.0 g']);
+    expect(keptFields(r)[0]).toEqual(['Upper Weight Limit?', '5.0 g']);
     // and preset 2 itself is untouched
     expect(parseRecord(new DataView(written), RECORD, 1).name).toBe('UNSALTED');
   });
@@ -126,6 +126,31 @@ describe('writePreset', () => {
     expect(() => writePreset(file(), 3, p)).toThrow(/does not fit/);
     expect(() => writePreset(new ArrayBuffer(4), 3, p)).toThrow(/Preset\.prm/);
     expect(() => writePreset(file(), 201, p)).toThrow(/1-200/);
+  });
+
+  it('writes the 14-head layout at its own offsets and round-trips it', () => {
+    const L = LAYOUTS[793600];
+    const buf = new ArrayBuffer(L.size);
+    const sections = [{
+      kind: 'photo', title: 'Preset · Product', fields: [
+        { label: 'Product Code', value: '907.0' }, { label: 'Target Weight', value: '907.0 g' },
+        { label: 'Feed Multiplier', value: '3' },
+      ],
+    }, {
+      kind: 'photo', title: 'Preset · Timing', fields: [{ label: 'WH-PH', value: '300 ms' }],
+    }, {
+      kind: 'photo', title: 'Preset · Feeder', fields: [{ label: 'RF › RF 14 amplitude', value: '70' }],
+    }];
+    const written = writePreset(buf, 3, presetFromSections(sections));
+    const r = parsePresets(written)[0];
+    expect([r.no, r.code, r.total.target, r.sections[0].target]).toEqual([3, '907.0', 907, 0]);
+    expect(r.sections[0].feederMultiply).toBe(3);
+    expect(r.sections[0].timing['WH-PH']).toBe(300);
+    expect(r.feeder.rf[13].amp).toBe(70);
+    expect(emptySlots([r], L.count)).toHaveLength(399);
+    // a fifth section cannot exist in this file
+    const five = [{ kind: 'photo', title: 'Preset · Sections', fields: [{ label: 'S5 › Target Weight', value: '1 g' }] }];
+    expect(() => writePreset(buf, 3, presetFromSections(five))).toThrow(/4 sections/);
   });
 
   it('lists the empty slots', () => {

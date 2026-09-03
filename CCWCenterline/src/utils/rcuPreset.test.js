@@ -2,7 +2,7 @@
 // case as tools/test_parse_preset.py.
 import { describe, it, expect } from 'vitest';
 import {
-  parseRecord, parsePresets, headsOf, presetBlocks, blankPresetBlocks, RECORD, PRESET_FILE_SIZE,
+  parseRecord, parsePresets, headsOf, presetBlocks, blankPresetBlocks, presetLabel, LAYOUTS, RECORD, PRESET_FILE_SIZE,
 } from './rcuPreset';
 import { blockToSection } from './rcuExport';
 
@@ -85,7 +85,7 @@ describe('presetBlocks', () => {
   it('uses the mapped screens\' wording so values can be placed on them', () => {
     const product = blocks['Preset 2 Product'];
     expect(product.values['Target Weight']).toBe('1136.6 g');
-    expect(product.values['Upper Weight Limit']).toBe('5.0 g');
+    expect(product.values['Upper Weight Limit?']).toBe('5.0 g');
     // one live section: its item settings sit at the top level
     expect(product.values['Auto Feed Target']).toBe('3.8');
     expect(product.values['Disch. Priority Count']).toBe('30');
@@ -117,5 +117,53 @@ describe('blankPresetBlocks', () => {
     expect(Object.keys(blocks['Preset Sections'].groups)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6']);
     expect(blocks['Preset Timing'].groups.S6['WH-PH']).toBe('');
     expect(Object.keys(blocks['Preset Feeder'].groups.DF)).toHaveLength(12);
+  });
+});
+
+describe('the 14-head / 4-section layout', () => {
+  const L = LAYOUTS[793600];
+  function build14() {
+    const buf = new ArrayBuffer(L.size);
+    const dv = new DataView(buf);
+    const b = new Uint8Array(buf);
+    const base = 2 * L.record; // preset 3
+    const put = (o, s) => { for (let i = 0; i < s.length; i += 1) b[base + o + i] = s.charCodeAt(i); };
+    dv.setUint32(base, 1); dv.setUint32(base + 4, 3);
+    put(0x21, '907.0');
+    dv.setUint32(base + L.sectionsAt, 0x3fff); b.set([30, 6, 0, 0, 0, 0, 40, 45, 40], base + L.sectionsAt + 4);
+    b.set([70, 30], base + L.feeder + 4 + 12 * 4);          // RF 1
+    b.set([98, 75], base + L.feeder + 4 + 12 * 4 + 64);     // DF 1
+    dv.setUint32(base + L.optimum, 0xffffffff);
+    dv.setUint16(base + L.blocks + 0x0a, 9070); b[base + L.blocks + 0x25] = 3;
+    dv.setUint16(base + L.total + 0x0a, 9070); dv.setUint16(base + L.total + 0x18, 65);
+    b.set([23, 3, 8, 3, 0, 3, 10, 38], base + L.stamp);
+    return buf;
+  }
+
+  it('is picked by size and read at its own offsets', () => {
+    const list = parsePresets(build14());
+    expect(list).toHaveLength(1);
+    const r = list[0];
+    expect([r.no, r.layout, r.name, r.code]).toEqual([3, 793600, '', '907.0']);
+    expect(r.sections).toHaveLength(4);
+    expect(r.sections[0].heads).toBe('1-14');
+    expect(r.sections[0].timing['WH-PH']).toBe(300);
+    expect(r.sections[0].target).toBe(907);
+    expect(r.sections[0].feederMultiply).toBe(3);
+    expect(r.total.target).toBe(907);
+    expect(r.total.speed).toBe(65);
+    expect(r.feeder.rf[0]).toEqual({ amp: 70, time: 30 });
+    expect(r.feeder.df[0]).toEqual({ amp: 98, time: 75 });
+    expect(r.modified).toBe('2023-03-08 03:10:38');
+  });
+
+  it('lists a preset by its code when it has no name', () => {
+    const r = parsePresets(build14())[0];
+    expect(presetLabel(r)).toBe('907.0');
+    expect(presetBlocks(r)['Preset 3 Product'].title).toBe('Preset 3 · 907.0');
+  });
+
+  it('refuses a size it does not know', () => {
+    expect(() => parsePresets(new ArrayBuffer(1000))).toThrow(/578400.*793600/);
   });
 });

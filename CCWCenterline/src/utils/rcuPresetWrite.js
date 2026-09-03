@@ -14,10 +14,10 @@
 // this must not make; those get written once a restore on a real machine has
 // shown which byte is which.
 
-import { RECORD, PRESET_FILE_SIZE, headsOf } from './rcuPreset.js';
+import { LAYOUTS, layoutFor, headsOf } from './rcuPreset.js';
 
 const HEADS = 32;
-const SECTIONS = 8;
+const SECTIONS = 8; // the most any layout holds; a smaller layout ignores the rest
 
 /** "12-16" or "2,4" -> the 32-bit mask; '' -> 0xffff, the file's "none". */
 export function headMask(text) {
@@ -150,8 +150,10 @@ const ascii = (text, max) => {
  * represent exactly (a weight over 6553.5 g, a head outside 1-32).
  */
 export function writePreset(buffer, no, p, now = new Date()) {
-  if (buffer.byteLength !== PRESET_FILE_SIZE) throw new Error('Not a Preset.prm');
-  if (!(no >= 1 && no <= 200)) throw new Error('Preset number must be 1-200');
+  const L = layoutFor(buffer.byteLength);
+  if (!L) throw new Error('Not a Preset.prm');
+  if (!(no >= 1 && no <= L.count)) throw new Error(`Preset number must be 1-${L.count}`);
+  const RECORD = L.record;
   const out = buffer.slice(0);
   const dv = new DataView(out);
   const u8 = new Uint8Array(out);
@@ -161,7 +163,7 @@ export function writePreset(buffer, no, p, now = new Date()) {
   // not the target slot's, so the fields this does not write - upper limit,
   // speed and the rest - travel with it instead of being whatever an empty
   // slot held (an upper limit of 0.0 g, in the reference file).
-  if (p.from >= 1 && p.from <= 200 && p.from !== no) {
+  if (p.from >= 1 && p.from <= L.count && p.from !== no) {
     const src = (p.from - 1) * RECORD;
     u8.copyWithin(base, src, src + RECORD);
   }
@@ -185,31 +187,38 @@ export function writePreset(buffer, no, p, now = new Date()) {
 
   dv.setUint32(base, 1);
   dv.setUint32(base + 4, no);
-  if (has(p.name)) putText(0x08, p.name, 24);
+  if (has(p.name)) putText(0x08, p.name, L.nameLen);
   if (has(p.code)) putText(0x21, p.code, 22);
-  if (has(p.target)) u16(0x950 + 0x0a, p.target * 10, 'Target weight');
+  if (has(p.target)) u16(L.total + 0x0a, p.target * 10, 'Target weight');
 
   p.sections.forEach((s, k) => {
     if (!s) return;
-    const so = 0xa4 + 16 * k;
+    if (k >= L.sections) {
+      if (Object.keys(s).some((key) => key !== 'timing' && s[key] !== undefined) || Object.keys(s.timing || {}).length) {
+        throw new Error(`This file has ${L.sections} sections; S${k + 1} cannot be written`);
+      }
+      return;
+    }
+    const so = L.sectionsAt + 16 * k;
     if (has(s.heads)) dv.setUint32(base + so, headMask(s.heads));
     const t = s.timing || {};
     const timing = ['WH-PH', 'PH-RF', 'WH-BH', 'BH-WH'];
     timing.forEach((name, i) => { if (has(t[name])) b8(so + 4 + i, t[name] / 10, `${name} (10 ms steps)`); });
-    const bo = 0x510 + 136 * k;
+    const bo = L.blocks + 136 * k;
     if (has(s.target)) u16(bo + 0x0a, s.target * 10, `S${k + 1} target weight`);
     if (has(s.autoFeedTarget)) b8(bo + 0x1a, s.autoFeedTarget * 10, 'Auto feed target');
     if (has(s.priority)) b8(bo + 0x24, s.priority, 'Priority count');
     if (has(s.feederMultiply)) b8(bo + 0x25, s.feederMultiply, 'Feed multiplier');
     if (has(s.goodEfficiency)) u16(bo + 0x64, s.goodEfficiency * 10, 'Good efficiency');
-    const po = 0x978 + 48 * k;
+    const po = L.names + 48 * k;
     if (has(s.prodName)) putText(po, s.prodName, 24);
     if (has(s.prodCode)) putText(po + 25, s.prodCode, 22);
   });
 
-  const F = 0x13c;
+  const F = L.feeder;
+  const AFD = 12 * L.sections;
   p.afd.forEach((a, k) => {
-    if (!a) return;
+    if (!a || k >= L.sections) return;
     const o = F + 4 + 12 * k;
     if (has(a.autoAmpMax)) b8(o + 8, a.autoAmpMax, 'AFD amp max');
     if (has(a.autoAmpMin)) b8(o + 9, a.autoAmpMin, 'AFD amp min');
@@ -218,19 +227,19 @@ export function writePreset(buffer, no, p, now = new Date()) {
   });
   p.rf.forEach((h, k) => {
     if (!h) return;
-    const o = F + 4 + 96 + 2 * k;
+    const o = F + 4 + AFD + 2 * k;
     if (has(h.amp)) b8(o, h.amp, `RF ${k + 1} amplitude`);
     if (has(h.time)) b8(o + 1, h.time, `RF ${k + 1} time`);
   });
   p.df.forEach((d, k) => {
     if (!d) return;
-    const o = F + 4 + 96 + 64 + 2 * k;
+    const o = F + 4 + AFD + 64 + 2 * k;
     if (has(d.amp)) b8(o, d.amp, `DF ${k + 1} amplitude`);
     if (has(d.time)) b8(o + 1, d.time, `DF ${k + 1} time`);
   });
   p.dfInfeed.forEach((d, k) => {
     if (!d) return;
-    const o = F + 4 + 96 + 64 + 16 + 32 + 10 * k;
+    const o = F + 4 + AFD + 64 + 16 + 32 + 10 * k;
     if (has(d.infeedWt)) u16(o, d.infeedWt, 'Infeed weight');
     if (has(d.upperPct)) b8(o + 2, d.upperPct, 'Infeed upper %');
     if (has(d.lowerPct)) b8(o + 3, d.lowerPct, 'Infeed lower %');
@@ -241,7 +250,7 @@ export function writePreset(buffer, no, p, now = new Date()) {
 
   const d = now;
   u8.set([d.getFullYear() % 100, d.getMonth() + 1, d.getDate(), d.getDay(), 0,
-    d.getHours(), d.getMinutes(), d.getSeconds()], base + 0xb18);
+    d.getHours(), d.getMinutes(), d.getSeconds()], base + L.stamp);
   return out;
 }
 
@@ -253,7 +262,7 @@ export function writePreset(buffer, no, p, now = new Date()) {
 export function keptFields(record) {
   const t = record.total;
   return [
-    ['Upper Weight Limit', `${t.upper.toFixed(1)} g`],
+    ['Upper Weight Limit?', `${t.upper.toFixed(1)} g`],
     ['Tolerance Negative Error?', `${t.tolNegErr.toFixed(1)} g`],
     ['Extended Upper Limit?', `${t.exUpper.toFixed(1)} g`],
     ['Speed?', `${t.speed} bpm`], ['Dump Count?', String(t.dumpCount)],
@@ -262,11 +271,13 @@ export function keptFields(record) {
 }
 
 /** Slots with no name, lowest first - where a new preset can go. */
-export function emptySlots(presets) {
+export function emptySlots(presets, count = 200) {
   const used = new Set(presets.map((p) => p.no));
   const out = [];
-  for (let n = 1; n <= 200; n += 1) if (!used.has(n)) out.push(n);
+  for (let n = 1; n <= count; n += 1) if (!used.has(n)) out.push(n);
   return out;
 }
+
+export { LAYOUTS };
 
 export { headsOf };

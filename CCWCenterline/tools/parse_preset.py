@@ -10,7 +10,9 @@ weigher on RCU W0530G, backed up 2024-07-29) and the preset printout example
 in the CCW-R-2** instruction manual (Fig. 6-83), whose default values match
 the bytes of this file's unused sections exactly. Everything is big-endian.
 
-    200 records x 2892 bytes.  Record i is preset number i+1.
+    32-head file: 200 records x 2892 bytes, 8 section slots.
+    14-head file: 400 records x 1984 bytes, 4 section slots (SunTree S-2).
+    Record i is preset number i+1. The file size picks the layout.
 
 What is CONFIRMED (a default in the manual, or an arithmetic identity, or a
 string) is labelled plainly. What is only a well-supported reading is marked
@@ -21,11 +23,24 @@ Usage: python3 tools/parse_preset.py <Preset.prm> [--json] [--all]
 """
 import json, struct, sys
 
-RECORD = 2892
-COUNT = 200
 HEADS = 32
-SECTIONS = 8          # slots; this machine uses 6
-FEEDER_SET = 292      # one full set of feeder values
+
+# Two generations of the file have been seen. The building blocks are the
+# same - section entries, feeder sets, weight blocks, names, timestamp - at
+# different offsets, with 8 or 4 section slots. The file size says which.
+LAYOUTS = {
+    578400: dict(name='32-head / 8-section', record=2892, count=200, sections=8, name_len=24,
+                 sections_at=0xa4, feeder=0x13c, optimum=0x320, blocks=0x510, total=0x950,
+                 names=0x978, stamp=0xb18),
+    793600: dict(name='14-head / 4-section', record=1984, count=400, sections=4, name_len=15,
+                 sections_at=0xa4, feeder=0xf0, optimum=0x2a4, blocks=0x464, total=0x684,
+                 names=0x6ac, stamp=0x78c),
+}
+
+
+def feeder_set_size(sections):
+    # flag, AFD per section, 32 RF pairs, 8 DF pairs, 8 DF ranges, 8 DF infeeds
+    return 4 + 12 * sections + 64 + 16 + 32 + 80
 
 
 def u8(b, o): return b[o]
@@ -49,7 +64,7 @@ def heads_of(mask):
     return ','.join(runs)
 
 
-def feeder_set(b, o):
+def feeder_set(b, o, sections):
     """One set of feeder values: AFD ranges, RF and DF amp/time, DF infeed.
 
     The layout is the manual's printout in order: per-section AFD auto
@@ -60,7 +75,7 @@ def feeder_set(b, o):
     """
     out = {'written': u32(b, o) != 0xffffffff, 'afd': [], 'rf': [], 'df': [], 'df_range?': [], 'df_infeed': []}
     p = o + 4
-    for _ in range(SECTIONS):
+    for _ in range(sections):
         out['afd'].append({
             'mode?': u32(b, p), 'x?': u32(b, p + 4),
             'auto_amp_max': u8(b, p + 8), 'auto_amp_min': u8(b, p + 9),
@@ -70,20 +85,20 @@ def feeder_set(b, o):
     for _ in range(HEADS):
         out['rf'].append({'amp': u8(b, p), 'time': u8(b, p + 1)})
         p += 2
-    for _ in range(SECTIONS):
+    for _ in range(8):
         out['df'].append({'amp': u8(b, p), 'time': u8(b, p + 1)})
         p += 2
-    for _ in range(SECTIONS):
+    for _ in range(8):
         out['df_range?'].append([u8(b, p), u8(b, p + 1), u8(b, p + 2), u8(b, p + 3)])
         p += 4
-    for _ in range(SECTIONS):
+    for _ in range(8):
         out['df_infeed'].append({
             'infeed_wt_g': u16(b, p), 'upper_pct': u8(b, p + 2), 'lower_pct': u8(b, p + 3),
             'afd_df_upper_wt_g': u16(b, p + 4), 'afd_df_lower_wt_g': u16(b, p + 6),
             'afd_stop_df_lower_wt_g': u8(b, p + 8),
         })
         p += 10
-    assert p == o + FEEDER_SET
+    assert p == o + feeder_set_size(sections)
     return out
 
 
@@ -92,8 +107,9 @@ def weight_block(b, o):
 
     Target is confirmed: the section targets sum to the total in every preset
     of the reference file. The three limits follow in the printout's order,
-    but which of the next three u16s is which is not proven - the reference
-    file only ever sets one of them.
+    but which of the next three u16s is which is not proven - the 32-head
+    file only ever sets one of them, and in the 14-head file one preset has
+    the first equal to its target (907.0 g), which no upper limit would be.
     """
     return {
         'target_g': u16(b, o + 0x0a) / 10,
@@ -103,17 +119,18 @@ def weight_block(b, o):
     }
 
 
-def parse_record(b, index):
+def parse_record(b, index, L):
+    S = L['sections']
     r = {'no': index + 1, 'valid': u32(b, 0), 'stored_no': u32(b, 4)}
-    r['name'] = text(b, 0x08, 24)
+    r['name'] = text(b, 0x08, L['name_len'])
     r['code'] = text(b, 0x21, 23)
     r['u16_0x38?'] = u16(b, 0x38)
 
     # Timing, per section, in 10 ms units. The defaults of an unused section
     # (WH-PH 190/200, PH-RF 130, WH-BH 60, BH-WH 100) are the manual's.
     r['sections'] = []
-    for k in range(SECTIONS):
-        o = 0xa4 + 16 * k
+    for k in range(S):
+        o = L['sections_at'] + 16 * k
         r['sections'].append({
             'heads': heads_of(u32(b, o)),
             'timing_ms': {
@@ -125,12 +142,12 @@ def parse_record(b, index):
             },
         })
 
-    r['feeder'] = feeder_set(b, 0x13c)
-    r['feeder_optimum'] = feeder_set(b, 0x320)
+    r['feeder'] = feeder_set(b, L['feeder'], S)
+    r['feeder_optimum'] = feeder_set(b, L['optimum'], S)
 
     # Per-section weights and item settings: 136-byte blocks.
-    for k in range(SECTIONS):
-        o = 0x510 + 136 * k
+    for k in range(S):
+        o = L['blocks'] + 136 * k
         s = r['sections'][k]
         s.update(weight_block(b, o))
         s.update({
@@ -142,7 +159,7 @@ def parse_record(b, index):
         })
 
     # The whole preset's block, then the section product names.
-    o = 0x950
+    o = L['total']
     r['total'] = weight_block(b, o)
     r['total'].update({
         'speed_bpm?': u16(b, o + 0x18),
@@ -150,28 +167,31 @@ def parse_record(b, index):
         'av_control?': u8(b, o + 0x21),
         'sect_set?': u8(b, o + 0x27),
     })
-    for k in range(SECTIONS):
-        p = 0x978 + 48 * k
+    for k in range(S):
+        p = L['names'] + 48 * k
         r['sections'][k]['prod_name'] = text(b, p, 25)
         r['sections'][k]['prod_code'] = text(b, p + 25, 23)
 
-    yy, mm, dd, wd, _, hh, mi, ss = b[0xb18:0xb20]
+    yy, mm, dd, wd, _, hh, mi, ss = b[L['stamp']:L['stamp'] + 8]
     r['modified'] = '20%02d-%02d-%02d %02d:%02d:%02d' % (yy, mm, dd, hh, mi, ss) if mm else ''
     return r
 
 
 def parse_file(path):
     data = open(path, 'rb').read()
-    if len(data) != RECORD * COUNT:
-        raise SystemExit('%s is %d bytes; expected %d (200 x 2892)' % (path, len(data), RECORD * COUNT))
-    return [parse_record(data[i * RECORD:(i + 1) * RECORD], i) for i in range(COUNT)]
+    L = LAYOUTS.get(len(data))
+    if not L:
+        raise SystemExit('%s is %d bytes; known Preset.prm sizes are %s' % (
+            path, len(data), ', '.join('%d (%s)' % (k, v['name']) for k, v in LAYOUTS.items())))
+    R = L['record']
+    return [parse_record(data[i * R:(i + 1) * R], i, L) for i in range(L['count'])]
 
 
 def show(r):
     print('=' * 64)
     print('PRESET NO.%d  %s   code %s   modified %s' % (r['no'], r['name'], r['code'], r['modified']))
     t = r['total']
-    print('  TARGET WT %.1f g   UPPER WT %.1f g   TOL NEG ERR? %.1f g   EX.UPPER? %.1f g' % (
+    print('  TARGET WT %.1f g   UPPER WT? %.1f g   TOL NEG ERR? %.1f g   EX.UPPER? %.1f g' % (
         t['target_g'], t['upper_wt_g'], t['tol_neg_err_g?'], t['ex_upper_wt_g?']))
     print('  SPEED? %d bpm   DUMP COUNT? %d   AV.CONTROL? %d   SECT.SET? %d' % (
         t['speed_bpm?'], t['dump_count?'], t['av_control?'], t['sect_set?']))
@@ -181,7 +201,7 @@ def show(r):
         if not s['heads'] and not s['prod_name'] and not s['target_g']:
             continue
         print('  -- SECTION %d --  heads %s  %s  %s' % (k + 1, s['heads'] or '-', s['prod_name'], s['prod_code']))
-        print('     TARGET WT %.1f g  UPPER WT %.1f g  TOL NEG ERR? %.1f g  EX.UPPER? %.1f g' % (
+        print('     TARGET WT %.1f g  UPPER WT? %.1f g  TOL NEG ERR? %.1f g  EX.UPPER? %.1f g' % (
             s['target_g'], s['upper_wt_g'], s['tol_neg_err_g?'], s['ex_upper_wt_g?']))
         tm = s['timing_ms']
         print('     ' + '  '.join('%s %d' % (k2, v) for k2, v in tm.items()))
@@ -215,7 +235,7 @@ if __name__ == '__main__':
         raise SystemExit(__doc__)
     presets = parse_file(args[0])
     if '--all' not in sys.argv:
-        presets = [p for p in presets if p['name']]
+        presets = [p for p in presets if p['name'] or p['code'] or p['total']['target_g'] > 0]
     if '--json' in sys.argv:
         print(json.dumps(presets, indent=1))
     else:
