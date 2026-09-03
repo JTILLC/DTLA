@@ -94,8 +94,22 @@ def preset():
     k.save(os.path.join(OUT, 'pf-target-wt-key.png'))
 
 
+def preset_base():
+    """The extracted Preset Feeder frame with its Target Wt key erased.
+
+    The frame was pulled from the movie with the key drawn; on the running
+    program the key exists only while DF is picked, so the base must not show
+    it. The panel behind is flat grey, so the key's rect is simply filled.
+    """
+    im = Image.open(os.path.join(PUB, 'screens/preset-feeder.jpg')).convert('RGB')
+    grey = im.getpixel((300, 120))
+    ImageDraw.Draw(im).rectangle((202, 98, 297, 153), fill=grey)
+    im.save(os.path.join(OUT, 'preset-feeder--base.jpg'), quality=92, optimize=True)
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     production()
     preset()
+    preset_base()
     print('wrote', sorted(os.listdir(OUT)))

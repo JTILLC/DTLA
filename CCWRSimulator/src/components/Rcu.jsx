@@ -405,11 +405,56 @@ export default function Rcu({
               </>
             )}
 
+            {/* The bars ARE the values (measured off the program, see
+                feederAdjust.screens.preset-feeder.bars): a navy Time bar and a
+                magenta AMP bar per head, 1 px per unit, and the DF pair on its
+                own baseline. They grow and shrink as Increase and Decrease are
+                pressed. */}
+            {faScreen.bars && (() => {
+              const b = faScreen.bars;
+              const bar = (key, x, w, baseline, v, param) => (
+                <div
+                  key={key}
+                  className="fa-bar"
+                  style={{
+                    left: pct(x, CW),
+                    width: pct(w, CW),
+                    top: pct(baseline - v * b.pxPerUnit, CH),
+                    height: pct(v * b.pxPerUnit, CH),
+                    background: b.colours[param],
+                  }}
+                />
+              );
+              return [
+                ...fa.heads.flatMap((h) => {
+                  const x = b.rf.x0 + b.rf.pitch * (h.no - 1);
+                  return [
+                    bar(`t${h.no}`, x + b.rf.time.dx, b.rf.time.w, b.rf.baseline, feeder.rf[h.no].time, 'time'),
+                    bar(`a${h.no}`, x + b.rf.amp.dx, b.rf.amp.w, b.rf.baseline, feeder.rf[h.no].amp, 'amp'),
+                  ];
+                }),
+                bar('dft', b.df.time.x, b.df.time.w, b.df.baseline, feeder.df.time, 'time'),
+                bar('dfa', b.df.amp.x, b.df.amp.w, b.df.baseline, feeder.df.amp, 'amp'),
+              ];
+            })()}
+
+            {/* The lamp on each key goes green while that parameter is lit —
+                the same lamp Production's keys use. */}
+            {faScreen.lamps && ['time', 'amp'].filter((w) => feeder.params[w]).map((which) => (
+              <img
+                key={`lamp-${which}`}
+                className="fa-lamp-on"
+                src={`/${faAll.lampOn}`}
+                alt=""
+                style={rectStyle(faScreen.lamps[which])}
+              />
+            ))}
+
             {['time', 'amp'].map((which) => (
               <button
                 key={which}
                 type="button"
-                className={'fa-key fa-lamp' + (feeder.params[which] ? ' fa-lamp--lit' : '')}
+                className={'fa-key fa-lamp' + (feeder.params[which] && !faScreen.lamps ? ' fa-lamp--lit' : '')}
                 style={rectStyle(fa.keys[which])}
                 aria-label={`${fa.keys[which].label} lamp — ${feeder.params[which] ? 'lit' : 'off'}`}
                 title={`${fa.keys[which].label}: light it, then press Increase or Decrease`}

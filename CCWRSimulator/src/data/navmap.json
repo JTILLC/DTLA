@@ -852,7 +852,7 @@
   "preset-feeder": {
    "frame": 71,
    "labelJa": "予約設定_フィーダ",
-   "image": "screens/preset-feeder.jpg",
+   "image": "derived/preset-feeder--base.jpg",
    "hotspots": [
     {
      "x": 700,
@@ -913,7 +913,8 @@
      "label": "Target Wt",
      "dfOnly": true
     }
-   ]
+   ],
+   "baseNote": "The extracted frame carries the Target Wt key and no bars; the base has the key erased (it only exists with DF picked) and the bars are drawn live."
   },
   "preset-timing": {
    "frame": 81,
@@ -12355,6 +12356,52 @@
       "y": 115,
       "w": 52,
       "h": 18
+     }
+    },
+    "bars": {
+     "pxPerUnit": 1,
+     "colours": {
+      "time": "#210482",
+      "amp": "#ff00ff"
+     },
+     "rf": {
+      "baseline": 380,
+      "x0": 2,
+      "pitch": 22,
+      "time": {
+       "dx": 0,
+       "w": 7
+      },
+      "amp": {
+       "dx": 10,
+       "w": 8
+      }
+     },
+     "df": {
+      "baseline": 248,
+      "time": {
+       "x": 352,
+       "w": 7
+      },
+      "amp": {
+       "x": 363,
+       "w": 7
+      }
+     },
+     "note": "Measured off the running program: every RF head draws a navy Time bar and a magenta AMP bar, 1 px per unit (25.0 is 24 px tall, 50.0 is 49), on a baseline at y=380; the DF pair sits on its own baseline at y=248 and grew by exactly 1 px when Increase took 25.0/50.0 to 26.0/51.0."
+    },
+    "lamps": {
+     "time": {
+      "x": 11,
+      "y": 114,
+      "w": 10,
+      "h": 21
+     },
+     "amp": {
+      "x": 107,
+      "y": 113,
+      "w": 10,
+      "h": 21
      }
     }
    },

@@ -933,6 +933,9 @@
   pointer-events: none;
 }
 
+/* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
+.fa-bar { position: absolute; z-index: 1; pointer-events: none; }
+
 /* The DF target weight, written on the Target Wt key above its label. */
 .fa-run-value--top { z-index: 3; font-size: clamp(7px, 1.4cqw, 13px); }
 .fa-run-value--centre { justify-content: center; }

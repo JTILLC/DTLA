@@ -118,6 +118,18 @@ describe('navigation map integrity', () => {
     }
   });
 
+  it('the preset feeder bars are 1 px per unit on the measured baselines', () => {
+    const b = navmap.feederAdjust.screens['preset-feeder'].bars;
+    expect(b.pxPerUnit).toBe(1);
+    expect(b.rf).toMatchObject({ baseline: 380, x0: 2, pitch: 22 });
+    expect(b.df.baseline).toBe(248);
+    // Fourteen heads at this pitch stay left of the DF panel.
+    expect(b.rf.x0 + b.rf.pitch * 13 + b.rf.amp.dx + b.rf.amp.w).toBeLessThan(b.df.time.x);
+    // The frame's baked Target Wt key is gone from the base the screen shows.
+    expect(navmap.screens['preset-feeder'].image).toBe('derived/preset-feeder--base.jpg');
+    expect(fs.existsSync(path.join(root, 'public', navmap.screens['preset-feeder'].image))).toBe(true);
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));
