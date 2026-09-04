@@ -482,7 +482,7 @@ export const screenInfo = {
       'Installation level or above. Backlight Saver selects Saver On / ' +
       'Semi brightness / Full brightness; BL Saver On Time is the idle ' +
       'time before the saver kicks in. Tune-up recalibrates the touch ' +
-      'panel (Maintenance level work). Wallpaper and Characters change the ' +
+      'panel (Maintenance level work): Yes on its confirm shows a bare board with a cross top-left, then top-right, bottom-right and bottom-left, each tapped in turn; the fourth tap returns here (seen on the running program). Wallpaper and Characters change the ' +
       'screen background and the message-window character whose face ' +
       'reflects unit status.',
     keys: [

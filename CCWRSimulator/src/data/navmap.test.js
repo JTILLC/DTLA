@@ -190,6 +190,24 @@ describe('navigation map integrity', () => {
     expect(web.hotspots[0].x + web.hotspots[0].w).toBeLessThanOrEqual(navmap.canvas.w);
   });
 
+  it('touch-panel calibration is four crosses, one per corner, chained and then home', () => {
+    const order = ['calib1', 'calib2', 'calib3', 'calib4'];
+    const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];    // top-left, top-right, bottom-right, bottom-left
+    order.forEach((k, i) => {
+      const s = navmap.screens[`panel-screen-control@${k}`];
+      expect(s.bare).toBe(true);
+      expect(s.hotspots).toHaveLength(1);
+      const h = s.hotspots[0];
+      expect(h.to).toBe(i < 3 ? `panel-screen-control@${order[i + 1]}` : 'panel-screen-control');
+      const cx = h.x + h.w / 2; const cy = h.y + h.h / 2;
+      expect(cx < 400 ? 0 : 1).toBe(corners[i][0]);
+      expect(cy < 300 ? 0 : 1).toBe(corners[i][1]);
+      // the four captures are distinct screens, not one aliased to another
+      expect(s.image).toMatch(/calib-\d\.jpg$/);
+    });
+    expect(navmap.screens['panel-screen-control@tune-up'].hotspots.find((h) => h.label === 'Yes').to).toBe('panel-screen-control@calib1');
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

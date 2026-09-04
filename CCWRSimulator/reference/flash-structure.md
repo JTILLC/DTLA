@@ -202,8 +202,11 @@ Setting, Peripheral Equipment Setting. The title bar closes it.
 ## Control Panel (monitor icon)
 
 Screen Control (Backlight Saver, BL Saver On Time ▲▼, Touch Panel
-**Tune-up** → "Screen moves to calibration screen…" → Yes shows a
-calibration cross top-right, then bottom-left), Password Set / LangSlct
+**Tune-up** → "Screen moves to calibration screen…" → Yes shows a bare
+board with a cross top-left, then top-right, bottom-right, bottom-left,
+each tapped in turn; the fourth tap returns to Screen Control — re-checked
+2026-09-03, the earlier "top-right then bottom-left" was wrong and the
+first state had been aliased to a Password-page grab), Password Set / LangSlct
 Set, Destination ID (Printer; Brwsr Set; E-mail Setting), Com. Setting
 (RCU IP, gateway, mask, MAC; Main Body DACS).
 
@@ -264,8 +267,7 @@ Trash → "Delete OK?". The bottom bar is entirely dead here.
 
 ### panel-screen-control
 - `panel-screen-control@tune-up` (popup) — Control Panel — "Screen moves to calibration screen to calibrate touch panel coordinates. OK?". Keys: Yes, No.
-- `panel-screen-control@calib1` (state) — Touch-panel calibration — first cross. Keys: tap the cross.
-- `panel-screen-control@calib2` (state) — Touch-panel calibration — second cross. Keys: tap the cross.
+- `panel-screen-control@calib1..4` (states) — Touch-panel calibration — one cross each: top-left, top-right, bottom-right, bottom-left. Keys: tap the cross; the fourth returns to Screen Control.
 
 ### preset-feeder
 - `preset-feeder@read-default` (popup) — Preset Feeder — "Set default value of RF and DF. OK?". Keys: Yes, No.

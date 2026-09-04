@@ -49,6 +49,22 @@
   "file": "captured/autoadj-neutral-live.jpg",
   "sha1": "a625f323582a0456d4cf351f6909532df5ae6614"
  },
+ "calib-1": {
+  "file": "captured/calib-1.jpg",
+  "sha1": "ce8da74873de768889946388fb4b1944978a9493"
+ },
+ "calib-2": {
+  "file": "captured/calib-2.jpg",
+  "sha1": "03f3b42df6449757d7f8ee9eb8e7f5dfc3b69142"
+ },
+ "calib-3": {
+  "file": "captured/calib-3.jpg",
+  "sha1": "f1ecabb22cc8dcb3027966efe3b0a3b2820efc28"
+ },
+ "calib-4": {
+  "file": "captured/calib-4.jpg",
+  "sha1": "d971ac648325b51a26f6a393249b03300f79477a"
+ },
  "dae-panel01": {
   "file": "captured/dae-panel01.jpg",
   "sha1": "f0bc5b1db2759848f4ca297daaf894b9f9f5c8de"

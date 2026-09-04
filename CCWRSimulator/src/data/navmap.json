@@ -11575,40 +11575,6 @@
     }
    ]
   },
-  "panel-screen-control@calib1": {
-   "parent": "panel-screen-control",
-   "kind": "state",
-   "captured": true,
-   "label": "Touch-panel calibration — first cross",
-   "image": "captured/panel-password-live.jpg",
-   "hotspots": [
-    {
-     "x": 700,
-     "y": 30,
-     "w": 60,
-     "h": 60,
-     "to": "panel-screen-control@calib2",
-     "label": "tap the cross"
-    }
-   ]
-  },
-  "panel-screen-control@calib2": {
-   "parent": "panel-screen-control",
-   "kind": "state",
-   "captured": true,
-   "label": "Touch-panel calibration — second cross",
-   "image": "captured/ppw-panel01.jpg",
-   "hotspots": [
-    {
-     "x": 40,
-     "y": 510,
-     "w": 60,
-     "h": 60,
-     "to": "panel-screen-control",
-     "label": "tap the cross"
-    }
-   ]
-  },
   "assistant@select-preset": {
    "parent": "assistant",
    "kind": "wizard",
@@ -14018,6 +13984,82 @@
      "to": "main-menu",
      "label": "X — close the browser",
      "note": "The only way out: the X at the far right of the title bar."
+    }
+   ]
+  },
+  "panel-screen-control@calib1": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "bare": true,
+   "label": "Touch-panel calibration — cross 1 of 4 (top-left)",
+   "image": "captured/calib-1.jpg",
+   "note": "Seen on the running program: a bare board with one cross; tap it and the next appears, top-left, top-right, bottom-right, bottom-left; the fourth tap returns to Screen Control. Taps anywhere else do nothing.",
+   "hotspots": [
+    {
+     "x": 180,
+     "y": 92,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control@calib2",
+     "label": "tap the cross (top-left)"
+    }
+   ]
+  },
+  "panel-screen-control@calib2": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "bare": true,
+   "label": "Touch-panel calibration — cross 2 of 4 (top-right)",
+   "image": "captured/calib-2.jpg",
+   "note": "Seen on the running program: a bare board with one cross; tap it and the next appears, top-left, top-right, bottom-right, bottom-left; the fourth tap returns to Screen Control. Taps anywhere else do nothing.",
+   "hotspots": [
+    {
+     "x": 262,
+     "y": 92,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control@calib3",
+     "label": "tap the cross (top-right)"
+    }
+   ]
+  },
+  "panel-screen-control@calib3": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "bare": true,
+   "label": "Touch-panel calibration — cross 3 of 4 (bottom-right)",
+   "image": "captured/calib-3.jpg",
+   "note": "Seen on the running program: a bare board with one cross; tap it and the next appears, top-left, top-right, bottom-right, bottom-left; the fourth tap returns to Screen Control. Taps anywhere else do nothing.",
+   "hotspots": [
+    {
+     "x": 238,
+     "y": 130,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control@calib4",
+     "label": "tap the cross (bottom-right)"
+    }
+   ]
+  },
+  "panel-screen-control@calib4": {
+   "parent": "panel-screen-control",
+   "kind": "state",
+   "captured": true,
+   "bare": true,
+   "label": "Touch-panel calibration — cross 4 of 4 (bottom-left)",
+   "image": "captured/calib-4.jpg",
+   "note": "Seen on the running program: a bare board with one cross; tap it and the next appears, top-left, top-right, bottom-right, bottom-left; the fourth tap returns to Screen Control. Taps anywhere else do nothing.",
+   "hotspots": [
+    {
+     "x": 180,
+     "y": 149,
+     "w": 60,
+     "h": 60,
+     "to": "panel-screen-control",
+     "label": "tap the cross (bottom-left)"
     }
    ]
   }
