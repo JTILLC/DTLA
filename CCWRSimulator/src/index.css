@@ -880,7 +880,8 @@
 
 /* Zero Adjustment's in-screen Start, and the message the unit shows while the
    adjustment runs. */
-.za-start--live { border-color: #16a34a; }
+/* The lit Start is the capture's own key laid over the art; no outline. */
+.za-start--live { border-color: transparent; }
 
 .za-message {
   position: absolute;

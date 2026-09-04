@@ -959,6 +959,10 @@
   "file": "captured/za-hopper3-off.jpg",
   "sha1": "06c16b58729ae36c148dc34f2bbda64b2523cf17"
  },
+ "za-power-on": {
+  "file": "captured/za-power-on.jpg",
+  "sha1": "c4bed42ee0ed9c9f08b16ff88fd80feee1050471"
+ },
  "za-slct-all-df": {
   "file": "captured/za-slct-all-df.jpg",
   "sha1": "c07f8110d08c593a8c98d175e9cd4f9fb69b1f51"
