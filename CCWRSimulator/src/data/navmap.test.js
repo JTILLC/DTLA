@@ -166,6 +166,20 @@ describe('navigation map integrity', () => {
     }
   });
 
+  it('the Message Board has its tools, paints and lamps, on the canvas', () => {
+    const mb = navmap.memoBoard;
+    expect(Object.keys(mb.tools).sort()).toEqual(['brush', 'eraser', 'pencil', 'thin']);
+    expect(Object.keys(mb.colours).sort()).toEqual(['black', 'blue', 'red']);
+    for (const k of [...Object.keys(mb.tools), ...Object.keys(mb.colours)].filter((x) => x !== 'eraser' || true)) {
+      expect(mb.lamps[k], `${k} lamp`).toBeDefined();
+    }
+    const keys = navmap.screens.memo.hotspots.filter((h) => h.action === 'memo-tool' || h.action === 'memo-colour');
+    expect(keys.map((h) => h.which).sort()).toEqual(['black', 'blue', 'brush', 'eraser', 'pencil', 'red', 'thin']);
+    expect(fs.existsSync(path.join(root, 'public', mb.image))).toBe(true);
+    expect(navmap.screens['memo@delete'].hotspots.find((h) => h.label === 'Yes').action).toBe('memo-clear');
+    expect(navmap.screens['memo@transmit'].hotspots.find((h) => h.label === 'Yes').action).toBe('memo-send');
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

@@ -574,6 +574,7 @@ export const screenInfo = {
     keys: [
       { name: 'Next', desc: 'Continues the assistant.' },
       { name: 'Cancel', desc: 'Skips the assistant and returns to the Main Menu.' },
+      { name: 'Drawing', desc: 'Drag on the board to draw. The wide brush, thin brush and pencil are the tools and red, blue and black the paints; the lit lamp shows which are live. The eraser rubs ink out. The drawing stays until the trash wipes it (it asks "Delete OK?"); Transmit asks "E-mail will be sent. OK?".' },
     ],
   },
 

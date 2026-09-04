@@ -1104,6 +1104,14 @@
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }
 
+/* The Message Board's drawing surface. */
+.memo-board {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+  cursor: crosshair;
+}
+
 /* Preset Manager: names in the table cells, the picked row's band, the
    store fields, and the two numbers on the live Copy key. */
 .pm-row {

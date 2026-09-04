@@ -87,6 +87,13 @@ export default function App() {
      stores' ten slots, and the rows picked as copy source and destination. */
   const [managers, setManagers] = useState(
     () => (saved.managers ? migrateManagers(saved.managers, navmap.copyManagers) : initialManagers(navmap.copyManagers)));
+  /* The Message Board: the live tool and paint, and the drawing itself
+     (an image, so it survives a reload until the trash wipes it). */
+  const [memo, setMemo] = useState(() => ({
+    tool: navmap.memoBoard?.tools[saved.memo?.tool] ? saved.memo.tool : navmap.memoBoard?.defaults.tool,
+    colour: navmap.memoBoard?.colours[saved.memo?.colour] ? saved.memo.colour : navmap.memoBoard?.defaults.colour,
+    image: typeof saved.memo?.image === 'string' ? saved.memo.image : null,
+  }));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -143,14 +150,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection, feeder, flags, timing, deactivated, managers,
+          selection, feeder, flags, timing, deactivated, managers, memo,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection, feeder, flags, timing, deactivated, managers]);
+      powerOn, loadedPreset, selection, feeder, flags, timing, deactivated, managers, memo]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -532,6 +539,29 @@ export default function App() {
       showNotice(`Copy needs a source row (left) and a destination row (right) first, or All Select. The source is where the ${what} is read from; the destination is where it is written.`);
       return;
     }
+    if (evt.action === 'memo-tool') {
+      setMemo((m) => ({ ...m, tool: evt.which }));
+      showNotice({ brush: 'Wide brush.', thin: 'Thin brush.', pencil: 'Pencil.', eraser: 'Eraser — drag over the ink to rub it out.' }[evt.which] + ' Drag on the board to draw.');
+      return;
+    }
+    if (evt.action === 'memo-colour') {
+      setMemo((m) => ({ ...m, colour: evt.which, tool: m.tool === 'eraser' ? navmap.memoBoard.defaults.tool : m.tool }));
+      showNotice(`${evt.which[0].toUpperCase()}${evt.which.slice(1)} paint.`);
+      return;
+    }
+    if (evt.action === 'memo-clear') {
+      setMemo((m) => ({ ...m, image: null }));
+      showNotice('Board wiped.');
+      navigate(evt.to);
+      return;
+    }
+    if (evt.action === 'memo-send') {
+      showNotice(memo.image
+        ? 'E-mail sent — on a real unit the board goes out to the addresses set up in Control Panel. The drawing stays on the board.'
+        : 'E-mail sent — an empty board. The drawing stays on the board.');
+      navigate(evt.to);
+      return;
+    }
     if (evt.action === 'all-select') {
       const mgr = managerOf(navmap.copyManagers, navmap.screens, screen);
       const next = selectAll(managers[mgr].pick);
@@ -648,7 +678,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection, flags, typed, timing, deactivated, managers]);
+      applySelection, flags, typed, timing, deactivated, managers, memo]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -783,6 +813,8 @@ export default function App() {
           machineOptions={{ bh: flags.optBH, th: flags.optTH, dth: flags.optDTH }}
           deactivated={deactivated}
           managers={managers}
+          memo={memo}
+          onMemoDraw={(image) => setMemo((m) => ({ ...m, image }))}
           blink={blink}
           zeroing={zeroing}
           notice={notice}

@@ -4,6 +4,7 @@ import { shownValues, formatValue } from '../utils/feeder';
 import ZeroAdjustPans from './ZeroAdjustPans';
 import FeederChart from './FeederChart';
 import ProductionRing from './ProductionRing';
+import MemoBoard from './MemoBoard';
 import { bar as timingBar, visibleRows, hasSections, rowOf, rowLabel, valueKey } from '../utils/timing';
 
 /**
@@ -42,6 +43,8 @@ export default function Rcu({
   machineOptions, // which units the machine has: {bh, th, dth}
   deactivated,    // Production: heads switched off by a tap while stopped
   managers,       // copy managers: {preset|machine: {stores:{memory,card}, pick:{src,dst}}}
+  memo,           // Message Board: {tool, colour, image}
+  onMemoDraw,     // (dataURL) => void after each stroke
   blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -193,7 +196,7 @@ export default function Rcu({
               onClick={() => onTap({
                 type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower,
                 requires: h.requires, sets: h.sets, toggles: h.toggles,
-                action: h.action, char: h.char, note: h.note, label: h.label, commit: h.commit, requiresPick: h.requiresPick,
+                action: h.action, char: h.char, note: h.note, label: h.label, commit: h.commit, requiresPick: h.requiresPick, which: h.which,
               })}
             />
           );
@@ -918,6 +921,17 @@ export default function Rcu({
             CW={CW}
             showHotspots={showHotspots}
           />
+        )}
+
+        {/* The Message Board: the drawing surface over the grey board, and
+            the lit lamp on the live tool's and colour's keys. */}
+        {navmap.memoBoard && navmap.memoBoard.screen === slug && memo && (
+          <>
+            <MemoBoard spec={navmap.memoBoard} tool={memo.tool} colour={memo.colour} image={memo.image} onChange={onMemoDraw} rectStyle={rectStyle} />
+            {[memo.tool, memo.tool === 'eraser' ? null : memo.colour].filter(Boolean).map((k) => (
+              <img key={k} className="fa-lamp-on" src={`/${navmap.feederAdjust.lampOn}`} alt="" style={rectStyle(navmap.memoBoard.lamps[k])} />
+            ))}
+          </>
         )}
 
         {/* Preset Manager (components drawn over derived/dp-base.jpg): the

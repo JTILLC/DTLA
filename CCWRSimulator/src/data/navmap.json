@@ -4797,7 +4797,7 @@
   "memo": {
    "frame": 541,
    "labelJa": "メモ",
-   "image": "screens/memo.jpg",
+   "image": "derived/memo-base.jpg",
    "hotspots": [
     {
      "x": 8,
@@ -4853,6 +4853,69 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 5,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-tool",
+     "which": "brush",
+     "label": "Wide brush"
+    },
+    {
+     "x": 100,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-tool",
+     "which": "thin",
+     "label": "Thin brush"
+    },
+    {
+     "x": 195,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-tool",
+     "which": "pencil",
+     "label": "Pencil"
+    },
+    {
+     "x": 304,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-colour",
+     "which": "red",
+     "label": "Red paint"
+    },
+    {
+     "x": 399,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-colour",
+     "which": "blue",
+     "label": "Blue paint"
+    },
+    {
+     "x": 494,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-colour",
+     "which": "black",
+     "label": "Black paint"
+    },
+    {
+     "x": 603,
+     "y": 385,
+     "w": 92,
+     "h": 52,
+     "action": "memo-tool",
+     "which": "eraser",
+     "label": "Eraser"
     }
    ]
   },
@@ -11714,7 +11777,8 @@
      "w": 90,
      "h": 65,
      "to": "memo",
-     "label": "Yes"
+     "label": "Yes",
+     "action": "memo-send"
     },
     {
      "x": 405,
@@ -11739,7 +11803,8 @@
      "w": 90,
      "h": 65,
      "to": "memo",
-     "label": "Yes"
+     "label": "Yes",
+     "action": "memo-clear"
     },
     {
      "x": 405,
@@ -15555,5 +15620,83 @@
    "what": "setting group",
    "note": "The program's Machine Set Mngr is inert - nothing on it responded - so it behaves here as the Preset Manager does (Service 4.4.2.2: it moves machine-setting data between the weigher's memory and the memory card). Memory holds the ten setting groups; the Card starts empty; Source is where a group is read from and Destination where it is written; Copy asks first. An empty source copied over a slot empties it. All Select turns every Source row blue and Copy then writes all ten slots across. Leaving the tab puts both stores back to their defaults."
   }
+ },
+ "memoBoard": {
+  "screen": "memo",
+  "image": "derived/memo-base.jpg",
+  "board": {
+   "x": 0,
+   "y": 40,
+   "w": 800,
+   "h": 343
+  },
+  "tools": {
+   "brush": {
+    "width": 14
+   },
+   "thin": {
+    "width": 6
+   },
+   "pencil": {
+    "width": 3
+   },
+   "eraser": {
+    "width": 22
+   }
+  },
+  "colours": {
+   "red": "#e02020",
+   "blue": "#1030d0",
+   "black": "#101010"
+  },
+  "lamps": {
+   "brush": {
+    "x": 10,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "thin": {
+    "x": 105,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "pencil": {
+    "x": 200,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "red": {
+    "x": 309,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "blue": {
+    "x": 404,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "black": {
+    "x": 499,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   },
+   "eraser": {
+    "x": 608,
+    "y": 396,
+    "w": 10,
+    "h": 23
+   }
+  },
+  "defaults": {
+   "tool": "pencil",
+   "colour": "black"
+  },
+  "note": "Seen on the running program (reference/flash-structure.md): dragging on the board draws; the wide brush, thin brush and pencil are the tools, red, blue and black the paints, the eraser rubs out, the trash asks \"Delete OK?\", and Transmit asks \"E-mail will be sent. OK?\". The lit lamp on a key shows the live tool and colour. The bottom bar is dead here."
  }
 }
