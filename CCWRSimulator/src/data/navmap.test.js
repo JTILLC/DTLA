@@ -180,6 +180,16 @@ describe('navigation map integrity', () => {
     expect(navmap.screens['memo@transmit'].hotspots.find((h) => h.label === 'Yes').action).toBe('memo-send');
   });
 
+  it('the information key opens the photographed browser, whose only way out is the X', () => {
+    const key = navmap.screens['main-menu'].hotspots.find((h) => h.to === 'main-menu@web');
+    expect(key).toMatchObject({ x: 335, y: 1 });
+    const web = navmap.screens['main-menu@web'];
+    expect(web.bare).toBe(true);
+    expect(web.hotspots).toHaveLength(1);
+    expect(web.hotspots[0]).toMatchObject({ to: 'main-menu' });
+    expect(web.hotspots[0].x + web.hotspots[0].w).toBeLessThanOrEqual(navmap.canvas.w);
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

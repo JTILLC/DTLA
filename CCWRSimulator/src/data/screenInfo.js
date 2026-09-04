@@ -58,6 +58,7 @@ export const screenInfo = {
       { name: 'Machine Set pop-up', desc: 'The pull-up tab at the bottom selects the Machine Set and Check menus (engineering screens).' },
       { name: 'Power / Stop / Start', desc: 'Control power on-off, stop production, start production (4.4.7). Dimmed keys cannot be pressed. Observed on the running program: with power off, Start and Stop are dimmed and completely dead; pressing Power shows “Please wait a moment.” with a progress bar for about ten seconds (whole bottom bar locked out), then the icon turns from red to green and Start lights. Powering OFF is instant, with no pop-up — and a single Power press while production runs stops the machine AND cuts power.' },
       { name: 'Upper setting bar', desc: 'Message Board, information, Start-up Assistant, language, operation level, Control Panel, date & time and Help keys (6.3).' },
+      { name: 'Information key (right of the Message Board)', desc: 'Opens the RCU\'s web browser - Internet Explorer pointed at biwako2.ishida.co.jp, which cannot load. Operators should keep out of it. Nothing on that page does anything; the way back is the X at the far right of its title bar. Photographed on a running RCU, since the training program has no browser.' },
     ],
     note:
       'Operation levels (Service 4.2): the CCW-R stacks Operator, Site ' +

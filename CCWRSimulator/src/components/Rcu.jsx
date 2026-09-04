@@ -256,7 +256,7 @@ export default function Rcu({
             cannot drift: a key shown green is a key that works. Screens where
             we never checked what the bottom bar does show nothing, which is
             the honest answer. */}
-        {navmap.powerKey && (
+        {navmap.powerKey && !screen.bare && (
           <button
             type="button"
             className={
@@ -274,7 +274,7 @@ export default function Rcu({
           </button>
         )}
 
-        {powerOn && !powerBusy && screen.hotspots
+        {powerOn && !powerBusy && !screen.bare && screen.hotspots
           .filter((h) => h.requiresPower)
           .map((h, i) => (
             <img
@@ -899,7 +899,7 @@ export default function Rcu({
         {/* The access level's dots on the key icon. Every extracted frame
             carries four lit (the movie was dumped at Maintenance), so they
             are drawn from the live level: Operator 1, up to Maintenance 4. */}
-        {navmap.levelDots && (
+        {navmap.levelDots && !screen.bare && (
           <div className="level-dots" style={rectStyle({ x: navmap.levelDots.x, y: navmap.levelDots.y,
             w: navmap.levelDots.gap * (navmap.levelDots.n - 1) + navmap.levelDots.d, h: navmap.levelDots.d })} aria-hidden="true"
             title={`Access level ${flags?.level ?? 1} of 4`}>

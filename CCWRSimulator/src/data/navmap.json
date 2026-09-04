@@ -330,6 +330,15 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 335,
+     "y": 1,
+     "w": 34,
+     "h": 37,
+     "to": "main-menu@web",
+     "label": "Information key — opens the web browser",
+     "note": "The key right of the Message Board opens the RCU's web browser (Internet Explorer, pointed at biwako2.ishida.co.jp, which cannot load). Operators should keep out of it; the way back is the X at the far right of the title bar."
     }
    ],
    "imageBy": {
@@ -13989,6 +13998,26 @@
      "h": 70,
      "to": "display-machine-edit",
      "label": "No"
+    }
+   ]
+  },
+  "main-menu@web": {
+   "parent": "main-menu",
+   "kind": "state",
+   "captured": true,
+   "bare": true,
+   "label": "Web browser — \"Internet Explorer cannot display the webpage\" (photographed on a running RCU)",
+   "image": "captured/rcu-web-browser.jpg",
+   "note": "Photographed on a running RCU (2026-09-03), not captured from the program, which has no browser. Nothing on this page is live but the X.",
+   "hotspots": [
+    {
+     "x": 768,
+     "y": 0,
+     "w": 32,
+     "h": 26,
+     "to": "main-menu",
+     "label": "X — close the browser",
+     "note": "The only way out: the X at the far right of the title bar."
     }
    ]
   }
