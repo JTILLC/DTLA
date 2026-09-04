@@ -94,9 +94,25 @@
   "file": "captured/display-screen-live.jpg",
   "sha1": "4225fefc7a9509f382e49a518ebb786079c52df1"
  },
+ "dp-after-copy": {
+  "file": "captured/dp-after-copy.jpg",
+  "sha1": "5ef60910172574f20f41e7d740f47c80480e99a3"
+ },
+ "dp-copy-pressed": {
+  "file": "captured/dp-copy-pressed.jpg",
+  "sha1": "81c7a99762152cdf8d826c9763246f2f386fefe2"
+ },
+ "dp-dest-list": {
+  "file": "captured/dp-dest-list.jpg",
+  "sha1": "2b958a903b94eab8e3e7f469d9bb9332e539fc03"
+ },
  "dp-initialize": {
   "file": "captured/dp-initialize.jpg",
   "sha1": "ad704968a38c59bb7466869ac7ce926d363b6e3b"
+ },
+ "dp-live-loaded": {
+  "file": "captured/dp-live-loaded.jpg",
+  "sha1": "49cd2da6d497e920de5397cb1334985127e1201a"
  },
  "dp-loading-popup": {
   "alias": "display-preset-live"
@@ -107,6 +123,14 @@
  },
  "dp-source-dropdown": {
   "alias": "display-preset-live"
+ },
+ "dp-source-list": {
+  "file": "captured/dp-source-list.jpg",
+  "sha1": "ea3010a788b63ccc7283caf5c503bff8948b38cc"
+ },
+ "dp-src1-dst4": {
+  "file": "captured/dp-src1-dst4.jpg",
+  "sha1": "4d797416ce46230164d6abbc8a1cb5d22518b163"
  },
  "dw-auto-zero-on": {
   "file": "captured/dw-auto-zero-on.jpg",

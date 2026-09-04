@@ -175,10 +175,15 @@ Setting, Peripheral Equipment Setting. The title bar closes it.
   Program Number, Test Drive (Drive Start greys the unit keys and lights
   Drive Stop).
 - **Display&Data Manager**: Layout Setting (Head No 1 location), Preset
-  Manager (opens on a "Loading preset data" pop-up; Source/Destination
-  Memory lists; Initialize asks "Initialize the Memory. OK?"; Copy; All
-  Select), Machine Set Mngr, All Setting Mngr (Memory / EEPROM / Card
-  Initialize), Hopper Name Set (three drop-downs).
+  Manager (opens on a "Loading preset data" pop-up, ~4 s; the arrow key by
+  each Memory field opens a Memory / Card list - a pick closes it without
+  changing the field; a tap on a row on each side picks copy source and
+  copy destination, the Copy key then shows both numbers and asks
+  "Performs copying of preset contents from copy source to copy
+  destination." - Yes writes it (1 -> 4 seen); All Select did nothing;
+  Initialize asks "Initialize the Memory. OK?"), Machine Set Mngr, All
+  Setting Mngr (Memory / EEPROM / Card Initialize), Hopper Name Set (three
+  drop-downs).
 - **Various Parameter Setting**: Weigh Spec Set (Range, Stable Judgment
   Weight, Empty Judgment Weight keypad, Auto Zero…), Combination Set,
   Sectioning Set, FD Spec Set, **H DRV Spec Set** — a list of Pool Hopper /

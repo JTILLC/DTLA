@@ -27,6 +27,8 @@ export const initialFlags = () => ({
   optDTH: false,       // ... diverting timing hoppers, two per section
   packInterface: 'master', // Peripheral > Pckr Intrlck Set: Interface
   packParam: 1,        // ... its parameter set (1-4)
+  presetSrcStore: 'memory', // Preset Manager: where a copy is read from
+  presetDstStore: 'memory', // ... and where it is written to
 });
 
 export const applySets = (flags, sets) => {

@@ -759,11 +759,18 @@ export const screenInfo = {
     ref: null,
     source: 'observed',
     summary:
-      'Copies presets between source and destination (Memory or Card): ' +
-      'pick source and destination slots, then Copy or All Select. ' +
-      'Initialize wipes the chosen store. On this capture presets 1–3 ' +
-      'hold POTATO CHIPS.',
-    keys: [],
+      'Copies presets between Memory and the Card. The Source side is where ' +
+      'the preset is read from and the Destination side is where it is ' +
+      'written: tap a row on each, press Copy, and answer Yes. Initialize ' +
+      'wipes Memory. The tab opens on a "Loading preset data" pop-up (about ' +
+      'four seconds on the program, one second here).',
+    keys: [
+      { name: 'Memory / Card arrow keys', desc: 'Each side\'s arrow key opens a list of the two stores. The program closes the list on a pick without changing the field; here the field follows the pick and the Card has its own ten slots.' },
+      { name: 'Rows', desc: 'Tap a row on the left to pick the copy source, a row on the right to pick the destination; the band moves and the Copy key goes live showing both numbers. Tap a picked row again to clear it.' },
+      { name: 'Copy', desc: 'Asks "Performs copying of preset contents from copy source to copy destination." Yes writes the source preset into the destination slot (seen on the program: 1 to 4 put POTATO CHIPS in slot 4).' },
+      { name: 'All Select', desc: 'Did nothing visible when pressed on the running program, so it does nothing here.' },
+      { name: 'Initialize', desc: 'Asks "Initialize the Memory. OK?" Yes wipes every Memory slot.' },
+    ],
     note: OBSERVED_NOTE,
   },
 

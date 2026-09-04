@@ -3183,7 +3183,7 @@
   "display-preset": {
    "frame": 311,
    "labelJa": "表示_予約",
-   "image": "screens/display-preset.jpg",
+   "image": "derived/dp-base.jpg",
    "hotspots": [
     {
      "x": 8,
@@ -3234,15 +3234,6 @@
      "button": 1208
     },
     {
-     "x": 8,
-     "y": 45,
-     "w": 86,
-     "h": 65,
-     "to": "display-preset@initialize",
-     "label": "Initialize",
-     "generated": true
-    },
-    {
      "x": 764,
      "y": 1,
      "w": 36,
@@ -3250,6 +3241,51 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 8,
+     "y": 45,
+     "w": 86,
+     "h": 65,
+     "to": "display-preset@initialize",
+     "label": "Initialize"
+    },
+    {
+     "x": 276,
+     "y": 74,
+     "w": 69,
+     "h": 36,
+     "to": "display-preset@source-list",
+     "label": "Source store list",
+     "note": "Opens the Source list: Memory or Card."
+    },
+    {
+     "x": 671,
+     "y": 74,
+     "w": 69,
+     "h": 36,
+     "to": "display-preset@dest-list",
+     "label": "Destination store list",
+     "note": "Opens the Destination list: Memory or Card."
+    },
+    {
+     "x": 352,
+     "y": 190,
+     "w": 92,
+     "h": 66,
+     "to": "display-preset@copy",
+     "label": "Copy",
+     "requiresPreset": true,
+     "note": "Copies the picked source preset into the picked destination slot, after a Yes."
+    },
+    {
+     "x": 335,
+     "y": 292,
+     "w": 82,
+     "h": 64,
+     "action": "inert",
+     "label": "All Select",
+     "note": "All Select: pressed on the running program it did nothing visible, so it does nothing here either."
     }
    ],
    "onEnter": "display-preset@loading"
@@ -10511,11 +10547,11 @@
    "parent": "display-preset",
    "kind": "popup",
    "captured": true,
-   "label": "Display & Data Manager — \"Loading preset data\"",
+   "label": "Display & Data Manager — \"Loading preset data\" (four seconds on the program, one here)",
    "image": "captured/display-preset-live.jpg",
    "autoNext": {
     "to": "display-preset",
-    "ms": 2500
+    "ms": 1000
    },
    "hotspots": []
   },
@@ -10532,7 +10568,9 @@
      "w": 90,
      "h": 70,
      "to": "display-preset",
-     "label": "Yes"
+     "label": "Yes",
+     "action": "preset-init",
+     "note": "Yes: every Memory slot is wiped (the loaded capture held only POTATO CHIPS in slot 1)."
     },
     {
      "x": 433,
@@ -13641,6 +13679,94 @@
      "label": "scroll up"
     }
    ]
+  },
+  "display-preset@source-list": {
+   "parent": "display-preset",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Manager — Source list (Memory / Card)",
+   "image": "captured/dp-source-list.jpg",
+   "hotspots": [
+    {
+     "x": 115,
+     "y": 136,
+     "w": 158,
+     "h": 45,
+     "to": "display-preset",
+     "sets": {
+      "presetSrcStore": "memory"
+     },
+     "label": "Memory"
+    },
+    {
+     "x": 115,
+     "y": 181,
+     "w": 158,
+     "h": 45,
+     "to": "display-preset",
+     "sets": {
+      "presetSrcStore": "card"
+     },
+     "label": "Card"
+    }
+   ]
+  },
+  "display-preset@dest-list": {
+   "parent": "display-preset",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Manager — Destination list (Memory / Card)",
+   "image": "captured/dp-dest-list.jpg",
+   "hotspots": [
+    {
+     "x": 509,
+     "y": 136,
+     "w": 158,
+     "h": 45,
+     "to": "display-preset",
+     "sets": {
+      "presetDstStore": "memory"
+     },
+     "label": "Memory"
+    },
+    {
+     "x": 509,
+     "y": 181,
+     "w": 158,
+     "h": 45,
+     "to": "display-preset",
+     "sets": {
+      "presetDstStore": "card"
+     },
+     "label": "Card"
+    }
+   ]
+  },
+  "display-preset@copy": {
+   "parent": "display-preset",
+   "kind": "popup",
+   "captured": true,
+   "label": "Preset Manager — \"Performs copying of preset contents from copy source to copy destination.\"",
+   "image": "captured/dp-copy-pressed.jpg",
+   "hotspots": [
+    {
+     "x": 280,
+     "y": 395,
+     "w": 90,
+     "h": 68,
+     "to": "display-preset",
+     "action": "preset-copy",
+     "label": "Yes"
+    },
+    {
+     "x": 431,
+     "y": 395,
+     "w": 90,
+     "h": 68,
+     "to": "display-preset",
+     "label": "No"
+    }
+   ]
   }
  },
  "powerKey": {
@@ -15068,5 +15194,94 @@
   "gap": 13,
   "n": 4,
   "note": "The key icon's four dots show the access level: Operator 1 lit, Site Engineer 2, Installation 3, Maintenance 4. The extracted frames all carry four lit (the movie was dumped at Maintenance), so the dots are drawn over every screen from the live level."
+ },
+ "presetManager": {
+  "screen": "display-preset",
+  "tables": {
+   "src": {
+    "x": 40,
+    "w": 282
+   },
+   "dst": {
+    "x": 489,
+    "w": 282
+   },
+   "top": 141,
+   "pitch": 27,
+   "rows": 10,
+   "textPx": 9,
+   "band": "#807ee3",
+   "bandText": "#ffffff",
+   "text": "#000000"
+  },
+  "fields": {
+   "src": {
+    "x": 116,
+    "y": 77,
+    "w": 153,
+    "h": 31
+   },
+   "dst": {
+    "x": 512,
+    "y": 77,
+    "w": 153,
+    "h": 31
+   },
+   "textPx": 12,
+   "colour": "#0000cc"
+  },
+  "copyKey": {
+   "x": 352,
+   "y": 190,
+   "w": 92,
+   "h": 66,
+   "live": "derived/dp-copy-live.png",
+   "numbers": {
+    "src": {
+     "x": 369,
+     "y": 195,
+     "w": 26,
+     "h": 13
+    },
+    "dst": {
+     "x": 403,
+     "y": 195,
+     "w": 26,
+     "h": 13
+    }
+   },
+   "textPx": 8
+  },
+  "stores": {
+   "memory": "Memory",
+   "card": "Card"
+  },
+  "initial": {
+   "memory": [
+    "POTATO CHIPS",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "card": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  "note": "Seen on the running program: the tab opens on \"Loading preset data\" (about four seconds there; one second here), Source and Destination each have a Memory / Card list behind their arrow key, a tap on a row in each table picks the copy source and the copy destination, and the Copy key, now showing both numbers, asks \"Performs copying of preset contents from copy source to copy destination.\" - Yes writes the source preset into the destination slot. All Select did nothing on the program. The program's Memory / Card pick closes the list without changing the field; here the field follows the pick and the Card holds its own ten slots."
  }
 }
