@@ -29,6 +29,8 @@ export const initialFlags = () => ({
   packParam: 1,        // ... its parameter set (1-4)
   presetSrcStore: 'memory', // Preset Manager: where a copy is read from
   presetDstStore: 'memory', // ... and where it is written to
+  machSrcStore: 'memory',   // Machine Set Mngr: the same two picks
+  machDstStore: 'card',
 });
 
 export const applySets = (flags, sets) => {

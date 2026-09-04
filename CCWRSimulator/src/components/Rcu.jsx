@@ -41,8 +41,7 @@ export default function Rcu({
   timing,         // Timing Adjustment: selected row + values (utils/timing.js)
   machineOptions, // which units the machine has: {bh, th, dth}
   deactivated,    // Production: heads switched off by a tap while stopped
-  presets,        // Preset Manager: {memory:[10], card:[10]}
-  presetPick,     // ... the rows picked as copy source and destination
+  managers,       // copy managers: {preset|machine: {stores:{memory,card}, pick:{src,dst}}}
   blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -194,7 +193,7 @@ export default function Rcu({
               onClick={() => onTap({
                 type: 'nav', to: h.to, button: h.button, requiresPower: h.requiresPower,
                 requires: h.requires, sets: h.sets, toggles: h.toggles,
-                action: h.action, char: h.char, note: h.note, label: h.label, commit: h.commit, requiresPreset: h.requiresPreset,
+                action: h.action, char: h.char, note: h.note, label: h.label, commit: h.commit, requiresPick: h.requiresPick,
               })}
             />
           );
@@ -925,12 +924,13 @@ export default function Rcu({
             two tables' names and picked rows, the store fields, the Copy key
             going live with both numbers once a source and a destination are
             picked. */}
-        {navmap.presetManager && navmap.presetManager.screen === slug && presets && presetPick && (() => {
-          const pm = navmap.presetManager;
+        {navmap.copyManagers && managers && Object.entries(navmap.copyManagers).filter(([, m]) => m.screen === slug).map(([mgr, pm]) => {
+          const { stores: held, pick: presetPick } = managers[mgr];
+          const presets = held;
           const fontPx = (px) => `clamp(6px, ${(px / CW) * 100}cqw, ${px * 1.5}px)`;
-          const stores = { src: flags?.presetSrcStore || 'memory', dst: flags?.presetDstStore || 'memory' };
+          const stores = { src: flags?.[pm.flags.src] || 'memory', dst: flags?.[pm.flags.dst] || 'memory' };
           return (
-            <>
+            <React.Fragment key={mgr}>
               {['src', 'dst'].map((side) => (
                 <React.Fragment key={side}>
                   <div className="pm-field" style={{ ...rectStyle(pm.fields[side]), fontSize: fontPx(pm.fields.textPx), color: pm.fields.colour }} aria-hidden="true">
@@ -948,7 +948,7 @@ export default function Rcu({
                         style={{ ...rectStyle({ x: pm.tables[side].x, y: pm.tables.top + i * pm.tables.pitch + 1, w: pm.tables[side].w, h: pm.tables.pitch - 1 }), fontSize: fontPx(pm.tables.textPx) }}
                         aria-label={`${side === 'src' ? 'Source' : 'Destination'} slot ${no}${name ? `: ${name}` : ' (empty)'}${picked ? ', picked' : ''}`}
                         title={side === 'src' ? 'Copy source: the preset to read' : 'Copy destination: the slot to write'}
-                        onClick={() => onTap({ type: 'preset-row', side, no })}
+                        onClick={() => onTap({ type: 'manager-row', mgr, side, no })}
                       >
                         {name}
                       </button>
@@ -966,9 +966,9 @@ export default function Rcu({
                   ))}
                 </>
               )}
-            </>
+            </React.Fragment>
           );
-        })()}
+        })}
 
         {/* Values the artwork cannot change, written over it: a field's
             picked entry, a header's picked set. Data-driven (screen.liveText);

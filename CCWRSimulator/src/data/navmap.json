@@ -3275,8 +3275,8 @@
      "h": 66,
      "to": "display-preset@copy",
      "label": "Copy",
-     "requiresPreset": true,
-     "note": "Copies the picked source preset into the picked destination slot, after a Yes."
+     "note": "Copies the picked source preset into the picked destination slot, after a Yes.",
+     "requiresPick": "preset"
     },
     {
      "x": 335,
@@ -3293,7 +3293,7 @@
   "display-machine-edit": {
    "frame": 321,
    "labelJa": "表示_機物設定編集",
-   "image": "screens/display-machine-edit.jpg",
+   "image": "derived/dm-base.jpg",
    "hotspots": [
     {
      "x": 8,
@@ -3351,6 +3351,51 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 8,
+     "y": 45,
+     "w": 86,
+     "h": 65,
+     "to": "display-machine-edit@initialize",
+     "label": "Initialize"
+    },
+    {
+     "x": 276,
+     "y": 74,
+     "w": 69,
+     "h": 36,
+     "to": "display-machine-edit@source-list",
+     "label": "Source store list",
+     "note": "Opens the Source list: Memory or Card."
+    },
+    {
+     "x": 671,
+     "y": 74,
+     "w": 69,
+     "h": 36,
+     "to": "display-machine-edit@dest-list",
+     "label": "Destination store list",
+     "note": "Opens the Destination list: Memory or Card."
+    },
+    {
+     "x": 352,
+     "y": 190,
+     "w": 92,
+     "h": 66,
+     "to": "display-machine-edit@copy",
+     "label": "Copy",
+     "requiresPick": "machine",
+     "note": "Copies the picked source group into the picked destination slot, after a Yes."
+    },
+    {
+     "x": 335,
+     "y": 292,
+     "w": 82,
+     "h": 64,
+     "action": "inert",
+     "label": "All Select",
+     "note": "All Select: inert on the running program, so it does nothing here either."
     }
    ]
   },
@@ -10569,7 +10614,7 @@
      "h": 70,
      "to": "display-preset",
      "label": "Yes",
-     "action": "preset-init",
+     "action": "copy-init",
      "note": "Yes: every Memory slot is wiped (the loaded capture held only POTATO CHIPS in slot 1)."
     },
     {
@@ -13755,7 +13800,7 @@
      "w": 90,
      "h": 68,
      "to": "display-preset",
-     "action": "preset-copy",
+     "action": "copy-write",
      "label": "Yes"
     },
     {
@@ -13764,6 +13809,120 @@
      "w": 90,
      "h": 68,
      "to": "display-preset",
+     "label": "No"
+    }
+   ]
+  },
+  "display-machine-edit@source-list": {
+   "parent": "display-machine-edit",
+   "kind": "popup",
+   "captured": true,
+   "label": "Machine Set Mngr — Source list (Memory / Card)",
+   "image": "derived/dm-source-list.jpg",
+   "hotspots": [
+    {
+     "x": 115,
+     "y": 136,
+     "w": 158,
+     "h": 45,
+     "to": "display-machine-edit",
+     "sets": {
+      "machSrcStore": "memory"
+     },
+     "label": "Memory"
+    },
+    {
+     "x": 115,
+     "y": 181,
+     "w": 158,
+     "h": 45,
+     "to": "display-machine-edit",
+     "sets": {
+      "machSrcStore": "card"
+     },
+     "label": "Card"
+    }
+   ]
+  },
+  "display-machine-edit@dest-list": {
+   "parent": "display-machine-edit",
+   "kind": "popup",
+   "captured": true,
+   "label": "Machine Set Mngr — Destination list (Memory / Card)",
+   "image": "derived/dm-dest-list.jpg",
+   "hotspots": [
+    {
+     "x": 509,
+     "y": 136,
+     "w": 158,
+     "h": 45,
+     "to": "display-machine-edit",
+     "sets": {
+      "machDstStore": "memory"
+     },
+     "label": "Memory"
+    },
+    {
+     "x": 509,
+     "y": 181,
+     "w": 158,
+     "h": 45,
+     "to": "display-machine-edit",
+     "sets": {
+      "machDstStore": "card"
+     },
+     "label": "Card"
+    }
+   ]
+  },
+  "display-machine-edit@copy": {
+   "parent": "display-machine-edit",
+   "kind": "popup",
+   "captured": true,
+   "label": "Machine Set Mngr — \"Performs copying ... from copy source to copy destination.\"",
+   "image": "derived/dm-copy.jpg",
+   "hotspots": [
+    {
+     "x": 280,
+     "y": 395,
+     "w": 90,
+     "h": 68,
+     "to": "display-machine-edit",
+     "action": "copy-write",
+     "label": "Yes"
+    },
+    {
+     "x": 431,
+     "y": 395,
+     "w": 90,
+     "h": 68,
+     "to": "display-machine-edit",
+     "label": "No"
+    }
+   ]
+  },
+  "display-machine-edit@initialize": {
+   "parent": "display-machine-edit",
+   "kind": "popup",
+   "captured": true,
+   "label": "Machine Set Mngr — \"Initialize the Memory. OK?\"",
+   "image": "derived/dm-initialize.jpg",
+   "hotspots": [
+    {
+     "x": 283,
+     "y": 393,
+     "w": 90,
+     "h": 70,
+     "to": "display-machine-edit",
+     "action": "copy-init",
+     "label": "Yes"
+    },
+    {
+     "x": 433,
+     "y": 393,
+     "w": 90,
+     "h": 70,
+     "to": "display-machine-edit",
      "label": "No"
     }
    ]
@@ -15195,93 +15354,206 @@
   "n": 4,
   "note": "The key icon's four dots show the access level: Operator 1 lit, Site Engineer 2, Installation 3, Maintenance 4. The extracted frames all carry four lit (the movie was dumped at Maintenance), so the dots are drawn over every screen from the live level."
  },
- "presetManager": {
-  "screen": "display-preset",
-  "tables": {
-   "src": {
-    "x": 40,
-    "w": 282
-   },
-   "dst": {
-    "x": 489,
-    "w": 282
-   },
-   "top": 141,
-   "pitch": 27,
-   "rows": 10,
-   "textPx": 9,
-   "band": "#807ee3",
-   "bandText": "#ffffff",
-   "text": "#000000"
-  },
-  "fields": {
-   "src": {
-    "x": 116,
-    "y": 77,
-    "w": 153,
-    "h": 31
-   },
-   "dst": {
-    "x": 512,
-    "y": 77,
-    "w": 153,
-    "h": 31
-   },
-   "textPx": 12,
-   "colour": "#0000cc"
-  },
-  "copyKey": {
-   "x": 352,
-   "y": 190,
-   "w": 92,
-   "h": 66,
-   "live": "derived/dp-copy-live.png",
-   "numbers": {
+ "copyManagers": {
+  "preset": {
+   "tables": {
     "src": {
-     "x": 369,
-     "y": 195,
-     "w": 26,
-     "h": 13
+     "x": 40,
+     "w": 282
     },
     "dst": {
-     "x": 403,
-     "y": 195,
-     "w": 26,
-     "h": 13
-    }
+     "x": 489,
+     "w": 282
+    },
+    "top": 141,
+    "pitch": 27,
+    "rows": 10,
+    "textPx": 9,
+    "band": "#807ee3",
+    "bandText": "#ffffff",
+    "text": "#000000"
    },
-   "textPx": 8
+   "fields": {
+    "src": {
+     "x": 116,
+     "y": 77,
+     "w": 153,
+     "h": 31
+    },
+    "dst": {
+     "x": 512,
+     "y": 77,
+     "w": 153,
+     "h": 31
+    },
+    "textPx": 12,
+    "colour": "#0000cc"
+   },
+   "copyKey": {
+    "x": 352,
+    "y": 190,
+    "w": 92,
+    "h": 66,
+    "live": "derived/dp-copy-live.png",
+    "numbers": {
+     "src": {
+      "x": 369,
+      "y": 195,
+      "w": 26,
+      "h": 13
+     },
+     "dst": {
+      "x": 403,
+      "y": 195,
+      "w": 26,
+      "h": 13
+     }
+    },
+    "textPx": 8
+   },
+   "stores": {
+    "memory": "Memory",
+    "card": "Card"
+   },
+   "screen": "display-preset",
+   "flags": {
+    "src": "presetSrcStore",
+    "dst": "presetDstStore"
+   },
+   "popups": {
+    "srcList": "display-preset@source-list",
+    "dstList": "display-preset@dest-list",
+    "copy": "display-preset@copy",
+    "init": "display-preset@initialize"
+   },
+   "initial": {
+    "memory": [
+     "POTATO CHIPS",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "card": [
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     ""
+    ]
+   },
+   "what": "preset",
+   "note": "Seen on the running program: the tab opens on \"Loading preset data\" (about four seconds there; one second here), Source and Destination each have a Memory / Card list behind their arrow key, a tap on a row in each table picks the copy source and the copy destination, and the Copy key, now showing both numbers, asks \"Performs copying of preset contents from copy source to copy destination.\" - Yes writes the source preset into the destination slot. All Select did nothing on the program. The program's Memory / Card pick closes the list without changing the field; here the field follows the pick and the Card holds its own ten slots. An empty source copied over a slot empties it - that is how a preset is removed on the machine."
   },
-  "stores": {
-   "memory": "Memory",
-   "card": "Card"
-  },
-  "initial": {
-   "memory": [
-    "POTATO CHIPS",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-   ],
-   "card": [
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-   ]
-  },
-  "note": "Seen on the running program: the tab opens on \"Loading preset data\" (about four seconds there; one second here), Source and Destination each have a Memory / Card list behind their arrow key, a tap on a row in each table picks the copy source and the copy destination, and the Copy key, now showing both numbers, asks \"Performs copying of preset contents from copy source to copy destination.\" - Yes writes the source preset into the destination slot. All Select did nothing on the program. The program's Memory / Card pick closes the list without changing the field; here the field follows the pick and the Card holds its own ten slots."
+  "machine": {
+   "tables": {
+    "src": {
+     "x": 40,
+     "w": 282
+    },
+    "dst": {
+     "x": 489,
+     "w": 282
+    },
+    "top": 141,
+    "pitch": 27,
+    "rows": 10,
+    "textPx": 9,
+    "band": "#807ee3",
+    "bandText": "#ffffff",
+    "text": "#000000"
+   },
+   "fields": {
+    "src": {
+     "x": 116,
+     "y": 77,
+     "w": 153,
+     "h": 31
+    },
+    "dst": {
+     "x": 512,
+     "y": 77,
+     "w": 153,
+     "h": 31
+    },
+    "textPx": 12,
+    "colour": "#0000cc"
+   },
+   "copyKey": {
+    "x": 352,
+    "y": 190,
+    "w": 92,
+    "h": 66,
+    "live": "derived/dp-copy-live.png",
+    "numbers": {
+     "src": {
+      "x": 369,
+      "y": 195,
+      "w": 26,
+      "h": 13
+     },
+     "dst": {
+      "x": 403,
+      "y": 195,
+      "w": 26,
+      "h": 13
+     }
+    },
+    "textPx": 8
+   },
+   "stores": {
+    "memory": "Memory",
+    "card": "Card"
+   },
+   "screen": "display-machine-edit",
+   "flags": {
+    "src": "machSrcStore",
+    "dst": "machDstStore"
+   },
+   "popups": {
+    "srcList": "display-machine-edit@source-list",
+    "dstList": "display-machine-edit@dest-list",
+    "copy": "display-machine-edit@copy",
+    "init": "display-machine-edit@initialize"
+   },
+   "initial": {
+    "memory": [
+     "Weigh Spec Setting",
+     "Combination Set",
+     "Section Set",
+     "Infeed Control Setting",
+     "Packer Interlock Setting",
+     "H DRV Spec Setting",
+     "FD Spec Setting",
+     "",
+     "AFV Setting",
+     "Frequency Setting"
+    ],
+    "card": [
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     ""
+    ]
+   },
+   "what": "setting group",
+   "note": "The program's Machine Set Mngr is inert - nothing on it responded - so it behaves here as the Preset Manager does (Service 4.4.2.2: it moves machine-setting data between the weigher's memory and the memory card). Memory holds the ten setting groups; the Card starts empty; Source is where a group is read from and Destination where it is written; Copy asks first. An empty source copied over a slot empties it."
+  }
  }
 }

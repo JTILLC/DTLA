@@ -767,7 +767,7 @@ export const screenInfo = {
     keys: [
       { name: 'Memory / Card arrow keys', desc: 'Each side\'s arrow key opens a list of the two stores. The program closes the list on a pick without changing the field; here the field follows the pick and the Card has its own ten slots.' },
       { name: 'Rows', desc: 'Tap a row on the left to pick the copy source, a row on the right to pick the destination; the band moves and the Copy key goes live showing both numbers. Tap a picked row again to clear it.' },
-      { name: 'Copy', desc: 'Asks "Performs copying of preset contents from copy source to copy destination." Yes writes the source preset into the destination slot (seen on the program: 1 to 4 put POTATO CHIPS in slot 4).' },
+      { name: 'Copy', desc: 'Asks "Performs copying of preset contents from copy source to copy destination." Yes writes the source preset into the destination slot (seen on the program: 1 to 4 put POTATO CHIPS in slot 4). Copy an EMPTY slot over a preset to remove it - that is how a preset is deleted on the machine.' },
       { name: 'All Select', desc: 'Did nothing visible when pressed on the running program, so it does nothing here.' },
       { name: 'Initialize', desc: 'Asks "Initialize the Memory. OK?" Yes wipes every Memory slot.' },
     ],
@@ -791,6 +791,7 @@ export const screenInfo = {
       { name: 'Copy', desc: 'Copies the selected slot from Source to Destination; the numbered boxes above it show the slots.' },
       { name: 'All Select', desc: 'Selects every parameter set at once.' },
       { name: 'Initialize', desc: 'Initialises all parameters on the memory card (Service 4.4.2.2).' },
+      { name: 'Copying (by analogy)', desc: 'On the running program this tab is inert - nothing on it responds - so it behaves here as the Preset Manager does: Memory holds the ten setting groups, the Card starts empty, a tap on a row on each side picks the copy source and destination, Copy asks first, and an empty source copied over a slot empties it.' },
     ],
     note:
       'Initialize erases the card’s stored parameters. Before restoring, ' +

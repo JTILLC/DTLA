@@ -12,7 +12,7 @@ import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
 import { toggleDeactivated } from './utils/production';
-import { initialPresets, migratePresets, initialPick, pickRow, canCopy, copyPreset, wipeMemory } from './utils/presetManager';
+import { initialManagers, migrateManagers, managerOf, pickRow, canCopy, copyItem, wipeMemory, initialPick } from './utils/presetManager';
 import { initialTiming, migrateTiming, selectRow, setSection, setDthPick, ensureVisible, rowOf, rowLabel,
   current as timingCurrent, step as timingStep, enter as timingEnter } from './utils/timing';
 
@@ -83,11 +83,10 @@ export default function App() {
      stopped. They go grey with a yellow star and never join a combination. */
   const [deactivated, setDeactivated] = useState(
     () => (Array.isArray(saved.deactivated) ? saved.deactivated : []));
-  /* Preset Manager: the two stores' ten slots, and the rows picked as copy
-     source and copy destination. */
-  const [presets, setPresets] = useState(
-    () => (saved.presets ? migratePresets(saved.presets, navmap.presetManager) : initialPresets(navmap.presetManager)));
-  const [presetPick, setPresetPick] = useState(initialPick);
+  /* The copy managers (Preset Manager, Machine Set Mngr): each its two
+     stores' ten slots, and the rows picked as copy source and destination. */
+  const [managers, setManagers] = useState(
+    () => (saved.managers ? migrateManagers(saved.managers, navmap.copyManagers) : initialManagers(navmap.copyManagers)));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -144,14 +143,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection, feeder, flags, timing, deactivated, presets,
+          selection, feeder, flags, timing, deactivated, managers,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection, feeder, flags, timing, deactivated, presets]);
+      powerOn, loadedPreset, selection, feeder, flags, timing, deactivated, managers]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -375,10 +374,11 @@ export default function App() {
       return;
     }
 
-    if (evt.type === 'preset-row') {
-      const next = pickRow(presetPick, evt.side, evt.no);
-      setPresetPick(next);
-      const store = navmap.presetManager.stores[evt.side === 'src' ? flags.presetSrcStore : flags.presetDstStore];
+    if (evt.type === 'manager-row') {
+      const spec = navmap.copyManagers[evt.mgr];
+      const next = pickRow(managers[evt.mgr].pick, evt.side, evt.no);
+      setManagers((m) => ({ ...m, [evt.mgr]: { ...m[evt.mgr], pick: next } }));
+      const store = spec.stores[flags[spec.flags[evt.side]]];
       showNotice(next[evt.side]
         ? `${evt.side === 'src' ? 'Copy source' : 'Copy destination'}: ${store} slot ${evt.no}${canCopy(next) ? ' — Copy is live.' : evt.side === 'src' ? '. Now pick the destination slot on the right.' : '. Now pick the source on the left.'}`
         : 'Row cleared.');
@@ -517,23 +517,27 @@ export default function App() {
       handleTap({ type: 'zero-start' });
       return;
     }
-    if (evt.requiresPreset && !canCopy(presetPick)) {
+    if (evt.requiresPick && !canCopy(managers[evt.requiresPick].pick)) {
+      const what = navmap.copyManagers[evt.requiresPick].what;
       setWrongFlash((n) => n + 1);
-      showNotice('Copy needs a source row (left) and a destination row (right) first. The source is where the preset is read from; the destination is where it is written.');
+      showNotice(`Copy needs a source row (left) and a destination row (right) first. The source is where the ${what} is read from; the destination is where it is written.`);
       return;
     }
-    if (evt.action === 'preset-copy') {
-      const name = presets[flags.presetSrcStore][presetPick.src - 1];
-      setPresets((p) => copyPreset(p, presetPick, flags.presetSrcStore, flags.presetDstStore));
-      const st = navmap.presetManager.stores;
-      showNotice(`Copied ${name ? `"${name}"` : 'the empty preset'} from ${st[flags.presetSrcStore]} slot ${presetPick.src} to ${st[flags.presetDstStore]} slot ${presetPick.dst}.`);
-      navigate(evt.to);
-      return;
-    }
-    if (evt.action === 'preset-init') {
-      setPresets((p) => wipeMemory(p));
-      setPresetPick(initialPick());
-      showNotice('Memory initialised: every Memory slot is empty. The Card keeps what it holds.');
+    if (evt.action === 'copy-write' || evt.action === 'copy-init') {
+      const mgr = managerOf(navmap.copyManagers, navmap.screens, screen);
+      const spec = navmap.copyManagers[mgr];
+      const { stores, pick } = managers[mgr];
+      const srcStore = flags[spec.flags.src];
+      const dstStore = flags[spec.flags.dst];
+      if (evt.action === 'copy-write') {
+        const name = stores[srcStore][pick.src - 1];
+        setManagers((m) => ({ ...m, [mgr]: { ...m[mgr], stores: copyItem(stores, pick, srcStore, dstStore) } }));
+        showNotice(`Copied ${name ? `"${name}"` : `the empty ${spec.what}`} from ${spec.stores[srcStore]} slot ${pick.src} to ${spec.stores[dstStore]} slot ${pick.dst}`
+          + (name ? '.' : ` — the slot is now empty. That is how a ${spec.what} is removed on the machine.`));
+      } else {
+        setManagers((m) => ({ ...m, [mgr]: { stores: wipeMemory(stores), pick: initialPick() } }));
+        showNotice('Memory initialised: every Memory slot is empty. The Card keeps what it holds.');
+      }
       navigate(evt.to);
       return;
     }
@@ -620,7 +624,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection, flags, typed, timing, deactivated, presets, presetPick]);
+      applySelection, flags, typed, timing, deactivated, managers]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -754,8 +758,7 @@ export default function App() {
           timing={timing}
           machineOptions={{ bh: flags.optBH, th: flags.optTH, dth: flags.optDTH }}
           deactivated={deactivated}
-          presets={presets}
-          presetPick={presetPick}
+          managers={managers}
           blink={blink}
           zeroing={zeroing}
           notice={notice}

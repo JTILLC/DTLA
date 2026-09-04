@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Display & Data Manager > Preset Manager, drawn live.
+Display & Data Manager > Preset Manager and Machine Set Mngr, drawn live.
 
 Captured off the running program (2026-09-03): the tab opens on "Loading
 preset data", both Source and Destination have a Memory / Card list behind
@@ -42,16 +42,39 @@ def fill(im, box, colour):
             px[x, y] = colour
 
 
-def main():
-    os.makedirs(OUT, exist_ok=True)
-    base = load('dp-live-loaded')
+def clear_manager(im, numbers_from=None):
+    """Clear the name cells and both store fields of a manager capture. The
+    number columns are taken from `numbers_from` (a capture with no row
+    banded) where the capture itself has a banded row."""
     for x0, x1 in ((40, 322), (489, 771)):
         for i in range(10):
             y0 = 141 + 27 * i
-            fill(base, (x0, y0 + 1, x1, y0 + 27), CELL)
-    fill(base, (116, 77, 269, 108), FIELD)      # Source: Memory
-    fill(base, (512, 77, 665, 108), FIELD)      # Destination: Memory
-    base.save(os.path.join(OUT, 'dp-base.jpg'), quality=92, optimize=True)
+            fill(im, (x0, y0 + 1, x1, y0 + 27), CELL)
+    fill(im, (116, 77, 269, 108), FIELD)
+    fill(im, (512, 77, 665, 108), FIELD)
+    if numbers_from is not None:
+        for x0, x1 in ((8, 40), (452, 489)):
+            im.paste(numbers_from.crop((x0, 141, x1, 411)), (x0, 141))
+        # ... and the banded row's blue top edge, which sits on the separator.
+        for x0, x1 in ((8, 323), (452, 772)):
+            im.paste(numbers_from.crop((x0, 139, x1, 143)), (x0, 139))
+    return im
+
+
+def dimmed(im):
+    px = im.load()
+    w, h = im.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]
+            px[x, y] = (int(r * 0.62 + 60), int(g * 0.62 + 60), int(b * 0.62 + 60))
+    return im
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    preset = load('dp-live-loaded')
+    clear_manager(preset.copy()).save(os.path.join(OUT, 'dp-base.jpg'), quality=92, optimize=True)
 
     live = load('dp-src1-dst4')
     key = live.crop((352, 190, 444, 256))
@@ -62,7 +85,28 @@ def main():
             for x in range(bx0, bx1):
                 px[x, y] = green
     key.save(os.path.join(OUT, 'dp-copy-live.png'))
-    print('wrote dp-base.jpg, dp-copy-live.png')
+
+    # Machine Set Mngr: the program's tab is inert (nothing responded), so
+    # its base is its capture cleared the same way, with the Preset tab's
+    # greyed Copy key in place of its baked live one, and its pop-ups are the
+    # Preset tab's lists and confirm laid over a dimmed copy of it.
+    machine = load('dm-live-loaded')
+    base = clear_manager(machine.copy(), numbers_from=preset)
+    base.paste(preset.crop((352, 190, 444, 256)), (352, 190))
+    base.save(os.path.join(OUT, 'dm-base.jpg'), quality=92, optimize=True)
+    src_list = load('dp-source-list')
+    dst_list = load('dp-dest-list')
+    confirm = load('dp-copy-pressed')
+    init = load('dp-initialize')
+    m = base.copy(); m.paste(src_list.crop((108, 130, 260, 226)), (108, 130))
+    m.save(os.path.join(OUT, 'dm-source-list.jpg'), quality=92, optimize=True)
+    m = base.copy(); m.paste(dst_list.crop((504, 130, 670, 226)), (504, 130))
+    m.save(os.path.join(OUT, 'dm-dest-list.jpg'), quality=92, optimize=True)
+    for name, src in (('dm-copy', confirm), ('dm-initialize', init)):
+        m = dimmed(base.copy()); m.paste(src.crop((158, 130, 640, 472)), (158, 130))
+        m.save(os.path.join(OUT, '%s.jpg' % name), quality=92, optimize=True)
+    print('wrote dp-base, dp-copy-live, dm-base, dm-source-list, dm-dest-list, dm-copy, dm-initialize')
+
 
 
 if __name__ == '__main__':
