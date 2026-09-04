@@ -60,8 +60,10 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 /** The lightest combination not under target, inside the upper limit. */
 export function bestCombination(wh, active, target, upper, lower, size) {
   const heads = active.filter((no) => wh[no - 1] > 0);
+  // The window is target + 0.3 up to target + upper + 0.3 (90.3 to 93.3 g on
+  // this preset); the lower limit is not used here - a dump is never light.
   const minOver = size.minOver ?? 0;
-  const lo = lower === null || lower === undefined ? target + minOver : target - lower;
+  const lo = target + minOver;
   const hi = target + upper + minOver;
   let best = null;
   let lightestAbove = Infinity;     // the lightest combination that reaches target at all

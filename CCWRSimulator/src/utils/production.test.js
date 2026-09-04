@@ -11,8 +11,8 @@ describe('the combination cycle', () => {
       const { nos, weight } = pickCombination(spec, seeded(s));
       expect(nos.length).toBeGreaterThanOrEqual(spec.combSize[0]);
       expect(nos.length).toBeLessThanOrEqual(spec.combSize[1]);
-      expect(weight).toBeGreaterThanOrEqual(spec.target);
-      expect(weight).toBeLessThan(spec.target + 3);
+      expect(weight).toBeGreaterThanOrEqual(spec.target + 0.3);
+      expect(weight).toBeLessThanOrEqual(spec.target + 3.3);
     }
   });
 

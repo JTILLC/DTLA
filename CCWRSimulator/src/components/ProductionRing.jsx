@@ -126,7 +126,7 @@ export default function ProductionRing({
   // was over (Josh's "Running the CCW-R").
   const liveMiss = live && running && (live.result === 'under' || live.result === 'over') ? live.result : null;
   const weight = live
-    ? (live.result === 'ok' ? live.weight : live.result === 'idle' ? last.current : 0)
+    ? (live.result === 'ok' ? live.weight : live.result === 'idle' ? (live.weight ?? last.current) : 0)
     : running ? cycle.weight : (cycle.weight ?? last.current);
   if (live && live.result === 'ok') last.current = live.weight;
   const fontPx = (px) => `clamp(6px, ${(px / CW) * 100}cqw, ${px * 1.5}px)`;

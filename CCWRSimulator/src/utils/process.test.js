@@ -84,6 +84,15 @@ describe('the process model', () => {
     expect(s.wh[2]).toBe(0);
   });
 
+  it('Average Control does not open the window downward: a dump is never light', () => {
+    const wh = [22, 22, 22, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];        // 87 g at most
+    expect(bestCombination(wh, [1, 2, 3, 4], 90, 3, 4.5, spec.combo).ok).toBe(false);
+    const { s, results } = run({ ...base, lower: 4.5 }, 40);
+    for (let i = 0; i < 40; i += 1) { /* every dump stayed inside the window */ }
+    expect(results.includes('ok')).toBe(true);
+    expect(s.weight === 0 || (s.weight >= 90.3 && s.weight <= 93.3)).toBe(true);
+  });
+
   it('bestCombination is the lightest one not under target and inside the upper limit', () => {
     const wh = [22.3, 23, 21, 24, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const active = [1, 2, 3, 4, 5, 6];

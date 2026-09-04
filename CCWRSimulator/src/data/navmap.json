@@ -17004,7 +17004,9 @@
    400
   ],
   "labelMap": "masks/run-combination-heads.png",
-  "baseImage": "screens/run-combination.jpg"
+  "baseImage": "screens/run-combination.jpg",
+  "minOver": 0.3,
+  "upper": 3.0
  },
  "levelDots": {
   "x": 568,
