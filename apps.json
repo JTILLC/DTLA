@@ -1,0 +1,235 @@
+{
+  "_comment": [
+    "The JTI fleet manifest: every deployable app, the folder it is REALLY built",
+    "from, and the Cloudflare Pages project it goes to. scripts/deploy.mjs reads",
+    "this file, so a correction here fixes the deploy for good instead of living",
+    "in someone's head.",
+    "",
+    "'verified' records how the folder -> project mapping was proven: the asset",
+    "hash in the local dist/index.html was compared against the one the live URL",
+    "serves. That is the only check that catches a deploy from a lookalike folder",
+    "(see notDeployed: 'TS GitHub' and the root-level quote app)."
+  ],
+  "defaults": {
+    "build": "npm run build",
+    "dist": "dist",
+    "branch": "main",
+    "commitDirty": true
+  },
+  "apps": [
+    {
+      "id": "jti-dashboard",
+      "name": "JTI Unified Dashboard",
+      "dir": "JTIUnified",
+      "url": "https://jti-dashboard.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Registers a service worker: an open tab keeps serving the old bundle after a deploy. Hard-refresh (or Application > Service Workers > Unregister) before concluding a change did not ship.",
+        "public/_redirects must reach dist/ for SPA routing."
+      ]
+    },
+    {
+      "id": "jti-issues",
+      "name": "CCW Issues (weigher visits)",
+      "dir": "CCWISSUESGitHub",
+      "url": "https://jti-issues.pages.dev",
+      "test": true,
+      "extraInstall": ["media-worker"],
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Its vitest run also covers ALL of shared/ (include: ../shared/**/*.test.{js,jsx}) plus media-worker.",
+        "media-worker has its OWN package.json (@anthropic-ai/sdk) — without `npm ci` in there too, rcu.test.js fails to import on a clean checkout even though it passes locally. Hence extraInstall.",
+        "The domain must stay in Firebase Auth > Settings > Authorized domains or login breaks."
+      ]
+    },
+    {
+      "id": "jti-issues-mt",
+      "name": "Headcount (multi-tenant CCW fork)",
+      "dir": "CCWISSUESMultiTenant",
+      "url": "https://jti-issues-mt.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 folder confirmed; live bundle is BEHIND the local dist",
+      "notes": [
+        "Customer-facing. Live 2026-09-04 on index-CBZHfOyf.js while the local dist is index-C85LJFhn.js: there are built-but-undeployed changes here.",
+        "media-worker/ and redzone-worker/ in this folder are STALE FORKS of the CCW ones with the same worker names and missing modules. Never `wrangler deploy` from them: it would overwrite the production workers."
+      ]
+    },
+    {
+      "id": "jti-timesheet",
+      "name": "Timesheet",
+      "dir": "jti-timesheet",
+      "url": "https://jti-timesheet.pages.dev",
+      "test": true,
+      "ownRepo": "github.com/JTILLC/jti-timesheet",
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Build from `jti-timesheet`, NOT from `TS GitHub` — that folder is a stale variant whose bundle does not match production.",
+        "This folder is its OWN git repository nested inside DTLA and is git-ignored here, so DTLA's CI cannot see it. Its CI lives in jti-timesheet/.github/workflows/ci.yml and commits go from inside the folder."
+      ]
+    },
+    {
+      "id": "jti-inventory",
+      "name": "JTI Inventory (parts + boards)",
+      "dir": "JTIInventory",
+      "url": "https://jti-inventory.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Shares the downtimelogger-a96fb Firebase project with CCW and MD Validation.",
+        "Has its own postcss.config.cjs so PostCSS stops searching at the app instead of picking up the repo-root config, which needs @tailwindcss/postcss from the ROOT node_modules. Without it the build fails anywhere the root install has not been run. Same for MD Validation."
+      ]
+    },
+    {
+      "id": "jti-validation",
+      "name": "Metal Detection Validation",
+      "dir": "MDValidation",
+      "url": "https://jti-validation.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Any new serving domain must be added to Firebase Auth > Settings > Authorized domains or sign-in fails with auth/unauthorized-domain.",
+        "Has its own postcss.config.cjs for the same reason as JTI Inventory: the repo-root PostCSS config would otherwise be found and demand @tailwindcss/postcss from the root node_modules."
+      ]
+    },
+    {
+      "id": "jti-quotes",
+      "name": "Service Quote builder",
+      "dir": "ServiceQuoteWA",
+      "url": "https://jti-quotes.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match (index-DNV0kr6D.js)",
+      "notes": [
+        "There is a SECOND quote app at the repo root (root package.json, src/, dist/) with no login screen. Production is this folder, proven by hash. Do not deploy the root one by accident.",
+        "The old Netlify site jtiservicequote is stale."
+      ]
+    },
+    {
+      "id": "jti-shearers",
+      "name": "Shearers Downtime Logger",
+      "dir": "ShearersClaude",
+      "url": "https://jti-shearers.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "The Cloudflare project is `jti-shearers`. `shearersjtidowntime` was the Netlify name and 404s here.",
+        "Used primarily on an iPhone — check the card view on a phone width."
+      ]
+    },
+    {
+      "id": "jti-shearers-viewer",
+      "name": "Shearers read-only viewer",
+      "dir": "ShearersViewer",
+      "url": "https://jti-shearers-viewer.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match"
+    },
+    {
+      "id": "jti-parts",
+      "name": "Parts diagram viewer (CUSTOMER)",
+      "dir": "PartsViewerCustomer",
+      "url": "https://jti-parts.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "This is the customer-facing app. jti-ipm.netlify.app is a 301 forwarder to it.",
+        "Deploying PartsViewer/dist here would replace the customer app with the admin one — the project name is the only thing keeping them apart."
+      ]
+    },
+    {
+      "id": "jti-parts-admin",
+      "name": "Parts diagram admin",
+      "dir": "PartsViewer",
+      "url": "https://jti-parts-admin.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Internal admin twin of jti-parts. Email/password sign-in; the domain needs to be in Firebase authorized domains."
+      ]
+    },
+    {
+      "id": "jti-ccw-viewer",
+      "name": "CCW history viewer (public share links)",
+      "dir": "CCWCustomerViewer",
+      "url": "https://jti-ccw-viewer.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "CCW Issues' SHARE_LINK_BASE_URL points at https://jti-ccw-viewer.pages.dev/view — share links customers already hold resolve here."
+      ]
+    },
+    {
+      "id": "jti-simulator",
+      "name": "CCW-R RCU training simulator",
+      "dir": "CCWRSimulator",
+      "url": "https://jti-simulator.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "jti-ccwr.pages.dev is a 301, not the app.",
+        "Deploy needs --branch main and an absolute dist path; this script always passes both."
+      ]
+    },
+    {
+      "id": "jti-importer",
+      "name": "PDF service-report importer",
+      "dir": "PDFServiceImporter",
+      "url": "https://jti-importer.pages.dev",
+      "test": false,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Sends parsed sheets to the Timesheet app's import_inbox. Sign-in needs jti-importer.pages.dev in Firebase authorized domains for timesheetapp-c4e54."
+      ]
+    },
+    {
+      "id": "jti-centerline",
+      "name": "CCW Centerline settings sheet",
+      "dir": "CCWCenterline",
+      "url": "https://jti-centerline.pages.dev",
+      "test": true,
+      "verified": "2026-09-04 bundle-hash match",
+      "notes": [
+        "Saved centerlines live in browser localStorage only — nothing is stored server-side."
+      ]
+    },
+    {
+      "id": "jti-jobs",
+      "name": "JTI Jobs Tracker",
+      "dir": "JobsMASTER",
+      "url": "https://jti-jobs.pages.dev",
+      "build": null,
+      "prepare": "cp dist/index.html cf-jobs/index.html",
+      "deployCwd": "JobsMASTER/cf-jobs",
+      "dist": ".",
+      "test": false,
+      "hashCheck": false,
+      "verified": "2026-09-04 live 200; single-file app, no asset hashes to compare",
+      "notes": [
+        "NOT a Vite app: the whole app is the hand-written single file JobsMASTER/dist/index.html. There is no build step.",
+        "JobsMASTER/functions/ is a Firebase Cloud Functions folder that wrangler mis-detects as Pages Functions and fails on. That is why the deploy runs from inside cf-jobs/, where wrangler cannot see it.",
+        "Its proxyStorage Cloud Function stays on Firebase/GCP and is unaffected by Pages deploys."
+      ]
+    },
+    {
+      "id": "jti-headcount-guide",
+      "name": "Headcount customer guide",
+      "url": "https://jti-headcount-guide.pages.dev",
+      "manual": true,
+      "verified": "2026-09-04 live 200",
+      "notes": [
+        "No source folder in this repo — it is one self-contained HTML file, last kept at ~/Downloads/Headcount-how-to-use.html. Content is written from the Headcount CODE, not from public/USER_GUIDE.html.",
+        "Deliberately its own Pages project so publishing the guide never redeploys jti-issues-mt.",
+        "To publish: put index.html (+ a _headers with Cache-Control: no-store) in a folder and run `npx wrangler pages deploy <folder> --project-name=jti-headcount-guide --branch main`."
+      ]
+    }
+  ],
+  "notDeployed": [
+    { "dir": "TS GitHub", "why": "Stale timesheet variant. Production is the jti-timesheet folder — confirmed 2026-09-04: this folder's bundle hash does not match live." },
+    { "dir": "(repo root: package.json/src/dist)", "why": "A second, login-less copy of the quote app. Production is ServiceQuoteWA — confirmed by hash." },
+    { "dir": "JTITroubleshoot", "why": "Local-only tool; its email corpus is mined from a PST and holds PII. Deliberately not published." },
+    { "dir": "JTIWebsite", "why": "Local only." },
+    { "dir": "ManualProcessor", "why": "Local tool that turns scanned parts manuals into PartsViewer diagrams." },
+    { "dir": "PDFMerger", "why": "Local tool." },
+    { "dir": "_archive", "why": "Dated snapshots of past app states; git-ignored and the only copies." }
+  ]
+}

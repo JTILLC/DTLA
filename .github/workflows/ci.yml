@@ -1,0 +1,110 @@
+# Builds and tests every app in the fleet on every push.
+#
+# Until now nothing checked a commit before it was deployed by hand, and the
+# failure that costs the most is silent: a bundle that builds cleanly and then
+# white-screens in front of a customer. Each app is its own job so one broken
+# app does not hide the state of the other thirteen.
+#
+# The matrix comes from apps.json (scripts/ci-matrix.mjs), so adding an app to
+# the fleet adds it to CI. A push that only touches one app only builds that
+# app; a change under shared/, scripts/ or apps.json rebuilds everything,
+# because shared/ ends up inside almost every bundle.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# A newer push makes an in-flight run of the same branch pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Cheap, whole-repo checks that need no install.
+  static:
+    name: static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # JSX compiles without React in scope, so `React.memo` in a file that
+      # never imported React builds clean and throws on first render. This is
+      # the check for that; it has shipped a blank app before.
+      - run: node scripts/check-react-import.mjs
+      - name: apps.json is valid and points at folders that exist
+        run: |
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync("apps.json", "utf8"));
+            const missing = m.apps
+              .filter((a) => a.dir && !a.ownRepo && !fs.existsSync(a.dir))
+              .map((a) => `${a.id} -> ${a.dir}`);
+            if (missing.length) {
+              console.error("apps.json names folders that are not here:\n  " + missing.join("\n  "));
+              process.exit(1);
+            }
+            console.log(`apps.json: ${m.apps.length} apps, all folders present`);
+          '
+
+  matrix:
+    name: pick apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+      any: ${{ steps.pick.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: pick
+        run: |
+          node scripts/ci-matrix.mjs --since "${{ github.event.pull_request.base.sha || github.event.before }}"
+
+  app:
+    name: ${{ matrix.app.id }}
+    needs: matrix
+    if: needs.matrix.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      # One app's failure must not cancel the others — the point is to see the
+      # whole fleet's state in one run.
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.matrix.outputs.apps) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.app.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ matrix.app.dir }}/package-lock.json
+      - run: npm ci
+      # CCW's media-worker is its own package, and the app's vitest run imports
+      # it. Without this the suite fails on a clean checkout while passing on a
+      # machine that happens to have the worker's node_modules.
+      - name: install nested packages
+        if: matrix.app.extra != ''
+        run: for d in ${{ matrix.app.extra }}; do (cd "$d" && npm ci); done
+      - name: test
+        if: matrix.app.test
+        run: npm test
+      - run: npm run build
+      # A build can "succeed" and leave nothing usable behind. Confirm the page
+      # exists and actually loads a bundle.
+      - name: dist is a real page
+        run: |
+          test -f dist/index.html || { echo "no dist/index.html"; exit 1; }
+          grep -q '<script' dist/index.html || { echo "dist/index.html loads no script"; exit 1; }
+          echo "built $(grep -o 'assets/index[-.][A-Za-z0-9_-]*\.js' dist/index.html | head -1)"
