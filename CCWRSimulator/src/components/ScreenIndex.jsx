@@ -61,7 +61,7 @@ export default function ScreenIndex({ current, onPick }) {
   const total = grouped.reduce((n, [, items]) => n + items.length, 0);
 
   return (
-    <div className="screen-index">
+    <div className="side-panel__body screen-index">
       <div className="screen-index__head">
         <h2>All screens</h2>
         <p>
