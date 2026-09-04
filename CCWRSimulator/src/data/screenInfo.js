@@ -511,6 +511,8 @@ export const screenInfo = {
     keys: [
       { name: 'Level keys', desc: 'Choose the operation level whose password to change.' },
       { name: 'Exit', desc: 'Ends the setting.' },
+      { name: 'Select display language (seen on the program)', desc: 'The bar opens a grid of 24 languages. The blue ones are installed - Japanese, English, French, German, Spanish, Dutch, Italian; the white ones are listed but not installed; the greyed ones are unavailable. The bar under the grid closes it, and the level keys are dead while it is open. The program does nothing on a pick; here the pick writes the header\'s language key.' },
+      { name: 'Site Engineer / Installation / Maintenance (seen on the program)', desc: 'Each row opens the keyboard with the level\'s name in the field: type the new password and press Enter. The simulator keeps it, and the key-icon login for that level then wants it. The factory password is 1 2 3 for every level.' },
     ],
     note:
       'The same tab carries the display-language selection — pick from the ' +

@@ -215,6 +215,23 @@ describe('navigation map integrity', () => {
     expect(navmap.screens['panel-data-output'].liveText[0].flag).toBe(d.flag);
   });
 
+  it('Password Set / LangSlct Set: a language grid of 24, and a keyboard per level', () => {
+    const grid = navmap.screens['panel-password@language'];
+    const cells = grid.hotspots.filter((h) => h.label !== 'close the list');
+    expect(cells).toHaveLength(24);
+    expect(cells.filter((h) => h.sets?.language).map((h) => h.label))
+      .toEqual(['Japanese', 'English', 'French', 'German', 'Spanish', 'Dutch', 'Italian']);
+    for (const h of cells) expect(h.y + h.h).toBeLessThan(grid.hotspots.find((x) => x.label === 'close the list').y + 2);
+    for (const [slug, level] of [['pw-site', '2'], ['pw-install', '3'], ['pw-maint', '4']]) {
+      const kb = navmap.screens[`panel-password@${slug}`];
+      expect(kb.keypad.password).toBe(true);
+      const enter = kb.hotspots.find((h) => h.action === 'enter');
+      expect(enter).toMatchObject({ to: 'panel-password', commit: `password:${level}` });
+      expect(kb.hotspots.filter((h) => h.action === 'key').length).toBeGreaterThan(40);
+    }
+    expect(navmap.passwords.default).toBe('123');
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

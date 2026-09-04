@@ -233,6 +233,7 @@ export default function App() {
     const s = navmap.screens[screen];
     if (!s?.keypad) return;
     if (s.keypad.seedFrom === 'timing') setTyped(String(timingCurrent(timing, navmap.timingAdjust)));
+    else if (String(s.keypad.seedFrom || '').startsWith('password:')) setTyped('');
     else if (s.keypad.seedFrom) setTyped(String(feeder[s.keypad.seedFrom] ?? ''));
     else setTyped(s.keypad.seed || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -526,13 +527,16 @@ export default function App() {
       // The keyboard commits the level that was picked on the list. 123 is the
       // Maintenance password from the Operation Manual; the demo accepts it
       // for every level, and rejects an empty entry.
-      if (typed === '123') {
+      const want = flags.passwords?.[flags.pendingLevel || flags.level] ?? navmap.passwords.default;
+      if (typed && typed === want) {
         setFlags((f) => ({ ...f, level: f.pendingLevel || f.level, pendingLevel: null }));
         showNotice('Access level set. Maintenance shows four yellow dots, and the Main Menu gains the Preset key and the Machine Set drawer.');
         navigate('main-menu');
       } else {
         setWrongFlash((n) => n + 1);
-        showNotice(typed ? 'Wrong password. The Maintenance password is 1 2 3.' : 'Enter the password first — an empty entry is rejected.');
+        showNotice(typed
+          ? (want === navmap.passwords.default ? 'Wrong password. The factory password is 1 2 3.' : 'Wrong password. This level\'s password was changed on Control Panel > Password Set.')
+          : 'Enter the password first — an empty entry is rejected.');
       }
       return;
     }
@@ -618,6 +622,18 @@ export default function App() {
       setFlags((f) => applySets(f, evt.sets));
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
+      if (evt.action === 'enter' && String(evt.commit || '').startsWith('password:')) {
+        const level = evt.commit.split(':')[1];
+        const name = navmap.passwords.levels[level];
+        if (typed) {
+          setFlags((f) => ({ ...f, passwords: { ...(f.passwords || {}), [level]: typed } }));
+          showNotice(`${name} password set. The key-icon login for ${name} now wants it.`);
+        } else {
+          showNotice(`Nothing entered — the ${name} password is unchanged.`);
+        }
+        navigate(evt.to);
+        return;
+      }
       if (evt.action === 'enter' && evt.commit === 'timing') {
         const ta = navmap.timingAdjust;
         const { state: next, reason } = timingEnter(timing, ta, typed);

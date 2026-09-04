@@ -698,6 +698,22 @@
  "pt-stagger-minus10": {
   "alias": "pt-row-stagger"
  },
+ "pw-installation": {
+  "file": "captured/pw-installation.jpg",
+  "sha1": "bf6eeff97b72f52618193ff71fb50dd1dbfc5bec"
+ },
+ "pw-lang-list": {
+  "file": "captured/pw-lang-list.jpg",
+  "sha1": "4d9233a71e9816738c15f7712be7264f1a1a3ddc"
+ },
+ "pw-live": {
+  "file": "captured/pw-live.jpg",
+  "sha1": "d75c34001449eb4ce601135ed4aec79f47e3fc57"
+ },
+ "pw-maintenance": {
+  "file": "captured/pw-maintenance.jpg",
+  "sha1": "7cfb71a9a5dbf792e37f46799cc6e7e36c29cdf3"
+ },
  "pw-panel02": {
   "file": "captured/pw-panel02.jpg",
   "sha1": "13fec83925e5dff3793d91f2e1acb4b2ba4aeaed"
@@ -709,6 +725,10 @@
  "pw-panel06": {
   "file": "captured/pw-panel06.jpg",
   "sha1": "5b43eac6de3509d3834ada2d1d68c975e1bd139d"
+ },
+ "pw-site-engineer": {
+  "file": "captured/pw-site-engineer.jpg",
+  "sha1": "5c05ed1c8a0f36cc40f5b794ba9337ba83b3af03"
  },
  "rc-select-display": {
   "file": "captured/rc-select-display.jpg",

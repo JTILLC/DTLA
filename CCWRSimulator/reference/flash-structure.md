@@ -207,7 +207,13 @@ board with a cross top-left, then top-right, bottom-right, bottom-left,
 each tapped in turn; the fourth tap returns to Screen Control — re-checked
 2026-09-03, the earlier "top-right then bottom-left" was wrong and the
 first state had been aliased to a Password-page grab), Password Set / LangSlct
-Set, Destination ID (Printer; Brwsr Set; E-mail Setting), Com. Setting
+Set (the language bar opens a 3x8 grid of 24 languages - installed ones blue:
+Japanese, English, French, German, Spanish, Dutch, Italian; greyed: Greek,
+Turkish, Thai, Hungarian, Slovak - a pick changes nothing, the bar under the
+grid closes it and the level keys are dead while it is open; each of Site
+Engineer / Installation / Maintenance opens the keyboard with the level's name
+in the field to set its password), Destination ID (Printer; Brwsr Set; E-mail
+Setting), Com. Setting
 (RCU IP, gateway, mask, MAC; Main Body DACS).
 
 ## Start-Up Assistant (signpost icon)

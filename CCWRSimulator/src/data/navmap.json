@@ -4647,6 +4647,60 @@
      "action": "blink",
      "label": "Help — blink the keys",
      "generated": true
+    },
+    {
+     "x": 8,
+     "y": 88,
+     "w": 495,
+     "h": 22,
+     "to": "panel-password@language",
+     "label": "Select display language",
+     "note": "Opens the language grid: 24 languages, the installed ones in blue."
+    },
+    {
+     "x": 563,
+     "y": 66,
+     "w": 217,
+     "h": 44,
+     "to": "panel-password@pw-site",
+     "label": "Site Engineer — set password",
+     "note": "Opens the keyboard to set the Site Engineer password."
+    },
+    {
+     "x": 563,
+     "y": 116,
+     "w": 217,
+     "h": 44,
+     "to": "panel-password@pw-install",
+     "label": "Installation — set password",
+     "note": "Opens the keyboard to set the Installation password."
+    },
+    {
+     "x": 563,
+     "y": 164,
+     "w": 217,
+     "h": 44,
+     "to": "panel-password@pw-maint",
+     "label": "Maintenance — set password",
+     "note": "Opens the keyboard to set the Maintenance password."
+    }
+   ],
+   "liveText": [
+    {
+     "flag": "language",
+     "rect": {
+      "x": 430,
+      "y": 5,
+      "w": 110,
+      "h": 30
+     },
+     "template": "{v}",
+     "default": "English",
+     "bg": "#460dcb",
+     "colour": "#ffffff",
+     "textPx": 13,
+     "style": "field",
+     "note": "The header's language key follows the pick; the program itself stays in English."
     }
    ]
   },
@@ -14083,6 +14137,1454 @@
      "label": "tap the cross (bottom-left)"
     }
    ]
+  },
+  "panel-password@language": {
+   "parent": "panel-password",
+   "kind": "popup",
+   "captured": true,
+   "label": "Control Panel — Select display language (24 languages; blue ones installed)",
+   "image": "captured/pw-lang-list.jpg",
+   "note": "Seen on the running program: the bar opens a grid of 24 languages; the blue ones are installed (Japanese, English, French, German, Spanish, Dutch, Italian), the greyed ones unavailable; a pick closes the grid without changing anything on the program - here it writes the header's language key. The bar under the grid closes it; the level keys are dead while it is open.",
+   "hotspots": [
+    {
+     "x": 5,
+     "y": 64,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "Japanese"
+     },
+     "label": "Japanese"
+    },
+    {
+     "x": 5,
+     "y": 108,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "English"
+     },
+     "label": "English"
+    },
+    {
+     "x": 5,
+     "y": 152,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "French"
+     },
+     "label": "French"
+    },
+    {
+     "x": 5,
+     "y": 195,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "German"
+     },
+     "label": "German"
+    },
+    {
+     "x": 5,
+     "y": 239,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "Spanish"
+     },
+     "label": "Spanish"
+    },
+    {
+     "x": 5,
+     "y": 283,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Swedish",
+     "note": "Swedish is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 5,
+     "y": 326,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Danish",
+     "note": "Danish is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 5,
+     "y": 370,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "Dutch"
+     },
+     "label": "Dutch"
+    },
+    {
+     "x": 185,
+     "y": 64,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Finnish",
+     "note": "Finnish is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 185,
+     "y": 108,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Polish",
+     "note": "Polish is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 185,
+     "y": 152,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Greek",
+     "note": "Greek is greyed out on the program - not available on this machine."
+    },
+    {
+     "x": 185,
+     "y": 195,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Turkish",
+     "note": "Turkish is greyed out on the program - not available on this machine."
+    },
+    {
+     "x": 185,
+     "y": 239,
+     "w": 175,
+     "h": 43,
+     "to": "panel-password",
+     "sets": {
+      "language": "Italian"
+     },
+     "label": "Italian"
+    },
+    {
+     "x": 185,
+     "y": 283,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Portuguese",
+     "note": "Portuguese is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 185,
+     "y": 326,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Chinese (simplified)",
+     "note": "Chinese (simplified) is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 185,
+     "y": 370,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Korean",
+     "note": "Korean is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 360,
+     "y": 64,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Thai",
+     "note": "Thai is greyed out on the program - not available on this machine."
+    },
+    {
+     "x": 360,
+     "y": 108,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Hungarian",
+     "note": "Hungarian is greyed out on the program - not available on this machine."
+    },
+    {
+     "x": 360,
+     "y": 152,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Norwegian",
+     "note": "Norwegian is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 360,
+     "y": 195,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Russian",
+     "note": "Russian is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 360,
+     "y": 239,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Czech",
+     "note": "Czech is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 360,
+     "y": 283,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Slovak",
+     "note": "Slovak is greyed out on the program - not available on this machine."
+    },
+    {
+     "x": 360,
+     "y": 326,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Chinese (traditional)",
+     "note": "Chinese (traditional) is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 360,
+     "y": 370,
+     "w": 175,
+     "h": 43,
+     "action": "inert",
+     "label": "Croatian",
+     "note": "Croatian is listed but not installed on this machine (drawn white on the program): picking it does nothing."
+    },
+    {
+     "x": 8,
+     "y": 420,
+     "w": 528,
+     "h": 18,
+     "to": "panel-password",
+     "label": "close the list"
+    }
+   ]
+  },
+  "panel-password@pw-site": {
+   "parent": "panel-password",
+   "kind": "popup",
+   "captured": true,
+   "label": "Control Panel — set the Site Engineer password (keyboard)",
+   "image": "captured/pw-site-engineer.jpg",
+   "note": "Seen on the running program: the Site Engineer row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "",
+    "password": true,
+    "seedFrom": "password:2"
+   },
+   "hotspots": [
+    {
+     "x": 91,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 144,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 195,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 248,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 299,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 352,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 403,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 456,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 560,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 664,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 115,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 219,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 323,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 427,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 531,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 584,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 635,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 142,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 246,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 350,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 454,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 507,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 558,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 611,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 662,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "'"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 217,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 321,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 425,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 529,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 90,
+     "y": 54,
+     "w": 72,
+     "h": 38,
+     "to": "panel-password",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 630,
+     "y": 255,
+     "w": 90,
+     "h": 88,
+     "to": "panel-password",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "password:2"
+    }
+   ]
+  },
+  "panel-password@pw-install": {
+   "parent": "panel-password",
+   "kind": "popup",
+   "captured": true,
+   "label": "Control Panel — set the Installation password (keyboard)",
+   "image": "captured/pw-installation.jpg",
+   "note": "Seen on the running program: the Installation row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "",
+    "password": true,
+    "seedFrom": "password:3"
+   },
+   "hotspots": [
+    {
+     "x": 91,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 144,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 195,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 248,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 299,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 352,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 403,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 456,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 560,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 664,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 115,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 219,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 323,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 427,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 531,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 584,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 635,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 142,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 246,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 350,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 454,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 507,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 558,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 611,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 662,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "'"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 217,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 321,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 425,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 529,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 90,
+     "y": 54,
+     "w": 72,
+     "h": 38,
+     "to": "panel-password",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 630,
+     "y": 255,
+     "w": 90,
+     "h": 88,
+     "to": "panel-password",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "password:3"
+    }
+   ]
+  },
+  "panel-password@pw-maint": {
+   "parent": "panel-password",
+   "kind": "popup",
+   "captured": true,
+   "label": "Control Panel — set the Maintenance password (keyboard)",
+   "image": "captured/pw-maintenance.jpg",
+   "note": "Seen on the running program: the Maintenance row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "keypad": {
+    "field": {
+     "x": 183,
+     "y": 52,
+     "w": 360,
+     "h": 56
+    },
+    "seed": "",
+    "password": true,
+    "seedFrom": "password:4"
+   },
+   "hotspots": [
+    {
+     "x": 91,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "1"
+    },
+    {
+     "x": 144,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "2"
+    },
+    {
+     "x": 195,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "3"
+    },
+    {
+     "x": 248,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "4"
+    },
+    {
+     "x": 299,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "5"
+    },
+    {
+     "x": 352,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "6"
+    },
+    {
+     "x": 403,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "7"
+    },
+    {
+     "x": 456,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "8"
+    },
+    {
+     "x": 507,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "9"
+    },
+    {
+     "x": 560,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "0"
+    },
+    {
+     "x": 611,
+     "y": 124,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "-"
+    },
+    {
+     "x": 664,
+     "y": 123,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "="
+    },
+    {
+     "x": 115,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Q"
+    },
+    {
+     "x": 168,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "W"
+    },
+    {
+     "x": 219,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "E"
+    },
+    {
+     "x": 272,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "R"
+    },
+    {
+     "x": 323,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "T"
+    },
+    {
+     "x": 376,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Y"
+    },
+    {
+     "x": 427,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "U"
+    },
+    {
+     "x": 480,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "I"
+    },
+    {
+     "x": 531,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "O"
+    },
+    {
+     "x": 584,
+     "y": 170,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "P"
+    },
+    {
+     "x": 635,
+     "y": 171,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "_"
+    },
+    {
+     "x": 142,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "A"
+    },
+    {
+     "x": 195,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "S"
+    },
+    {
+     "x": 246,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "D"
+    },
+    {
+     "x": 299,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "F"
+    },
+    {
+     "x": 350,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "G"
+    },
+    {
+     "x": 403,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "H"
+    },
+    {
+     "x": 454,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "J"
+    },
+    {
+     "x": 507,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "K"
+    },
+    {
+     "x": 558,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "L"
+    },
+    {
+     "x": 611,
+     "y": 214,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": ":"
+    },
+    {
+     "x": 662,
+     "y": 215,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "'"
+    },
+    {
+     "x": 164,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "Z"
+    },
+    {
+     "x": 217,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "X"
+    },
+    {
+     "x": 268,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "C"
+    },
+    {
+     "x": 321,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "V"
+    },
+    {
+     "x": 372,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "B"
+    },
+    {
+     "x": 425,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "N"
+    },
+    {
+     "x": 476,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "M"
+    },
+    {
+     "x": 529,
+     "y": 262,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "."
+    },
+    {
+     "x": 580,
+     "y": 263,
+     "w": 46,
+     "h": 37,
+     "action": "key",
+     "char": "/"
+    },
+    {
+     "x": 90,
+     "y": 54,
+     "w": 72,
+     "h": 38,
+     "to": "panel-password",
+     "action": "cancel",
+     "label": "CANCEL"
+    },
+    {
+     "x": 559,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "bs",
+     "label": "BS"
+    },
+    {
+     "x": 643,
+     "y": 64,
+     "w": 67,
+     "h": 37,
+     "action": "clr",
+     "label": "CLR"
+    },
+    {
+     "x": 630,
+     "y": 255,
+     "w": 90,
+     "h": 88,
+     "to": "panel-password",
+     "action": "enter",
+     "label": "Enter",
+     "commit": "password:4"
+    }
+   ]
   }
  },
  "powerKey": {
@@ -15825,5 +17327,14 @@
    ],
    "note": "Where Data Output sends its reports: the Printer, the CF/USB card, or E-mail (the addresses on this page). The program's own drop-down does not open, so the list is drawn in the style of its other lists."
   }
- ]
+ ],
+ "passwords": {
+  "default": "123",
+  "levels": {
+   "2": "Site Engineer",
+   "3": "Installation",
+   "4": "Maintenance"
+  },
+  "note": "The Operation Manual gives 1 2 3 as the Maintenance password; the demo accepts it for every level. Control Panel > Password Set lets each level's password be changed, and the key-icon login for that level then wants the new one."
+ }
 }
