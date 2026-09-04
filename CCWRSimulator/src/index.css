@@ -1153,6 +1153,44 @@
   pointer-events: none;
 }
 
+/* A drop-down list drawn in the program's own style: grey rows, blue bold
+   text, the current row banded blue, and the close bar underneath. */
+.rcu-droplist {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #555;
+  background: #c8c8c8;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.rcu-droplist__row {
+  border: none;
+  border-bottom: 1px solid #8a8a8a;
+  background: linear-gradient(#dedede, #bdbdbd);
+  color: #0000cc;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rcu-droplist__row.is-current { background: #6c6cf0; color: #0000a0; }
+.rcu-droplist__row:hover { filter: brightness(1.06); }
+.rcu-droplist__close {
+  flex: 1;
+  border: none;
+  background: linear-gradient(#d9d9d9, #b6b6b6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rcu-droplist__close span {
+  width: 30%;
+  height: 0;
+  border-top: 3px double #666;
+}
+
 /* A drawn RCU-style key that is not on the real unit (the Deselect key). */
 .rcu-key-drawn {
   position: absolute;

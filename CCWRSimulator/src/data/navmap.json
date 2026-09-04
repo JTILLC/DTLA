@@ -4704,6 +4704,27 @@
      "label": "Help — blink the keys",
      "generated": true
     }
+   ],
+   "liveText": [
+    {
+     "flag": "destId",
+     "rect": {
+      "x": 68,
+      "y": 149,
+      "w": 212,
+      "h": 30
+     },
+     "labels": {
+      "printer": "Printer",
+      "cfusb": "CF/USB",
+      "email": "E-mail"
+     },
+     "default": "printer",
+     "bg": "#d5fbe4",
+     "colour": "#0000cc",
+     "textPx": 13,
+     "style": "field"
+    }
    ]
   },
   "panel-comms": {
@@ -15769,5 +15790,40 @@
    "colour": "black"
   },
   "note": "Seen on the running program (reference/flash-structure.md): dragging on the board draws; the wide brush, thin brush and pencil are the tools, red, blue and black the paints, the eraser rubs out, the trash asks \"Delete OK?\", and Transmit asks \"E-mail will be sent. OK?\". The lit lamp on a key shows the live tool and colour. The bottom bar is dead here."
- }
+ },
+ "dropLists": [
+  {
+   "screen": "panel-data-output",
+   "flag": "destId",
+   "default": "printer",
+   "key": {
+    "x": 66,
+    "y": 183,
+    "w": 216,
+    "h": 23,
+    "label": "Destination ID drop-down"
+   },
+   "list": {
+    "x": 66,
+    "y": 207,
+    "w": 216,
+    "rowH": 40
+   },
+   "options": [
+    {
+     "v": "printer",
+     "label": "Printer"
+    },
+    {
+     "v": "cfusb",
+     "label": "CF/USB"
+    },
+    {
+     "v": "email",
+     "label": "E-mail"
+    }
+   ],
+   "note": "Where Data Output sends its reports: the Printer, the CF/USB card, or E-mail (the addresses on this page). The program's own drop-down does not open, so the list is drawn in the style of its other lists."
+  }
+ ]
 }

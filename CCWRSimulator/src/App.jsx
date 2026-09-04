@@ -424,6 +424,13 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'drop-pick') {
+      setFlags((f) => ({ ...f, [evt.flag]: evt.value }));
+      setOpenDrawer(null);
+      showNotice(evt.notice || `${evt.label} picked.`);
+      return;
+    }
+
     if (evt.type === 'hdrv-param') {
       const unit = navmap.hdrvParameter?.units?.[evt.unit] || 'this unit';
       const opt = navmap.hdrvParameter?.options.find((o) => o.no === evt.no);

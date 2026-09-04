@@ -31,6 +31,7 @@ export const initialFlags = () => ({
   presetDstStore: 'memory', // ... and where it is written to
   machSrcStore: 'memory',   // Machine Set Mngr: the same two picks
   machDstStore: 'card',
+  destId: 'printer',   // Control Panel > Destination ID: Printer / CF/USB / E-mail
 });
 
 export const applySets = (flags, sets) => {

@@ -208,6 +208,13 @@ describe('navigation map integrity', () => {
     expect(navmap.screens['panel-screen-control@tune-up'].hotspots.find((h) => h.label === 'Yes').to).toBe('panel-screen-control@calib1');
   });
 
+  it('the Destination ID drop-down offers Printer, CF/USB and E-mail on the canvas', () => {
+    const d = navmap.dropLists.find((x) => x.screen === 'panel-data-output');
+    expect(d.options.map((o) => o.label)).toEqual(['Printer', 'CF/USB', 'E-mail']);
+    expect(d.list.y + d.list.rowH * d.options.length).toBeLessThan(navmap.canvas.h);
+    expect(navmap.screens['panel-data-output'].liveText[0].flag).toBe(d.flag);
+  });
+
   it('every screen is reachable from the main menu', () => {
     const seen = reachable(navmap, 'main-menu');
     const missing = slugs.filter((s) => !seen.has(s));

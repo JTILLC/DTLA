@@ -532,6 +532,7 @@ export const screenInfo = {
       { name: 'Destination ID drop-down', desc: 'Printer / File / E-mail / NO.' },
       { name: 'Access Address', desc: 'Website address for the Information display key.' },
       { name: 'E-mail Setting', desc: 'Transmission setup for e-mailed output.' },
+      { name: 'Destination ID drop-down', desc: 'The arrow key under the field opens the list: Printer, CF/USB or E-mail - where Data Output sends its reports. The program\'s own list never opens, so it is drawn in the style of its other lists; the pick writes the field.' },
     ],
   },
 

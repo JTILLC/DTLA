@@ -1005,6 +1005,45 @@ export default function Rcu({
           );
         })}
 
+        {/* Drop-down lists the program never opened, drawn in the style of
+            the lists it does (navmap.dropLists): the arrow key under a field
+            opens the options beneath it; a pick writes the field. */}
+        {(navmap.dropLists || []).filter((d) => d.screen === slug).map((d, i) => {
+          const cur = flags?.[d.flag] ?? d.default;
+          const open = openDrawer === `drop:${i}`;
+          return (
+            <React.Fragment key={`drop-${i}`}>
+              <button
+                type="button"
+                className="hotspot"
+                style={rectStyle(d.key)}
+                aria-label={`${d.key.label} — ${d.options.find((o) => o.v === cur)?.label}`}
+                title={d.note}
+                onClick={() => onToggleDrawer(`drop:${i}`)}
+              />
+              {open && (
+                <div className="rcu-droplist" style={rectStyle({ x: d.list.x, y: d.list.y, w: d.list.w, h: d.list.rowH * d.options.length + 12 })}>
+                  {d.options.map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      className={'rcu-droplist__row' + (o.v === cur ? ' is-current' : '')}
+                      style={{ height: `${(d.list.rowH / (d.list.rowH * d.options.length + 12)) * 100}%`, fontSize: `clamp(8px, ${(12 / CW) * 100}cqw, 16px)` }}
+                      onClick={() => onTap({ type: 'drop-pick', flag: d.flag, value: o.v, label: o.label,
+                        notice: `Destination ID: ${o.label}.` })}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                  <button type="button" className="rcu-droplist__close" aria-label="close the list" onClick={() => onToggleDrawer(`drop:${i}`)}>
+                    <span />
+                  </button>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+
         {hpHere && (
           <button
             type="button"
