@@ -44,6 +44,7 @@ export default function Rcu({
   deactivated,    // Production: heads switched off by a tap while stopped
   managers,       // copy managers: {preset|machine: {stores:{memory,card}, pick:{src,dst}}}
   memo,           // Message Board: {tool, colour, image}
+  process,        // Live: the process model's state, or null when Live is off
   onMemoDraw,     // (dataURL) => void after each stroke
   blink,          // the ? key: every pressable key blinks
 }) {
@@ -916,6 +917,7 @@ export default function Rcu({
             spec={navmap.production}
             running={Boolean(flags?.running)}
             deactivated={deactivated}
+            live={process}
             onTapHead={(no) => onTap({ type: 'head-deactivate', no })}
             rectStyle={rectStyle}
             CW={CW}
@@ -983,6 +985,64 @@ export default function Rcu({
             </React.Fragment>
           );
         })}
+
+        {/* Production > Weight Display: the weight in every weigh hopper and
+            on the dispersion table. Live, they are the model's; otherwise the
+            frame's own zeros and the DF target. */}
+        {navmap.process?.weightDisplay && slug === 'run-weight' && (() => {
+          const wd = navmap.process.weightDisplay;
+          const fontPx = (px) => `clamp(6px, ${(px / CW) * 100}cqw, ${px * 1.5}px)`;
+          return (
+            <>
+              {wd.labels.map((l) => {
+                const v = process ? process.wh[l.no - 1] : 0;
+                const off = (deactivated || []).includes(l.no);
+                return (
+                  <span key={l.no} className={'wd-label' + (off ? ' wd-label--off' : '')}
+                    style={{ ...rectStyle({ x: l.x - 12, y: l.y - 2, w: l.w + 24, h: l.h + 4 }), fontSize: fontPx(wd.textPx) }}
+                    aria-label={`Weigh hopper ${l.no}: ${v.toFixed(1)} g`}>
+                    {v.toFixed(1)}g
+                  </span>
+                );
+              })}
+              <span className="wd-df" style={{ ...rectStyle({ x: wd.df.x - 10, y: wd.df.y - 2, w: wd.df.w + 20, h: 16 }), fontSize: fontPx(wd.dfTextPx) }}
+                aria-label={`Dispersion table: ${Math.round(process ? process.df : (feeder?.dfTargetWt ?? 0))} g`}>
+                {Math.round(process ? process.df : (feeder?.dfTargetWt ?? 0))}g
+              </span>
+            </>
+          );
+        })()}
+
+        {/* Live: the message bar and the Overweight error, on every
+            Production tab. The error's keys are the RCU's: ErrClr&Stop in
+            red, ErrClr&Rst in green (Josh's "Running the CCW-R"). */}
+        {process && slug.startsWith('run-') && !popupHere && (
+          <>
+            {process.error && (
+              <div className="err-bar" style={rectStyle(navmap.process.messageBar)} role="status">
+                {navmap.process.errorDialog[process.error].title}
+              </div>
+            )}
+            {process.error && (() => {
+              const d = navmap.process.errorDialog;
+              const e = d[process.error];
+              return (
+                <div className="err-dialog" style={rectStyle(d)} role="alertdialog" aria-label={e.title}>
+                  <div className="err-dialog__title">{e.title}</div>
+                  <div className="err-dialog__text">{e.text}</div>
+                  <div className="err-dialog__keys">
+                    <button type="button" className="err-key err-key--stop" onClick={() => onTap({ type: 'error-clear', restart: false })}>
+                      <i /><span>ErrClr&amp;Stop</span>
+                    </button>
+                    <button type="button" className="err-key err-key--restart" onClick={() => onTap({ type: 'error-clear', restart: true })}>
+                      <i /><span>ErrClr&amp;Rst</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </>
+        )}
 
         {/* Values the artwork cannot change, written over it: a field's
             picked entry, a header's picked set. Data-driven (screen.liveText);

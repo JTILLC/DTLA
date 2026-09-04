@@ -2404,7 +2404,7 @@
   "run-weight": {
    "frame": 201,
    "labelJa": "運転_重量",
-   "image": "screens/run-weight.jpg",
+   "image": "derived/run-weight--base.jpg",
    "hotspots": [
     {
      "x": 12,
@@ -2558,7 +2558,8 @@
      "h": 22,
      "flag": "infeed"
     }
-   ]
+   ],
+   "baseNote": "The printed 0.0g labels and the 1669g on the disc are erased (tools/weight_display.py); the app writes the live weights."
   },
   "manual-scale-adjust": {
    "frame": 211,
@@ -17336,5 +17337,167 @@
    "4": "Maintenance"
   },
   "note": "The Operation Manual gives 1 2 3 as the Maintenance password; the demo accepts it for every level. Control Panel > Password Set plays the entry of a new one, but the simulator never keeps it - the login always wants 1 2 3, so a trainee cannot lock the trainer out."
+ },
+ "process": {
+  "note": "A process model behind the Live toggle, built from Josh's \"Running the CCW-R\" and the Operation Manual. Product on the dispersion table (held at the DF target weight by the infeed) is thrown out to the fourteen radial feeders in proportion to the DF time and amplitude; each radial feeder doses its pool hopper in proportion to its own time and amplitude, more when product has piled up on it; the pool hopper drops into the weigh hopper as soon as it is empty; every cycle the lightest combination not under target (and inside the upper limit) is discharged. No combination in range is a missed cycle: 0.0 g with a red dash when there was not enough product, a yellow dash when every combination was over; four overweight misses in a row is the Overweight error, which stops production and offers ErrClr&Stop or ErrClr&Rst. A weigh hopper past target plus upper limit is an overscale and is dumped on its own.",
+  "cycleMsAt80wpm": 750,
+  "df": {
+   "outFrac": 0.18,
+   "infeedFrac": 1.0
+  },
+  "rf": {
+   "doseFrac": 0.25,
+   "pileGain": 0.5,
+   "pileNominal": 3.0,
+   "noise": 0.25
+  },
+  "combo": {
+   "min": 2,
+   "max": 6
+  },
+  "missesToError": 4,
+  "weightDisplay": {
+   "labels": [
+    {
+     "no": 1,
+     "x": 463,
+     "y": 367,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 2,
+     "x": 598,
+     "y": 334,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 3,
+     "x": 684,
+     "y": 285,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 4,
+     "x": 717,
+     "y": 220,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 5,
+     "x": 693,
+     "y": 154,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 6,
+     "x": 594,
+     "y": 102,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 7,
+     "x": 457,
+     "y": 72,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 8,
+     "x": 312,
+     "y": 72,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 9,
+     "x": 175,
+     "y": 102,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 10,
+     "x": 88,
+     "y": 154,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 11,
+     "x": 52,
+     "y": 220,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 12,
+     "x": 86,
+     "y": 285,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 13,
+     "x": 178,
+     "y": 334,
+     "w": 30,
+     "h": 11
+    },
+    {
+     "no": 14,
+     "x": 309,
+     "y": 367,
+     "w": 30,
+     "h": 11
+    }
+   ],
+   "df": {
+    "x": 397,
+    "y": 170,
+    "w": 38,
+    "h": 28
+   },
+   "textPx": 10,
+   "dfTextPx": 12
+  },
+  "limits": {
+   "upper": 3.0,
+   "lowerWithAvg": 4.5,
+   "note": "The Upper Weight Limit on this preset is 3.0 g; the Lower Weight Limit (4.5 g) only exists with Average Control on (Preset > Machine)."
+  },
+  "errorDialog": {
+   "x": 150,
+   "y": 148,
+   "w": 448,
+   "h": 322,
+   "stop": {
+    "x": 263,
+    "y": 396,
+    "w": 90,
+    "h": 65
+   },
+   "restart": {
+    "x": 405,
+    "y": 396,
+    "w": 90,
+    "h": 65
+   },
+   "overweight": {
+    "title": "Overweight error",
+    "text": "A combination could not be made four times in a row: too much product in the weigh hoppers. Turn the DF target weight or the radial feeders down, then clear the error."
+   }
+  },
+  "messageBar": {
+   "x": 100,
+   "y": 522,
+   "w": 392,
+   "h": 60
+  }
  }
 }

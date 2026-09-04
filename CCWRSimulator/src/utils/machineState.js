@@ -33,6 +33,7 @@ export const initialFlags = () => ({
   machDstStore: 'card',
   destId: 'printer',   // Control Panel > Destination ID: Printer / CF/USB / E-mail
   language: 'English', // Control Panel > LangSlct Set
+  live: false,         // the Live toggle: the process model runs behind Production
 });
 
 export const applySets = (flags, sets) => {

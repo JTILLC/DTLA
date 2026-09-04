@@ -1104,6 +1104,87 @@
 /* Preset Feeder Adjustment's bar chart, one bar per value, drawn live. */
 .fa-bar { position: absolute; z-index: 1; pointer-events: none; }
 
+/* Live: the miss dash beside the readout, the weight display labels, the
+   error dialog. */
+.pr-miss { margin-left: 0.3em; font-weight: 900; }
+.pr-miss--under { color: #ff2020; }
+.pr-miss--over { color: #ffe600; }
+.pr-badge--error { background: #fff; color: #ff2020; box-shadow: 0 0 0 1px #ff2020; }
+.wd-label, .wd-df {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.wd-label--off { color: #ffe600; }
+.wd-df { color: #0000cc; text-shadow: none; }
+.err-bar {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5%;
+  box-sizing: border-box;
+  background: #ffd6d6;
+  color: #b00000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: clamp(8px, 1.8cqw, 16px);
+  pointer-events: none;
+}
+.err-dialog {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(#d9d9d9, #b8b8b8);
+  border: 2px solid #333;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  font-family: Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
+.err-dialog__title {
+  padding: 2% 4%;
+  background: linear-gradient(#8f1a1a, #4a0000);
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(9px, 2cqw, 18px);
+}
+.err-dialog__text {
+  flex: 1;
+  padding: 4% 5%;
+  color: #1c1c1c;
+  font-size: clamp(8px, 1.7cqw, 15px);
+  line-height: 1.35;
+}
+.err-dialog__keys { display: flex; justify-content: center; gap: 12%; padding: 0 0 4%; }
+.err-key {
+  width: 22%;
+  aspect-ratio: 90 / 65;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4%;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: linear-gradient(#f4f4f4, #c4c4c4);
+  color: #1c1c1c;
+  font-weight: 700;
+  font-size: clamp(6px, 1.3cqw, 12px);
+  cursor: pointer;
+}
+.err-key i { width: 34%; aspect-ratio: 1; border-radius: 50%; border: 3px solid; }
+.err-key--stop i { border-color: #d81b1b; }
+.err-key--restart i { border-color: #1fa61f; }
+
 /* The Message Board's drawing surface. */
 .memo-board {
   position: absolute;

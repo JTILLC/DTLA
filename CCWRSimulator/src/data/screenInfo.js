@@ -127,6 +127,7 @@ export const screenInfo = {
       { name: 'Exit', desc: 'Returns to the Main Menu.' },
       { name: 'While running (seen on the program)', desc: 'Every cycle a combination of hoppers is chosen and its members get the filled Selected badge; the readout shows that combination\'s weight, a few tenths over target; now and then a hopper shows the cyan triangle (Auto Zero) or the red dash (Empty) in place of its number; the legend strip along the bottom scrolls. The hoppers themselves stay blue. The simulator plays the same thing at the program\'s 80 wpm cadence with made-up weights; Stop ends it at once with the readout holding.' },
       { name: 'Deactivating a head', desc: 'Press Stop, then tap a hopper: it goes grey with a yellow star and takes no part in any combination. Tap a deactivated hopper, stopped, to bring it back online.' },
+      { name: 'Live (app bar)', desc: 'With Live on the combinations come from the product actually in the weigh hoppers (see the Weight Display). A missed cycle reads 0.0 g with a dash beside it: red when there was not enough product, yellow when every combination was over the upper limit. Four overweight misses in a row is the Overweight error - production stops and the dialog offers ErrClr&Stop (red) or ErrClr&Rst (green, dumps a few hoppers and restarts). A weigh hopper past target + upper limit is an overscale, dumped on its own and marked with the red X. Turn the DF target weight or the feeders down to fix too much product, up to fix too little.' },
     ],
     note:
       'WARNING (6.6): when Start is pressed the feeders and hoppers start ' +
@@ -216,6 +217,7 @@ export const screenInfo = {
     keys: [
       { name: 'Hopper weight display', desc: 'Current weight per weigh hopper.' },
       { name: 'Dispersion table display', desc: 'Weight per dispersion table.' },
+      { name: 'Live (app bar)', desc: 'With Live on, product moves through the weigher: the dispersion table is held at the DF target weight and throws product to the radial feeders in proportion to the DF time and amplitude; each feeder doses its pool hopper in proportion to its own time and amplitude, and more when product piles up; the pool hopper drops into the empty weigh hopper. The weights here are those hoppers. Raise the feeders or the DF target and the hoppers fill past a combination - missed cycles, then the Overweight error; a hopper past target + upper limit is an overscale and dumps. Starve them and the cycles miss underweight.' },
     ],
   },
 

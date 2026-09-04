@@ -24,10 +24,11 @@ const SYMBOL = {
   autozero: { text: '△', cls: 'pr-badge--autozero' },
   empty: { text: '—', cls: 'pr-badge--empty' },
   deactivated: { text: '✳', cls: 'pr-badge--deactivated' },
+  error: { text: '✕', cls: 'pr-badge--error' },
 };
 
 export default function ProductionRing({
-  spec, running, deactivated, onTapHead, rectStyle, CW, showHotspots,
+  spec, running, deactivated, onTapHead, rectStyle, CW, showHotspots, live,
 }) {
   const [cycle, setCycle] = useState({ selected: [], special: {}, weight: null });
   const last = useRef(null);
@@ -87,9 +88,9 @@ export default function ProductionRing({
     canvas.getContext('2d').putImageData(out, 0, 0);
   }, [ready, deactivated]);
 
-  // The cycle, while running. Stop clears it at once.
+  // The cycle, while running (the plain animation; Live drives its own).
   useEffect(() => {
-    if (!running) { setCycle((c) => ({ selected: [], special: {}, weight: c.weight })); return undefined; }
+    if (!running || live) { setCycle((c) => ({ selected: [], special: {}, weight: c.weight })); return undefined; }
     const rnd = Math.random;
     let alive = true;
     let clear = null;
@@ -108,7 +109,7 @@ export default function ProductionRing({
     tick();
     const id = setInterval(tick, spec.cycleMs);
     return () => { alive = false; clearInterval(id); clearTimeout(clear); };
-  }, [running, spec, deactivated]);
+  }, [running, spec, deactivated, live]);
 
   const labelAt = (event) => {
     const data = dataRef.current;
@@ -120,7 +121,14 @@ export default function ProductionRing({
     return data.map[y * data.w + x];
   };
 
-  const weight = running ? cycle.weight : (cycle.weight ?? last.current);
+  // Live: the model's cycle. A miss reads 0.0 g with the dash beside it —
+  // red when there was not enough product, yellow when every combination
+  // was over (Josh's "Running the CCW-R").
+  const liveMiss = live && running && (live.result === 'under' || live.result === 'over') ? live.result : null;
+  const weight = live
+    ? (live.result === 'ok' ? live.weight : live.result === 'idle' ? last.current : 0)
+    : running ? cycle.weight : (cycle.weight ?? last.current);
+  if (live && live.result === 'ok') last.current = live.weight;
   const fontPx = (px) => `clamp(6px, ${(px / CW) * 100}cqw, ${px * 1.5}px)`;
   const d = spec.badge.d;
   const off = deactivated || [];
@@ -141,12 +149,16 @@ export default function ProductionRing({
       {/* The readout: the combination weight while running, held after Stop. */}
       <div className="pr-readout" style={{ ...rectStyle(spec.readout), fontSize: fontPx(spec.readout.textPx), color: spec.readout.colour }} aria-live="off">
         {weight === null || weight === undefined ? '0.0' : weight.toFixed(1)}&nbsp;g
+        {liveMiss && <span className={'pr-miss pr-miss--' + liveMiss} title={liveMiss === 'under' ? 'Missed cycle — not enough product' : 'Missed cycle — every combination over the upper limit'}>—</span>}
       </div>
 
       {spec.badges.map((b) => {
         const state = off.includes(b.no) ? 'deactivated'
-          : running && cycle.selected.includes(b.no) ? 'selected'
-            : (running && cycle.special[b.no]) || 'available';
+          : live ? (live.overscale.includes(b.no) ? 'error'
+            : running && live.combo.includes(b.no) ? 'selected'
+              : live.wh[b.no - 1] === 0 ? 'empty' : 'available')
+            : running && cycle.selected.includes(b.no) ? 'selected'
+              : (running && cycle.special[b.no]) || 'available';
         const sym = SYMBOL[state];
         return (
           <div

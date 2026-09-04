@@ -12,6 +12,7 @@ import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
 import { toggleDeactivated } from './utils/production';
+import { initialProcess, stepProcess, clearAndRestart, clearAndStop } from './utils/process';
 import { initialManagers, migrateManagers, managerOf, pickRow, canCopy, copyItem, wipeMemory, initialPick, selectAll, resetManager, ALL } from './utils/presetManager';
 import { initialTiming, migrateTiming, selectRow, setSection, setDthPick, ensureVisible, rowOf, rowLabel,
   current as timingCurrent, step as timingStep, enter as timingEnter } from './utils/timing';
@@ -94,6 +95,10 @@ export default function App() {
     colour: navmap.memoBoard?.colours[saved.memo?.colour] ? saved.memo.colour : navmap.memoBoard?.defaults.colour,
     image: typeof saved.memo?.image === 'string' ? saved.memo.image : null,
   }));
+  /* Live: the process model (utils/process.js). Its inputs are the machine's
+     own settings, read fresh at every cycle through a ref. */
+  const [process, setProcess] = useState(null);
+  const inputsRef = useRef(null);
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -158,6 +163,45 @@ export default function App() {
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
       powerOn, loadedPreset, selection, feeder, flags, timing, deactivated, managers, memo]);
+
+  /* What the process model sees: the loaded preset's target, the limits,
+     the DF target weight, every feeder's time and amplitude, the
+     deactivated heads. Read through a ref so a cycle never runs on stale
+     values. */
+  const processInputs = useMemo(() => {
+    const tile = (navmap.presetTiles?.tiles || []).find((t) => t.no === loadedPreset);
+    const target = parseFloat(tile?.target) || 90;
+    return {
+      target,
+      upper: navmap.process.limits.upper,
+      lower: flags.avg ? navmap.process.limits.lowerWithAvg : null,
+      dfTargetWt: feeder.dfTargetWt,
+      dfTime: feeder.df.time,
+      dfAmp: feeder.df.amp,
+      rf: feeder.rf,
+      deactivated,
+      infeed: true,
+    };
+  }, [loadedPreset, flags.avg, feeder, deactivated]);
+  inputsRef.current = processInputs;
+
+  /* The live cycle: one step per weigher cycle (80 wpm) while Production
+     runs with Live on. The Overweight error stops production by itself. */
+  useEffect(() => {
+    if (!flags.live || !flags.running) return undefined;
+    const ms = navmap.process.cycleMsAt80wpm;
+    const id = setInterval(() => {
+      setProcess((p) => {
+        const cur = p || initialProcess(inputsRef.current, navmap.process);
+        const next = stepProcess(cur, inputsRef.current, navmap.process);
+        if (next.error && !cur.error) {
+          setFlags((f) => ({ ...f, running: false }));
+        }
+        return next;
+      });
+    }, ms);
+    return () => clearInterval(id);
+  }, [flags.live, flags.running]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -376,6 +420,26 @@ export default function App() {
     if (evt.type === 'timing-dth') {
       setTiming((t) => setDthPick(t, evt.pick));
       showNotice(`The IS-DTH row now edits DTH${(timing.section - 1) * 2 + evt.pick + 1}.`);
+      return;
+    }
+    if (evt.type === 'live-toggle') {
+      const on = !flags.live;
+      setFlags((f) => ({ ...f, live: on }));
+      if (on) setProcess(initialProcess(inputsRef.current, navmap.process));
+      else setProcess(null);
+      showNotice(on
+        ? 'Live: product now moves through the weigher. The DF target weight and every feeder\'s time and amplitude set how much product reaches the hoppers; the Weight Display shows it, the Combination tab picks from it, and too much or too little product misses cycles the way the machine does.'
+        : 'Live off: Production plays its plain animation again.');
+      return;
+    }
+    if (evt.type === 'error-clear') {
+      /* The Overweight error's two keys: ErrClr&Rst dumps a few weigh
+         hoppers and restarts; ErrClr&Stop clears and stays stopped. */
+      setProcess((p) => (p ? (evt.restart ? clearAndRestart(p) : clearAndStop(p)) : p));
+      if (evt.restart) setFlags((f) => ({ ...f, running: true }));
+      showNotice(evt.restart
+        ? 'Error cleared and restarted: the heaviest weigh hoppers were dumped and re-fed. Turn the DF target weight or the feeders down or it will happen again.'
+        : 'Error cleared, production stopped. Turn the DF target weight or the feeders down before restarting.');
       return;
     }
     if (evt.type === 'machine-option') {
@@ -698,7 +762,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection, flags, typed, timing, deactivated, managers, memo]);
+      applySelection, flags, typed, timing, deactivated, managers, memo, process]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -762,6 +826,15 @@ export default function App() {
           {/* Which units the machine has. The program is a plain 14-head
               single section; a real line may have boosters, a timing hopper,
               diverting timing hoppers - each adds its Timing Adjustment rows. */}
+          <button
+            type="button"
+            className={'btn' + (flags.live ? ' btn--on' : '')}
+            onClick={() => handleTap({ type: 'live-toggle' })}
+            title="Live: product moves through the weigher. The DF target weight and the feeders set how much reaches the hoppers; the Weight Display shows it and the Combination tab picks from it, misses and errors included."
+            aria-pressed={Boolean(flags.live)}
+          >
+            Live
+          </button>
           <div className="seg seg--machine" role="group" aria-label="Machine units">
             {Object.entries(navmap.timingAdjust.options).map(([key, opt]) => {
               const on = flags[{ bh: 'optBH', th: 'optTH', dth: 'optDTH' }[key]];
@@ -834,6 +907,7 @@ export default function App() {
           deactivated={deactivated}
           managers={managers}
           memo={memo}
+          process={flags.live ? process : null}
           onMemoDraw={(image) => setMemo((m) => ({ ...m, image }))}
           blink={blink}
           zeroing={zeroing}
