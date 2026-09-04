@@ -17339,7 +17339,7 @@
   "note": "The Operation Manual gives 1 2 3 as the Maintenance password; the demo accepts it for every level. Control Panel > Password Set plays the entry of a new one, but the simulator never keeps it - the login always wants 1 2 3, so a trainee cannot lock the trainer out."
  },
  "process": {
-  "note": "A process model behind the Live toggle, built from Josh's \"Running the CCW-R\" and the Operation Manual. Product on the dispersion table (held at the DF target weight by the infeed) is thrown out to the fourteen radial feeders in proportion to the DF time and amplitude; each radial feeder doses its pool hopper in proportion to its own time and amplitude, more when product has piled up on it; the pool hopper drops into the weigh hopper as soon as it is empty; every cycle the lightest combination not under target (and inside the upper limit) is discharged. No combination in range is a missed cycle: 0.0 g with a red dash when there was not enough product, a yellow dash when every combination was over; four overweight misses in a row is the Overweight error, which stops production and offers ErrClr&Stop or ErrClr&Rst. A weigh hopper past target plus upper limit is an overscale and is dumped on its own.",
+  "note": "A process model behind the Live toggle, built from Josh's \"Running the CCW-R\" and the Operation Manual. Product on the dispersion table (held at the DF target weight by the infeed) is thrown out to the fourteen radial feeders in proportion to the DF time and amplitude; each radial feeder doses its pool hopper in proportion to its own time and amplitude, more when product has piled up on it; the pool hopper drops into the weigh hopper as soon as it is empty; every cycle the lightest combination not under target (and inside the upper limit) is discharged. No combination in range is a missed cycle: 0.0 g with a red dash when there was not enough product, a yellow dash when every combination was over; four overweight misses in a row is the Overweight error, which stops production and offers ErrClr&Stop or ErrClr&Rst. A weigh hopper past target plus upper limit is the Overscale error: production stops, and clearing it dumps that hopper.",
   "cycleMsAt80wpm": 750,
   "df": {
    "outFrac": 0.18,
@@ -17353,7 +17353,9 @@
   },
   "combo": {
    "min": 2,
-   "max": 6
+   "max": 6,
+   "minOver": 0.3,
+   "note": "The weigher never dumps exactly the target: on a 90 g target the lightest dump is 90.3 g, and with a 3 g upper limit the heaviest is 93.3 g."
   },
   "missesToError": 4,
   "weightDisplay": {
@@ -17491,6 +17493,10 @@
    "overweight": {
     "title": "Overweight error",
     "text": "A combination could not be made four times in a row: too much product in the weigh hoppers. Turn the DF target weight or the radial feeders down, then clear the error."
+   },
+   "overscale": {
+    "title": "Overscale error",
+    "text": "{where}: past the target plus the upper limit ({limit} g). Too much product is reaching that hopper. Turn the radial feeder down, then clear the error - the hopper is dumped on clearing."
    }
   },
   "messageBar": {

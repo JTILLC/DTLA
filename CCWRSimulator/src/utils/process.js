@@ -17,8 +17,10 @@
  *   combination was over. Four overweight misses in a row is the OVERWEIGHT
  *   ERROR: production stops and offers ErrClr&Stop or ErrClr&Rst (Rst dumps
  *   a few weigh hoppers, re-feeds them and restarts).
- * - A WH past target + upper limit is an OVERSCALE: dumped on its own and
- *   marked with the red X for that cycle.
+ * - The weigher never dumps exactly the target: the window is target +
+ *   0.3 g up to target + upper limit + 0.3 g (90.3 to 93.3 g on this preset).
+ * - A WH past that ceiling is the OVERSCALE ERROR: production stops, the
+ *   dialog offers the same two keys, and clearing it dumps the hopper.
  *
  * With the default settings (25.0 / 50.0 on every feeder, DF at 500 g, a
  * 90 g target at 80 wpm) the numbers balance: about a quarter of the target
@@ -46,8 +48,9 @@ export function initialProcess(inputs, spec) {
     combo: [],
     weight: null,
     overMisses: 0,
-    overscale: [],           // heads dumped this cycle for being past target + upper
-    error: null,             // null | 'overweight'
+    overscale: [],           // heads past target + upper this cycle (the error)
+    error: null,             // null | 'overweight' | 'overscale'
+    errorInfo: null,         // for overscale: { no, weight, limit }
     log: [],                 // last few cycle results, newest last
   };
 }
@@ -57,8 +60,9 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 /** The lightest combination not under target, inside the upper limit. */
 export function bestCombination(wh, active, target, upper, lower, size) {
   const heads = active.filter((no) => wh[no - 1] > 0);
-  const lo = lower === null || lower === undefined ? target : target - lower;
-  const hi = target + upper;
+  const minOver = size.minOver ?? 0;
+  const lo = lower === null || lower === undefined ? target + minOver : target - lower;
+  const hi = target + upper + minOver;
   let best = null;
   let lightestAbove = Infinity;     // the lightest combination that reaches target at all
   const n = heads.length;
@@ -125,10 +129,21 @@ export function stepProcess(state, inputs, spec, rnd = Math.random) {
     if (s.wh[i] === 0 && s.ph[i] > 0) { s.wh[i] = s.ph[i]; s.ph[i] = 0; }
   }
 
-  // 5. Overscale: a weigh hopper past target + upper limit is dumped.
+  // 5. Overscale: a weigh hopper past target + upper limit (+ the 0.3 the
+  //    weigher never dumps under) is the error; production stops here.
+  const ceiling = inputs.target + inputs.upper + (spec.combo.minOver ?? 0);
   for (const no of active) {
     const i = no - 1;
-    if (s.wh[i] > inputs.target + inputs.upper) { s.overscale.push(no); s.wh[i] = 0; }
+    if (s.wh[i] > ceiling) s.overscale.push(no);
+  }
+  if (s.overscale.length && !s.error) {
+    const no = s.overscale.reduce((a, b) => (s.wh[b - 1] > s.wh[a - 1] ? b : a));
+    s.error = 'overscale';
+    s.errorInfo = { no, weight: round1(s.wh[no - 1]), limit: round1(ceiling) };
+    s.result = 'idle';
+    s.combo = [];
+    s.log = [...s.log.slice(-9), 'overscale'];
+    return s;
   }
 
   // 6. The combination.
@@ -150,14 +165,23 @@ export function stepProcess(state, inputs, spec, rnd = Math.random) {
   return s;
 }
 
-/** ErrClr&Rst: dump the heaviest few weigh hoppers so they re-feed, and go on. */
+/** ErrClr&Rst: an overweight error dumps the heaviest few weigh hoppers so
+ *  they re-feed; an overscale error dumps the hopper that was over. */
 export function clearAndRestart(state) {
-  const order = state.wh.map((w, i) => [w, i]).sort((a, b) => b[0] - a[0]).slice(0, 3);
   const wh = [...state.wh];
-  for (const [, i] of order) wh[i] = 0;
-  return { ...state, wh, error: null, overMisses: 0, result: 'idle', combo: [], weight: null };
+  if (state.error === 'overscale') {
+    for (const no of state.overscale) wh[no - 1] = 0;
+  } else {
+    const order = state.wh.map((w, i) => [w, i]).sort((a, b) => b[0] - a[0]).slice(0, 3);
+    for (const [, i] of order) wh[i] = 0;
+  }
+  return { ...state, wh, overscale: [], error: null, errorInfo: null, overMisses: 0, result: 'idle', combo: [], weight: null };
 }
 
-/** ErrClr&Stop: the error goes, the product stays where it is. */
-export const clearAndStop = (state) => ({ ...state, error: null, overMisses: 0, result: 'idle', combo: [] });
+/** ErrClr&Stop: the error goes; an overscale hopper is still dumped, the rest stays. */
+export function clearAndStop(state) {
+  const wh = [...state.wh];
+  if (state.error === 'overscale') for (const no of state.overscale) wh[no - 1] = 0;
+  return { ...state, wh, overscale: [], error: null, errorInfo: null, overMisses: 0, result: 'idle', combo: [] };
+}
 

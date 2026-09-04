@@ -1029,7 +1029,11 @@ export default function Rcu({
               return (
                 <div className="err-dialog" style={rectStyle(d)} role="alertdialog" aria-label={e.title}>
                   <div className="err-dialog__title">{e.title}</div>
-                  <div className="err-dialog__text">{e.text}</div>
+                  <div className="err-dialog__text">
+                    {process.errorInfo
+                      ? e.text.replace('{where}', `Weigh hopper ${process.errorInfo.no} holds ${process.errorInfo.weight.toFixed(1)} g`).replace('{limit}', process.errorInfo.limit.toFixed(1))
+                      : e.text}
+                  </div>
                   <div className="err-dialog__keys">
                     <button type="button" className="err-key err-key--stop" onClick={() => onTap({ type: 'error-clear', restart: false })}>
                       <i /><span>ErrClr&amp;Stop</span>

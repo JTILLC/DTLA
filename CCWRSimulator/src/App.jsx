@@ -437,9 +437,14 @@ export default function App() {
          hoppers and restarts; ErrClr&Stop clears and stays stopped. */
       setProcess((p) => (p ? (evt.restart ? clearAndRestart(p) : clearAndStop(p)) : p));
       if (evt.restart) setFlags((f) => ({ ...f, running: true }));
+      const overscale = process?.error === 'overscale';
       showNotice(evt.restart
-        ? 'Error cleared and restarted: the heaviest weigh hoppers were dumped and re-fed. Turn the DF target weight or the feeders down or it will happen again.'
-        : 'Error cleared, production stopped. Turn the DF target weight or the feeders down before restarting.');
+        ? (overscale
+          ? `Error cleared and restarted: weigh hopper ${process.errorInfo?.no} was dumped. Turn that radial feeder's time or amplitude down or it will overscale again.`
+          : 'Error cleared and restarted: the heaviest weigh hoppers were dumped and re-fed. Turn the DF target weight or the feeders down or it will happen again.')
+        : (overscale
+          ? `Error cleared, production stopped: weigh hopper ${process.errorInfo?.no} was dumped. Turn the feeder down before restarting.`
+          : 'Error cleared, production stopped. Turn the DF target weight or the feeders down before restarting.'));
       return;
     }
     if (evt.type === 'machine-option') {
