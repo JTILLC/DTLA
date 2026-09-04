@@ -23,13 +23,20 @@ export const migrateStores = (saved, spec) => {
 
 export const initialPick = () => ({ src: null, dst: null });
 
+/** A tap on a row picks it, or clears it if it was picked; a tap on a source
+ *  row after All Select picks that row alone. */
 export const pickRow = (pick, side, no) => ({ ...pick, [side]: pick[side] === no ? null : no });
 
-export const canCopy = (pick) => Boolean(pick.src && pick.dst);
+/** All Select: every source row, to be written across slot for slot. */
+export const ALL = 'all';
+export const selectAll = (pick) => (pick.src === ALL ? { ...pick, src: null } : { src: ALL, dst: null });
+
+export const canCopy = (pick) => pick.src === ALL || Boolean(pick.src && pick.dst);
 
 /** Yes on the confirm: the source is written into the destination slot. */
 export function copyItem(stores, pick, srcStore, dstStore) {
   if (!canCopy(pick)) return stores;
+  if (pick.src === ALL) return { ...stores, [dstStore]: [...stores[srcStore]] };
   const name = stores[srcStore][pick.src - 1];
   const dst = [...stores[dstStore]];
   dst[pick.dst - 1] = name;
@@ -49,6 +56,9 @@ export const migrateManagers = (saved, specs) => Object.fromEntries(
     pick: initialPick(),
   }]),
 );
+
+/** Leaving the tab puts its stores and picks back to their defaults. */
+export const resetManager = (spec) => ({ stores: initialStores(spec), pick: initialPick() });
 
 /** Which manager a screen (or one of its pop-ups) belongs to. */
 export const managerOf = (specs, screens, slug) => {

@@ -12,7 +12,7 @@ import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
 import { toggleDeactivated } from './utils/production';
-import { initialManagers, migrateManagers, managerOf, pickRow, canCopy, copyItem, wipeMemory, initialPick } from './utils/presetManager';
+import { initialManagers, migrateManagers, managerOf, pickRow, canCopy, copyItem, wipeMemory, initialPick, selectAll, resetManager, ALL } from './utils/presetManager';
 import { initialTiming, migrateTiming, selectRow, setSection, setDthPick, ensureVisible, rowOf, rowLabel,
   current as timingCurrent, step as timingStep, enter as timingEnter } from './utils/timing';
 
@@ -186,6 +186,15 @@ export default function App() {
     // the program does not reload the presets after a Copy or a list pick.
     const fromOwnState = navmap.screens[screen]?.parent === to;
     const dest = (!fromOwnState && navmap.screens[to]?.onEnter) || to;
+    // Leaving a copy manager's tab (not just opening one of its pop-ups)
+    // puts its stores, picks and Memory/Card choices back to their defaults.
+    const leaving = managerOf(navmap.copyManagers, navmap.screens, screen);
+    if (leaving && leaving !== managerOf(navmap.copyManagers, navmap.screens, to)) {
+      const spec = navmap.copyManagers[leaving];
+      setManagers((m) => ({ ...m, [leaving]: resetManager(spec) }));
+      const fresh = initialFlags();
+      setFlags((f) => ({ ...f, [spec.flags.src]: fresh[spec.flags.src], [spec.flags.dst]: fresh[spec.flags.dst] }));
+    }
     setHistory((h) => [...h.slice(-49), screen]);
     setScreen(dest);
     setOpenDrawer(null);
@@ -520,7 +529,16 @@ export default function App() {
     if (evt.requiresPick && !canCopy(managers[evt.requiresPick].pick)) {
       const what = navmap.copyManagers[evt.requiresPick].what;
       setWrongFlash((n) => n + 1);
-      showNotice(`Copy needs a source row (left) and a destination row (right) first. The source is where the ${what} is read from; the destination is where it is written.`);
+      showNotice(`Copy needs a source row (left) and a destination row (right) first, or All Select. The source is where the ${what} is read from; the destination is where it is written.`);
+      return;
+    }
+    if (evt.action === 'all-select') {
+      const mgr = managerOf(navmap.copyManagers, navmap.screens, screen);
+      const next = selectAll(managers[mgr].pick);
+      setManagers((m) => ({ ...m, [mgr]: { ...m[mgr], pick: next } }));
+      showNotice(next.src === ALL
+        ? 'Every Source row selected. Copy now writes all ten slots onto the Destination side, slot for slot.'
+        : 'All Select cleared.');
       return;
     }
     if (evt.action === 'copy-write' || evt.action === 'copy-init') {
@@ -530,10 +548,16 @@ export default function App() {
       const srcStore = flags[spec.flags.src];
       const dstStore = flags[spec.flags.dst];
       if (evt.action === 'copy-write') {
-        const name = stores[srcStore][pick.src - 1];
         setManagers((m) => ({ ...m, [mgr]: { ...m[mgr], stores: copyItem(stores, pick, srcStore, dstStore) } }));
-        showNotice(`Copied ${name ? `"${name}"` : `the empty ${spec.what}`} from ${spec.stores[srcStore]} slot ${pick.src} to ${spec.stores[dstStore]} slot ${pick.dst}`
-          + (name ? '.' : ` — the slot is now empty. That is how a ${spec.what} is removed on the machine.`));
+        if (pick.src === ALL) {
+          showNotice(srcStore === dstStore
+            ? `All ten ${spec.stores[srcStore]} slots copied onto themselves — nothing changes.`
+            : `All ten slots copied from ${spec.stores[srcStore]} to ${spec.stores[dstStore]}, slot for slot.`);
+        } else {
+          const name = stores[srcStore][pick.src - 1];
+          showNotice(`Copied ${name ? `"${name}"` : `the empty ${spec.what}`} from ${spec.stores[srcStore]} slot ${pick.src} to ${spec.stores[dstStore]} slot ${pick.dst}`
+            + (name ? '.' : ` — the slot is now empty. That is how a ${spec.what} is removed on the machine.`));
+        }
       } else {
         setManagers((m) => ({ ...m, [mgr]: { stores: wipeMemory(stores), pick: initialPick() } }));
         showNotice('Memory initialised: every Memory slot is empty. The Card keeps what it holds.');

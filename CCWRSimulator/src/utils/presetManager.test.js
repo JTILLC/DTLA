@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import navmap from '../data/navmap.json';
 import {
   initialStores, migrateStores, initialPick, pickRow, canCopy, copyItem, wipeMemory,
-  initialManagers, migrateManagers, managerOf,
+  initialManagers, migrateManagers, managerOf, selectAll, resetManager, ALL,
 } from './presetManager';
 
 const specs = navmap.copyManagers;
@@ -53,6 +53,27 @@ describe('the copy managers', () => {
     expect(p.memory.every((v) => v === '')).toBe(true);
     expect(p.card[0]).toBe('POTATO CHIPS');
     expect(migrateStores({ memory: ['A'] }, preset).memory[0]).toBe('POTATO CHIPS');
+  });
+
+  it('All Select turns every source row blue and Copy writes all ten slots across', () => {
+    let pick = selectAll(initialPick());
+    expect(pick.src).toBe(ALL);
+    expect(canCopy(pick)).toBe(true);
+    const m = copyItem(initialStores(machine), pick, 'memory', 'card');
+    expect(m.card).toEqual(m.memory);
+    expect(m.card[7]).toBe('');
+    // a row tapped after All Select picks that row alone; All Select again clears
+    expect(pickRow(pick, 'src', 3).src).toBe(3);
+    expect(selectAll(pick).src).toBeNull();
+    // and the same store as source and destination changes nothing
+    expect(copyItem(initialStores(preset), pick, 'memory', 'memory')).toEqual(initialStores(preset));
+  });
+
+  it('leaving the tab resets it', () => {
+    const changed = copyItem(initialStores(preset), { src: 1, dst: 3 }, 'memory', 'memory');
+    expect(changed.memory[2]).toBe('POTATO CHIPS');
+    expect(resetManager(preset).stores.memory[2]).toBe('');
+    expect(resetManager(preset).pick).toEqual({ src: null, dst: null });
   });
 
   it('each manager keeps its own stores and picks, and its pop-ups map back to it', () => {

@@ -3283,9 +3283,9 @@
      "y": 292,
      "w": 82,
      "h": 64,
-     "action": "inert",
      "label": "All Select",
-     "note": "All Select: pressed on the running program it did nothing visible, so it does nothing here either."
+     "note": "All Select: every Source row goes blue, and Copy then writes all ten slots onto the Destination side, slot for slot (on the running program the key did nothing visible; this is how it is meant to work).",
+     "action": "all-select"
     }
    ],
    "onEnter": "display-preset@loading"
@@ -3393,9 +3393,9 @@
      "y": 292,
      "w": 82,
      "h": 64,
-     "action": "inert",
      "label": "All Select",
-     "note": "All Select: inert on the running program, so it does nothing here either."
+     "note": "All Select: every Source row goes blue, and Copy then writes all ten slots onto the Destination side, slot for slot (on the running program the key did nothing visible; this is how it is meant to work).",
+     "action": "all-select"
     }
    ]
   },
@@ -15453,7 +15453,7 @@
     ]
    },
    "what": "preset",
-   "note": "Seen on the running program: the tab opens on \"Loading preset data\" (about four seconds there; one second here), Source and Destination each have a Memory / Card list behind their arrow key, a tap on a row in each table picks the copy source and the copy destination, and the Copy key, now showing both numbers, asks \"Performs copying of preset contents from copy source to copy destination.\" - Yes writes the source preset into the destination slot. All Select did nothing on the program. The program's Memory / Card pick closes the list without changing the field; here the field follows the pick and the Card holds its own ten slots. An empty source copied over a slot empties it - that is how a preset is removed on the machine."
+   "note": "Seen on the running program: the tab opens on \"Loading preset data\" (about four seconds there; one second here), Source and Destination each have a Memory / Card list behind their arrow key, a tap on a row in each table picks the copy source and the copy destination, and the Copy key, now showing both numbers, asks \"Performs copying of preset contents from copy source to copy destination.\" - Yes writes the source preset into the destination slot. The program's Memory / Card pick closes the list without changing the field; here the field follows the pick and the Card holds its own ten slots. An empty source copied over a slot empties it - that is how a preset is removed on the machine. All Select turns every Source row blue and Copy then writes all ten slots across. Leaving the tab puts both stores back to their defaults."
   },
   "machine": {
    "tables": {
@@ -15553,7 +15553,7 @@
     ]
    },
    "what": "setting group",
-   "note": "The program's Machine Set Mngr is inert - nothing on it responded - so it behaves here as the Preset Manager does (Service 4.4.2.2: it moves machine-setting data between the weigher's memory and the memory card). Memory holds the ten setting groups; the Card starts empty; Source is where a group is read from and Destination where it is written; Copy asks first. An empty source copied over a slot empties it."
+   "note": "The program's Machine Set Mngr is inert - nothing on it responded - so it behaves here as the Preset Manager does (Service 4.4.2.2: it moves machine-setting data between the weigher's memory and the memory card). Memory holds the ten setting groups; the Card starts empty; Source is where a group is read from and Destination where it is written; Copy asks first. An empty source copied over a slot empties it. All Select turns every Source row blue and Copy then writes all ten slots across. Leaving the tab puts both stores back to their defaults."
   }
  }
 }

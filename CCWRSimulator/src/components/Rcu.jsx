@@ -939,7 +939,7 @@ export default function Rcu({
                   {Array.from({ length: pm.tables.rows }, (_, i) => {
                     const no = i + 1;
                     const name = presets[stores[side]][i];
-                    const picked = presetPick[side] === no;
+                    const picked = presetPick[side] === no || (side === 'src' && presetPick.src === 'all');
                     return (
                       <button
                         key={no}
@@ -956,12 +956,12 @@ export default function Rcu({
                   })}
                 </React.Fragment>
               ))}
-              {presetPick.src && presetPick.dst && (
+              {(presetPick.src === 'all' || (presetPick.src && presetPick.dst)) && (
                 <>
                   <img className="key-lit key-lit--overlay" src={`/${pm.copyKey.live}`} alt="" style={rectStyle(pm.copyKey)} />
                   {['src', 'dst'].map((side) => (
                     <span key={side} className="pm-number" style={{ ...rectStyle(pm.copyKey.numbers[side]), fontSize: fontPx(pm.copyKey.textPx) }} aria-hidden="true">
-                      {presetPick[side]}
+                      {presetPick.src === 'all' ? 'All' : presetPick[side]}
                     </span>
                   ))}
                 </>
