@@ -17344,20 +17344,26 @@
   "note": "A process model behind the Live toggle, built from Josh's \"Running the CCW-R\" and the Operation Manual. Product on the dispersion table (held at the DF target weight by the infeed) is thrown out to the fourteen radial feeders in proportion to the DF time and amplitude; each radial feeder doses its pool hopper in proportion to its own time and amplitude, more when product has piled up on it; the pool hopper drops into the weigh hopper as soon as it is empty; every cycle the lightest combination not under target (and inside the upper limit) is discharged. No combination in range is a missed cycle: 0.0 g with a red dash when there was not enough product, a yellow dash when every combination was over; four overweight misses in a row is the Overweight error, which stops production and offers ErrClr&Stop or ErrClr&Rst. A weigh hopper past target plus upper limit is the Overscale error: production stops, and clearing it dumps that hopper.",
   "cycleMsAt80wpm": 750,
   "df": {
-   "outFrac": 0.18,
-   "infeedFrac": 1.0
+   "outFrac": 0.3,
+   "infeedFrac": 1.0,
+   "minFeed": 0.3,
+   "idealRatio": 3.33,
+   "note": "Field rule (Josh): about three times the target weight on the dispersion table - 300 g for a 90 g target. The model throws off 30% of the DF load per cycle at 25.0 / 50.0, so 300 g feeds one target per cycle and balances; the program's default of 500 g feeds two thirds more than the heads take away, piles product on the troughs and floods the hoppers within a few dozen cycles. Below a feed factor of 0.3 (amplitude x time against 50 x 25) the pan does not move product at all."
   },
   "rf": {
    "doseFrac": 0.25,
    "pileGain": 0.5,
    "pileNominal": 3.0,
-   "noise": 0.25
+   "noise": 0.25,
+   "minFeed": 0.3,
+   "note": "A radial feeder doses about a quarter of the target at 25.0 / 50.0, in proportion to its time and amplitude; below a feed factor of 0.3 it does not move product and its pool hopper stays empty. Product piled on the trough pushes more into the hopper."
   },
   "combo": {
    "min": 2,
    "max": 6,
    "minOver": 0.3,
-   "note": "The weigher never dumps exactly the target: on a 90 g target the lightest dump is 90.3 g, and with a 3 g upper limit the heaviest is 93.3 g."
+   "note": "The weigher never dumps exactly the target: on a 90 g target the lightest dump is 90.3 g, and with a 3 g upper limit the heaviest is 93.3 g.",
+   "overHeads": 3
   },
   "missesToError": 4,
   "weightDisplay": {

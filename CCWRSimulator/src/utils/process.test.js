@@ -5,7 +5,7 @@ import { initialProcess, stepProcess, bestCombination, clearAndRestart, HEADS } 
 const spec = navmap.process;
 const seeded = (seed) => () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
 const rf = (time, amp) => Object.fromEntries(Array.from({ length: HEADS }, (_, i) => [i + 1, { time, amp }]));
-const base = { target: 90, upper: 3, lower: null, dfTargetWt: 500, dfTime: 25, dfAmp: 50, rf: rf(25, 50), deactivated: [], infeed: true };
+const base = { target: 90, upper: 3, lower: null, dfTargetWt: 300, dfTime: 25, dfAmp: 50, rf: rf(25, 50), deactivated: [], infeed: true };
 
 const run = (inputs, cycles, seed = 7) => {
   let s = initialProcess(inputs, spec);
@@ -16,14 +16,14 @@ const run = (inputs, cycles, seed = 7) => {
 };
 
 describe('the process model', () => {
-  it('runs clean on the default settings: combinations near target, no misses once fed', () => {
+  it('runs clean with three times the target on the DF: combinations near target, no misses once fed', () => {
     const { s, results } = run(base, 40);
     const settled = results.slice(10);
     expect(settled.filter((r) => r === 'ok').length).toBeGreaterThan(settled.length * 0.8);
     expect(s.weight).toBeGreaterThanOrEqual(90.3);      // never exactly the target
     expect(s.weight).toBeLessThanOrEqual(93.3);         // upper limit + the same 0.3
     expect(s.error).toBeNull();
-    expect(s.df).toBeGreaterThan(400);
+    expect(s.df).toBeGreaterThan(150);
   });
 
   it('a weigh hopper holds about a quarter of the target, four heads to a combination', () => {
@@ -40,8 +40,25 @@ describe('the process model', () => {
     expect(s.error).toBe('overweight');
   });
 
+  it("the program's 500 g DF default floods a 90 g target within a few dozen cycles, 300 g does not", () => {
+    const five = run({ ...base, dfTargetWt: 500 }, 120);
+    expect(five.s.error).toBeTruthy();
+    expect(five.s.cycle).toBeGreaterThan(8);          // not at once: the trainee has time to see it coming
+    expect(run({ ...base, dfTargetWt: 300 }, 120).s.error).toBeNull();
+  });
+
+  it('too little time and amplitude feed nothing: pool hoppers stay empty and every cycle misses under', () => {
+    const { s, results } = run({ ...base, rf: rf(12, 30) }, 30);     // factor 0.29, under the threshold
+    expect(results.filter((r) => r === 'under').length).toBeGreaterThan(20);
+    // nothing moved off the troughs: they only piled up
+    const primed = initialProcess(base, spec).tray[0];
+    expect(s.tray.every((t) => t > primed)).toBe(true);
+    const dfOff = run({ ...base, dfTime: 10, dfAmp: 40 }, 30);        // the DF pan does not move product either
+    expect(dfOff.results.filter((r) => r === 'under').length).toBeGreaterThan(15);
+  });
+
   it('a DF target set far too high forces product into the hoppers and overloads them', () => {
-    const clean = run({ ...base, dfTargetWt: 500 }, 60);
+    const clean = run({ ...base, dfTargetWt: 300 }, 60);
     const heavy = run({ ...base, dfTargetWt: 4000 }, 60);
     const mean = (st) => st.wh.filter((w) => w > 0).reduce((a, b) => a + b, 0) / Math.max(1, st.wh.filter((w) => w > 0).length);
     expect(mean(heavy.s)).toBeGreaterThan(mean(clean.s));

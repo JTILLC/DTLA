@@ -428,7 +428,7 @@ export default function App() {
       if (on) setProcess(initialProcess(inputsRef.current, navmap.process));
       else setProcess(null);
       showNotice(on
-        ? 'Live: product now moves through the weigher. The DF target weight and every feeder\'s time and amplitude set how much product reaches the hoppers; the Weight Display shows it, the Combination tab picks from it, and too much or too little product misses cycles the way the machine does.'
+        ? `Live: product now moves through the weigher. For a ${inputsRef.current.target.toFixed(0)} g target you want about ${Math.round(inputsRef.current.target * navmap.process.df.idealRatio / 10) * 10} g on the DF — the DF target is ${inputsRef.current.dfTargetWt} g now. Too much floods the hoppers, too little starves them; a feeder set too low moves nothing at all.`
         : 'Live off: Production plays its plain animation again.');
       return;
     }
