@@ -40,6 +40,7 @@ export default function Rcu({
   typed,          // what is typed on an open keypad
   timing,         // Timing Adjustment: selected row + values (utils/timing.js)
   machineOptions, // which units the machine has: {bh, th, dth}
+  deactivated,    // Production: heads switched off by a tap while stopped
   blink,          // the ? key: every pressable key blinks
 }) {
   const { w: CW, h: CH } = navmap.canvas;
@@ -163,7 +164,7 @@ export default function Rcu({
         <img
           className="rcu-screen"
           src={`/${imageFor()}`}
-          style={(zaHere || faScreen?.labelMap) ? { visibility: 'hidden' } : undefined}
+          style={(zaHere || faScreen?.labelMap || navmap.production?.screen === slug) ? { visibility: 'hidden' } : undefined}
           alt={slug}
           draggable={false}
         />
@@ -907,7 +908,15 @@ export default function Rcu({
         {/* Production's Combination screen, running: the combination badges,
             the readout and the scrolling legend (components/ProductionRing). */}
         {navmap.production && navmap.production.screen === slug && (
-          <ProductionRing spec={navmap.production} running={Boolean(flags?.running)} rectStyle={rectStyle} pct={pct} CW={CW} />
+          <ProductionRing
+            spec={navmap.production}
+            running={Boolean(flags?.running)}
+            deactivated={deactivated}
+            onTapHead={(no) => onTap({ type: 'head-deactivate', no })}
+            rectStyle={rectStyle}
+            CW={CW}
+            showHotspots={showHotspots}
+          />
         )}
 
         {/* Values the artwork cannot change, written over it: a field's

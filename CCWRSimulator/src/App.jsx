@@ -11,6 +11,7 @@ import LessonPanel from './components/LessonPanel';
 import ScreenIndex from './components/ScreenIndex';
 import { drawers, drawerScreens, conditionsMet } from './utils/navGraph';
 import { initialFlags, applySets, toggleFlag, REQUIRE_MESSAGES } from './utils/machineState';
+import { toggleDeactivated } from './utils/production';
 import { initialTiming, migrateTiming, selectRow, setSection, setDthPick, ensureVisible, rowOf, rowLabel,
   current as timingCurrent, step as timingStep, enter as timingEnter } from './utils/timing';
 
@@ -77,6 +78,10 @@ export default function App() {
   const [timing, setTiming] = useState(
     () => (saved.timing ? migrateTiming(saved.timing, navmap.timingAdjust)
       : initialTiming(navmap.timingAdjust)));
+  /* Production: heads deactivated by a tap on the Combination screen while
+     stopped. They go grey with a yellow star and never join a combination. */
+  const [deactivated, setDeactivated] = useState(
+    () => (Array.isArray(saved.deactivated) ? saved.deactivated : []));
   const zeroTimer = useRef(null);
   const [powerBusy, setPowerBusy] = useState(false); // the "Please wait" pop-up
   /* The machine's state beyond power: access level, running or stopped,
@@ -133,14 +138,14 @@ export default function App() {
         JSON.stringify({
           screen, mode, showHotspots,
           activeLessonId, stepIndex, progress, completed, powerOn, loadedPreset,
-          selection, feeder, flags, timing,
+          selection, feeder, flags, timing, deactivated,
         })
       );
     } catch {
       /* storage full/unavailable: keep running */
     }
   }, [screen, mode, showHotspots, activeLessonId, stepIndex, progress, completed,
-      powerOn, loadedPreset, selection, feeder, flags, timing]);
+      powerOn, loadedPreset, selection, feeder, flags, timing, deactivated]);
 
   /* A lesson step always happens on its own screen. */
   useEffect(() => {
@@ -361,6 +366,22 @@ export default function App() {
       return;
     }
 
+    if (evt.type === 'head-deactivate') {
+      /* Stopped, a tap deactivates a head or brings it back; running, the
+         program ignores the hoppers, so say what to do. */
+      if (flags.running) {
+        setWrongFlash((n) => n + 1);
+        showNotice('Press Stop first, then tap the head to deactivate it. Tap a deactivated head, stopped, to bring it back.');
+        return;
+      }
+      const next = toggleDeactivated(deactivated, evt.no);
+      setDeactivated(next);
+      showNotice(next.includes(evt.no)
+        ? `Head ${evt.no} deactivated — grey with a yellow star, and left out of every combination. Stopped, tap it again to bring it back.`
+        : `Head ${evt.no} back online.`);
+      return;
+    }
+
     if (evt.type === 'feeder-deselect') {
       /* The trainer's Deselect key: head 1 alone, on the radial feeders. */
       setFeeder((f) => selectFeeder(f, 'rf'));
@@ -561,7 +582,7 @@ export default function App() {
     if (evt.type === 'nav') navigate(evt.to);
   }, [powerBusy, powerOn, togglePower, showNotice, lessonActive, step, navigate,
       advanceLesson, selection, loadedPreset, freeMode, zeroing, setWrongFlash, feeder,
-      applySelection, flags, typed, timing]);
+      applySelection, flags, typed, timing, deactivated]);
 
   const startLesson = useCallback((id, at) => {
     setActiveLessonId(id);
@@ -694,6 +715,7 @@ export default function App() {
           typed={typed}
           timing={timing}
           machineOptions={{ bh: flags.optBH, th: flags.optTH, dth: flags.optDTH }}
+          deactivated={deactivated}
           blink={blink}
           zeroing={zeroing}
           notice={notice}

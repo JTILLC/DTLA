@@ -15007,7 +15007,7 @@
   "legend": {
    "x": 22,
    "y": 406,
-   "w": 368,
+   "w": 376,
    "h": 17,
    "textPx": 9,
    "items": [
@@ -15051,7 +15051,15 @@
    3,
    5
   ],
-  "note": "Watched on the running program (20 frames at 240 ms): every cycle a combination of hoppers gets the filled Selected badge and the readout shows that combination weight near target; now and then a hopper shows the cyan triangle (Auto Zero) or the red dash (Empty) instead of its number; the hoppers themselves stay blue; the legend strip along the bottom scrolls. The badge positions were measured off the screenshot."
+  "note": "Watched on the running program (20 frames at 240 ms): every cycle a combination of hoppers gets the filled Selected badge and the readout shows that combination weight near target; now and then a hopper shows the cyan triangle (Auto Zero) or the red dash (Empty) instead of its number; the hoppers themselves stay blue; the legend strip along the bottom scrolls. The badge positions were measured off the screenshot.",
+  "ring": [
+   40,
+   140,
+   395,
+   400
+  ],
+  "labelMap": "masks/run-combination-heads.png",
+  "baseImage": "screens/run-combination.jpg"
  },
  "levelDots": {
   "x": 568,
