@@ -109,7 +109,8 @@ export function stepProcess(state, inputs, spec, rnd = Math.random) {
   // 2. The DF throws product out to the radial feeders - nothing at all
   //    below the feed threshold, where the pan does not move product.
   const dfFactor = (inputs.dfAmp / 50) * (inputs.dfTime / 25);
-  const dfOut = dfFactor < (spec.df.minFeed ?? 0) ? 0 : s.df * spec.df.outFrac * dfFactor;
+  const dfMoving = dfFactor >= (spec.df.minFeed ?? 0);
+  const dfOut = dfMoving ? s.df * spec.df.outFrac * dfFactor : 0;
   s.df = Math.max(0, s.df - dfOut);
   for (const no of active) s.tray[no - 1] += dfOut / active.length;
 
@@ -128,7 +129,7 @@ export function stepProcess(state, inputs, spec, rnd = Math.random) {
     // which the infeed then makes up - that is how a hot feeder overloads
     // its hopper while the DF target stays where it is.
     const fromTray = Math.min(dose, s.tray[i]);
-    const fromDf = Math.min(dose - fromTray, s.df / active.length);
+    const fromDf = dfMoving ? Math.min(dose - fromTray, s.df / active.length) : 0;
     dose = fromTray + fromDf;
     s.tray[i] -= fromTray;
     s.df -= fromDf;

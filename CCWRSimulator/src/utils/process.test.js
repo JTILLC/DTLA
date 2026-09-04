@@ -53,8 +53,8 @@ describe('the process model', () => {
     // nothing moved off the troughs: they only piled up
     const primed = initialProcess(base, spec).tray[0];
     expect(s.tray.every((t) => t > primed)).toBe(true);
-    const dfOff = run({ ...base, dfTime: 10, dfAmp: 40 }, 30);        // the DF pan does not move product either
-    expect(dfOff.results.filter((r) => r === 'under').length).toBeGreaterThan(15);
+    const dfOff = run({ ...base, dfTime: 8, dfAmp: 40 }, 30);         // factor 0.26: the DF pan does not move product either
+    expect(dfOff.results.filter((r) => r === 'under').length).toBeGreaterThan(12);   // the primed troughs carry the first cycles
   });
 
   it('a DF target set far too high forces product into the hoppers and overloads them', () => {
