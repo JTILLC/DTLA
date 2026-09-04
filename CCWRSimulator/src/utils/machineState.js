@@ -33,7 +33,6 @@ export const initialFlags = () => ({
   machDstStore: 'card',
   destId: 'printer',   // Control Panel > Destination ID: Printer / CF/USB / E-mail
   language: 'English', // Control Panel > LangSlct Set
-  passwords: {},       // Control Panel > Password Set: level -> password (unset = the default 123)
 });
 
 export const applySets = (flags, sets) => {

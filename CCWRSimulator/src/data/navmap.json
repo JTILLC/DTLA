@@ -14392,7 +14392,7 @@
    "captured": true,
    "label": "Control Panel — set the Site Engineer password (keyboard)",
    "image": "captured/pw-site-engineer.jpg",
-   "note": "Seen on the running program: the Site Engineer row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "note": "Seen on the running program: the Site Engineer row opens the keyboard with the level's name in the field; type the new password and Enter. Here the entry is played but never kept: the login always wants 1 2 3, so a trainee cannot lock the trainer out.",
    "keypad": {
     "field": {
      "x": 183,
@@ -14792,7 +14792,7 @@
    "captured": true,
    "label": "Control Panel — set the Installation password (keyboard)",
    "image": "captured/pw-installation.jpg",
-   "note": "Seen on the running program: the Installation row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "note": "Seen on the running program: the Installation row opens the keyboard with the level's name in the field; type the new password and Enter. Here the entry is played but never kept: the login always wants 1 2 3, so a trainee cannot lock the trainer out.",
    "keypad": {
     "field": {
      "x": 183,
@@ -15192,7 +15192,7 @@
    "captured": true,
    "label": "Control Panel — set the Maintenance password (keyboard)",
    "image": "captured/pw-maintenance.jpg",
-   "note": "Seen on the running program: the Maintenance row opens the keyboard with the level's name in the field; type the new password and Enter. Here the password is kept and the key icon's login for that level then wants it (the factory password is 1 2 3).",
+   "note": "Seen on the running program: the Maintenance row opens the keyboard with the level's name in the field; type the new password and Enter. Here the entry is played but never kept: the login always wants 1 2 3, so a trainee cannot lock the trainer out.",
    "keypad": {
     "field": {
      "x": 183,
@@ -17335,6 +17335,6 @@
    "3": "Installation",
    "4": "Maintenance"
   },
-  "note": "The Operation Manual gives 1 2 3 as the Maintenance password; the demo accepts it for every level. Control Panel > Password Set lets each level's password be changed, and the key-icon login for that level then wants the new one."
+  "note": "The Operation Manual gives 1 2 3 as the Maintenance password; the demo accepts it for every level. Control Panel > Password Set plays the entry of a new one, but the simulator never keeps it - the login always wants 1 2 3, so a trainee cannot lock the trainer out."
  }
 }

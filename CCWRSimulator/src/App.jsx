@@ -527,16 +527,14 @@ export default function App() {
       // The keyboard commits the level that was picked on the list. 123 is the
       // Maintenance password from the Operation Manual; the demo accepts it
       // for every level, and rejects an empty entry.
-      const want = flags.passwords?.[flags.pendingLevel || flags.level] ?? navmap.passwords.default;
+      const want = navmap.passwords.default;
       if (typed && typed === want) {
         setFlags((f) => ({ ...f, level: f.pendingLevel || f.level, pendingLevel: null }));
         showNotice('Access level set. Maintenance shows four yellow dots, and the Main Menu gains the Preset key and the Machine Set drawer.');
         navigate('main-menu');
       } else {
         setWrongFlash((n) => n + 1);
-        showNotice(typed
-          ? (want === navmap.passwords.default ? 'Wrong password. The factory password is 1 2 3.' : 'Wrong password. This level\'s password was changed on Control Panel > Password Set.')
-          : 'Enter the password first — an empty entry is rejected.');
+        showNotice(typed ? 'Wrong password. The password is 1 2 3.' : 'Enter the password first — an empty entry is rejected.');
       }
       return;
     }
@@ -623,14 +621,13 @@ export default function App() {
     }
     if (evt.action === 'enter' || evt.action === 'cancel') {
       if (evt.action === 'enter' && String(evt.commit || '').startsWith('password:')) {
+        /* The entry is played, not kept: a trainee must never lock the
+           trainer out, so the login keeps wanting 1 2 3. */
         const level = evt.commit.split(':')[1];
         const name = navmap.passwords.levels[level];
-        if (typed) {
-          setFlags((f) => ({ ...f, passwords: { ...(f.passwords || {}), [level]: typed } }));
-          showNotice(`${name} password set. The key-icon login for ${name} now wants it.`);
-        } else {
-          showNotice(`Nothing entered — the ${name} password is unchanged.`);
-        }
+        showNotice(typed
+          ? `${name} password entered. On the real unit that is now the ${name} password; the simulator keeps 1 2 3 so nobody is locked out.`
+          : `Nothing entered — the ${name} password is unchanged.`);
         navigate(evt.to);
         return;
       }
